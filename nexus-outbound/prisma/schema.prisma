@@ -1,0 +1,397 @@
+// Nexus Outbound — Prisma Schema
+// Enhanced with: SuppressedEmail, timezone-aware leads, template versioning,
+// lead scoring, A/B test support, warmup tracking
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  MASTER
+  TEAM_MEMBER
+}
+
+enum MailboxStatus {
+  WARMING
+  ACTIVE
+  PAUSED
+  RETIRED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum LeadStatus {
+  ACTIVE
+  REPLIED
+  UNSUBSCRIBED
+  BOUNCED
+}
+
+enum Sentiment {
+  INTERESTED
+  NOT_INTERESTED
+  WRONG_PERSON
+}
+
+enum LeadCategory {
+  UNCATEGORIZED
+  WORKING
+  NOT_WORKING
+  POTENTIAL
+  DO_NOT_CONTACT
+}
+
+enum DraftStatus {
+  PENDING_REVIEW
+  SENT
+  DISCARDED
+}
+
+enum SuppressionReason {
+  HARD_BOUNCE
+  UNSUBSCRIBED
+  COMPLAINED
+  MANUAL
+}
+
+// ─────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String    @unique
+  password        String?
+  emailVerified   DateTime?
+  image           String?
+  role            Role      @default(TEAM_MEMBER)
+  isActive        Boolean   @default(true)
+  smartleadApiKey String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  mailboxes      Mailbox[]
+  campaigns      Campaign[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  accounts       Account[]
+  sessions       Session[]
+}
+
+// NextAuth required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────────────────────────
+// MAILBOX — Enhanced with warmup tracking
+// ─────────────────────────────────────────────
+
+model Mailbox {
+  id                  String        @id @default(cuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  senderEmail         String        @unique
+  provider            String        @default("smartlead")
+  providerMailboxId   String?
+  oauthTokenEncrypted String?       @db.Text // AES-256-GCM encrypted
+  status              MailboxStatus @default(WARMING)
+  pausedReason        String?
+
+  // Warmup tracking (drawback fix #3)
+  warmupStartAt       DateTime?
+  warmupTargetDate    DateTime?     // Expected graduation date (e.g. warmupStartAt + 14 days)
+  warmupEmailsSent    Int           @default(0)
+  warmupReputationScore Float?      // From provider if available
+
+  dailySendLimit      Int           @default(50) // Configurable per mailbox
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  campaigns CampaignMailbox[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([providerMailboxId])
+}
+
+// ─────────────────────────────────────────────
+// CAMPAIGN — Enhanced with template locking & cloning
+// ─────────────────────────────────────────────
+
+model Campaign {
+  id                 String         @id @default(cuid())
+  userId             String
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  status             CampaignStatus @default(DRAFT)
+  providerCampaignId String?
+
+  // Template versioning (drawback fix #4)
+  templateLockedAt   DateTime?      // Set when campaign launches; steps become read-only
+
+  // Cloning support (enhancement)
+  clonedFromId       String?        // ID of the campaign this was cloned from
+
+  // Pre-send safety
+  testSentAt         DateTime?
+
+  // Timezone-aware sending (drawback fix #6)
+  sendTimezone       String?        @default("UTC") // IANA timezone for send scheduling
+  preferredSendHour  Int?           // 0-23, hour to send in recipient's timezone
+  preferredSendDays  Int[]          @default([1, 2, 3, 4, 5]) // 0=Sun, 1=Mon, etc.
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  steps     CampaignStep[]
+  leads     Lead[]
+  mailboxes CampaignMailbox[]
+
+  @@index([userId, status])
+  @@index([providerCampaignId])
+  @@unique([userId, name])
+}
+
+model CampaignMailbox {
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mailboxId  String
+  mailbox    Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, mailboxId])
+}
+
+// ─────────────────────────────────────────────
+// CAMPAIGN STEP — Enhanced with A/B testing support
+// ─────────────────────────────────────────────
+
+model CampaignStep {
+  id           String   @id @default(cuid())
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  stepNumber   Int
+  delayDays    Int      @default(3)
+  subject      String
+  bodyTemplate String   @db.Text
+
+  // A/B testing (enhancement)
+  abVariantOf  String?  // If set, this step is a variant of another step ID
+  abSplitPct   Int?     // Percentage of leads that get this variant (e.g. 50)
+  abWinner     Boolean  @default(false) // Set to true when this variant wins
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([campaignId, stepNumber])
+  @@index([campaignId])
+}
+
+// ─────────────────────────────────────────────
+// LEAD — Enhanced with timezone, scoring, custom fields
+// ─────────────────────────────────────────────
+
+model Lead {
+  id             String       @id @default(cuid())
+  campaignId     String
+  campaign       Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  email          String
+  firstName      String?
+  lastName       String?
+  source         String?      // "csv", "youtube", "instagram", "sov_panel", "hammer_head"
+  customData     Json?        // Stores any extra CSV columns (JSONB)
+  leadCategory   LeadCategory @default(UNCATEGORIZED)
+  status         LeadStatus   @default(ACTIVE)
+  lastStepSent   Int          @default(0)
+  aiSentiment    Sentiment?
+  providerLeadId String?
+
+  // Engagement tracking
+  repliedAt      DateTime?
+  unsubscribedAt DateTime?
+  bounceCount    Int          @default(0)
+  bounceType     String?      // "soft", "hard"
+  firstOpenAt    DateTime?    // Denormalized: first email open timestamp
+  lastOpenAt     DateTime?    // Denormalized: latest email open timestamp
+  openCount      Int          @default(0) // Total opens (for scoring)
+  clickCount     Int          @default(0) // Total clicks (for scoring)
+
+  // Lead scoring (drawback fix #5 & enhancement)
+  leadScore      Float        @default(0) // Composite score based on engagement signals
+
+  // Timezone-aware sending (drawback fix #6)
+  timezone       String?      // IANA timezone (e.g. "America/New_York"), detected or from CSV
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  events EmailEvent[]
+  drafts AiDraft[]
+
+  @@index([campaignId, status])
+  @@index([email])
+  @@index([leadCategory])
+  @@index([firstOpenAt])
+  @@index([leadScore])
+  @@index([campaignId, leadScore])
+  @@index([providerLeadId])
+}
+
+// ─────────────────────────────────────────────
+// EMAIL EVENT
+// ─────────────────────────────────────────────
+
+model EmailEvent {
+  id              String   @id @default(cuid())
+  leadId          String
+  lead            Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  eventType       String   // "sent", "opened", "clicked", "replied", "bounced", "unsubscribed", "complained"
+  providerEventId String   @unique
+  fromEmail       String?  // The mailbox that sent this email
+  rawPayload      Json?
+  createdAt       DateTime @default(now())
+
+  @@index([leadId, eventType, createdAt])
+  @@index([eventType, createdAt])
+  @@index([fromEmail, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// AI DRAFT — Enhanced with auto-send support
+// ─────────────────────────────────────────────
+
+model AiDraft {
+  id           String      @id @default(cuid())
+  leadId       String
+  lead         Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  draftBody    String      @db.Text
+  status       DraftStatus @default(PENDING_REVIEW)
+  confidence   Float?      // AI confidence score (0-1), used for auto-send threshold
+  autoSent     Boolean     @default(false) // Whether this was auto-sent without human review
+  sentAt       DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([leadId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// SUPPRESSED EMAIL — Global suppression list (drawback fix #7)
+// ─────────────────────────────────────────────
+
+model SuppressedEmail {
+  id        String            @id @default(cuid())
+  email     String            @unique // The suppressed email address
+  reason    SuppressionReason
+  source    String?           // Which campaign/event caused suppression
+  addedBy   String?           // User who manually added (null if system)
+  createdAt DateTime          @default(now())
+
+  @@index([email])
+  @@index([reason])
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action       String   // e.g., "campaign.launch", "lead.import", "draft.send", "campaign.clone"
+  resourceType String   // "campaign", "lead", "mailbox", "suppression", etc.
+  resourceId   String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@index([resourceType, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// SYSTEM SETTINGS — Configurable thresholds
+// ─────────────────────────────────────────────
+
+model SystemSetting {
+  id    String @id @default(cuid())
+  key   String @unique // e.g., "max_daily_emails", "bounce_threshold_pct", "warmup_days"
+  value String         // JSON string for flexibility
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS — Reply alerts, campaign events
+// ─────────────────────────────────────────────
+
+model Notification {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   // "reply", "bounce", "campaign_paused", "campaign_completed"
+  title        String   // e.g., "New Reply Received"
+  message      String   // e.g., "haji.karim@theboredmonkey.com replied to Campaign 105"
+  campaignId   String?
+  campaignName String?
+  leadEmail    String?
+  clientEmail  String?  // The mailbox that received the reply
+  metadata     Json?    // Additional data (reply text, sentiment, etc.)
+  read         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([userId, read, createdAt])
+  @@index([userId, type])
+  @@index([campaignId])
+}
