@@ -2,7 +2,7 @@
 //
 // Reads as one continuous line across the entire top of the shell:
 //
-//   [Warmbly logo]  >  [Org picker]  >  [Current section]      [⌘K  ⚡]
+//   [TheBoredMonkey logo]  >  [Org picker]  >  [Current section]      [⌘K  ⚡]
 //
 // The logo sits over the sidebar column, the org picker + section live
 // in the open area, the right side has connection indicator + search.

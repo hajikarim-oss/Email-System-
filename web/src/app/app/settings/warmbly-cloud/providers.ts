@@ -1,6 +1,6 @@
 // Which local mailboxes can be enrolled as they are. A Google or Microsoft
 // grant issued by this instance's own OAuth app cannot be refreshed by the
-// cloud; such mailboxes are instead signed in through Warmbly Cloud (managed).
+// cloud; such mailboxes are instead signed in through TheBoredMonkey Cloud (managed).
 export function providerSupported(provider: string): boolean {
     return provider === "smtp_imap";
 }

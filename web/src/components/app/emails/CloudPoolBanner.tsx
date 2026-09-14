@@ -23,7 +23,7 @@ export default function CloudPoolBanner({ onConnect, mailboxCount }: { onConnect
                     <CloudIcon className="w-4 h-4 shrink-0 text-sky-600" />
                     <span className="min-w-0 flex-1 leading-snug">
                         <span className="font-medium">
-                            {pool.enrolledCount === 0 ? "No mailbox is in the Warmbly pool yet." : `${pool.enrolledCount} of ${mailboxCount} mailboxes warm in the Warmbly pool.`}
+                            {pool.enrolledCount === 0 ? "No mailbox is in the TheBoredMonkey pool yet." : `${pool.enrolledCount} of ${mailboxCount} mailboxes warm in the TheBoredMonkey pool.`}
                         </span>{" "}
                         <span className="text-sky-900/80">
                             {limit === null ? "Unlimited mailboxes." : `${pool.enrolledCount} of ${limit} free.`} Use the cloud icon on a row, or the warmup menu, to add one.
@@ -46,7 +46,7 @@ export default function CloudPoolBanner({ onConnect, mailboxCount }: { onConnect
                     <CloudIcon className="w-3.5 h-3.5" />
                 </span>
                 <span className="min-w-0 flex-1 leading-snug">
-                    <span className="font-medium">Warm these mailboxes in the Warmbly pool.</span>{" "}
+                    <span className="font-medium">Warm these mailboxes in the TheBoredMonkey pool.</span>{" "}
                     <span className="text-slate-600">Thousands of real mailboxes, replies and spam rescue handled for you. Free for up to 10 mailboxes; everything else stays on this server.</span>
                 </span>
                 <button

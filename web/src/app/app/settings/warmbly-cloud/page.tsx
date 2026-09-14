@@ -1,4 +1,4 @@
-// Settings → Warmbly Cloud.
+// Settings → TheBoredMonkey Cloud.
 //
 // Self-hosted: link this instance to the hosted warmup pool and pick the
 // mailboxes it warms (GET/POST /cloud-link/*). Cloud: the self-hosted
@@ -20,13 +20,13 @@ import ConnectFlow from "./ConnectFlow";
 import MailboxTable from "./MailboxTable";
 import LinkedInstances from "./LinkedInstances";
 
-export default function WarmblyCloudSettingsPage() {
+export default function TheBoredMonkeyCloudSettingsPage() {
     const canManage = usePermission("MANAGE_SETTINGS");
     const authConfig = useAuthConfig();
-    if (!canManage) return <NoAccess feature="Warmbly Cloud" permissionLabel="Manage settings" />;
+    if (!canManage) return <NoAccess feature="TheBoredMonkey Cloud" permissionLabel="Manage settings" />;
     if (authConfig.data && !authConfig.data.self_hosted) {
         return (
-            <SectionShell title="Linked instances" description="Self-hosted Warmbly instances that warm their mailboxes in this workspace's pool.">
+            <SectionShell title="Linked instances" description="Self-hosted TheBoredMonkey instances that warm their mailboxes in this workspace's pool.">
                 <Section eyebrow="Instances" description="Each instance enrolls its own mailboxes. Unlinking removes them from the pool.">
                     <LinkedInstances />
                 </Section>
@@ -48,7 +48,7 @@ function SelfHostedCloud() {
 
     if (status.isLoading || !status.data) {
         return (
-            <SectionShell title="Warmbly Cloud" description="Warm your mailboxes in the Warmbly pool while everything else stays on this server.">
+            <SectionShell title="TheBoredMonkey Cloud" description="Warm your mailboxes in the TheBoredMonkey pool while everything else stays on this server.">
                 <div className="py-10 flex justify-center text-slate-400">
                     <Loader2Icon className="w-4 h-4 animate-spin" />
                 </div>
@@ -60,8 +60,8 @@ function SelfHostedCloud() {
 
     return (
         <SectionShell
-            title="Warmbly Cloud"
-            description="Warm your mailboxes in the Warmbly pool while everything else stays on this server."
+            title="TheBoredMonkey Cloud"
+            description="Warm your mailboxes in the TheBoredMonkey pool while everything else stays on this server."
             actions={
                 st.connected ? (
                     <button
@@ -95,7 +95,7 @@ function SelfHostedCloud() {
                                         <span className="size-6 rounded-md bg-sky-600 text-white inline-flex items-center justify-center">
                                             <CloudIcon className="w-3.5 h-3.5" />
                                         </span>
-                                        {st.link?.organization_name || "Warmbly Cloud"}
+                                        {st.link?.organization_name || "TheBoredMonkey Cloud"}
                                     </span>
                                 }
                                 description={
@@ -137,20 +137,20 @@ function SelfHostedCloud() {
                         </Section>
                         <Section
                             eyebrow="Mailboxes"
-                            description="Enrolled mailboxes are warmed by Warmbly Cloud; their local warmup stops. Campaigns keep sending from this server."
+                            description="Enrolled mailboxes are warmed by TheBoredMonkey Cloud; their local warmup stops. Campaigns keep sending from this server."
                         >
                             <MailboxTable />
                         </Section>
                         <Section eyebrow="Disconnect">
                             <Row
                                 danger
-                                label="Disconnect from Warmbly Cloud"
+                                label="Disconnect from TheBoredMonkey Cloud"
                                 description="Every enrolled mailbox is removed from the pool and the cloud deletes its credentials. Local warmup takes over again."
                             >
                                 <button
                                     type="button"
                                     onClick={() =>
-                                        confirm.show("Disconnect this instance from Warmbly Cloud? All enrolled mailboxes stop warming in the pool.", async () => {
+                                        confirm.show("Disconnect this instance from TheBoredMonkey Cloud? All enrolled mailboxes stop warming in the pool.", async () => {
                                             try {
                                                 await disconnect.mutateAsync();
                                                 setFlow(null);

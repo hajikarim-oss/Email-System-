@@ -4,7 +4,7 @@ import { type ChartPoint } from "@/components/ui/charts";
 import useBrand from "@/hooks/useBrand";
 
 // A branded analytics card rasterized to a shareable PNG (see useExportCard).
-// Design: a flat branded sky background, the Warmbly logo white on the sky, and
+// Design: a flat branded sky background, the TheBoredMonkey logo white on the sky, and
 // one clean white panel holding the title, metrics, and area chart.
 //
 // Capture-safe for html-to-image (SVG foreignObject):

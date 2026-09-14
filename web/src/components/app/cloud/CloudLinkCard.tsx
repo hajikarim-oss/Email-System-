@@ -1,6 +1,6 @@
 // The link handshake as one reusable card: pitch, then the code with a
 // countdown and a live "waiting" pulse, then a linked confirmation. Used by
-// Settings > Warmbly Cloud, the onboarding step and the mailboxes-page dialog.
+// Settings > TheBoredMonkey Cloud, the onboarding step and the mailboxes-page dialog.
 
 import React from "react";
 import { motion } from "framer-motion";
@@ -115,7 +115,7 @@ export default function CloudLinkCard({
                 </motion.span>
                 <div>
                     <p className="text-[14px] font-semibold text-slate-900">Linked{orgName ? ` to ${orgName}` : ""}</p>
-                    <p className="text-[12.5px] text-slate-500 mt-0.5">This instance can now warm mailboxes in the Warmbly pool.</p>
+                    <p className="text-[12.5px] text-slate-500 mt-0.5">This instance can now warm mailboxes in the TheBoredMonkey pool.</p>
                 </div>
             </motion.div>
         );
@@ -128,7 +128,7 @@ export default function CloudLinkCard({
                     <FlameIcon className="w-4 h-4" />
                 </span>
                 <div className="text-[13px] text-slate-600 leading-relaxed">
-                    <p className="text-slate-900 font-medium">Warmbly warms your mailboxes for you.</p>
+                    <p className="text-slate-900 font-medium">TheBoredMonkey warms your mailboxes for you.</p>
                     <p className="mt-1">Free for 10 mailboxes. Google and Microsoft sign-in without OAuth setup. Your data stays on this server; only warmup runs in the cloud.</p>
                     {start.isPending && (
                         <p className="mt-2 inline-flex items-center gap-1.5 text-slate-400">
@@ -145,15 +145,15 @@ export default function CloudLinkCard({
             <div className={compact ? "space-y-4" : "grid md:grid-cols-[1fr_260px] gap-6 items-start"}>
                 <div className="space-y-4">
                     <div>
-                        <h3 className="text-[14px] font-semibold text-slate-900">Warm your mailboxes with the Warmbly pool</h3>
+                        <h3 className="text-[14px] font-semibold text-slate-900">Warm your mailboxes with the TheBoredMonkey pool</h3>
                         <p className="text-[12.5px] text-slate-500 leading-relaxed mt-1">
-                            Link this instance to a Warmbly Cloud workspace. Warmbly runs warmup for the mailboxes you choose, using thousands of real
+                            Link this instance to a TheBoredMonkey Cloud workspace. TheBoredMonkey runs warmup for the mailboxes you choose, using thousands of real
                             mailboxes, while everything else stays on this server.
                         </p>
                     </div>
                     <ul className="space-y-2 text-[12.5px] text-slate-600">
                         <Bullet icon={FlameIcon}>Free for up to 10 mailboxes. Unlimited mailboxes for $15 a month.</Bullet>
-                        <Bullet icon={CloudIcon}>Sign in Google and Microsoft mailboxes through Warmbly's own apps: no OAuth client setup on this server.</Bullet>
+                        <Bullet icon={CloudIcon}>Sign in Google and Microsoft mailboxes through TheBoredMonkey's own apps: no OAuth client setup on this server.</Bullet>
                         <Bullet icon={LockIcon}>Only mailbox sign-ins live on the cloud, encrypted, for warmup and sending. Campaigns, contacts and inbox never leave here.</Bullet>
                         <Bullet icon={ShieldCheckIcon}>You can remove a mailbox or disconnect at any time; the cloud forgets it immediately.</Bullet>
                     </ul>
@@ -164,7 +164,7 @@ export default function CloudLinkCard({
                         className="h-8 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12.5px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                     >
                         {start.isPending ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <CloudIcon className="w-3.5 h-3.5" />}
-                        Connect to Warmbly Cloud
+                        Connect to TheBoredMonkey Cloud
                     </button>
                     {cloudUrl && <p className="text-[11px] text-slate-400">Connecting to {cloudUrl}</p>}
                 </div>
@@ -175,7 +175,7 @@ export default function CloudLinkCard({
 
     return (
         <div className="flex flex-col items-center text-center gap-4 py-2">
-            <p className="text-[12.5px] text-slate-500">Enter this code on Warmbly Cloud to approve the link.</p>
+            <p className="text-[12.5px] text-slate-500">Enter this code on TheBoredMonkey Cloud to approve the link.</p>
             <motion.button
                 type="button"
                 onClick={copy}
@@ -195,7 +195,7 @@ export default function CloudLinkCard({
                 rel="noreferrer"
                 className="h-8 px-3 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-[12.5px] font-medium inline-flex items-center gap-1.5 transition-colors"
             >
-                Open Warmbly Cloud
+                Open TheBoredMonkey Cloud
                 <ExternalLinkIcon className="w-3.5 h-3.5" />
             </a>
             <div className="inline-flex items-center gap-2 text-[12px] text-slate-500">
@@ -207,7 +207,7 @@ export default function CloudLinkCard({
                 <Countdown until={pending.expires_at} />
             </div>
             <p className="text-[11px] text-slate-400 max-w-sm">
-                No Warmbly account yet? The link takes you to sign up first; it is free. This tab keeps waiting.
+                No TheBoredMonkey account yet? The link takes you to sign up first; it is free. This tab keeps waiting.
             </p>
         </div>
     );

@@ -113,7 +113,7 @@ export default function AddressesPage() {
     const featureStatus = useFeatureStatus();
     const canWarmup = featureStatus.data?.can_use_warmup !== false;
 
-    // Self-hosted instances can hand warmup to the Warmbly pool; the banner,
+    // Self-hosted instances can hand warmup to the TheBoredMonkey pool; the banner,
     // row badges and menu items below key off this.
     const cloud = useCloudPool();
     const [cloudDialog, setCloudDialog] = React.useState(false);
@@ -160,7 +160,7 @@ export default function AddressesPage() {
         if (selected.length === 0 || removing) return;
         const n = selected.length;
         confirm.show(
-            `Remove ${n} mailbox${n > 1 ? "es" : ""}? This disconnects ${n > 1 ? "them" : "it"} from Warmbly.`,
+            `Remove ${n} mailbox${n > 1 ? "es" : ""}? This disconnects ${n > 1 ? "them" : "it"} from TheBoredMonkey.`,
             async () => {
                 setRemoving(true);
                 const results = await Promise.allSettled(selected.map((id) => removeEmail(id)));
@@ -625,7 +625,7 @@ function MailboxRow({
                     <span className="text-[12.5px] font-medium text-slate-900 truncate">{box.email}</span>
                     {inCloud && (
                         <span
-                            title={cloud?.managed ? "Signed in through Warmbly Cloud, which warms it" : cloudPaused ? "Paused in Warmbly Cloud" : "Warmed by Warmbly Cloud"}
+                            title={cloud?.managed ? "Signed in through TheBoredMonkey Cloud, which warms it" : cloudPaused ? "Paused in TheBoredMonkey Cloud" : "Warmed by TheBoredMonkey Cloud"}
                             className={`inline-flex items-center gap-1 h-4 px-1.5 rounded-full text-[9.5px] font-medium uppercase tracking-[0.08em] shrink-0 ${cloudPaused ? "bg-amber-50 text-amber-600" : "bg-sky-600 text-white"}`}
                         >
                             <CloudIcon className="w-2.5 h-2.5" /> Cloud
@@ -703,22 +703,22 @@ function MailboxRow({
                             </button>
                         </PopoverMenuTrigger>
                         <PopoverMenuContent minWidth={208}>
-                            <PopoverMenuLabel>Warmup · {inCloud ? (cloudPaused ? "Paused in cloud" : "Warmbly Cloud") : active ? "Active" : paused ? "Paused" : "Off"}</PopoverMenuLabel>
+                            <PopoverMenuLabel>Warmup · {inCloud ? (cloudPaused ? "Paused in cloud" : "TheBoredMonkey Cloud") : active ? "Active" : paused ? "Paused" : "Off"}</PopoverMenuLabel>
                             {inCloud && (
                                 <>
                                     <PopoverMenuItem
                                         onSelect={() => void cloudRun(() => cloudLifecycle.mutateAsync({ id: box.id, action: cloudPaused ? "resume" : "pause" }), cloudPaused ? "Warmup resumed" : "Warmup paused")}
                                         icon={cloudPaused ? <PlayIcon className="w-3 h-3" /> : <PauseIcon className="w-3 h-3" />}
                                     >
-                                        {cloudPaused ? "Resume in Warmbly Cloud" : "Pause in Warmbly Cloud"}
+                                        {cloudPaused ? "Resume in TheBoredMonkey Cloud" : "Pause in TheBoredMonkey Cloud"}
                                     </PopoverMenuItem>
                                     <PopoverMenuItem
                                         danger
                                         onSelect={() =>
                                             confirm.show(
                                                 cloud?.managed
-                                                    ? `Remove ${box.email} from this instance? It stays in your Warmbly Cloud workspace, where its sign-in lives; campaigns here stop sending from it.`
-                                                    : `Stop warming ${box.email} in the Warmbly pool? The cloud deletes its credential right away.`,
+                                                    ? `Remove ${box.email} from this instance? It stays in your TheBoredMonkey Cloud workspace, where its sign-in lives; campaigns here stop sending from it.`
+                                                    : `Stop warming ${box.email} in the TheBoredMonkey pool? The cloud deletes its credential right away.`,
                                                 async () => {
                                                     await cloudRun(() => cloudUnenroll.mutateAsync(box.id), cloud?.managed ? `${box.email} removed from this instance` : `${box.email} removed from the pool`);
                                                 },
@@ -726,7 +726,7 @@ function MailboxRow({
                                         }
                                         icon={<CloudIcon className="w-3 h-3" />}
                                     >
-                                        {cloud?.managed ? "Remove from this instance" : "Remove from Warmbly Cloud"}
+                                        {cloud?.managed ? "Remove from this instance" : "Remove from TheBoredMonkey Cloud"}
                                     </PopoverMenuItem>
                                     <PopoverMenuSeparator />
                                 </>
@@ -736,7 +736,7 @@ function MailboxRow({
                                     onSelect={() => void cloudRun(() => cloudEnroll.mutateAsync(box.id), `${box.email} is now warming in the pool`)}
                                     icon={<CloudIcon className="w-3 h-3" />}
                                 >
-                                    Warm in Warmbly Cloud
+                                    Warm in TheBoredMonkey Cloud
                                 </PopoverMenuItem>
                             )}
                             {!inCloud && off && (

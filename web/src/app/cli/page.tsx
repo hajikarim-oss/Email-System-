@@ -1,4 +1,4 @@
-// app.warmbly.com/cli?code=XXXX-XXXX — a signed-in member authorizes the
+// app.theboredmonkey.com/cli?code=XXXX-XXXX — a signed-in member authorizes the
 // `warmbly` CLI running on one of their machines. Approving mints an ordinary
 // API key in the workspace they pick, which the CLI collects on its next poll.
 // Standalone on the auth screen's sky: enter code, review, done.
@@ -157,7 +157,7 @@ function CLIAuthInner() {
                 <div className="mt-5 flex items-center justify-center gap-3 text-[12px] text-white/70">
                     <Link to="/app/emails" className="hover:text-white transition-colors">Back to dashboard</Link>
                     <span className="text-white/40">·</span>
-                    <a href="https://docs.warmbly.com/api/cli/" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">About the CLI</a>
+                    <a href="https://docs.theboredmonkey.com/api/cli/" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">About the CLI</a>
                 </div>
             </div>
         </div>
@@ -207,7 +207,7 @@ function CodeStep({ code, setCode, loading, error, onRetry }: { code: string; se
         <div>
             <div className="text-center">
                 <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-sky-50 text-sky-700 text-[11px] font-medium">
-                    <TerminalIcon className="w-3 h-3" /> Warmbly CLI
+                    <TerminalIcon className="w-3 h-3" /> TheBoredMonkey CLI
                 </span>
                 <h1 className="mt-4 text-[24px] sm:text-[28px] font-semibold tracking-[-0.03em] leading-[1.1] text-slate-900">Sign in to the CLI</h1>
                 <p className="mt-2.5 text-[13.5px] text-slate-500 leading-relaxed max-w-md mx-auto">
@@ -317,7 +317,7 @@ function ReviewStep({
                     <TerminalIcon className="w-5 h-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-semibold text-slate-900 truncate">{info.client_name || "Warmbly CLI"}</p>
+                    <p className="text-[15px] font-semibold text-slate-900 truncate">{info.client_name || "TheBoredMonkey CLI"}</p>
                     <p className="text-[12px] text-slate-500 truncate inline-flex items-center gap-1.5">
                         <MonitorIcon className="w-3 h-3 shrink-0" />
                         {info.hostname || "Machine name not shared"}
@@ -480,7 +480,7 @@ function DoneStep({ approved, info, orgName, onAnother }: { approved: boolean; i
                     API keys <ArrowRightIcon className="w-3.5 h-3.5" />
                 </Link>
                 <a
-                    href="https://docs.warmbly.com/api/cli/"
+                    href="https://docs.theboredmonkey.com/api/cli/"
                     target="_blank"
                     rel="noreferrer"
                     className="h-10 px-4 rounded-md border border-slate-200 hover:border-slate-300 text-slate-800 text-[13.5px] font-medium inline-flex items-center gap-1.5 transition-colors"

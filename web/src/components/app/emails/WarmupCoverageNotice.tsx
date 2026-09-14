@@ -67,16 +67,16 @@ export default function WarmupCoverageNotice({
                     </span>
                     {onConnectCloud ? (
                         <button type="button" onClick={onConnectCloud} className="font-medium underline underline-offset-2 hover:text-amber-950">
-                            Warmbly Cloud
+                            TheBoredMonkey Cloud
                         </button>
                     ) : (
                         <a
-                            href="https://docs.warmbly.com/guides/warmbly-cloud/"
+                            href="https://docs.theboredmonkey.com/guides/warmbly-cloud/"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-medium underline underline-offset-2 hover:text-amber-950"
                         >
-                            Warmbly Cloud
+                            TheBoredMonkey Cloud
                         </a>
                     )}
                     <span className="text-amber-800/90"> warm them against its large shared pool.</span>

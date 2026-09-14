@@ -23,7 +23,7 @@ export function isValidEmail(email: string): boolean {
     return emailRegex.test(email);
 }
 
-export const orgs = ["warmbly.com"]
+export const orgs = ["theboredmonkey.com"]
 
 export function isEmailFromOrganization(email: string, orgDomains: string[]): boolean {
     const match = email.match(/^[^@]+@(.+)$/);

@@ -4,7 +4,7 @@ import type { DeploymentBrand } from "@/lib/api/models/auth/AuthConfig";
 
 /**
  * Who this deployment says it is, for every surface that used to hardcode
- * warmbly.com: the sign-in screen's footer links, a shared stats card, the
+ * theboredmonkey.com: the sign-in screen's footer links, a shared stats card, the
  * form preview's attribution, copyable API examples.
  *
  * A self-hosted instance that configured no EMAIL_BRAND_* has no website, no

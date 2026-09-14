@@ -48,7 +48,7 @@ export default function CloudConnectDialog({ open, onClose, cloudUrl }: { open: 
                         key="card"
                         role="dialog"
                         aria-modal="true"
-                        aria-label="Connect to Warmbly Cloud"
+                        aria-label="Connect to TheBoredMonkey Cloud"
                         initial={{ y: 8, opacity: 0, scale: 0.985 }}
                         animate={{ y: 0, opacity: 1, scale: 1 }}
                         exit={{ y: 8, opacity: 0, scale: 0.985 }}
@@ -57,7 +57,7 @@ export default function CloudConnectDialog({ open, onClose, cloudUrl }: { open: 
                         className="w-full max-w-[520px] rounded-lg bg-white border border-slate-200 shadow-[0_24px_48px_-12px_rgba(15,23,42,0.18)] overflow-hidden"
                     >
                         <div className="h-11 px-4 flex items-center justify-between border-b border-slate-200/70">
-                            <span className="text-[12.5px] font-semibold text-slate-900">Warmbly Cloud</span>
+                            <span className="text-[12.5px] font-semibold text-slate-900">TheBoredMonkey Cloud</span>
                             <button type="button" onClick={onClose} aria-label="Close" className="size-7 rounded-md inline-flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100">
                                 <XIcon className="w-4 h-4" />
                             </button>

@@ -21,8 +21,8 @@ describe("plainToHtml", () => {
     });
 
     it("links bare URLs without swallowing sentence punctuation", () => {
-        expect(plainToHtml("See https://warmbly.com/a?x=1&y=2.")).toBe(
-            'See <a href="https://warmbly.com/a?x=1&amp;y=2">https://warmbly.com/a?x=1&amp;y=2</a>.',
+        expect(plainToHtml("See https://theboredmonkey.com/a?x=1&y=2.")).toBe(
+            'See <a href="https://theboredmonkey.com/a?x=1&amp;y=2">https://theboredmonkey.com/a?x=1&amp;y=2</a>.',
         );
     });
 
@@ -43,6 +43,6 @@ describe("escapeHtml", () => {
 
 describe("plainToDisplayHtml", () => {
     it("opens links in a new tab", () => {
-        expect(plainToDisplayHtml("https://warmbly.com")).toContain('target="_blank"');
+        expect(plainToDisplayHtml("https://theboredmonkey.com")).toContain('target="_blank"');
     });
 });

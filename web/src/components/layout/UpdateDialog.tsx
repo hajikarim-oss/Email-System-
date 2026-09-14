@@ -45,7 +45,7 @@ import buildError from "@/lib/helper/buildError";
 import { markUpdateStarted, readUpdateStarted, clearUpdateStarted } from "@/lib/updateSession";
 import { cn } from "@/lib/utils";
 
-const DOCS_UPDATES = "https://docs.warmbly.com/development/updates/";
+const DOCS_UPDATES = "https://docs.theboredmonkey.com/development/updates/";
 
 interface Props {
     open: boolean;
@@ -168,7 +168,7 @@ export default function UpdateDialog({ open, onClose }: Props) {
                         key="card"
                         role="dialog"
                         aria-modal="true"
-                        aria-label="Update Warmbly"
+                        aria-label="Update TheBoredMonkey"
                         initial={{ y: 8, opacity: 0, scale: 0.985 }}
                         animate={{ y: 0, opacity: 1, scale: 1 }}
                         exit={{ y: 8, opacity: 0, scale: 0.985 }}
@@ -261,7 +261,7 @@ function Header({ state, pane, onClose }: { state?: InstanceUpdate; pane: Pane; 
                 <ArrowUpCircleIcon className="w-4 h-4" />
             </span>
             <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-semibold text-slate-900 leading-tight">Update Warmbly</div>
+                <div className="text-[13.5px] font-semibold text-slate-900 leading-tight">Update TheBoredMonkey</div>
                 <div className="text-[12px] text-slate-500 truncate">{subtitle}</div>
             </div>
             <button

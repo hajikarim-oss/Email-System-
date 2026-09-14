@@ -184,7 +184,7 @@ export default function SyncSourcesPanel({
                                         </p>
                                         <p className="text-[11.5px] text-slate-500 mt-1 max-w-[42ch] mx-auto leading-relaxed">
                                             Connect a Google Sheet and re-run it on demand to pull new and
-                                            updated leads into Warmbly
+                                            updated leads into TheBoredMonkey
                                             {campaign ? ` and into ${campaign.name}` : segment ? ` and into ${segment.name}` : ""}.
                                         </p>
                                         <button

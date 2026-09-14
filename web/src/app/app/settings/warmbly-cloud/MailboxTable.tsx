@@ -42,8 +42,8 @@ export default function MailboxTable() {
         if (row.enrolled) {
             confirm.show(
                 row.managed
-                    ? `Remove ${row.email} from this instance? It stays in your Warmbly Cloud workspace, where its sign-in lives.`
-                    : `Stop warming ${row.email} in the Warmbly pool? The cloud deletes its credential right away.`,
+                    ? `Remove ${row.email} from this instance? It stays in your TheBoredMonkey Cloud workspace, where its sign-in lives.`
+                    : `Stop warming ${row.email} in the TheBoredMonkey pool? The cloud deletes its credential right away.`,
                 async () => {
                     await run(row.id, () => unenroll.mutateAsync(row.id), row.managed ? `${row.email} removed from this instance` : `${row.email} removed from the pool`);
                 },
@@ -90,8 +90,8 @@ export default function MailboxTable() {
                                             <p className="text-slate-900 truncate">{row.email}</p>
                                             <p className="text-[11px] text-slate-400 truncate">
                                                 {providerLabel(row.provider)}
-                                                {row.managed && " · signed in through Warmbly Cloud"}
-                                                {!supported && " · signed in with this instance's own OAuth app; add it again through Warmbly Cloud to warm it"}
+                                                {row.managed && " · signed in through TheBoredMonkey Cloud"}
+                                                {!supported && " · signed in with this instance's own OAuth app; add it again through TheBoredMonkey Cloud to warm it"}
                                                 {row.enrolled && !cloud && " · waiting for the cloud"}
                                                 {cloud?.errors && cloud.errors.length > 0 && (
                                                     <span className="inline-flex items-center gap-1 text-amber-700 ml-1">

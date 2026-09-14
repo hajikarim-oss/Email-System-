@@ -1,4 +1,4 @@
-// The three-step link flow: link this instance to a Warmbly Cloud workspace,
+// The three-step link flow: link this instance to a TheBoredMonkey Cloud workspace,
 // pick the mailboxes the cloud should warm, done. Steps slide directionally
 // like NewCampaignDialog; a step cannot be skipped ahead of.
 
@@ -40,7 +40,7 @@ export default function ConnectFlow({
     const [linked, setLinked] = React.useState(status.connected);
     const [enrolledCount, setEnrolledCount] = React.useState(0);
 
-    const issue = step === 0 && !linked ? "Approve the code on Warmbly Cloud first" : null;
+    const issue = step === 0 && !linked ? "Approve the code on TheBoredMonkey Cloud first" : null;
     React.useEffect(() => {
         if (!issue) setNudged(false);
     }, [issue]);
@@ -250,7 +250,7 @@ function MailboxesStep({ onCountChange }: { onCountChange: (n: number) => void }
             <div>
                 <h3 className="text-[14px] font-semibold text-slate-900">Choose the mailboxes to warm</h3>
                 <p className="text-[12.5px] text-slate-500 leading-relaxed mt-1">
-                    Each enrolled mailbox is warmed by Warmbly Cloud from now on. Its local warmup stops; campaigns keep sending from here as usual.
+                    Each enrolled mailbox is warmed by TheBoredMonkey Cloud from now on. Its local warmup stops; campaigns keep sending from here as usual.
                 </p>
             </div>
             {rows.isLoading ? (
@@ -289,7 +289,7 @@ function MailboxesStep({ onCountChange }: { onCountChange: (n: number) => void }
                 </ul>
             )}
             <p className="text-[11px] text-slate-400 leading-relaxed">
-                Enrolling sends the mailbox's SMTP/IMAP credential to Warmbly Cloud, sealed in transit and at rest, and used only to send and read warmup mail.
+                Enrolling sends the mailbox's SMTP/IMAP credential to TheBoredMonkey Cloud, sealed in transit and at rest, and used only to send and read warmup mail.
                 Nothing else in the mailbox is stored.
             </p>
         </div>

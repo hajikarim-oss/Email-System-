@@ -1,6 +1,6 @@
-# Warmbly Web App
+# TheBoredMonkey Web App
 
-React + TypeScript frontend for Warmbly.
+React + TypeScript frontend for TheBoredMonkey.
 
 ## Stack
 

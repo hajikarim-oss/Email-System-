@@ -10,7 +10,7 @@ import useFeatureAccess from "@/hooks/useFeatureAccess";
 import useAuthConfig from "@/lib/api/hooks/auth/useAuthConfig";
 import { usePoolLinkInstances } from "@/lib/api/hooks/app/cloudlink/useCloudLink";
 
-const SELF_HOST_DOCS = "https://docs.warmbly.com/development/deployment-guide/";
+const SELF_HOST_DOCS = "https://docs.theboredmonkey.com/development/deployment-guide/";
 const FREE_MAILBOXES = 10;
 
 export default function CloudPathsPanel({ mailboxCount, onAdd }: { mailboxCount: number; onAdd: () => void }) {
@@ -61,7 +61,7 @@ export default function CloudPathsPanel({ mailboxCount, onAdd }: { mailboxCount:
                             </span>
                             <h3 className="mt-3 text-[14px] font-semibold text-slate-900">Self-host for free, link your instance</h3>
                             <p className="mt-1 text-[12.5px] text-slate-500 leading-relaxed">
-                                Run Warmbly on your own server with unlimited mailboxes and campaigns, then connect it from its Settings so this workspace warms them.
+                                Run TheBoredMonkey on your own server with unlimited mailboxes and campaigns, then connect it from its Settings so this workspace warms them.
                             </p>
                             <div className="mt-4 flex flex-wrap items-center gap-2">
                                 <a

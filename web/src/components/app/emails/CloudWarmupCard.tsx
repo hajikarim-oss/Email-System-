@@ -1,4 +1,4 @@
-// The Warmbly Cloud block at the top of a mailbox's Warmup tab on a
+// The TheBoredMonkey Cloud block at the top of a mailbox's Warmup tab on a
 // self-hosted instance: enrolled state with the cloud's numbers and
 // pause/resume/remove, or the way in when it is not enrolled yet.
 
@@ -36,9 +36,9 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
         return (
             <div className="px-5 py-3 flex items-center gap-2.5 text-[12px] text-slate-500">
                 <CloudIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                <span className="min-w-0 flex-1">Warm this mailbox in the Warmbly pool instead, free for up to 10 mailboxes.</span>
+                <span className="min-w-0 flex-1">Warm this mailbox in the TheBoredMonkey pool instead, free for up to 10 mailboxes.</span>
                 <Link to="/app/settings/warmbly-cloud" className="shrink-0 font-medium text-sky-700 hover:text-sky-900">
-                    Connect Warmbly Cloud
+                    Connect TheBoredMonkey Cloud
                 </Link>
             </div>
         );
@@ -53,7 +53,7 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
             <div className="px-5 py-3 flex items-center gap-2.5 text-[12px] text-slate-600">
                 <CloudIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                 <span className="min-w-0 flex-1">
-                    {supported ? "Not in the Warmbly pool. Enrolling stops local warmup and lets the cloud warm it." : "This mailbox was signed in with this instance's own OAuth app, which the cloud cannot refresh. Remove it and add it again through Warmbly Cloud to warm it there."}
+                    {supported ? "Not in the TheBoredMonkey pool. Enrolling stops local warmup and lets the cloud warm it." : "This mailbox was signed in with this instance's own OAuth app, which the cloud cannot refresh. Remove it and add it again through TheBoredMonkey Cloud to warm it there."}
                 </span>
                 {supported && (
                     <button
@@ -63,7 +63,7 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
                         className="shrink-0 h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                     >
                         {busy ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <CloudIcon className="w-3 h-3" />}
-                        Warm in Warmbly Cloud
+                        Warm in TheBoredMonkey Cloud
                     </button>
                 )}
             </div>
@@ -81,7 +81,7 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
                     </span>
                     <div className="min-w-0 flex-1">
                         <div className="text-[12.5px] font-medium text-slate-900">
-                            {paused ? "Paused in Warmbly Cloud" : row.managed ? "Signed in through Warmbly Cloud" : "Warmed by Warmbly Cloud"}
+                            {paused ? "Paused in TheBoredMonkey Cloud" : row.managed ? "Signed in through TheBoredMonkey Cloud" : "Warmed by TheBoredMonkey Cloud"}
                         </div>
                         <div className="text-[11px] text-slate-500 truncate">
                             {cloud
@@ -107,8 +107,8 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
                             onClick={() =>
                                 confirm.show(
                                     row.managed
-                                        ? `Remove ${email} from this instance? It stays in your Warmbly Cloud workspace, where its sign-in lives.`
-                                        : `Stop warming ${email} in the Warmbly pool? The cloud deletes its credential right away and local warmup takes over.`,
+                                        ? `Remove ${email} from this instance? It stays in your TheBoredMonkey Cloud workspace, where its sign-in lives.`
+                                        : `Stop warming ${email} in the TheBoredMonkey pool? The cloud deletes its credential right away and local warmup takes over.`,
                                     async () => {
                                         await run(() => unenroll.mutateAsync(mailboxId), row.managed ? `${email} removed from this instance` : `${email} removed from the pool`);
                                     },

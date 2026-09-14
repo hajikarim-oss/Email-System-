@@ -36,7 +36,7 @@ export default function LinkedInstances() {
             )}
             {list.length === 0 ? (
                 <p className="text-[12.5px] text-slate-500">
-                    No self-hosted instance is linked. On your instance, open Settings, Warmbly Cloud and press Connect; approve the code at /connect here.
+                    No self-hosted instance is linked. On your instance, open Settings, TheBoredMonkey Cloud and press Connect; approve the code at /connect here.
                 </p>
             ) : (
                 <TableSurface>

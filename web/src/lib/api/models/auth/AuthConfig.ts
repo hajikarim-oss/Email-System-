@@ -38,7 +38,7 @@ export default interface AuthConfig {
     api_url?: string;
     /** Who this deployment says it is. Every field but the name is absent on a
      *  self-host that configured no EMAIL_BRAND_*, and the UI then renders no
-     *  link at all rather than sending the operator's users to warmbly.com. */
+     *  link at all rather than sending the operator's users to theboredmonkey.com. */
     brand?: DeploymentBrand;
 }
 

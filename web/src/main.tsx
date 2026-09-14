@@ -92,7 +92,7 @@ import InviteAcceptPage from './app/invite/page';
 import ConnectPage from './app/connect/page';
 import CLIAuthPage from './app/cli/page';
 import CloudOAuthDonePage from './app/cloud-oauth/done/page';
-import WarmblyCloudSettingsPage from './app/app/settings/warmbly-cloud/page';
+import TheBoredMonkeyCloudSettingsPage from './app/app/settings/warmbly-cloud/page';
 import SetupPage from './app/setup/page';
 import SSOCallbackPage from './app/auth/sso/page';
 
@@ -217,7 +217,7 @@ const router = createBrowserRouter([
         element: <CLIAuthPage />,
       },
       {
-        // Where Warmbly Cloud sends the Google/Microsoft popup back to on a linked instance.
+        // Where TheBoredMonkey Cloud sends the Google/Microsoft popup back to on a linked instance.
         path: "cloud-oauth/done",
         element: <CloudOAuthDonePage />,
       },
@@ -390,7 +390,7 @@ const router = createBrowserRouter([
               { path: "sending", element: <SendingSettingsPage /> },
               { path: "tracking", element: <WebsiteTrackingSettingsPage /> },
               { path: "roles", element: <RolesSettingsPage /> },
-              { path: "warmbly-cloud", element: <WarmblyCloudSettingsPage /> },
+              { path: "warmbly-cloud", element: <TheBoredMonkeyCloudSettingsPage /> },
               { path: "oauth-apps", element: <OAuthAppsPage /> },
               { path: "webhooks", element: <WebhooksSettingsPage /> },
               { path: "connections", element: <ConnectionsSettingsPage /> },

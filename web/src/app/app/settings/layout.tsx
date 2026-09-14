@@ -88,7 +88,7 @@ const GROUPS: SectionGroup[] = [
     {
         label: "Advanced",
         items: [
-            { path: "warmbly-cloud", label: "Warmbly Cloud", icon: CloudIcon, description: "Warm your mailboxes in the Warmbly pool.", permission: "MANAGE_SETTINGS" },
+            { path: "warmbly-cloud", label: "TheBoredMonkey Cloud", icon: CloudIcon, description: "Warm your mailboxes in the TheBoredMonkey pool.", permission: "MANAGE_SETTINGS" },
             { path: "data", label: "Data", icon: DatabaseIcon, description: "Export this workspace, or import one from another instance.", ownerOnly: true },
             { path: "danger", label: "Danger zone", icon: AlertOctagonIcon, description: "Irreversible actions." },
         ],

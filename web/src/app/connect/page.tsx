@@ -1,4 +1,4 @@
-// app.warmbly.com/connect?code=XXXX-XXXX — a signed-in member approves a
+// app.theboredmonkey.com/connect?code=XXXX-XXXX — a signed-in member approves a
 // self-hosted instance's request to warm its mailboxes in this workspace.
 // Standalone on the auth screen's sky: enter code, review, done.
 
@@ -155,7 +155,7 @@ function ConnectInner() {
                 <div className="mt-5 flex items-center justify-center gap-3 text-[12px] text-white/70">
                     <Link to="/app/emails" className="hover:text-white transition-colors">Back to dashboard</Link>
                     <span className="text-white/40">·</span>
-                    <a href="https://docs.warmbly.com/guides/warmbly-cloud/" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">How linking works</a>
+                    <a href="https://docs.theboredmonkey.com/guides/warmbly-cloud/" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">How linking works</a>
                 </div>
             </div>
         </div>
@@ -205,11 +205,11 @@ function CodeStep({ code, setCode, loading, error, onRetry }: { code: string; se
         <div>
             <div className="text-center">
                 <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-sky-50 text-sky-700 text-[11px] font-medium">
-                    <CloudIcon className="w-3 h-3" /> Warmbly Cloud
+                    <CloudIcon className="w-3 h-3" /> TheBoredMonkey Cloud
                 </span>
                 <h1 className="mt-4 text-[24px] sm:text-[28px] font-semibold tracking-[-0.03em] leading-[1.1] text-slate-900">Link your self-hosted instance</h1>
                 <p className="mt-2.5 text-[13.5px] text-slate-500 leading-relaxed max-w-md mx-auto">
-                    Enter the eight character code your instance is showing. Its mailboxes then warm in the Warmbly pool while everything else stays on your server.
+                    Enter the eight character code your instance is showing. Its mailboxes then warm in the TheBoredMonkey pool while everything else stays on your server.
                 </p>
             </div>
 
@@ -250,7 +250,7 @@ function CodeStep({ code, setCode, loading, error, onRetry }: { code: string; se
                     )}
                     {!loading && !error && (
                         <motion.p key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[12px] text-slate-400 text-center">
-                            You can paste the whole code. It is on your instance under Settings, Warmbly Cloud.
+                            You can paste the whole code. It is on your instance under Settings, TheBoredMonkey Cloud.
                         </motion.p>
                     )}
                 </AnimatePresence>

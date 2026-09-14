@@ -78,7 +78,7 @@ const ROWS = Array.from({ length: 12 }, (_, i) => ({
     email_id: "mbox-1",
     thread_id: `thread-${i}`,
     from_addr: [`Sender ${i} <s${i}@example.com>`],
-    to_addr: ["me@warmbly.com"],
+    to_addr: ["me@theboredmonkey.com"],
     subject: `Subject ${i}`,
     snippet: `Snippet ${i}`,
     internal_date: new Date(Date.now() - i * 3600e3).toISOString(),

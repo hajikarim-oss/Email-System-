@@ -850,7 +850,7 @@ export function VariableMenu({
                         </div>
 
                         <a
-                            href="https://docs.warmbly.com/learn/personalization/"
+                            href="https://docs.theboredmonkey.com/learn/personalization/"
                             target="_blank"
                             rel="noreferrer"
                             onMouseDown={(e) => e.preventDefault()}
