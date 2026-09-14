@@ -1,6 +1,7 @@
 {
   "framework": "vite",
-  "buildCommand": "cd web && pnpm run build",
+  "installCommand": "cd web && pnpm install --prod=false",
+  "buildCommand": "cd web && pnpm install --prod=false && pnpm run build",
   "outputDirectory": "web/dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },

@@ -1,0 +1,9 @@
+{
+  "name": "email-system-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd web && pnpm install && pnpm run build",
+    "postinstall": "cd web && pnpm install"
+  }
+}
