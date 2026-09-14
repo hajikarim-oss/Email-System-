@@ -2,6 +2,10 @@
   "name": "email-system-root",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build": "cd web && pnpm install && pnpm run build",
     "postinstall": "cd web && pnpm install"
