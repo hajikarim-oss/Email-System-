@@ -15,15 +15,16 @@ export class SmartleadProvider implements EmailProvider {
     return `${this.baseUrl}${endpoint}${separator}api_key=${this.apiKey}`;
   }
 
-  // Translate Nexus camelCase variables to Smartlead snake_case format
-  // Smartlead uses: {{first_name}}, {{last_name}}, {{company}}, {{title}}
-  // Nexus uses: {{firstName}}, {{lastName}}, {{company}}, {{title}}
+  // Translate Nexus camelCase/PascalCase/snake_case variables to Smartlead format
+  // Smartlead uses: {{first_name}}, {{last_name}}, {{company_name}}, {{title}}
   private static translateVariables(text: string): string {
+    if (!text) return "";
     return text
-      .replace(/\{\{firstName\}\}/g, "{{first_name}}")
-      .replace(/\{\{lastName\}\}/g, "{{last_name}}")
-      .replace(/\{\{CompanyName\}\}/g, "{{company}}")
-      .replace(/\{\{JobTitle\}\}/g, "{{title}}");
+      .replace(/&nbsp;/g, " ")
+      .replace(/\{\{\s*(\.?first_?name|first|fname)\s*\}\}/gi, "{{first_name}}")
+      .replace(/\{\{\s*(\.?last_?name|last|lname|surname)\s*\}\}/gi, "{{last_name}}")
+      .replace(/\{\{\s*(\.?company_?name|company|org|organization)\s*\}\}/gi, "{{company_name}}")
+      .replace(/\{\{\s*(\.?job_?title|title|role|position)\s*\}\}/gi, "{{title}}");
   }
 
   async createCampaign(input: EmailProviderCampaignInput): Promise<EmailProviderCampaignResult> {
@@ -339,10 +340,10 @@ export class SmartleadProvider implements EmailProvider {
           webhook_url: webhookUrl,
           event_types: [
             "EMAIL_SENT",
-            "EMAIL_OPENED",
-            "EMAIL_CLICKED",
-            "EMAIL_REPLIED",
-            "EMAIL_BOUNCED",
+            "EMAIL_OPEN",
+            "EMAIL_LINK_CLICK",
+            "EMAIL_REPLY",
+            "EMAIL_BOUNCE",
             "LEAD_UNSUBSCRIBED",
           ],
         }),
@@ -569,7 +570,7 @@ export class SmartleadProvider implements EmailProvider {
 
       const data = await response.json();
       const leads = Array.isArray(data) ? data : (data.data ?? []);
-      
+
       for (const l of leads) {
         allLeads.push({
           id: l.id,

@@ -18,5 +18,6 @@ export default function useCampaignDailyStats(id: string, days: number = 30) {
         queryKey: ["analytics", "campaigns", id, "daily", fromStr, toStr],
         queryFn: () => getCampaignDailyStats(id, fromStr, toStr),
         enabled: !!id,
+        refetchInterval: 1000,
     });
 }

@@ -37,7 +37,9 @@ import {
     RefreshCcwIcon,
     SendIcon,
     Settings2Icon,
+    Trash2Icon,
 } from "lucide-react";
+import { useCampaignActions } from "@/components/app/campaigns/useCampaignActions";
 import {
     EmptyBlock,
     Page,
@@ -254,6 +256,7 @@ export default function CampaignsPage() {
     const canView = usePermission("VIEW_CAMPAIGNS");
     const startCampaign = useStartCampaign();
     const stopCampaign = useStopCampaign();
+    const actions = useCampaignActions();
     const [folder, setFolder] = useState<string>("");
     const [query, setQuery] = useState<string>("");
     const [status, setStatus] = useState<StatusFilter>("all");
@@ -603,6 +606,20 @@ export default function CampaignsPage() {
                                         }
                                     >
                                         <StateIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            actions.requestDelete(c);
+                                        }}
+                                        disabled={actions.deleting}
+                                        className="size-6 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30"
+                                        title="Delete campaign"
+                                        aria-label="Delete campaign"
+                                    >
+                                        <Trash2Icon className="w-3.5 h-3.5" />
                                     </button>
                                     <CampaignActionsMenu
                                         campaign={c}

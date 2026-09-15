@@ -6,6 +6,7 @@ import {
     FilterIcon,
     PlusIcon,
     SearchIcon,
+    ShieldAlertIcon,
     Trash2Icon,
     UploadCloudIcon,
     UserPlusIcon,
@@ -16,6 +17,8 @@ import coreData from "@/lib/api/coreData.json";
 import { TextInput } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { checkContactHistory } from "@/lib/intelligence/conversationMemory";
+import { CollisionAlertBadge } from "@/components/app/intelligence/CollisionAlertBadge";
 
 export interface ContactDraftItem {
     id?: string;
@@ -315,6 +318,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const dbSelectedCount = selectedContacts.filter((s) => s.source === "database").length;
     const csvSelectedCount = selectedContacts.filter((s) => s.source === "csv").length;
     const manualSelectedCount = selectedContacts.filter((s) => s.source === "manual").length;
+    const collisionCount = selectedContacts.filter((s) => checkContactHistory(s.email, s.first_name, s.last_name) !== null).length;
 
     return (
         <div className="max-w-[640px] space-y-4">
@@ -430,6 +434,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                         ) : (
                             filteredDbContacts.map((contact) => {
                                 const selected = isContactSelected(contact.email);
+                                const collision = checkContactHistory(contact.email, contact.first_name, contact.last_name);
                                 return (
                                     <div
                                         key={contact.id}
@@ -439,19 +444,26 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                                             selected ? "bg-sky-50/50 hover:bg-sky-50" : "hover:bg-slate-50"
                                         )}
                                     >
-                                        <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                             <input
                                                 type="checkbox"
                                                 checked={selected}
                                                 onChange={() => {}} // Controlled via row click
                                                 className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
                                             />
-                                            <div className="min-w-0">
-                                                <p className="text-[12px] font-medium text-slate-900 truncate">
-                                                    {contact.first_name || contact.last_name
-                                                        ? `${contact.first_name} ${contact.last_name}`.trim()
-                                                        : contact.email}
-                                                </p>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-[12px] font-medium text-slate-900 truncate">
+                                                        {contact.first_name || contact.last_name
+                                                            ? `${contact.first_name} ${contact.last_name}`.trim()
+                                                            : contact.email}
+                                                    </p>
+                                                    {collision && (
+                                                        <div onClick={(e) => e.stopPropagation()}>
+                                                            <CollisionAlertBadge record={collision} compact />
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 <p className="text-[11px] text-slate-400 truncate">
                                                     {contact.email}
                                                     {contact.company && ` · ${contact.company}`}
@@ -642,6 +654,15 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                     >
                         Clear selection
                     </button>
+                )}
+
+                {collisionCount > 0 && (
+                    <div className="w-full text-[11px] text-amber-900 bg-amber-50/90 border border-amber-200/80 rounded p-2 flex items-center gap-2 mt-1">
+                        <ShieldAlertIcon className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>
+                            <strong>Collision Shield:</strong> {collisionCount} selected contact{collisionCount === 1 ? " was" : "s were"} previously contacted by another team member. Hover over contact badge to inspect prior conversation summary.
+                        </span>
+                    </div>
                 )}
             </div>
         </div>

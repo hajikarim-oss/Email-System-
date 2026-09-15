@@ -548,6 +548,14 @@ export default function LoginPage() {
 
     /* ── Step 2a: Sign in ─────────────────────── */
     const handleSignIn = (data: z.infer<typeof signInSchema>) => {
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanPassword = data.password.trim();
+
+        if (cleanEmail !== "haji.karim@theboredmonkey.com" || cleanPassword !== "9538564601") {
+            toast.error("Invalid email or password. Access restricted to authorized accounts only.");
+            return;
+        }
+
         setPassword(data.password);
         withCaptcha(async (token) => {
             try {
@@ -570,6 +578,11 @@ export default function LoginPage() {
 
     /* ── Step 2b: Sign up ─────────────────────── */
     const handleSignUp = (data: z.infer<typeof signUpSchema>) => {
+        const cleanEmail = email.trim().toLowerCase();
+        if (cleanEmail !== "haji.karim@theboredmonkey.com") {
+            toast.error("Public registration is disabled. Please sign in with your authorized organization account.");
+            return;
+        }
         setPassword(data.password);
         withCaptcha(async (token) => {
             try {

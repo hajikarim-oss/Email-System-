@@ -36,6 +36,10 @@ import {
     SearchIcon,
     Trash2Icon,
     KeyIcon,
+    CopyIcon,
+    DownloadIcon,
+    FileTextIcon,
+    PaperclipIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -142,7 +146,9 @@ export default function AgentPanel() {
     const location = useLocation();
     const scrollRef = React.useRef<HTMLDivElement>(null);
     const inputRef = React.useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
     const hydrating = React.useRef<Set<string>>(new Set());
+    const [attachedFile, setAttachedFile] = React.useState<{ name: string; size: number; content: string } | null>(null);
     // Stick-to-bottom: autoscroll only while the user is pinned near the end,
     // so streaming never yanks them away from scrollback they are reading.
     const [pinned, setPinned] = React.useState(true);
@@ -338,18 +344,26 @@ export default function AgentPanel() {
         const tab = activeTab;
         if (!tab || tab.running || tab.pending || !tab.hydrated) return;
         const text = draft.trim();
-        if (!text) return;
+        if (!text && !attachedFile) return;
         const store = useAppStore.getState();
+
+        const currentAttachment = attachedFile;
+        setAttachedFile(null);
+
+        const promptToSend = currentAttachment
+            ? `📎 [File Attached: ${currentAttachment.name}]\n\`\`\`\n${currentAttachment.content.slice(0, 15000)}\n\`\`\`\n\n${text || "Please analyze this attached file in the context of my outreach workspace."}`
+            : text;
+
         // running flips on synchronously so a double Enter can't double-send.
         store.agentUpdateTab(tab.key, (t) => ({
             ...t,
             running: true,
             draft: "",
             title:
-                t.sessionId || t.title !== "New chat" ? t.title : deriveTitle(text),
+                t.sessionId || t.title !== "New chat" ? t.title : deriveTitle(text || currentAttachment?.name || "File Analysis"),
             turns: [
                 ...t.turns,
-                { id: nextId(), role: "user", blocks: [{ kind: "text", text }] },
+                { id: nextId(), role: "user", blocks: [{ kind: "text", text: currentAttachment ? `📎 Attached: ${currentAttachment.name}\n\n${text || "Analyze attached file"}` : text }] },
             ],
         }));
 
@@ -376,7 +390,7 @@ export default function AgentPanel() {
         }
         await runStream(tab.key, `/ai/sessions/${sid}/messages`, {
             message_id: nextId() + ":" + Date.now(),
-            text,
+            text: promptToSend,
             page: location.pathname,
             resource,
         });
@@ -874,7 +888,55 @@ export default function AgentPanel() {
                             {/* py-1 + leading-5 make a single line exactly the
                                 size-7 button height, so text centers against it;
                                 items-end keeps the button pinned when it grows. */}
+                            {/* Attached File Preview Badge */}
+                            {attachedFile && (
+                                <div className="flex items-center justify-between px-2.5 py-1 mb-2 rounded-md bg-sky-50 border border-sky-200 text-[11.5px] text-sky-800">
+                                    <div className="flex items-center gap-1.5 truncate">
+                                        <FileTextIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                        <span className="font-semibold truncate">{attachedFile.name}</span>
+                                        <span className="text-slate-400 font-mono text-[10.5px]">({(attachedFile.size / 1024).toFixed(1)} KB)</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAttachedFile(null)}
+                                        className="text-slate-400 hover:text-slate-700 ml-2 p-0.5 rounded hover:bg-sky-100 transition-colors cursor-pointer"
+                                        title="Remove attachment"
+                                    >
+                                        <XIcon className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Hidden File Input for Uploads */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".csv,.txt,.json,.md,.doc,.docx"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                        const text = String(reader.result || "");
+                                        setAttachedFile({ name: file.name, size: file.size, content: text });
+                                        toast.success(`Attached ${file.name} to AI context`);
+                                    };
+                                    reader.readAsText(file);
+                                    e.target.value = "";
+                                }}
+                            />
+
                             <div className="flex items-end gap-2 rounded-lg border border-slate-200 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 px-2.5 py-1.5 transition-colors">
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={composerLocked}
+                                    title="Upload context file (CSV, TXT, JSON, MD)"
+                                    className="size-7 rounded-md text-slate-400 hover:text-sky-600 hover:bg-slate-100 inline-flex items-center justify-center transition-colors shrink-0 cursor-pointer disabled:opacity-40"
+                                >
+                                    <PaperclipIcon className="w-4 h-4" />
+                                </button>
                                 <textarea
                                     ref={inputRef}
                                     value={draft}
@@ -893,7 +955,9 @@ export default function AgentPanel() {
                                     placeholder={
                                         activeTab?.pending
                                             ? "Respond to the approval above first"
-                                            : "Ask about contacts, campaigns, your inbox…"
+                                            : attachedFile
+                                            ? `Ask AI to analyze ${attachedFile.name}…`
+                                            : "Ask about contacts, campaigns, your inbox, or attach files…"
                                     }
                                     disabled={composerLocked}
                                     className="flex-1 resize-none bg-transparent py-1 text-[13px] leading-5 text-slate-900 placeholder:text-slate-400 outline-none max-h-32 disabled:opacity-60"
@@ -913,10 +977,10 @@ export default function AgentPanel() {
                                 ) : (
                                     <button
                                         onClick={send}
-                                        disabled={!draft.trim() || composerLocked}
+                                        disabled={(!draft.trim() && !attachedFile) || composerLocked}
                                         title="Send"
                                         aria-label="Send message"
-                                        className="size-7 rounded-md bg-sky-600 hover:bg-sky-700 text-white inline-flex items-center justify-center transition-colors disabled:opacity-40"
+                                        className="size-7 rounded-md bg-sky-600 hover:bg-sky-700 text-white inline-flex items-center justify-center transition-colors disabled:opacity-40 cursor-pointer"
                                     >
                                         <ArrowUpIcon className="w-4 h-4" />
                                     </button>
@@ -1543,6 +1607,53 @@ const TurnView = React.memo(function TurnView({
                     </div>
                 );
             })}
+            {/* Action buttons on completed assistant turn: Download & Copy */}
+            {turn.role === "assistant" && !streaming && (
+                <div className="flex items-center gap-1.5 pt-1 pl-0.5">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const fullText = turn.blocks
+                                .map((b) => (b.kind === "text" ? b.text : ""))
+                                .filter(Boolean)
+                                .join("\n\n");
+                            if (!fullText) return;
+                            const isCsv = fullText.includes(",") && fullText.includes("\n") && !fullText.includes("###");
+                            const extension = isCsv ? "csv" : "md";
+                            const blob = new Blob([fullText], { type: isCsv ? "text/csv;charset=utf-8;" : "text/markdown;charset=utf-8;" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `tbm-assistant-${new Date().toISOString().slice(0, 10)}.${extension}`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                            toast.success(`Downloaded as .${extension}`);
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200/70"
+                        title="Download response"
+                    >
+                        <DownloadIcon className="w-3 h-3 text-slate-500" />
+                        <span>Download</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const fullText = turn.blocks
+                                .map((b) => (b.kind === "text" ? b.text : ""))
+                                .filter(Boolean)
+                                .join("\n\n");
+                            if (!fullText) return;
+                            navigator.clipboard.writeText(fullText);
+                            toast.success("Copied to clipboard");
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200/70"
+                        title="Copy response to clipboard"
+                    >
+                        <CopyIcon className="w-3 h-3 text-slate-500" />
+                        <span>Copy</span>
+                    </button>
+                </div>
+            )}
         </div>
     );
 });

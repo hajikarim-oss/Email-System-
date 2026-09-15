@@ -28,6 +28,7 @@ import toast from "react-hot-toast";
 import { CAMPAIGN_DELETED_EVENT, type CampaignDeletedDetail } from "@/lib/realtime/campaignDeleted";
 import ResourceViewers from "@/components/app/presence/ResourceViewers";
 import { usePresenceResource } from "@/hooks/PresenceProvider";
+import { CampaignQueueMonitor } from "@/components/app/campaigns/CampaignQueueMonitor";
 
 const TABS = [
     { label: "Overview", path: "", Icon: BarChart3Icon },
@@ -116,13 +117,23 @@ export default function CampaignLayout() {
     const canToggle = isActive || canStart;
     const pending = isActive ? stopCampaign.isPending : startCampaign.isPending;
 
-    const onToggle = () => {
+    const onToggle = async () => {
         if (isActive) {
             confirm?.show(`Pause ${campaign.name}?`, () => {
                 stopCampaign.mutate(campaign.id);
             });
         } else {
-            setLaunchOpen(true);
+            // Unify Start with Dispatch: trigger full sequence dispatch, smartlead sync, and queue broadcast
+            toast.loading("Starting campaign & dispatching live sequence...", { id: "camp_start" });
+            try {
+                await startCampaign.mutateAsync({ id: campaign.id });
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: campaign.id } }));
+                }
+                toast.success("Campaign active & batch dispatched!", { id: "camp_start" });
+            } catch {
+                toast.error("Failed to start campaign", { id: "camp_start" });
+            }
         }
     };
 
@@ -218,6 +229,9 @@ export default function CampaignLayout() {
                         );
                     })}
                 </div>
+                
+                {/* Real-time Outreach Queue & Smartlead Dispatch Monitor */}
+                <CampaignQueueMonitor campaign={campaign} />
 
                 {/* Leads renders a full-bleed Page (its own topbar, stat strip
                     and table gutters), so padding it again wastes a fifth of a

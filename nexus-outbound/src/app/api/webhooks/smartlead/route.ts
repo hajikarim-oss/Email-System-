@@ -46,9 +46,13 @@ export async function POST(req: Request) {
       EMAIL_SENT: "sent",
       FIRST_EMAIL_SENT: "sent",
       EMAIL_OPENED: "opened",
+      EMAIL_OPEN: "opened",
       EMAIL_CLICKED: "clicked",
+      EMAIL_LINK_CLICK: "clicked",
       EMAIL_REPLIED: "replied",
+      EMAIL_REPLY: "replied",
       EMAIL_BOUNCED: "bounced",
+      EMAIL_BOUNCE: "bounced",
       LEAD_UNSUBSCRIBED: "unsubscribed",
       LEAD_CATEGORY_UPDATED: "category_updated",
       CAMPAIGN_STATUS_CHANGED: "campaign_status_changed",
@@ -56,7 +60,7 @@ export async function POST(req: Request) {
       MANUAL_REPLY_SENT: "manual_reply_sent",
       UNTRACKED_REPLIES: "untracked_reply",
     };
-    const internalEventType = eventMap[eventType] || eventType.toLowerCase();
+    const internalEventType = eventMap[eventType.toUpperCase()] || eventType.toLowerCase();
 
     // Idempotency check
     const existing = await prisma.emailEvent.findFirst({

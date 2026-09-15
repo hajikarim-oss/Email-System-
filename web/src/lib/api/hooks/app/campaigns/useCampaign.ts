@@ -11,6 +11,7 @@ const useCampaign = (id: string) =>
         queryKey: ["campaigns", id],
         queryFn: () => getCampaign(id),
         enabled: !!id,
+        refetchInterval: 1000,
     });
 
 export default useCampaign;

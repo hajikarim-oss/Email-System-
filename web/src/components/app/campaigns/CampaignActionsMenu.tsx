@@ -47,6 +47,10 @@ export default function CampaignActionsMenu({ campaign, variant, onToggle, after
             <PopoverMenuTrigger asChild>
                 <button
                     type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }}
                     aria-label={`Actions for ${campaign.name}`}
                     title="More actions"
                     className={cn(
