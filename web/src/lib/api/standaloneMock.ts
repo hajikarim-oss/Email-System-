@@ -481,7 +481,47 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     // 7. Unibox (Unified Inbox)
-    if (pathWithoutQuery === "/unibox" || pathWithoutQuery === "/unibox/overview") {
+    if (pathWithoutQuery === "/unibox/overview") {
+        return res({
+            total: 2,
+            unread: 1,
+            today: 1,
+            week: 2,
+            snoozed: 0,
+            awaiting_reply: 1,
+            awaiting_agent_draft: 0,
+            scheduled_pending: 0,
+            scheduled_pending_max: 50,
+            folders: [
+                { folder: "inbox", unread: 1, total: 2 },
+                { folder: "sent", unread: 0, total: 14 },
+                { folder: "drafts", unread: 0, total: 1 },
+                { folder: "archive", unread: 0, total: 0 },
+                { folder: "spam", unread: 0, total: 0 },
+                { folder: "trash", unread: 0, total: 0 },
+            ],
+            mailboxes: emails.map((e: { id: string; email: string; from_name?: string }) => ({
+                id: e.id,
+                email: e.email,
+                name: e.from_name || e.email.split("@")[0],
+                unread: 1,
+                total: 2,
+            })),
+            tags: [
+                { id: "tag_vip", title: "VIP Client", color: "#f59e0b", unread: 1, total: 1 },
+                { id: "tag_demo", title: "Demo Booked", color: "#10b981", unread: 0, total: 1 },
+            ],
+            categories: [
+                { id: "cat_1", title: "Interested", color: "#10b981", unread: 1, total: 1 },
+                { id: "cat_2", title: "Follow Up", color: "#3b82f6", unread: 0, total: 1 },
+            ],
+            generated_at: new Date().toISOString(),
+            window_today_start: new Date(Date.now() - 86400000).toISOString(),
+            window_week_start: new Date(Date.now() - 7 * 86400000).toISOString(),
+        });
+    }
+
+    if (pathWithoutQuery === "/unibox" || pathWithoutQuery.startsWith("/unibox?")) {
         const uniboxRows = [
             {
                 id: "msg_1",
@@ -520,6 +560,71 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             },
         });
     }
+
+    if (pathWithoutQuery === "/unibox/thread") {
+        const threadId = queryParams.get("thread_id") || "th_1";
+        const isMarcus = threadId === "th_2";
+        const threadMessages = [
+            {
+                id: `msg_${threadId}_1`,
+                email_id: emails[0]?.id || "eml_1",
+                thread_id: threadId,
+                from_addr: ["haji.karim@theboredmonkey.com"],
+                to_addr: [isMarcus ? "marcus.v@cloudscale.net" : "sarah.chen@fintechlabs.com"],
+                subject: isMarcus ? "Partnership opportunity with TheBoredMonkey" : "Quick question about SaaS scaling",
+                snippet: isMarcus
+                    ? "Hi Marcus, we help engineering teams scale cold email infrastructure without hitting spam filters. Would love to share our playbook."
+                    : "Hi Sarah, loved your recent announcement on fintech scaling. Would love to share how we helped similar teams optimize outbound deliverability.",
+                internal_date: "2026-03-10T14:10:00Z",
+                seen: true,
+            },
+            {
+                id: `msg_${threadId}_2`,
+                email_id: emails[0]?.id || "eml_1",
+                thread_id: threadId,
+                from_addr: [isMarcus ? "Marcus Vance <marcus.v@cloudscale.net>" : "Sarah Chen <sarah.chen@fintechlabs.com>"],
+                to_addr: ["haji.karim@theboredmonkey.com"],
+                subject: isMarcus ? "Re: Partnership opportunity with TheBoredMonkey" : "Re: Quick question about SaaS scaling",
+                snippet: isMarcus
+                    ? "Can you send over the technical documentation for deliverability warmup?"
+                    : "Thanks Haji, this looks really interesting. Do you have 15 mins tomorrow at 2 PM?",
+                internal_date: "2026-03-10T15:24:00Z",
+                seen: !isMarcus ? false : true,
+            },
+        ];
+        return res({
+            data: threadMessages,
+            pagination: { has_more: false, next_cursor: null },
+        });
+    }
+
+    if (pathWithoutQuery === "/unibox/reply") {
+        return res({
+            task_id: `task_${Date.now()}`,
+            scheduled_at: new Date(),
+            send_mode: "instant",
+        });
+    }
+
+    if (pathWithoutQuery === "/unibox/reply/draft") {
+        return res({
+            status: "draft_saved",
+            draft_id: `draft_${Date.now()}`,
+        });
+    }
+
+    if (pathWithoutQuery === "/unibox/seen") {
+        return res({ status: "ok", updated: true });
+    }
+
+    if (pathWithoutQuery === "/unibox/thread/labels") {
+        return res({ status: "ok", updated: true });
+    }
+
+    if (pathWithoutQuery === "/unibox/thread/snooze") {
+        return res({ status: "ok", snoozed: true });
+    }
+
 
     // 8. Analytics & Deliverability
     if (pathWithoutQuery === "/analytics/accounts") {
