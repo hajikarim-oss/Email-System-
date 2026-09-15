@@ -18,7 +18,7 @@ function loadStorage<T>(key: string, defaultVal: T): T {
 function saveStorage<T>(key: string, val: T): void {
     try {
         localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(val));
-    } catch {}
+    } catch { }
 }
 
 // Initial state data loaded from real Email System 101 core database
@@ -29,10 +29,12 @@ const initialContacts = coreData.contacts;
 export async function handleStandaloneRequest(config: AxiosRequestConfig): Promise<AxiosResponse> {
     const rawUrl = config.url ?? "";
     const method = (config.method ?? "GET").toUpperCase();
-    
+
     // Normalize path to ignore /v1 or baseURL
     const path = rawUrl.replace(/^https?:\/\/[^/]+/, "").replace(/^\/v1/, "") || "/";
     const pathWithoutQuery = path.split("?")[0];
+    const queryString = path.includes("?") ? path.slice(path.indexOf("?") + 1) : "";
+    const queryParams = new URLSearchParams(queryString);
 
     // Helper response builder
     const res = (data: unknown, status = 200): AxiosResponse => ({
@@ -404,11 +406,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             saveStorage("campaigns", campaigns);
             return res(newCamp);
         }
+        const campQuery = (queryParams.get("query") || queryParams.get("q") || "").toLowerCase().trim();
+        const campResults = campQuery
+            ? campaigns.filter((c: any) => (c.name || "").toLowerCase().includes(campQuery) || (c.description || "").toLowerCase().includes(campQuery))
+            : campaigns;
         return res({
-            data: campaigns,
-            count: campaigns.length,
+            data: campResults,
+            count: campResults.length,
             pagination: {
-                total: campaigns.length,
+                total: campResults.length,
                 next_cursor: null,
                 has_more: false,
             },
@@ -421,14 +427,64 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const sub = parts[2];
         const match = campaigns.find((c: { id: string }) => c.id === campId) || campaigns[0];
 
+        // START CAMPAIGN: Update status to active and start lead processing queue
+        if (sub === "start" && method === "POST") {
+            if (match) {
+                match.status = "active";
+                match.updated_at = new Date().toISOString();
+
+                // Advance campaign leads into active sending queue
+                const currentContacts = loadStorage("contacts", initialContacts);
+                let activeCount = 0;
+                currentContacts.forEach((ct: any) => {
+                    const isForThisCamp =
+                        ct.campaign_id === match.id ||
+                        (Array.isArray(ct.campaigns) && ct.campaigns.includes(match.id));
+                    if (isForThisCamp) {
+                        ct.status = "active";
+                        activeCount++;
+                    }
+                });
+
+                // Simulate active sending progression
+                if ((match.sent_count || 0) === 0 && (match.total_leads || activeCount) > 0) {
+                    match.sent_count = 1;
+                    match.open_count = 0;
+                    match.reply_count = 0;
+                }
+
+                saveStorage("contacts", currentContacts);
+                saveStorage("campaigns", campaigns);
+            }
+            return res({ status: "active", waiting_for_leads: false });
+        }
+
+        // STOP / PAUSE CAMPAIGN
+        if ((sub === "stop" || sub === "pause") && method === "POST") {
+            if (match) {
+                match.status = "paused";
+                match.updated_at = new Date().toISOString();
+                saveStorage("campaigns", campaigns);
+            }
+            return res({ status: "paused" });
+        }
+
         if (sub === "steps" || sub === "sequences") {
             return res(match?.steps ?? match?.sequences ?? []);
         }
+
         if (sub === "leads") {
-            const campLeads = initialContacts.filter((ct: { campaign_id?: string }) => ct.campaign_id === campId);
-            const results = campLeads.length > 0 ? campLeads : initialContacts.slice(0, 5);
-            return res({ data: results, total: results.length, pagination: { total: results.length, has_more: false, next_cursor: null } });
+            const currentContacts = loadStorage("contacts", initialContacts);
+            const campLeads = currentContacts.filter((ct: { campaign_id?: string; campaigns?: string[] }) =>
+                ct.campaign_id === campId || (Array.isArray(ct.campaigns) && ct.campaigns.includes(campId))
+            );
+            return res({
+                data: campLeads,
+                total: campLeads.length,
+                pagination: { total: campLeads.length, has_more: false, next_cursor: null }
+            });
         }
+
         if (sub === "senders") {
             return res({
                 data: emails.map((e: { id: string }) => ({
@@ -447,26 +503,128 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery === "/contacts" || pathWithoutQuery === "/contacts/search") {
         if (method === "POST" && pathWithoutQuery === "/contacts") {
             const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
-            const newContact = {
-                id: `cnt_${Date.now()}`,
-                email: body.email || "contact@example.com",
-                first_name: body.first_name || "Lead",
-                last_name: body.last_name || "",
-                company_name: body.company_name || "",
-                title: body.title || "",
-                status: "new",
-                tags: body.tags || [],
-                custom_fields: {},
-                created_at: new Date().toISOString(),
-            };
-            contacts.unshift(newContact as any);
-            saveStorage("contacts", contacts);
-            return res(newContact);
+
+            // Batch contacts addition (e.g. from NewCampaignDialog or Import)
+            if (Array.isArray(body)) {
+                const addedList: any[] = [];
+                for (const item of body) {
+                    const campId = item.campaigns?.[0] || item.campaign_id;
+                    const existingIdx = contacts.findIndex((c: any) => (c.email || "").toLowerCase() === (item.email || "").toLowerCase());
+                    const newC = {
+                        id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                        email: item.email || "contact@example.com",
+                        first_name: item.first_name || "",
+                        last_name: item.last_name || "",
+                        company_name: item.company || item.company_name || "",
+                        title: item.title || item.role || item.custom_fields?.role || "",
+                        status: "pending",
+                        tags: item.tags || ["added"],
+                        custom_fields: item.custom_fields || {},
+                        campaign_id: campId || null,
+                        campaigns: item.campaigns || (campId ? [campId] : []),
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    };
+                    if (existingIdx >= 0) {
+                        contacts[existingIdx] = {
+                            ...contacts[existingIdx],
+                            ...newC,
+                            id: contacts[existingIdx].id,
+                            campaign_id: campId || contacts[existingIdx].campaign_id,
+                            campaigns: campId
+                                ? Array.from(new Set([...(contacts[existingIdx].campaigns || []), campId]))
+                                : contacts[existingIdx].campaigns,
+                        };
+                        addedList.push(contacts[existingIdx]);
+                    } else {
+                        contacts.unshift(newC);
+                        addedList.push(newC);
+                    }
+                    if (campId) {
+                        const targetCamp = campaigns.find((c: any) => c.id === campId);
+                        if (targetCamp) {
+                            targetCamp.total_leads = (targetCamp.total_leads || 0) + 1;
+                        }
+                    }
+                }
+                saveStorage("contacts", contacts);
+                saveStorage("campaigns", campaigns);
+                return res(addedList);
+            } else {
+                // Single contact addition
+                const campId = body.campaigns?.[0] || body.campaign_id;
+                const newContact = {
+                    id: `cnt_${Date.now()}`,
+                    email: body.email || "contact@example.com",
+                    first_name: body.first_name || "Lead",
+                    last_name: body.last_name || "",
+                    company_name: body.company_name || body.company || "",
+                    title: body.title || body.role || "",
+                    status: "pending",
+                    tags: body.tags || [],
+                    custom_fields: body.custom_fields || {},
+                    campaign_id: campId || null,
+                    campaigns: body.campaigns || (campId ? [campId] : []),
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                };
+                contacts.unshift(newContact as any);
+                if (campId) {
+                    const targetCamp = campaigns.find((c: any) => c.id === campId);
+                    if (targetCamp) {
+                        targetCamp.total_leads = (targetCamp.total_leads || 0) + 1;
+                        saveStorage("campaigns", campaigns);
+                    }
+                }
+                saveStorage("contacts", contacts);
+                return res(newContact);
+            }
         }
+
+        // Full contacts searching and filtering
+        const reqBody = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+        let results = [...contacts];
+
+        // 1. Filter by campaign_ids
+        const campIds = reqBody.campaign_ids || (queryParams.get("campaign_id") ? [queryParams.get("campaign_id")] : null);
+        if (campIds && campIds.length > 0) {
+            results = results.filter((c: any) =>
+                campIds.includes(c.campaign_id) ||
+                (Array.isArray(c.campaigns) && c.campaigns.some((cid: string) => campIds.includes(cid)))
+            );
+        }
+
+        // 2. Filter by search query (first_name, last_name, email, company, title/role)
+        const q = (reqBody.query || queryParams.get("query") || queryParams.get("q") || "").trim().toLowerCase();
+        if (q) {
+            results = results.filter((c: any) => {
+                const fullName = `${c.first_name || ""} ${c.last_name || ""}`.trim().toLowerCase();
+                const email = (c.email || "").toLowerCase();
+                const company = (c.company_name || c.company || "").toLowerCase();
+                const title = (c.title || c.role || "").toLowerCase();
+                return (
+                    fullName.includes(q) ||
+                    (c.first_name || "").toLowerCase().includes(q) ||
+                    (c.last_name || "").toLowerCase().includes(q) ||
+                    email.includes(q) ||
+                    company.includes(q) ||
+                    title.includes(q)
+                );
+            });
+        }
+
+        // 3. Filter by lead status
+        const statusFilter = reqBody.lead_status || reqBody.status;
+        if (statusFilter && statusFilter !== "all") {
+            results = results.filter((c: any) => (c.status || "pending").toLowerCase() === statusFilter.toLowerCase());
+        }
+
         return res({
-            data: contacts,
+            data: results,
+            total: results.length,
+            count: results.length,
             pagination: {
-                total: contacts.length,
+                total: results.length,
                 page: 1,
                 limit: 50,
                 next_cursor: null,
@@ -670,56 +828,80 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery.startsWith("/analytics/campaigns/") && pathWithoutQuery.endsWith("/daily")) {
+        const campId = pathWithoutQuery.replace("/analytics/campaigns/", "").replace("/daily", "").split("/")[0];
+        const match = campaigns.find((c: { id: string }) => c.id === campId);
+        const sent = match?.sent_count ?? 0;
+        if (!match || match.status === "draft" || sent === 0) {
+            return res({ data: [] });
+        }
         const dates = ["2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10", "2026-03-11"];
-        const dailyData = dates.map((d, i) => ({
-            date: d,
-            sent: 10 + i * 4,
-            opens: 7 + i * 3,
-            clicks: 2 + i,
-            replies: i === 5 || i === 6 ? 2 : 1,
-        }));
+        const dailyData = dates.map((d, i) => {
+            const daySent = Math.floor((sent / dates.length) * (i + 1) / 4);
+            const dayOpens = Math.floor(daySent * 0.6);
+            return {
+                date: d,
+                sent: daySent,
+                opens: dayOpens,
+                clicks: Math.floor(dayOpens * 0.25),
+                replies: Math.floor(dayOpens * 0.15),
+            };
+        });
         return res({ data: dailyData });
     }
 
     if (pathWithoutQuery.startsWith("/analytics/campaigns/")) {
         const campId = pathWithoutQuery.replace("/analytics/campaigns/", "").split("/")[0];
         const match = campaigns.find((c: { id: string }) => c.id === campId) || campaigns[0];
+        const sent = match?.sent_count ?? 0;
+        const opens = match?.open_count ?? 0;
+        const clicks = match?.click_count ?? 0;
+        const replies = match?.reply_count ?? 0;
+        const bounces = match?.bounce_count ?? 0;
+        const openRate = sent > 0 ? Number(((opens / sent) * 100).toFixed(1)) : 0;
+        const clickRate = sent > 0 ? Number(((clicks / sent) * 100).toFixed(1)) : 0;
+        const replyRate = sent > 0 ? Number(((replies / sent) * 100).toFixed(1)) : 0;
+        const bounceRate = sent > 0 ? Number(((bounces / sent) * 100).toFixed(1)) : 0;
+
         return res({
             campaign_id: match.id,
             name: match.name,
             status: match.status,
             date_range: { from: "2026-03-01", to: "2026-03-11" },
             summary: {
-                total_contacts: match.total_leads || 21,
-                emails_sent: match.sent_count || 34,
-                emails_pending: 0,
-                unique_opens: match.open_count || 22,
-                machine_opens: 2,
+                total_contacts: match.total_leads || 0,
+                emails_sent: sent,
+                emails_pending: Math.max(0, (match.total_leads || 0) - sent),
+                unique_opens: opens,
+                machine_opens: 0,
                 machine_clicks: 0,
-                unique_clicks: 6,
-                replies: match.reply_count || 5,
-                bounces: 0,
+                unique_clicks: clicks,
+                replies: replies,
+                bounces: bounces,
                 unsubscribes: 0,
-                open_rate: 64.7,
-                click_rate: 17.6,
-                reply_rate: 14.7,
-                bounce_rate: 0,
+                open_rate: openRate,
+                click_rate: clickRate,
+                reply_rate: replyRate,
+                bounce_rate: bounceRate,
             },
             steps: (match.steps || []).map((s: { id: string; stepNumber?: number; position?: number; subject: string }) => ({
                 step_id: s.id,
                 name: `Step ${s.stepNumber || s.position || 1}`,
                 position: s.stepNumber || s.position || 1,
-                emails_sent: 17,
-                opens: 11,
-                clicks: 3,
-                replies: 2,
-                bounces: 0,
+                emails_sent: sent > 0 ? Math.ceil(sent / (match.steps.length || 1)) : 0,
+                opens: opens > 0 ? Math.ceil(opens / (match.steps.length || 1)) : 0,
+                clicks: clicks > 0 ? Math.ceil(clicks / (match.steps.length || 1)) : 0,
+                replies: replies > 0 ? Math.ceil(replies / (match.steps.length || 1)) : 0,
+                bounces: bounces > 0 ? Math.ceil(bounces / (match.steps.length || 1)) : 0,
             })),
             daily_stats: [],
-            engagement: {
-                countries: [{ key: "IN", opens: 14, clicks: 4 }, { key: "US", opens: 8, clicks: 2 }],
-                clients: [{ key: "Gmail", opens: 18, clicks: 5 }, { key: "Apple Mail", opens: 4, clicks: 1 }],
-                devices: [{ key: "Desktop", opens: 16, clicks: 4 }, { key: "Mobile", opens: 6, clicks: 2 }],
+            engagement: sent > 0 ? {
+                countries: [{ key: "IN", opens: Math.ceil(opens * 0.7), clicks: Math.ceil(clicks * 0.7) }, { key: "US", opens: Math.floor(opens * 0.3), clicks: Math.floor(clicks * 0.3) }],
+                clients: [{ key: "Gmail", opens: Math.ceil(opens * 0.8), clicks: Math.ceil(clicks * 0.8) }, { key: "Apple Mail", opens: Math.floor(opens * 0.2), clicks: Math.floor(clicks * 0.2) }],
+                devices: [{ key: "Desktop", opens: Math.ceil(opens * 0.7), clicks: Math.ceil(clicks * 0.7) }, { key: "Mobile", opens: Math.floor(opens * 0.3), clicks: Math.floor(clicks * 0.3) }],
+            } : {
+                countries: [],
+                clients: [],
+                devices: [],
             },
         });
     }
@@ -1154,7 +1336,7 @@ export function installStandaloneFetchInterceptor(): void {
             try {
                 let bodyObj: { message?: string; text?: string; page?: string; resource?: string; context?: Record<string, unknown> } = {};
                 if (typeof init?.body === "string") {
-                    try { bodyObj = JSON.parse(init.body); } catch {}
+                    try { bodyObj = JSON.parse(init.body); } catch { }
                 }
 
                 const userPrompt = (bodyObj.text || bodyObj.message || "").trim();
@@ -1200,14 +1382,14 @@ export function installStandaloneFetchInterceptor(): void {
                 console.warn("AI session handler error:", err);
             }
         }
-        
+
         // Only intercept API calls targeting /v1 (and exclude external OpenAI calls)
         if (!urlStr.includes("api.openai.com") && (urlStr.includes("/v1/") || urlStr.startsWith("/v1"))) {
             try {
                 const method = init?.method ?? "GET";
                 let data: unknown = init?.body;
                 if (typeof data === "string") {
-                    try { data = JSON.parse(data); } catch {}
+                    try { data = JSON.parse(data); } catch { }
                 }
                 const mockRes = await handleStandaloneRequest({
                     url: urlStr,

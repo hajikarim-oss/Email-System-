@@ -12,7 +12,7 @@ import {
     UsersIcon,
     XIcon,
 } from "lucide-react";
-import { useContacts } from "@/hooks/ContactsProvider";
+import coreData from "@/lib/api/coreData.json";
 import { TextInput } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -27,6 +27,27 @@ export interface ContactDraftItem {
     source: "database" | "csv" | "manual";
 }
 
+interface NormalizedContact {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    company: string;
+    role: string;
+    custom_fields?: Record<string, string>;
+}
+
+function loadLocalContacts(): any[] {
+    try {
+        const item = localStorage.getItem("tbm_core_data_v4_contacts");
+        if (item) {
+            const parsed = JSON.parse(item);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+    } catch {}
+    return (coreData as any).contacts || [];
+}
+
 interface ContactsStepProps {
     selectedContacts: ContactDraftItem[];
     onChangeSelected: (contacts: ContactDraftItem[]) => void;
@@ -34,27 +55,44 @@ interface ContactsStepProps {
 
 export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsStepProps) {
     const [subTab, setSubTab] = React.useState<"database" | "csv" | "manual">("database");
-    const contactsCtx = useContacts();
-    const dbContacts = contactsCtx?.contacts || [];
+
+    const [dbContacts] = React.useState<NormalizedContact[]>(() => {
+        const raw = loadLocalContacts();
+        return raw.map((c: any) => ({
+            id: c.id || `cnt_${Math.random()}`,
+            email: c.email || "",
+            first_name: c.first_name || "",
+            last_name: c.last_name || "",
+            company: c.company_name || c.company || c.custom_fields?.company || "",
+            role: c.title || c.role || c.custom_fields?.role || c.custom_fields?.title || "",
+            custom_fields: c.custom_fields || {},
+        }));
+    });
 
     // ── Tab 1: Database Search & Filter ────────────────────────────────────
     const [dbSearch, setDbSearch] = React.useState("");
     const [companyFilter, setCompanyFilter] = React.useState<string>("all");
 
     const filteredDbContacts = React.useMemo(() => {
+        const q = dbSearch.trim().toLowerCase();
         return dbContacts.filter((c) => {
+            const fullName = `${c.first_name} ${c.last_name}`.trim().toLowerCase();
+            const email = (c.email || "").toLowerCase();
+            const company = (c.company || "").toLowerCase();
+            const role = (c.role || "").toLowerCase();
+
             const matchesSearch =
-                !dbSearch ||
-                `${c.first_name} ${c.last_name}`.toLowerCase().includes(dbSearch.toLowerCase()) ||
-                c.email.toLowerCase().includes(dbSearch.toLowerCase()) ||
-                (c.company || "").toLowerCase().includes(dbSearch.toLowerCase()) ||
-                Object.values(c.custom_fields || {}).some((v) =>
-                    v.toLowerCase().includes(dbSearch.toLowerCase())
-                );
+                !q ||
+                fullName.includes(q) ||
+                c.first_name.toLowerCase().includes(q) ||
+                c.last_name.toLowerCase().includes(q) ||
+                email.includes(q) ||
+                company.includes(q) ||
+                role.includes(q);
 
             const matchesCompany =
                 companyFilter === "all" ||
-                (companyFilter === "has_company" && !!c.company?.trim());
+                (companyFilter === "has_company" && !!c.company.trim());
 
             return matchesSearch && matchesCompany;
         });
@@ -64,14 +102,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
         return selectedContacts.some((sc) => sc.email.toLowerCase() === email.toLowerCase());
     };
 
-    const toggleContact = (contact: {
-        id: string;
-        email: string;
-        first_name: string;
-        last_name: string;
-        company: string;
-        custom_fields?: Record<string, string>;
-    }) => {
+    const toggleContact = (contact: NormalizedContact) => {
         if (isContactSelected(contact.email)) {
             onChangeSelected(
                 selectedContacts.filter(
@@ -87,7 +118,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                     first_name: contact.first_name,
                     last_name: contact.last_name,
                     company: contact.company,
-                    role: contact.custom_fields?.role || contact.custom_fields?.title || "",
+                    role: contact.role || contact.custom_fields?.role || contact.custom_fields?.title || "",
                     source: "database",
                 },
             ]);
@@ -95,7 +126,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     };
 
     const toggleSelectAllFiltered = () => {
-        const allSelected = filteredDbContacts.every((c) => isContactSelected(c.email));
+        const allSelected = filteredDbContacts.length > 0 && filteredDbContacts.every((c) => isContactSelected(c.email));
         if (allSelected) {
             const filteredEmails = new Set(filteredDbContacts.map((c) => c.email.toLowerCase()));
             onChangeSelected(
@@ -112,7 +143,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                         first_name: c.first_name,
                         last_name: c.last_name,
                         company: c.company,
-                        role: c.custom_fields?.role || c.custom_fields?.title || "",
+                        role: c.role || c.custom_fields?.role || c.custom_fields?.title || "",
                         source: "database",
                     });
                 }
@@ -428,9 +459,9 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                                             </div>
                                         </div>
 
-                                        {contact.custom_fields?.role && (
+                                        {(contact.role || contact.custom_fields?.role) && (
                                             <span className="shrink-0 px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-medium">
-                                                {contact.custom_fields.role}
+                                                {contact.role || contact.custom_fields?.role}
                                             </span>
                                         )}
                                     </div>

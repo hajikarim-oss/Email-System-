@@ -44,13 +44,14 @@ export function RichEmailEditor({
     stepIndex = 0,
     placeholder = "Hi {{.FirstName}},\n\nNoticed {{.Company}} is ...",
 }: RichEmailEditorProps) {
+    const [viewTab, setViewTab] = React.useState<"edit" | "preview">("edit");
     const [mode, setMode] = React.useState<"visual" | "code">("visual");
     const editorRef = React.useRef<HTMLDivElement>(null);
     const lastHtmlRef = React.useRef<string>(bodyHtml);
 
     // Initial and external sync to contentEditable
     React.useEffect(() => {
-        if (editorRef.current && mode === "visual") {
+        if (editorRef.current && mode === "visual" && viewTab === "edit") {
             const currentDOMHtml = editorRef.current.innerHTML;
             const targetHtml = bodyHtml || (bodyPlain ? `<div>${bodyPlain.replace(/\n/g, "<br/>")}</div>` : "");
             if (currentDOMHtml !== targetHtml && lastHtmlRef.current !== targetHtml) {
@@ -58,7 +59,7 @@ export function RichEmailEditor({
                 lastHtmlRef.current = targetHtml;
             }
         }
-    }, [bodyHtml, bodyPlain, mode]);
+    }, [bodyHtml, bodyPlain, mode, viewTab]);
 
     const handleSync = React.useCallback(() => {
         if (!editorRef.current) return;
@@ -156,6 +157,12 @@ export function RichEmailEditor({
         insertHtmlAtCaret(`&nbsp;<span style="background-color: #f0f9ff; color: #0284c7; padding: 1px 4px; border-radius: 4px; font-family: monospace; font-size: 11.5px; border: 1px solid #bae6fd;">${token}</span>&nbsp;`);
     };
 
+    const handleInsertSubjectVariable = (token: string) => {
+        const trimmed = subject ? subject.trim() : "";
+        const space = trimmed.length > 0 ? " " : "";
+        onSubjectChange(trimmed + space + token);
+    };
+
     const handleFormat = (cmd: string, val: string = "") => {
         if (mode !== "visual") return;
         if (editorRef.current) editorRef.current.focus();
@@ -177,72 +184,232 @@ export function RichEmailEditor({
         }
     };
 
+    // Render preview with sample contact tokens replaced
+    const renderEvaluatedContent = (rawText: string) => {
+        if (!rawText) return "";
+        let out = rawText;
+        // Evaluate conditionals like {{if .Company}}...{{end}}
+        out = out.replace(/\{\{\s*if\s+\.?Company\s*\}\}([\s\S]*?)\{\{\s*end\s*\}\}/gi, "$1");
+        // Replace variable tokens
+        out = out.replace(/\{\{\s*\.?FirstName\s*\}\}/gi, "Rajdeep");
+        out = out.replace(/\{\{\s*firstName\s*\}\}/g, "Rajdeep");
+        out = out.replace(/\{\{\s*\.?LastName\s*\}\}/gi, "More");
+        out = out.replace(/\{\{\s*lastName\s*\}\}/g, "More");
+        out = out.replace(/\{\{\s*\.?Company\s*\}\}/gi, "TheBoredMonkey");
+        out = out.replace(/\{\{\s*company\s*\}\}/g, "TheBoredMonkey");
+        out = out.replace(/\{\{\s*\.?role\s*\}\}/gi, "Product and Internal Systems Executive");
+        out = out.replace(/\{\{\s*role\s*\}\}/g, "Product and Internal Systems Executive");
+        out = out.replace(/\{\{\s*\.?Title\s*\}\}/gi, "Product and Internal Systems Executive");
+        return out;
+    };
+
     return (
-        <div className="space-y-2">
-            {/* Subject line or Thread Notification for Follow-ups */}
-            {isFollowUp ? (
-                <div className="flex items-center gap-2.5 px-3 py-2 bg-sky-50/70 border border-sky-200/80 rounded-md text-[12px] text-sky-900">
-                    <CornerDownRightIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                    <div>
-                        <span className="font-semibold text-sky-800">Same Thread Reply:</span>{" "}
-                        <span className="text-sky-700">
-                            This follow-up lands in the same email conversation thread as Step 1 (no new subject line).
+        <div className="space-y-2.5">
+            {/* Top Toolbar: Editor vs Actual Email Preview Switcher */}
+            <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-100">
+                <div className="inline-flex p-0.5 rounded-lg bg-slate-100/90 border border-slate-200/80 text-[11.5px] font-medium">
+                    <button
+                        type="button"
+                        onClick={() => setViewTab("edit")}
+                        className={cn(
+                            "px-3 py-1 rounded-md transition-all",
+                            viewTab === "edit"
+                                ? "bg-white text-slate-900 shadow-xs font-semibold"
+                                : "text-slate-600 hover:text-slate-900"
+                        )}
+                    >
+                        ✍ Compose
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewTab("preview")}
+                        className={cn(
+                            "px-3 py-1 rounded-md inline-flex items-center gap-1.5 transition-all",
+                            viewTab === "preview"
+                                ? "bg-white text-sky-700 shadow-xs font-semibold"
+                                : "text-slate-600 hover:text-slate-900"
+                        )}
+                    >
+                        <EyeIcon className="w-3.5 h-3.5" />
+                        Preview Email
+                    </button>
+                </div>
+
+                <div className="text-[11px] text-slate-500">
+                    {viewTab === "preview" ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            ● Live lead preview: Rajdeep More (TheBoredMonkey)
                         </span>
+                    ) : (
+                        <span>Rich formatting & template variables enabled</span>
+                    )}
+                </div>
+            </div>
+
+            {viewTab === "preview" ? (
+                /* Actual Email Inbox Preview View */
+                <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-xs">
+                    {/* Email Header */}
+                    <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="size-9 rounded-full bg-linear-to-tr from-sky-600 to-indigo-600 text-white font-semibold flex items-center justify-center text-[13px] shadow-xs">
+                                    HK
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[13px] font-semibold text-slate-900">Haji Karim</span>
+                                        <span className="text-[11.5px] text-slate-400">&lt;haji.karim@theboredmonkey.com&gt;</span>
+                                    </div>
+                                    <div className="text-[11.5px] text-slate-500">
+                                        To: <span className="text-slate-800 font-medium">Rajdeep More</span> &lt;hajikarimbeldaar@gmail.com&gt;
+                                    </div>
+                                </div>
+                            </div>
+                            <span className="text-[11px] text-slate-400 shrink-0">Today, 10:45 AM</span>
+                        </div>
+
+                        {!isFollowUp && (
+                            <div className="mt-2.5 pt-2 border-t border-slate-200/60">
+                                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mr-2">Subject:</span>
+                                <span className="text-[13px] font-medium text-slate-900">
+                                    {renderEvaluatedContent(subject) || "(No Subject)"}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Email Body Content */}
+                    <div className="p-4 sm:p-5 text-[13px] text-slate-800 leading-relaxed min-h-[180px] bg-white">
+                        {bodyHtml ? (
+                            <div
+                                dangerouslySetInnerHTML={{
+                                    __html: renderEvaluatedContent(bodyHtml),
+                                }}
+                                className="space-y-3 [&_img]:max-w-full [&_img]:rounded-md [&_a]:text-sky-600 [&_a]:underline"
+                            />
+                        ) : bodyPlain ? (
+                            <div className="whitespace-pre-wrap font-sans">
+                                {renderEvaluatedContent(bodyPlain)}
+                            </div>
+                        ) : (
+                            <div className="text-slate-400 italic py-6 text-center">
+                                No email body content entered yet. Switch back to Compose to write your message.
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
-                <TextInput
-                    value={subject}
-                    onChange={onSubjectChange}
-                    placeholder="Subject, e.g. quick idea for {{.Company}}"
-                    className="w-full"
-                />
-            )}
+                /* Compose View */
+                <>
+                    {/* Subject line with dedicated smart variable buttons */}
+                    {isFollowUp ? (
+                        <div className="flex items-center gap-2.5 px-3 py-2 bg-sky-50/70 border border-sky-200/80 rounded-md text-[12px] text-sky-900">
+                            <CornerDownRightIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                            <div>
+                                <span className="font-semibold text-sky-800">Same Thread Reply:</span>{" "}
+                                <span className="text-sky-700">
+                                    This follow-up lands in the same email conversation thread as Step 1 (no new subject line).
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-1">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                <label className="text-[11.5px] font-semibold text-slate-700">
+                                    Subject line:
+                                </label>
+                                <div className="flex flex-wrap items-center gap-1">
+                                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mr-0.5">
+                                        Insert into subject:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleInsertSubjectVariable("{{.FirstName}}")}
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        title="Insert contact's first name into subject"
+                                    >
+                                        + {"{{.FirstName}}"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleInsertSubjectVariable("{{.Company}}")}
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        title="Insert contact's company into subject"
+                                    >
+                                        + {"{{.Company}}"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleInsertSubjectVariable("{{.role}}")}
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        title="Insert custom role into subject"
+                                    >
+                                        + {"{{.role}}"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleInsertSubjectVariable("{{if .Company}}at {{.Company}}{{end}}")}
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        title="Insert company conditional into subject"
+                                    >
+                                        + {"{{if .Company}}...{{end}}"}
+                                    </button>
+                                </div>
+                            </div>
+                            <TextInput
+                                value={subject}
+                                onChange={onSubjectChange}
+                                placeholder="Subject, e.g. Reachout Final Test {{.FirstName}}"
+                                className="w-full"
+                            />
+                        </div>
+                    )}
 
-            {/* Formatting & Variable Insertion Toolbar */}
-            <div className="border border-slate-200 rounded-md overflow-hidden bg-white">
-                <div className="px-2 py-1.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-1.5">
-                    {/* Variable Quick-Add Buttons */}
-                    <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wider mr-1">
-                            Insert:
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => handleInsertVariable("{{.FirstName}}")}
-                            className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
-                            title="Insert contact's first name"
-                        >
-                            + {"{{.FirstName}}"}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleInsertVariable("{{.Company}}")}
-                            className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
-                            title="Insert contact's company"
-                        >
-                            + {"{{.Company}}"}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleInsertVariable("{{.role}}")}
-                            className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
-                            title="Insert custom field role / job title"
-                        >
-                            + {"{{.role}}"}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleInsertVariable("{{if .Company}}at {{.Company}}{{end}}")}
-                            className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
-                            title="Insert company conditional block"
-                        >
-                            + {"{{if .Company}}...{{end}}"}
-                        </button>
-                    </div>
+                    {/* Formatting & Variable Insertion Toolbar */}
+                    <div className="border border-slate-200 rounded-md overflow-hidden bg-white">
+                        <div className="px-2 py-1.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-1.5">
+                            {/* Variable Quick-Add Buttons */}
+                            <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wider mr-1">
+                                    Insert:
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleInsertVariable("{{.FirstName}}")}
+                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    title="Insert contact's first name"
+                                >
+                                    + {"{{.FirstName}}"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleInsertVariable("{{.Company}}")}
+                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    title="Insert contact's company"
+                                >
+                                    + {"{{.Company}}"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleInsertVariable("{{.role}}")}
+                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    title="Insert custom field role / job title"
+                                >
+                                    + {"{{.role}}"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleInsertVariable("{{if .Company}}at {{.Company}}{{end}}")}
+                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    title="Insert company conditional block"
+                                >
+                                    + {"{{if .Company}}...{{end}}"}
+                                </button>
+                            </div>
 
-                    {/* Editor Controls: Bold, Italic, Link, Image, Mode Toggle */}
-                    <div className="flex items-center gap-1 ml-auto">
+                            {/* Editor Controls: Bold, Italic, Link, Image, Mode Toggle */}
+                            <div className="flex items-center gap-1 ml-auto">
                         <button
                             type="button"
                             onClick={() => handleFormat("bold")}
@@ -327,6 +494,8 @@ export function RichEmailEditor({
                     />
                 )}
             </div>
-        </div>
-    );
+        </>
+    )}
+</div>
+);
 }

@@ -213,38 +213,15 @@ export default function DashboardPage() {
             .sort((a, b) => (b.open_count || 0) - (a.open_count || 0));
 
         if (activeOrSent.length === 0) {
-            return [
-                {
-                    subject: "Campaign 106 - Scaling Cold Outreach Pipeline",
-                    campaign: "Campaign 106",
-                    sent: 34,
-                    opens: 22,
-                    openRate: 64.7,
-                    replies: 5,
-                    replyRate: 14.7,
-                    bounces: 0,
-                    status: "top_performer",
-                },
-                {
-                    subject: "Campaign 108 - High Deliverability Infrastructure",
-                    campaign: "Campaign 108",
-                    sent: 34,
-                    opens: 22,
-                    openRate: 64.7,
-                    replies: 5,
-                    replyRate: 14.7,
-                    bounces: 0,
-                    status: "top_performer",
-                },
-            ];
+            return [];
         }
 
         return activeOrSent.slice(0, 3).map((c) => {
-            const sent = c.sent_count || 34;
-            const opens = c.open_count || 22;
-            const replies = c.reply_count || 5;
-            const openRate = sent > 0 ? Number(((opens / sent) * 100).toFixed(1)) : 64.7;
-            const replyRate = sent > 0 ? Number(((replies / sent) * 100).toFixed(1)) : 14.7;
+            const sent = c.sent_count || 0;
+            const opens = c.open_count || 0;
+            const replies = c.reply_count || 0;
+            const openRate = sent > 0 ? Number(((opens / sent) * 100).toFixed(1)) : 0;
+            const replyRate = sent > 0 ? Number(((replies / sent) * 100).toFixed(1)) : 0;
             return {
                 subject: `${c.name} - Cold Outreach Sequence`,
                 campaign: c.name,
