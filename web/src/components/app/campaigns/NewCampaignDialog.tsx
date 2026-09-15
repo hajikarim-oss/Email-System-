@@ -33,6 +33,10 @@ import useCreateCampaign from "@/lib/api/hooks/app/campaigns/useCreateCampaign";
 import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
 import useCampaignEstimate from "@/lib/api/hooks/app/campaigns/useCampaignEstimate";
 import { useSetCampaignSegments } from "@/lib/api/hooks/app/segments";
+import useAddContacts from "@/lib/api/hooks/app/contacts/useAddContacts";
+import type { AddContact } from "@/components/app/AddContacts";
+import { ContactsStep, type ContactDraftItem } from "./ContactsStep";
+import { RichEmailEditor } from "./RichEmailEditor";
 import type { CampaignKind } from "@/lib/api/models/app/campaigns/Campaign";
 import { Label, NumberInput, TextInput } from "@/components/ui/field";
 import { SelectMenu, type SelectOption } from "@/components/ui/select-menu";
@@ -59,6 +63,7 @@ type SequenceDraft = {
     id: string;
     subject: string;
     body_plain: string;
+    body_html?: string;
     wait_after: number;
 };
 
@@ -69,11 +74,12 @@ const EVERY_DAY_MASK = 0b1111111;
 const NAME_MIN = 3;
 const NAME_MAX = 50;
 
-type StepKey = "basics" | "schedule" | "sending" | "email" | "audience" | "send";
+type StepKey = "basics" | "contacts" | "schedule" | "sending" | "email" | "audience" | "send";
 type StepDef = { key: StepKey; label: string; icon: typeof MegaphoneIcon };
 
 const SEQUENCE_STEPS: readonly StepDef[] = [
     { key: "basics", label: "Basics", icon: MegaphoneIcon },
+    { key: "contacts", label: "Contacts", icon: UsersIcon },
     { key: "schedule", label: "Schedule", icon: CalendarClockIcon },
     { key: "sending", label: "Sending", icon: SendIcon },
     { key: "email", label: "First email", icon: MailIcon },
@@ -83,6 +89,7 @@ const SEQUENCE_STEPS: readonly StepDef[] = [
 // send step where the estimate can see everything it depends on.
 const ONE_TIME_STEPS: readonly StepDef[] = [
     { key: "basics", label: "Basics", icon: MegaphoneIcon },
+    { key: "contacts", label: "Contacts", icon: UsersIcon },
     { key: "email", label: "Email", icon: MailIcon },
     { key: "audience", label: "Audience", icon: UsersIcon },
     { key: "sending", label: "Sending", icon: SendIcon },
@@ -98,6 +105,7 @@ const newSequence = (wait: number): SequenceDraft => ({
     id: `seq-${++seqCounter}`,
     subject: "",
     body_plain: "",
+    body_html: "",
     wait_after: wait,
 });
 
@@ -121,6 +129,7 @@ type Draft = {
     utmTracking: boolean;
     unsubHeader: boolean;
     sequences: SequenceDraft[];
+    selectedContacts: ContactDraftItem[];
     // One-time only.
     segmentIds: string[];
     sendMode: SendMode;
@@ -128,11 +137,11 @@ type Draft = {
     scheduledAt: string;
 };
 
-const initialDraft = (timezone: string): Draft => ({
+const initialDraft = (timezone?: string): Draft => ({
     kind: "sequence",
     name: "",
     description: "",
-    timezone,
+    timezone: timezone || "Asia/Kolkata",
     days: WEEKDAYS_MASK,
     startTime: "08:00",
     endTime: "18:00",
@@ -145,6 +154,7 @@ const initialDraft = (timezone: string): Draft => ({
     utmTracking: true,
     unsubHeader: true,
     sequences: [newSequence(0)],
+    selectedContacts: [],
     segmentIds: [],
     sendMode: "now",
     scheduledAt: "",
@@ -165,6 +175,9 @@ function stepIssue(key: StepKey, d: Draft): string | null {
             if (n > NAME_MAX) return `Name is ${NAME_MAX} characters max`;
             return null;
         }
+        case "contacts":
+            // Optional at creation time: user can select contacts now or later
+            return null;
         case "schedule":
             if (d.days === 0) return "Pick at least one sending day";
             if (d.startTime && d.endTime && d.startTime >= d.endTime) return "End time must be after the start time";
@@ -173,7 +186,7 @@ function stepIssue(key: StepKey, d: Draft): string | null {
             const first = d.sequences[0];
             if (!first) return null;
             const hasSubject = first.subject.trim().length > 0;
-            const hasBody = first.body_plain.trim().length > 0;
+            const hasBody = (first.body_html || first.body_plain || "").trim().length > 0;
             // A one-time email is the whole campaign, so it cannot be skipped.
             if (d.kind === "one_time") {
                 if (!hasSubject) return "Give the email a subject line";
@@ -234,7 +247,8 @@ export function NewCampaignDialog({ open, onClose }: Props) {
     const create = useCreateCampaign();
     const linkSegments = useSetCampaignSegments();
     const start = useStartCampaign();
-    const defaultTimezone = profile?.timezones?.[0]?.name || "Europe/London";
+    const addContactsMutation = useAddContacts();
+    const defaultTimezone = "Asia/Kolkata";
 
     const [step, setStep] = React.useState(0);
     const [direction, setDirection] = React.useState<1 | -1>(1);
@@ -356,14 +370,19 @@ export function NewCampaignDialog({ open, onClose }: Props) {
 
     function buildSteps() {
         return draft.sequences
-            .filter((s) => s.subject.trim().length > 0 || s.body_plain.trim().length > 0)
-            .map((s, i) => ({
-                name: draft.kind === "one_time" ? "Email" : `Step ${i + 1}`,
-                subject: s.subject.trim(),
-                body_plain: s.body_plain,
-                body_html: `<div>${escapeHtml(s.body_plain).replace(/\n/g, "<br/>")}</div>`,
-                wait_after: i === 0 ? 0 : Math.max(0, s.wait_after),
-            }));
+            .filter((s) => s.subject.trim().length > 0 || (s.body_html || s.body_plain || "").trim().length > 0)
+            .map((s, i) => {
+                const html = s.body_html || (s.body_plain ? `<div>${escapeHtml(s.body_plain).replace(/\n/g, "<br/>")}</div>` : "");
+                const plain = s.body_plain || html.replace(/<[^>]+>/g, "");
+                return {
+                    name: draft.kind === "one_time" ? "Email" : `Step ${i + 1}`,
+                    // Follow-up mail won't have a subject as it lands on the same thread!
+                    subject: i === 0 ? s.subject.trim() : "",
+                    body_plain: plain,
+                    body_html: html,
+                    wait_after: i === 0 ? 0 : Math.max(0, s.wait_after),
+                };
+            });
     }
 
     async function submit() {
@@ -396,7 +415,27 @@ export function NewCampaignDialog({ open, onClose }: Props) {
         if (draft.kind === "sequence") {
             try {
                 const created = await create.mutateAsync({ ...base, kind: "sequence", stop_on_reply: draft.stopOnReply });
-                toast.success("Campaign created. Add contacts, then launch it.");
+                if (draft.selectedContacts.length > 0) {
+                    try {
+                        const toAdd: AddContact[] = draft.selectedContacts.map((c) => ({
+                            first_name: c.first_name || "",
+                            last_name: c.last_name || "",
+                            email: c.email,
+                            company: c.company || "",
+                            phone: "",
+                            campaigns: [created.id],
+                            custom_fields: c.role ? { role: c.role } : {},
+                            source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
+                        }));
+                        await addContactsMutation.mutateAsync(toAdd);
+                        toast.success(`Campaign created with ${toAdd.length} contact${toAdd.length === 1 ? "" : "s"} enrolled.`);
+                    } catch (cErr) {
+                        console.warn("Could not auto-enrol contacts:", cErr);
+                        toast.success("Campaign created. Add contacts, then launch it.");
+                    }
+                } else {
+                    toast.success("Campaign created. Add contacts, then launch it.");
+                }
                 onClose();
                 if (created?.id) navigate(`/app/campaigns/${created.id}`);
             } catch (err) {
@@ -415,13 +454,32 @@ export function NewCampaignDialog({ open, onClose }: Props) {
             const created = await create.mutateAsync({
                 ...base,
                 kind: "one_time",
-                // No follow-ups exist to stop, and a reply should still not
-                // re-send the one message, so the flag stays on.
                 stop_on_reply: true,
                 start_date: at ? at.toISOString() : undefined,
             });
             createdID = created.id;
-            await linkSegments.mutateAsync({ campaignId: created.id, segmentIds: draft.segmentIds });
+
+            if (draft.selectedContacts.length > 0) {
+                try {
+                    const toAdd: AddContact[] = draft.selectedContacts.map((c) => ({
+                        first_name: c.first_name || "",
+                        last_name: c.last_name || "",
+                        email: c.email,
+                        company: c.company || "",
+                        phone: "",
+                        campaigns: [created.id],
+                        custom_fields: c.role ? { role: c.role } : {},
+                        source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
+                    }));
+                    await addContactsMutation.mutateAsync(toAdd);
+                } catch (cErr) {
+                    console.warn("Could not auto-enrol contacts on one-time campaign:", cErr);
+                }
+            }
+
+            if (draft.segmentIds.length > 0) {
+                await linkSegments.mutateAsync({ campaignId: created.id, segmentIds: draft.segmentIds });
+            }
             await start.mutateAsync({ id: created.id });
             toast.success(at ? `Scheduled for ${fmtDateTime(at)}.` : "Sending now.");
             onClose();
@@ -484,6 +542,12 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                                 >
                                     {current.key === "basics" && (
                                         <BasicsStep draft={draft} patch={patch} setKind={setKind} onEnter={next} />
+                                    )}
+                                    {current.key === "contacts" && (
+                                        <ContactsStep
+                                            selectedContacts={draft.selectedContacts}
+                                            onChangeSelected={(selectedContacts) => patch({ selectedContacts })}
+                                        />
                                     )}
                                     {current.key === "schedule" && <ScheduleStep draft={draft} patch={patch} />}
                                     {current.key === "sending" && <SendingStep draft={draft} patch={patch} />}
@@ -856,20 +920,24 @@ function BasicsStep({
 }
 
 function TimezoneField({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft>) => void }) {
-    const profile = useUserProfile();
-    const timezoneOptions = React.useMemo<SelectOption[]>(
-        () => (profile?.timezones || []).map((tz) => ({ value: tz.name, label: tz.display_name })),
-        [profile?.timezones],
+    const timezoneOptions: SelectOption[] = React.useMemo(
+        () => [
+            {
+                value: "Asia/Kolkata",
+                label: "Asia/Kolkata (IST - Mumbai, Kolkata, New Delhi +05:30)",
+            },
+        ],
+        [],
     );
     return (
         <div>
             <Label>Timezone</Label>
             <SelectMenu
-                value={draft.timezone}
+                value={draft.timezone || "Asia/Kolkata"}
                 onChange={(v) => patch({ timezone: v })}
                 options={timezoneOptions}
                 fullWidth
-                placeholder="Select a timezone"
+                placeholder="Asia/Kolkata (IST - Mumbai, Kolkata, New Delhi +05:30)"
                 aria-label="Sending timezone"
             />
         </div>
@@ -1178,27 +1246,20 @@ function EmailsStep({
                                     </button>
                                 )}
                             </div>
-                            <div className="p-3 space-y-2">
-                                <TextInput
-                                    value={seq.subject}
-                                    onChange={(v) => update(i, { subject: v })}
-                                    placeholder={
-                                        i === 0
-                                            ? "Subject, e.g. quick idea for {{.Company}}"
-                                            : "Subject (leave blank to reply in the same thread)"
-                                    }
-                                    className="w-full"
-                                />
-                                <textarea
-                                    value={seq.body_plain}
-                                    onChange={(e) => update(i, { body_plain: e.target.value })}
+                            <div className="p-3">
+                                <RichEmailEditor
+                                    subject={seq.subject}
+                                    onSubjectChange={(v) => update(i, { subject: v })}
+                                    bodyHtml={seq.body_html || ""}
+                                    bodyPlain={seq.body_plain || ""}
+                                    onBodyChange={(html, plain) => update(i, { body_html: html, body_plain: plain })}
+                                    isFollowUp={i > 0}
+                                    stepIndex={i}
                                     placeholder={
                                         i === 0
                                             ? "Hi {{.FirstName}},\n\nNoticed {{.Company}} is ..."
                                             : "Just bumping this up in case it slipped past."
                                     }
-                                    rows={i === 0 ? 7 : 4}
-                                    className="w-full px-2.5 py-2 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 resize-y leading-relaxed"
                                 />
                             </div>
                         </motion.div>
@@ -1212,11 +1273,11 @@ function EmailsStep({
                 ) : (
                     <button
                         type="button"
-                        onClick={() => patch({ sequences: [...draft.sequences, newSequence(3)] })}
+                        onClick={() => patch({ sequences: [...draft.sequences, newSequence(1)] })}
                         className="w-full h-8 rounded-md border border-dashed border-slate-200 text-[12px] text-slate-500 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 inline-flex items-center justify-center gap-1.5 transition-colors"
                     >
                         <PlusIcon className="w-3 h-3" />
-                        Add a follow-up
+                        Add a follow-up (after 24h)
                     </button>
                 )}
 
