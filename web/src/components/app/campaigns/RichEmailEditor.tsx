@@ -63,10 +63,11 @@ export function RichEmailEditor({
 
     const handleSync = React.useCallback(() => {
         if (!editorRef.current) return;
-        const html = editorRef.current.innerHTML;
-        lastHtmlRef.current = html;
-        const plain = derivePlainText(html);
-        onBodyChange(html, plain);
+        const rawHtml = editorRef.current.innerHTML;
+        const cleanHtml = cleanVariableBadges(rawHtml);
+        lastHtmlRef.current = cleanHtml;
+        const plain = derivePlainText(cleanHtml);
+        onBodyChange(cleanHtml, plain);
     }, [onBodyChange]);
 
     const handleInput = () => {
@@ -153,8 +154,16 @@ export function RichEmailEditor({
         }
     };
 
+    const cleanVariableBadges = (html: string): string => {
+        if (!html) return "";
+        return html
+            .replace(/<span[^>]*style="[^"]*(?:background|border|monospace)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
+            .replace(/<span[^>]*class="[^"]*(?:variable-badge|token-badge)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1");
+    };
+
     const handleInsertVariable = (token: string) => {
-        insertHtmlAtCaret(`&nbsp;<span style="background-color: #f0f9ff; color: #0284c7; padding: 1px 4px; border-radius: 4px; font-family: monospace; font-size: 11.5px; border: 1px solid #bae6fd;">${token}</span>&nbsp;`);
+        // Insert clean, natural inline variable without any artificial badge styling, borders, or monospace
+        insertHtmlAtCaret(` ${token} `);
     };
 
     const handleInsertSubjectVariable = (token: string) => {
@@ -184,22 +193,21 @@ export function RichEmailEditor({
         }
     };
 
-    // Render preview with sample contact tokens replaced
+    // Render preview with sample contact tokens replaced smoothly
     const renderEvaluatedContent = (rawText: string) => {
         if (!rawText) return "";
-        let out = rawText;
+        let out = cleanVariableBadges(rawText);
         // Evaluate conditionals like {{if .Company}}...{{end}}
         out = out.replace(/\{\{\s*if\s+\.?Company\s*\}\}([\s\S]*?)\{\{\s*end\s*\}\}/gi, "$1");
-        // Replace variable tokens
-        out = out.replace(/\{\{\s*\.?FirstName\s*\}\}/gi, "Rajdeep");
-        out = out.replace(/\{\{\s*firstName\s*\}\}/g, "Rajdeep");
-        out = out.replace(/\{\{\s*\.?LastName\s*\}\}/gi, "More");
-        out = out.replace(/\{\{\s*lastName\s*\}\}/g, "More");
-        out = out.replace(/\{\{\s*\.?Company\s*\}\}/gi, "TheBoredMonkey");
-        out = out.replace(/\{\{\s*company\s*\}\}/g, "TheBoredMonkey");
-        out = out.replace(/\{\{\s*\.?role\s*\}\}/gi, "Product and Internal Systems Executive");
-        out = out.replace(/\{\{\s*role\s*\}\}/g, "Product and Internal Systems Executive");
-        out = out.replace(/\{\{\s*\.?Title\s*\}\}/gi, "Product and Internal Systems Executive");
+        // Replace variable tokens seamlessly matching paragraph typography
+        out = out.replace(/\{\{\s*(\.?FirstName|firstName|first_name)\s*\}\}/gi, "Karim");
+        out = out.replace(/\[\s*(First\s*Name|Name)\s*\]/gi, "Karim");
+        out = out.replace(/\{\{\s*(\.?LastName|lastName|last_name)\s*\}\}/gi, "Beldaar");
+        out = out.replace(/\[\s*(Last\s*Name|Surname)\s*\]/gi, "Beldaar");
+        out = out.replace(/\{\{\s*(\.?Company|company|company_name|brand)\s*\}\}/gi, "PhonePe");
+        out = out.replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand)\s*\]/gi, "PhonePe");
+        out = out.replace(/\{\{\s*(\.?role|role|\.?Title|title)\s*\}\}/gi, "Marketing Partnerships");
+        out = out.replace(/\[\s*(Job\s*Title|Title|Role)\s*\]/gi, "Marketing Partnerships");
         return out;
     };
 
@@ -325,42 +333,42 @@ export function RichEmailEditor({
                                     </span>
                                     <button
                                         type="button"
-                                        onClick={() => handleInsertSubjectVariable("{{.FirstName}}")}
-                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        onClick={() => handleInsertSubjectVariable("{{firstName}}")}
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
                                         title="Insert contact's first name into subject"
                                     >
-                                        + {"{{.FirstName}}"}
+                                        + {"{{firstName}}"}
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => handleInsertSubjectVariable("{{.Company}}")}
-                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
-                                        title="Insert contact's company into subject"
+                                        onClick={() => handleInsertSubjectVariable("{{lastName}}")}
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        title="Insert contact's last name/surname into subject"
                                     >
-                                        + {"{{.Company}}"}
+                                        + {"{{lastName}}"}
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => handleInsertSubjectVariable("{{.role}}")}
-                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
-                                        title="Insert custom role into subject"
+                                        onClick={() => handleInsertSubjectVariable("{{company}}")}
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        title="Insert contact's company/brand into subject"
                                     >
-                                        + {"{{.role}}"}
+                                        + {"{{company}}"}
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => handleInsertSubjectVariable("{{if .Company}}at {{.Company}}{{end}}")}
-                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
-                                        title="Insert company conditional into subject"
+                                        onClick={() => handleInsertSubjectVariable("{{title}}")}
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        title="Insert job title/role into subject"
                                     >
-                                        + {"{{if .Company}}...{{end}}"}
+                                        + {"{{title}}"}
                                     </button>
                                 </div>
                             </div>
                             <TextInput
                                 value={subject}
                                 onChange={onSubjectChange}
-                                placeholder="Subject, e.g. Reachout Final Test {{.FirstName}}"
+                                placeholder="Subject, e.g. Partnership discussion with {{company}}"
                                 className="w-full"
                             />
                         </div>
@@ -376,35 +384,35 @@ export function RichEmailEditor({
                                 </span>
                                 <button
                                     type="button"
-                                    onClick={() => handleInsertVariable("{{.FirstName}}")}
-                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    onClick={() => handleInsertVariable("{{firstName}}")}
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
                                     title="Insert contact's first name"
                                 >
-                                    + {"{{.FirstName}}"}
+                                    + {"{{firstName}}"}
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => handleInsertVariable("{{.Company}}")}
-                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
-                                    title="Insert contact's company"
+                                    onClick={() => handleInsertVariable("{{lastName}}")}
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    title="Insert contact's last name / surname"
                                 >
-                                    + {"{{.Company}}"}
+                                    + {"{{lastName}}"}
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => handleInsertVariable("{{.role}}")}
-                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
-                                    title="Insert custom field role / job title"
+                                    onClick={() => handleInsertVariable("{{company}}")}
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    title="Insert contact's company or brand"
                                 >
-                                    + {"{{.role}}"}
+                                    + {"{{company}}"}
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => handleInsertVariable("{{if .Company}}at {{.Company}}{{end}}")}
-                                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
-                                    title="Insert company conditional block"
+                                    onClick={() => handleInsertVariable("{{title}}")}
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    title="Insert contact's role or job title"
                                 >
-                                    + {"{{if .Company}}...{{end}}"}
+                                    + {"{{title}}"}
                                 </button>
                             </div>
 

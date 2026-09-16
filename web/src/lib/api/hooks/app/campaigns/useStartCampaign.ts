@@ -11,7 +11,13 @@ export default function useStartCampaign() {
         onSuccess: () => {
             queryClient.invalidateQueries({
                 queryKey: ["campaigns"],
-            })
+            });
+            queryClient.invalidateQueries({
+                queryKey: ["contacts"],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ["analytics"],
+            });
             // Every page that starts a campaign goes through this hook, so the
             // event is counted once here rather than at each button.
             capture("campaign_launched");

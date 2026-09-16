@@ -92,6 +92,7 @@ export default function ContactContextPanel({
     const detailQ = useContact(contactId ?? "", !!contactId);
     const detail = detailQ.data;
     const dealsQ = useContactDeals(contactId ?? "");
+    const deals = asDealList(dealsQ.data);
     const tasksQ = useCRMTasks({ contact_id: contactId, limit: 50 }, !!contactId);
     const notesQ = useContactNotes(contactId ?? "");
     const dealDefault = usePipelinesDefault();
@@ -233,7 +234,7 @@ export default function ContactContextPanel({
                         {/* Deals */}
                         <DealsSection
                             contactId={contact.id}
-                            deals={dealsQ.data ?? []}
+                            deals={deals}
                             loading={dealsQ.isPending}
                             defaultName={contact.company || name}
                             campaignId={campaigns[0]?.id}
@@ -250,7 +251,7 @@ export default function ContactContextPanel({
                             defaultTitle={`Follow up with ${name}`}
                             contactName={name}
                             company={contact.company}
-                            dealId={(dealsQ.data ?? []).find((d) => d.status === "open")?.id}
+                            dealId={deals.find((d) => d.status === "open")?.id}
                         />
 
                         {/* Notes */}
@@ -807,9 +808,14 @@ function NotAContact({ email }: { email?: string }) {
     );
 }
 
-// The notes endpoint returns either a bare array or a { data, pagination }
-// envelope depending on the path; normalise to a plain list (mirrors the
-// contacts NotesTab helper) so .slice/.map never blow up.
+// The deals and notes endpoints can return either a bare array or a
+// { data, pagination } envelope depending on whether the route hit the API
+// or a mock fallback; normalise to a plain list so .find/.slice/.map never blow up.
+function asDealList(raw: unknown): Deal[] {
+    const arr = Array.isArray(raw) ? raw : ((raw as { data?: unknown } | null | undefined)?.data ?? []);
+    return Array.isArray(arr) ? (arr as Deal[]) : [];
+}
+
 function asNoteList(raw: unknown): { id: string; content: string; created_at: Date | string }[] {
     const arr = Array.isArray(raw) ? raw : ((raw as { data?: unknown } | null | undefined)?.data ?? []);
     return Array.isArray(arr) ? (arr as { id: string; content: string; created_at: Date | string }[]) : [];

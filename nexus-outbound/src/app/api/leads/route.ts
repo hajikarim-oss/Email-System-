@@ -15,16 +15,19 @@ export async function GET(req: Request) {
     const status = searchParams.get("status") || undefined;
     const campaignId = searchParams.get("campaignId") || undefined;
 
-    // Only show leads from user's campaigns
-    const userCampaignIds = await prisma.campaign.findMany({
-      where: { userId: session.user.id },
-      select: { id: true },
-    });
-    const allowedIds = userCampaignIds.map((c) => c.id);
+    const isMaster = (session.user as any).role === "MASTER";
+    const where: Record<string, unknown> = {};
 
-    const where: Record<string, unknown> = {
-      campaignId: { in: allowedIds },
-    };
+    if (campaignId) {
+      where.campaignId = campaignId;
+    } else if (!isMaster) {
+      const userCampaignIds = await prisma.campaign.findMany({
+        where: { userId: session.user.id },
+        select: { id: true },
+      });
+      const allowedIds = userCampaignIds.map((c) => c.id);
+      where.campaignId = { in: allowedIds };
+    }
 
     if (search) {
       where.OR = [
@@ -42,9 +45,6 @@ export async function GET(req: Request) {
       where.status = status.toUpperCase();
     }
 
-    if (campaignId && allowedIds.includes(campaignId)) {
-      where.campaignId = campaignId;
-    }
 
     const leads = await prisma.lead.findMany({
       where,

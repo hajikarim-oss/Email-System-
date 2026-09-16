@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import useCampaigns from "@/lib/api/hooks/app/campaigns/useCampaigns";
 import useCreateCampaign from "@/lib/api/hooks/app/campaigns/useCreateCampaign";
 import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
 import useCampaignEstimate from "@/lib/api/hooks/app/campaigns/useCampaignEstimate";
@@ -167,12 +168,29 @@ function scheduledDate(d: Draft): Date | null {
 }
 
 // One human-readable reason a step cannot be left yet, or null when it can.
-function stepIssue(key: StepKey, d: Draft): string | null {
+function stepIssue(key: StepKey, d: Draft, existingCampaigns: { id: string; name: string }[] = []): string | null {
     switch (key) {
         case "basics": {
-            const n = d.name.trim().length;
+            const cleanName = d.name.trim();
+            const n = cleanName.length;
             if (n < NAME_MIN) return `Name needs at least ${NAME_MIN} characters`;
             if (n > NAME_MAX) return `Name is ${NAME_MAX} characters max`;
+
+            // Duplicate & similar campaign validation
+            const normalizedClean = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const exactMatch = existingCampaigns.find(
+                (c) => (c.name || "").trim().toLowerCase() === cleanName.toLowerCase()
+            );
+            if (exactMatch) {
+                return `A campaign named "${exactMatch.name}" already exists. Please choose a unique name.`;
+            }
+            const similarMatch = existingCampaigns.find((c) => {
+                const existingNorm = (c.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                return existingNorm.length >= 4 && existingNorm === normalizedClean;
+            });
+            if (similarMatch) {
+                return `Similar campaign "${similarMatch.name}" already exists. Please choose a distinct name.`;
+            }
             return null;
         }
         case "contacts":
@@ -288,7 +306,10 @@ export function NewCampaignDialog({ open, onClose }: Props) {
         }
     }, [open, defaultTimezone]);
 
-    const issue = stepIssue(current.key, draft);
+    const campaignsQuery = useCampaigns({ query: "", folder: "" });
+    const existingCampaigns = React.useMemo(() => campaignsQuery.campaigns ?? [], [campaignsQuery.campaigns]);
+
+    const issue = stepIssue(current.key, draft, existingCampaigns);
     React.useEffect(() => {
         if (!issue) setNudged(false);
     }, [issue]);
@@ -296,10 +317,10 @@ export function NewCampaignDialog({ open, onClose }: Props) {
     // A step is reachable when every step before it is complete.
     const canReach = React.useCallback(
         (target: number) => {
-            for (let i = 0; i < target; i++) if (stepIssue(steps[i].key, draft)) return false;
+            for (let i = 0; i < target; i++) if (stepIssue(steps[i].key, draft, existingCampaigns)) return false;
             return true;
         },
-        [draft, steps],
+        [draft, steps, existingCampaigns],
     );
 
     const goTo = React.useCallback(

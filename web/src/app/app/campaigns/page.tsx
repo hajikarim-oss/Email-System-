@@ -557,8 +557,11 @@ export default function CampaignsPage() {
                                     <span className="text-[12.5px] text-slate-900 font-medium truncate max-w-[40%]">
                                         {c.name}
                                     </span>
-                                    <span className="font-mono text-[10.5px] text-slate-400 tabular-nums shrink-0 hidden sm:inline">
-                                        {c.id.slice(0, 8)}
+                                    <span
+                                        className="font-mono text-[10.5px] text-slate-500 tabular-nums shrink-0 hidden sm:inline bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80"
+                                        title={`Full ID: ${c.id}`}
+                                    >
+                                        {(c as any).smartlead_id ? `#${(c as any).smartlead_id}` : `#${c.id.replace(/^cmp_/, "").slice(-6)}`}
                                     </span>
                                     {isOneTimeCampaign(c) && (
                                         <span

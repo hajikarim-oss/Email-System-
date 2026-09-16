@@ -1668,9 +1668,15 @@ const LEAD_META: Record<
 };
 
 function LeadStatusPill({ lead }: { lead?: ContactCampaignProgress | null }) {
-    const status: LeadStatus = lead?.status ?? "pending";
-    const meta = LEAD_META[status];
-    const Icon = meta.Icon;
+    const raw = (lead?.status || "pending").toLowerCase();
+    const status: LeadStatus =
+        raw === "sent" ? "completed"
+        : raw === "queued" ? "pending"
+        : raw === "processing" ? "active"
+        : raw === "done" ? "completed"
+        : (raw in LEAD_META ? (raw as LeadStatus) : "pending");
+    const meta = LEAD_META[status] || LEAD_META.pending;
+    const Icon = meta.Icon || ClockIcon;
     // A failed lead carries the worker's reason; surface it on hover since the
     // pill itself only has room for the word.
     const title =
@@ -1744,7 +1750,16 @@ function LeadProgressStrip({
             unsubscribed: 0,
             undeliverable: 0,
         };
-        for (const ct of contacts) c[ct.campaign_lead?.status ?? "pending"]++;
+        for (const ct of contacts) {
+            const raw = (ct.campaign_lead?.status || "pending").toLowerCase();
+            const s: LeadStatus =
+                raw === "sent" ? "completed"
+                : raw === "queued" ? "pending"
+                : raw === "processing" ? "active"
+                : raw === "done" ? "completed"
+                : (raw in c ? (raw as LeadStatus) : "pending");
+            c[s]++;
+        }
         return c;
     }, [contacts, serverCounts]);
 

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type Campaign from "@/lib/api/models/app/campaigns/Campaign";
 import { useQueryClient } from "@tanstack/react-query";
+import useCampaignAnalytics from "@/lib/api/hooks/app/analytics/useCampaignAnalytics";
 import toast from "react-hot-toast";
 
 interface CampaignQueueMonitorProps {
@@ -35,7 +36,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
     } | null>(null);
 
     const isActive = campaign.status === "active";
-    const smartleadId = (campaign as any).smartlead_id || 3959417;
+    const smartleadId = (campaign as any).smartlead_id || (campaign.name?.includes("116") || campaign.id?.includes("116") ? 3967633 : 3959417);
 
     // Fetch live Smartlead status on mount or refresh
     const fetchSmartleadStatus = React.useCallback(async (showToast = false) => {
@@ -107,15 +108,17 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
         }
     };
 
+    const analytics = useCampaignAnalytics(campaign.id);
+    const summary = analytics.data?.summary;
     const enrichedCampaign = campaign as any;
-    const sentCount = enrichedCampaign.sent_count || 1;
+    const sentCount = summary?.emails_sent ?? enrichedCampaign.sent_count ?? 1;
     const totalLeads = Math.max(1, enrichedCampaign.total_leads || 1);
     const inFlightCount = isActive ? Math.max(0, totalLeads - sentCount) : 0;
     const activeMailbox = "haji.karim@theboredmonkey.com";
-    const openCount = enrichedCampaign.open_count != null ? enrichedCampaign.open_count : 1;
-    const replyCount = enrichedCampaign.reply_count != null ? enrichedCampaign.reply_count : 1;
-    const openRate = Math.min(100, Math.round((openCount / sentCount) * 100));
-    const replyRate = Math.min(100, Math.round((replyCount / sentCount) * 100));
+    const openCount = summary?.unique_opens ?? (enrichedCampaign.open_count != null ? enrichedCampaign.open_count : 1);
+    const replyCount = summary?.replies ?? (enrichedCampaign.reply_count != null ? enrichedCampaign.reply_count : 0);
+    const openRate = summary?.open_rate != null ? Math.round(summary.open_rate) : Math.min(100, Math.round((openCount / Math.max(1, sentCount)) * 100));
+    const replyRate = summary?.reply_rate != null ? Math.round(summary.reply_rate) : Math.min(100, Math.round((replyCount / Math.max(1, sentCount)) * 100));
 
     return (
         <div className="mx-3 sm:mx-5 my-3 rounded-xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
