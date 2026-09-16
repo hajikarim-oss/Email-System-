@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 import { verifyHmacSignature } from "@/lib/encryption";
+import { ingestEmailEvent } from "@/lib/intelligence/ingest-event";
 
 /**
  * POST /api/webhooks/smartlead
@@ -146,6 +147,19 @@ export async function POST(req: Request) {
         if (!isNaN(stepNum) && stepNum > lead.lastStepSent) {
           await prisma.lead.update({ where: { id: lead.id }, data: { lastStepSent: stepNum } });
         }
+
+        // Live Intelligence Ingestion
+        await ingestEmailEvent({
+          messageId: providerEventId,
+          contactEmail: email,
+          senderEmail: fromEmail || "outreach@theboredmonkey.com",
+          direction: "outbound",
+          subject: payload.subject || "",
+          bodyHook: (payload.body || "").slice(0, 201),
+          status: "completed",
+          createdAt: now,
+          source: "smartlead_webhook",
+        }).catch((err) => console.warn("[Intelligence] Ingest sent error:", err));
         break;
       }
 
@@ -186,6 +200,21 @@ export async function POST(req: Request) {
             leadCategory: "WORKING",
           },
         });
+
+        // Live Intelligence Ingestion
+        await ingestEmailEvent({
+          messageId: providerEventId,
+          contactEmail: email,
+          senderEmail: fromEmail || "outreach@theboredmonkey.com",
+          direction: "inbound",
+          subject: payload.subject || "Reply",
+          bodyHook: (payload.reply_text || payload.body || "").slice(0, 201),
+          bodyFull: payload.reply_text || payload.body || null,
+          status: "completed",
+          replied: true,
+          createdAt: now,
+          source: "smartlead_webhook",
+        }).catch((err) => console.warn("[Intelligence] Ingest reply error:", err));
 
         // Create notification for the campaign owner
         if (campaignId) {
@@ -277,6 +306,20 @@ export async function POST(req: Request) {
             update: { reason: "HARD_BOUNCE" },
             create: { email: lead.email, reason: "HARD_BOUNCE", source: "smartlead_webhook" },
           });
+
+          // Live Intelligence Ingestion for Bounce
+          await ingestEmailEvent({
+            messageId: providerEventId,
+            contactEmail: email,
+            senderEmail: fromEmail || "outreach@theboredmonkey.com",
+            direction: "outbound",
+            subject: payload.subject || "",
+            bodyHook: "",
+            status: "failed",
+            bounced: true,
+            createdAt: now,
+            source: "smartlead_webhook",
+          }).catch((err) => console.warn("[Intelligence] Ingest bounce error:", err));
         } else {
           await prisma.lead.update({
             where: { id: lead.id },

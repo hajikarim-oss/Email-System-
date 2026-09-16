@@ -74,7 +74,7 @@ export const authConfig: NextAuthConfig = {
       const userRole = (auth?.user as { role?: string })?.role;
       const pathname = nextUrl.pathname;
 
-      const publicPaths = ["/login", "/api/auth", "/api/v1", "/api/webhooks", "/api/health", "/api/healthz", "/unsubscribe"];
+      const publicPaths = ["/login", "/api/auth", "/api/v1", "/api/webhooks", "/api/inngest", "/api/health", "/api/healthz", "/unsubscribe"];
       const isPublicPath = publicPaths.some((p) => pathname.startsWith(p));
 
       if (isPublicPath) {

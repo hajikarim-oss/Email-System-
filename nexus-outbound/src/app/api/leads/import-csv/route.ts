@@ -70,13 +70,87 @@ export async function POST(req: Request) {
       });
     }
 
-    // Ingest into Database (with interactive fallback)
+    const candidateEmails = validatedLeads.map((l) => l.email);
+
+    // 1. Check Suppressed Email List (Quarantine)
+    const suppressedRecords = await prisma.suppressedEmail.findMany({
+      where: { email: { in: candidateEmails } },
+      select: { email: true, reason: true },
+    });
+    const suppressedMap = new Map(suppressedRecords.map((s) => [s.email.toLowerCase(), s.reason]));
+
+    // 2. Check Existing Leads in Database
+    const existingDbLeads = await prisma.lead.findMany({
+      where: { email: { in: candidateEmails } },
+      select: {
+        email: true,
+        firstName: true,
+        lastName: true,
+        outreachState: true,
+        daysSinceLastContact: true,
+        lastSubject: true,
+        lastBodyHook: true,
+      },
+    });
+    const existingMap = new Map(existingDbLeads.map((l) => [l.email.toLowerCase(), l]));
+
+    // Lookup last conversation messages if not already on lead record
+    const missingMessageEmails = existingDbLeads
+      .filter((l) => !l.lastBodyHook)
+      .map((l) => l.email.toLowerCase());
+
+    const messageMap = new Map<string, string>();
+    if (missingMessageEmails.length > 0) {
+      const messages = await prisma.emailMessage.findMany({
+        where: { contactEmail: { in: missingMessageEmails } },
+        orderBy: { createdAt: "desc" },
+        select: { contactEmail: true, bodyHook: true },
+      });
+      for (const m of messages) {
+        if (!messageMap.has(m.contactEmail.toLowerCase())) {
+          messageMap.set(m.contactEmail.toLowerCase(), m.bodyHook);
+        }
+      }
+    }
+
+    const alreadyStored: any[] = [];
+    const leadsToInsert: any[] = [];
+
     for (const item of validatedLeads) {
+      if (suppressedMap.has(item.email)) {
+        quarantined.push({
+          email: item.email,
+          reason: `Quarantined on global suppression list (${suppressedMap.get(item.email)})`,
+        });
+        continue;
+      }
+
+      if (existingMap.has(item.email)) {
+        const exist = existingMap.get(item.email)!;
+        const shortMessage = exist.lastBodyHook || messageMap.get(item.email) || null;
+        alreadyStored.push({
+          email: item.email,
+          name: `${exist.firstName || ""} ${exist.lastName || ""}`.trim() || item.email,
+          outreachState: exist.outreachState,
+          daysSinceLastContact: exist.daysSinceLastContact,
+          lastSubject: exist.lastSubject,
+          lastMessage: shortMessage,
+        });
+        continue;
+      }
+
+      leadsToInsert.push(item);
+    }
+
+    // Ingest only truly new leads into Database
+    for (const item of leadsToInsert) {
       try {
+        const domain = item.email.includes("@") ? item.email.split("@")[1] : null;
         const lead = await prisma.lead.create({
           data: {
             campaignId: campaignIdFinal,
             email: item.email,
+            domain,
             firstName: item.firstName,
             lastName: item.lastName,
             source: defaultSource,
@@ -135,6 +209,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       importedCount: createdLeads.length,
+      alreadyStoredCount: alreadyStored.length,
+      alreadyStored,
       quarantinedCount: quarantined.length,
       quarantined,
       leads: createdLeads,

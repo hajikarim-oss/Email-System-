@@ -176,6 +176,8 @@ export default function FilterBar({
             segment_ids: hideSegments ? s.segment_ids : undefined,
             sort_by: s.sort_by,
             reverse: s.reverse,
+            outreach_states: undefined,
+            domains: undefined,
         }));
     }
 
@@ -200,16 +202,38 @@ export default function FilterBar({
 
     return (
         <div className="px-5 py-1.5 border-b border-slate-200/60 bg-white flex flex-wrap items-center gap-1.5">
-            <MultiPill
-                id="categories"
-                label="Category"
+            <ChoicePill<string | undefined>
+                id="outreach_state"
+                label="Outreach State"
                 openKey={openKey}
                 setOpenKey={setOpenKey}
-                value={filters.category_ids ?? []}
-                onChange={(v) => setFilters((s) => ({ ...s, category_ids: v.length ? v : undefined }))}
-                options={categoryOptions}
-                empty="No categories yet."
-                hint="Contacts must have every selected category."
+                value={filters.outreach_states?.[0]}
+                onChange={(v) => setFilters((s) => ({ ...s, outreach_states: v ? [v] : undefined }))}
+                options={[
+                    { id: "DORMANT_REPLIED", label: "Dormant Replied (747)" },
+                    { id: "COLD_REENGAGEMENT", label: "Cold Re-engagement (22.9k)" },
+                    { id: "WARM_STALE", label: "Warm Stale (694)" },
+                    { id: "IN_SEQUENCE", label: "In Sequence (3)" },
+                    { id: "BURNED", label: "Burned / Quarantined (3.7k)" },
+                ]}
+            />
+            <CompanyPill
+                openKey={openKey}
+                setOpenKey={setOpenKey}
+                value={filters.domains?.[0]}
+                onChange={(v) => setFilters((s) => ({ ...s, domains: v ? [v] : undefined }))}
+            />
+            <ChoicePill<boolean | undefined>
+                id="status"
+                label="Status"
+                openKey={openKey}
+                setOpenKey={setOpenKey}
+                value={filters.subscribed}
+                onChange={(v) => setFilters((s) => ({ ...s, subscribed: v }))}
+                options={[
+                    { id: true, label: "Subscribed" },
+                    { id: false, label: "Unsubscribed" },
+                ]}
             />
             {!hideSegments && (
                 <MultiPill
@@ -224,18 +248,6 @@ export default function FilterBar({
                     hint="Contacts must be in every selected segment."
                 />
             )}
-            <ChoicePill<boolean | undefined>
-                id="status"
-                label="Status"
-                openKey={openKey}
-                setOpenKey={setOpenKey}
-                value={filters.subscribed}
-                onChange={(v) => setFilters((s) => ({ ...s, subscribed: v }))}
-                options={[
-                    { id: true, label: "Subscribed" },
-                    { id: false, label: "Unsubscribed" },
-                ]}
-            />
             {!campaignCtx && (
                 <CampaignPill
                     openKey={openKey}
@@ -673,6 +685,75 @@ function ChoicePill<T extends string | boolean | undefined>({
                         Any
                     </button>
                 )}
+            </div>
+        </Pill>
+    );
+}
+
+function CompanyPill({
+    openKey,
+    setOpenKey,
+    value,
+    onChange,
+}: {
+    openKey: string | null;
+    setOpenKey: (k: string | null) => void;
+    value?: string;
+    onChange: (next?: string) => void;
+}) {
+    const [text, setText] = React.useState(value || "");
+    React.useEffect(() => setText(value || ""), [value]);
+
+    return (
+        <Pill
+            id="company"
+            label="Company"
+            summary={value || undefined}
+            active={!!value}
+            openKey={openKey}
+            setOpenKey={setOpenKey}
+            onRemove={value ? () => onChange(undefined) : undefined}
+            width={260}
+        >
+            <div className="p-2.5 space-y-2">
+                <div className="text-[11px] font-medium text-slate-600">Filter by company or domain:</div>
+                <input
+                    type="text"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            onChange(text.trim() || undefined);
+                            setOpenKey(null);
+                        }
+                    }}
+                    placeholder="e.g. google.com, atomberg, fabindia..."
+                    className="w-full px-2.5 py-1 text-[12px] rounded border border-slate-300 focus:outline-none focus:border-sky-500"
+                    autoFocus
+                />
+                <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setText("");
+                            onChange(undefined);
+                            setOpenKey(null);
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-slate-600 font-medium"
+                    >
+                        Clear
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onChange(text.trim() || undefined);
+                            setOpenKey(null);
+                        }}
+                        className="px-2.5 py-1 bg-sky-600 text-white text-[11.5px] rounded font-medium hover:bg-sky-700"
+                    >
+                        Apply
+                    </button>
+                </div>
             </div>
         </Pill>
     );

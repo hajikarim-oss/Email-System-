@@ -84,17 +84,24 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { name, email, company, category = "Prospect", source = "Manual", campaignId, industry, title, employees } = body;
 
-    if (!campaignId) {
-      return NextResponse.json({ error: "campaignId is required" }, { status: 400 });
+    let campaignIdFinal = campaignId;
+    if (!campaignIdFinal) {
+      const firstCampaign = await prisma.campaign.findFirst({
+        where: { userId: session.user.id },
+      }) || await prisma.campaign.findFirst();
+      campaignIdFinal = firstCampaign?.id;
     }
 
-    // Verify campaign belongs to user
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: campaignId },
-      select: { id: true, userId: true },
-    });
-    if (!campaign || (campaign.userId !== session.user.id && (session.user as any).role !== "MASTER")) {
-      return NextResponse.json({ error: "Campaign not found or access denied" }, { status: 404 });
+    if (!campaignIdFinal) {
+      const defaultUser = await prisma.user.findFirst();
+      const newCamp = await prisma.campaign.create({
+        data: {
+          name: "Outreach Pool #1",
+          userId: defaultUser?.id || session.user.id,
+          status: "ACTIVE",
+        },
+      });
+      campaignIdFinal = newCamp.id;
     }
 
     const nameParts = (name || "").trim().split(" ");
@@ -107,19 +114,70 @@ export async function POST(req: Request) {
     if (title) customData.title = title;
     if (employees) customData.employees = employees;
 
-    const validCategories = ["UNCATEGORIZED", "WORKING", "NOT_WORKING", "POTENTIAL", "DO_NOT_CONTACT"];
-    const cat = category.toUpperCase().replace(/\s+/g, "_");
-    const leadCategory = validCategories.includes(cat) ? cat : "UNCATEGORIZED";
+    const cleanEmail = (email || "").toLowerCase().trim();
+    if (!cleanEmail) {
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    }
+
+    // 1. Check if email is on global suppression list (quarantined)
+    const isSuppressed = await prisma.suppressedEmail.findUnique({
+      where: { email: cleanEmail },
+    });
+    if (isSuppressed) {
+      return NextResponse.json({
+        error: `Quarantine Alert: ${cleanEmail} is on the global suppression list (${isSuppressed.reason}). Cannot add to active outreach.`,
+        isQuarantined: true,
+        reason: isSuppressed.reason,
+      }, { status: 409 });
+    }
+
+    // 2. Check if contact already exists in database
+    const existingLead = await prisma.lead.findFirst({
+      where: { email: cleanEmail },
+    });
+    if (existingLead) {
+      let lastShortMessage = existingLead.lastBodyHook;
+      if (!lastShortMessage) {
+        const lastMsg = await prisma.emailMessage.findFirst({
+          where: { contactEmail: cleanEmail },
+          orderBy: { createdAt: "desc" },
+          select: { bodyHook: true },
+        });
+        lastShortMessage = lastMsg?.bodyHook || null;
+      }
+
+      return NextResponse.json({
+        error: `Contact Already Stored: We already have ${cleanEmail} in your database.`,
+        isDuplicate: true,
+        existingContact: {
+          id: existingLead.id,
+          name: `${existingLead.firstName || ""} ${existingLead.lastName || ""}`.trim() || cleanEmail,
+          email: existingLead.email,
+          domain: existingLead.domain,
+          outreachState: existingLead.outreachState,
+          recencyBucket: existingLead.recencyBucket,
+          daysSinceLastContact: existingLead.daysSinceLastContact,
+          lastSubject: existingLead.lastSubject,
+          lastOutcome: existingLead.lastOutcome,
+          lastMessage: lastShortMessage,
+        },
+      }, { status: 409 });
+    }
+
+    const domain = cleanEmail.includes("@") ? cleanEmail.split("@")[1] : null;
+
+    const leadCategory = (category ? category.toUpperCase().replace(/\s+/g, "_") : "UNCATEGORIZED") as any;
 
     const lead = await prisma.lead.create({
       data: {
-        campaignId,
-        email,
+        campaignId: campaignIdFinal,
+        email: cleanEmail,
+        domain,
         firstName,
         lastName,
         source,
         customData,
-        leadCategory: leadCategory as "UNCATEGORIZED",
+        leadCategory: leadCategory,
         status: "ACTIVE",
       },
     });
@@ -135,7 +193,7 @@ export async function POST(req: Request) {
       source,
       firstOpenAt: "",
       lastOpenAt: "",
-      campaign: campaignId,
+      campaign: campaignIdFinal,
       customData,
     }, { status: 201 });
   } catch (error) {

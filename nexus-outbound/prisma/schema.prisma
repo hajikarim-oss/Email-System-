@@ -69,6 +69,40 @@ enum SuppressionReason {
   MANUAL
 }
 
+enum RecencyBucket {
+  NEVER_CONTACTED
+  TOUCHED_THIS_WEEK
+  TOUCHED_THIS_MONTH
+  TOUCHED_THIS_QUARTER
+  TOUCHED_LAST_6_MONTHS
+  TOUCHED_LAST_YEAR
+  DORMANT_1_TO_2_YEARS
+  DORMANT_OVER_2_YEARS
+}
+
+enum OutreachState {
+  BURNED
+  DO_NOT_CONTACT_RECENTLY
+  WARM_ACTIVE
+  WARM_STALE
+  IN_SEQUENCE
+  COLD_REENGAGEMENT
+  DORMANT_REPLIED
+  NEVER_REACHED
+  UNKNOWN
+}
+
+enum ReplyClass {
+  NONE
+  INTERESTED
+  NOT_NOW
+  WRONG_PERSON
+  UNSUBSCRIBE
+  AUTO_RESPONDER
+  OOO
+  UNVERIFIED_REPLY
+}
+
 // ─────────────────────────────────────────────
 // MODELS
 // ─────────────────────────────────────────────
@@ -241,18 +275,63 @@ model CampaignStep {
 
 model Lead {
   id             String       @id @default(cuid())
-  campaignId     String
-  campaign       Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId     String?
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   email          String
   firstName      String?
   lastName       String?
-  source         String?      // "csv", "youtube", "instagram", "sov_panel", "hammer_head"
+  source         String?      // "csv", "youtube", "instagram", "sov_panel", "hammer_head", "apollo_intelligence"
   customData     Json?        // Stores any extra CSV columns (JSONB)
   leadCategory   LeadCategory @default(UNCATEGORIZED)
   status         LeadStatus   @default(ACTIVE)
   lastStepSent   Int          @default(0)
   aiSentiment    Sentiment?
   providerLeadId String?
+
+  // Brand / Company relationship (Layer C)
+  brandId                  String?
+  brand                    Brand?               @relation(fields: [brandId], references: [id])
+  domain                   String?
+
+  // Last Message Context (Layer B)
+  lastMessageId            String?
+  lastMessageAt            DateTime?
+  lastSubject              String?
+  lastBodyHook             String?
+  lastSender               String?
+  lastCampaign             String?
+  lastOutcome              String?              // delivered | bounced | spam_blocked | replied | failed
+
+  // Lifetime Volume Counters
+  totalMessages            Int                  @default(0)
+  totalOutbound            Int                  @default(0)
+  totalInbound             Int                  @default(0)
+  totalReplied             Int                  @default(0)
+  totalBounced             Int                  @default(0)
+  totalSpam                Int                  @default(0)
+
+  // Temporal Timestamps & Deltas
+  firstContactedAt         DateTime?
+  lastContactedAt          DateTime?
+  lastDeliveredAt          DateTime?
+  lastRepliedAt            DateTime?
+  lastBouncedAt            DateTime?
+  daysSinceFirstContact    Int?
+  daysSinceLastContact     Int?
+  daysSinceLastReply       Int?
+  contactFrequencyDays     Float?
+
+  // First-Class State & Segmentation
+  recencyBucket            RecencyBucket        @default(NEVER_CONTACTED)
+  outreachState            OutreachState        @default(UNKNOWN)
+  isBurned                 Boolean              @default(false)
+  isDormant                Boolean              @default(false)
+  isReengagementCandidate  Boolean              @default(false)
+  replyClassification      ReplyClass           @default(NONE)
+
+  // Tags & Intelligence Metadata
+  tags                     String[]             @default([])
+  intelligenceUpdatedAt    DateTime?
 
   // Engagement tracking
   repliedAt      DateTime?
@@ -278,6 +357,11 @@ model Lead {
 
   @@index([campaignId, status])
   @@index([email])
+  @@index([domain])
+  @@index([recencyBucket])
+  @@index([outreachState])
+  @@index([isReengagementCandidate])
+  @@index([daysSinceLastContact])
   @@index([leadCategory])
   @@index([firstOpenAt])
   @@index([leadScore])
@@ -394,4 +478,88 @@ model Notification {
   @@index([userId, read, createdAt])
   @@index([userId, type])
   @@index([campaignId])
+}
+
+// ─────────────────────────────────────────────
+// EMAIL MESSAGE — Append-only message log (Layer A)
+// ─────────────────────────────────────────────
+
+model EmailMessage {
+  id                   String       @id // Apollo message ID or provider message ID
+  providerThreadId     String?
+  providerMessageId    String?
+  contactEmail         String
+  brandDomain          String?
+  senderEmail          String
+  senderName           String?
+  direction            String       @default("outbound") // outbound | inbound
+  subjectRaw           String
+  subjectNormalized    String
+  bodyHook             String       // first 201 chars
+  bodyFull             String?      // null when truncated in source
+  campaignRaw          String?
+  campaignClean        String?
+  stepId               String?
+  touchId              String?
+  status               String       // completed | failed
+  bounced              Boolean      @default(false)
+  spamBlocked          Boolean      @default(false)
+  replied              Boolean      @default(false)
+  replyClassification  ReplyClass   @default(NONE)
+  failureReason        String?
+  createdAt            DateTime
+  ingestedAt           DateTime     @default(now())
+  source               String       @default("json") // json | csv | api | webhook
+  isExcluded           Boolean      @default(false)  // true for internal/support threads
+
+  @@index([contactEmail])
+  @@index([brandDomain])
+  @@index([providerThreadId])
+  @@index([createdAt])
+  @@index([replyClassification])
+}
+
+// ─────────────────────────────────────────────
+// BRAND — Domain & Account Intelligence (Layer C)
+// ─────────────────────────────────────────────
+
+model Brand {
+  id                    String        @id @default(cuid())
+  domain                String        @unique // e.g. "unilever.com", "atomberg.com"
+  name                  String?       // "Unilever", "Atomberg"
+  totalContacts         Int           @default(0)
+  cleanContacts         Int           @default(0)
+  burnedContacts        Int           @default(0)
+  repliedContacts       Int           @default(0)
+  lastContactedAt       DateTime?
+  daysSinceLastContact  Int?
+  recencyBucket         RecencyBucket @default(NEVER_CONTACTED)
+  outreachState         OutreachState @default(UNKNOWN)
+  tags                  String[]      @default([])
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  leads                 Lead[]
+
+  @@index([domain])
+  @@index([outreachState])
+  @@index([recencyBucket])
+}
+
+// ─────────────────────────────────────────────
+// CONTACT SEGMENT — Saved filter definitions (Layer D)
+// ─────────────────────────────────────────────
+
+model ContactSegment {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  filterJson  Json      // Structured filter AST
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastRunAt   DateTime?
+  lastCount   Int       @default(0)
+
+  @@index([name])
 }

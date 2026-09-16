@@ -89,6 +89,53 @@ export default function OverviewTab({
                 </div>
             )}
 
+            {contact.temporal_state?.outreach_state && (
+                <Section title="Live Outreach Intelligence">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Outreach State</span>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${
+                                contact.temporal_state.outreach_state === "DORMANT_REPLIED"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : contact.temporal_state.outreach_state === "WARM_STALE"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : contact.temporal_state.outreach_state === "COLD_REENGAGEMENT"
+                                    ? "bg-purple-100 text-purple-800"
+                                    : contact.temporal_state.outreach_state === "BURNED"
+                                    ? "bg-rose-100 text-rose-800"
+                                    : "bg-slate-200 text-slate-700"
+                            }`}>
+                                {contact.temporal_state.outreach_state.replace(/_/g, " ")}
+                            </span>
+                        </div>
+                        {contact.temporal_state.days_since_last_contact !== null && contact.temporal_state.days_since_last_contact !== undefined && (
+                            <div className="flex items-center justify-between text-[11.5px] border-t border-slate-200/60 pt-2">
+                                <span className="text-slate-500">Last Touchpoint</span>
+                                <span className="font-medium text-slate-700 font-mono">
+                                    {contact.temporal_state.days_since_last_contact} days ago ({contact.temporal_state.recency_bucket?.replace(/_/g, " ")})
+                                </span>
+                            </div>
+                        )}
+                        {contact.last_message_context?.subject && contact.last_message_context.subject !== "No prior outreach" && (
+                            <div className="border-t border-slate-200/60 pt-2.5 space-y-1">
+                                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Last Subject</div>
+                                <div className="text-[12px] font-medium text-slate-900 bg-white border border-slate-200 rounded px-2.5 py-1.5 shadow-2xs">
+                                    {contact.last_message_context.subject}
+                                </div>
+                                {contact.last_message_context.body_hook && (
+                                    <>
+                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider pt-1">Last Conversation Message</div>
+                                        <div className="text-[12px] text-slate-700 bg-white border border-slate-200 rounded p-2.5 italic leading-relaxed border-l-2 border-l-sky-500 shadow-2xs">
+                                            "{contact.last_message_context.body_hook}"
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </Section>
+            )}
+
             <Section title="Deliverability">
                 <VerificationCard detail={detail?.verification} loading={detailLoading} />
             </Section>

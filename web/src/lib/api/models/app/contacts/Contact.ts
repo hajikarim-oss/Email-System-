@@ -91,6 +91,33 @@ export default interface Contact {
     // the per-lead processing-state column.
     campaign_lead?: ContactCampaignProgress | null;
 
+    // Live Email Intelligence Extensions
+    domain?: string;
+    temporal_state?: {
+        recency_bucket: string;
+        outreach_state: string;
+        days_since_last_contact?: number | null;
+        first_contacted_at?: string | Date | null;
+        last_contacted_at?: string | Date | null;
+        is_dormant: boolean;
+        is_reengagement_candidate: boolean;
+    };
+    engagement_state?: {
+        total_messages: number;
+        total_replied: number;
+        reply_classification: string;
+    };
+    last_message_context?: {
+        id?: string | null;
+        subject: string;
+        body_hook: string;
+        sender: string;
+        campaign: string;
+        outcome: string;
+        date?: string | Date | null;
+    };
+    tags?: string[];
+
     updated_at: Date;
     created_at: Date;
 }

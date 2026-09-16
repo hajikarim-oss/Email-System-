@@ -252,7 +252,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const password = (body.password || "").trim();
 
         if (email !== "haji.karim@theboredmonkey.com" || password !== "9538564601") {
-            return [401, { error: "Invalid email or password. Access restricted to authorized accounts only." }];
+            return res({ error: "Invalid email or password. Access restricted to authorized accounts only." }, 401);
         }
 
         const token = {
@@ -1011,8 +1011,70 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         }
 
+        if (method === "DELETE" && pathWithoutQuery === "/contacts") {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const ids = body.contacts || body.ids || [];
+            try {
+                await fetch("/api/intelligence/delete-contacts", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ids }),
+                });
+            } catch (err) {
+                console.warn("[standaloneMock] delete contacts error:", err);
+            }
+            return res({ deleted: ids.length });
+        }
+
         // Full contacts searching and filtering
         const reqBody = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+
+        // Query the live PostgreSQL Database Intelligence layer first
+        try {
+            const intParams = new URLSearchParams();
+            const q = (reqBody.query || queryParams.get("query") || queryParams.get("q") || "").trim();
+            if (q) intParams.set("query", q);
+            const cursor = queryParams.get("cursor") || reqBody.cursor;
+            if (cursor) intParams.set("page", cursor);
+            const limit = queryParams.get("limit") || reqBody.limit || "50";
+            intParams.set("limit", String(limit));
+            if (reqBody.subscribed !== undefined) intParams.set("subscribed", String(reqBody.subscribed));
+            if (reqBody.outreach_state) intParams.set("outreach_state", reqBody.outreach_state);
+            if (reqBody.recency_bucket) intParams.set("recency_bucket", reqBody.recency_bucket);
+
+            // Outreach state / Category multi-select
+            if (reqBody.outreach_states && reqBody.outreach_states.length > 0) {
+                intParams.set("outreach_state", reqBody.outreach_states[0]);
+            } else if (reqBody.category_ids && reqBody.category_ids.length > 0) {
+                intParams.set("outreach_state", reqBody.category_ids[0]);
+            }
+
+            // Company and Domain filter
+            if (reqBody.company) intParams.set("company", reqBody.company);
+            if (reqBody.domain) intParams.set("domain", reqBody.domain);
+            if (reqBody.domains && reqBody.domains.length > 0) intParams.set("domain", reqBody.domains[0]);
+            if (reqBody.custom_field_filters && Array.isArray(reqBody.custom_field_filters)) {
+                for (const cf of reqBody.custom_field_filters) {
+                    if ((cf.name === "company" || cf.name === "domain") && cf.value) {
+                        intParams.set("company", cf.value);
+                    }
+                }
+            }
+
+            const intRes = await fetch(`/api/intelligence/contacts?${intParams.toString()}`);
+            if (intRes.ok) {
+                const intJson = await intRes.json();
+                return res({
+                    data: intJson.data,
+                    total: intJson.total,
+                    counts: intJson.counts,
+                    pagination: intJson.pagination,
+                });
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] Failed to query intelligence contacts, falling back:", e);
+        }
+
         let results = [...contacts];
 
         // 1. Filter by campaign_ids
@@ -1090,16 +1152,28 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/contacts/segments") {
+        try {
+            const segRes = await fetch("/api/intelligence/segments");
+            if (segRes.ok) {
+                const segData = await segRes.json();
+                return res(segData);
+            }
+        } catch {}
         return res([
-            { id: "seg_1", name: "High-Intent Founders", count: 128 },
-            { id: "seg_2", name: "VP Sales / CRO", count: 86 },
+            { id: "seg_dormant_replied", name: "Dormant Replied (Past Responders)", count: 747, color: "#10b981" },
+            { id: "seg_cold_reengagement", name: "Cold Re-engagement Candidates", count: 22896, color: "#8b5cf6" },
+            { id: "seg_warm_stale", name: "Warm Stale Leads", count: 694, color: "#f59e0b" },
+            { id: "seg_suppressed", name: "Quarantined / Burned (Shield Active)", count: 3732, color: "#ef4444" },
+            { id: "seg_in_sequence", name: "Currently In Sequence", count: 3, color: "#0ea5e9" },
         ]);
     }
 
     if (pathWithoutQuery === "/contacts/categories") {
         return res([
-            { id: "cat_1", name: "SaaS & Tech", count: 184 },
-            { id: "cat_2", name: "FinTech", count: 92 },
+            { id: "DORMANT_REPLIED", title: "Dormant Replied", count: 747, color: "#10b981" },
+            { id: "COLD_REENGAGEMENT", title: "Cold Re-engagement", count: 22896, color: "#8b5cf6" },
+            { id: "WARM_STALE", title: "Warm Stale", count: 694, color: "#f59e0b" },
+            { id: "BURNED", title: "Burned / Quarantined", count: 3730, color: "#ef4444" },
         ]);
     }
 
@@ -1108,7 +1182,168 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/contacts/suppressions") {
+        try {
+            const q = queryParams.get("query") || queryParams.get("q") || "";
+            const cursor = queryParams.get("cursor") || "1";
+            const sRes = await fetch(`/api/intelligence/suppressions?query=${encodeURIComponent(q)}&page=${cursor}&limit=50`);
+            if (sRes.ok) {
+                const sData = await sRes.json();
+                return res(sData);
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] Failed to query suppressions:", e);
+        }
         return res({ data: [], pagination: { has_more: false, next_cursor: null } });
+    }
+
+    // CSV Contact Import Handlers (Preview & Commit with Duplicate/Quarantine Detection)
+    if (pathWithoutQuery === "/contacts/import/preview") {
+        let text = "";
+        if (config.data instanceof FormData) {
+            const f = config.data.get("file");
+            if (f instanceof Blob) {
+                text = await f.text();
+            }
+        } else if (typeof config.data === "string") {
+            text = config.data;
+        }
+
+        const lines = (text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const headers = lines[0] ? lines[0].split(",").map(h => h.trim().replace(/^["']|["']$/g, "")) : ["Email", "First Name", "Last Name", "Company"];
+        const sampleRows = lines.slice(1, 6).map(line => line.split(",").map(v => v.trim().replace(/^["']|["']$/g, "")));
+
+        const suggestedMapping = headers.map((h, i) => {
+            const hl = h.toLowerCase();
+            if (hl.includes("email")) return { index: i, target: "email" };
+            if (hl.includes("first") || hl === "fname") return { index: i, target: "first_name" };
+            if (hl.includes("last") || hl === "lname") return { index: i, target: "last_name" };
+            if (hl.includes("comp") || hl.includes("org")) return { index: i, target: "company" };
+            if (hl.includes("phone")) return { index: i, target: "phone" };
+            return { index: i, target: "ignore" };
+        });
+
+        return res({
+            filename: "import.csv",
+            format: "csv",
+            total_rows: Math.max(0, lines.length - 1),
+            columns: headers,
+            has_header: true,
+            sample_rows: sampleRows,
+            suggested_mapping: suggestedMapping,
+        });
+    }
+
+    if (pathWithoutQuery === "/contacts/import/commit") {
+        let text = "";
+        let opts: any = {};
+        if (config.data instanceof FormData) {
+            const f = config.data.get("file");
+            if (f instanceof Blob) {
+                text = await f.text();
+            }
+            const optStr = config.data.get("options");
+            if (typeof optStr === "string") {
+                try { opts = JSON.parse(optStr); } catch {}
+            }
+        }
+
+        const lines = (text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const startIndex = opts.has_header !== false ? 1 : 0;
+        const rows = lines.slice(startIndex);
+
+        // Extract email column index
+        const emailMapping = (opts.mapping || []).find((m: any) => m.target === "email");
+        const emailIdx = emailMapping ? emailMapping.index : 0;
+        const firstNameMapping = (opts.mapping || []).find((m: any) => m.target === "first_name");
+        const firstNameIdx = firstNameMapping ? firstNameMapping.index : -1;
+        const lastNameMapping = (opts.mapping || []).find((m: any) => m.target === "last_name");
+        const lastNameIdx = lastNameMapping ? lastNameMapping.index : -1;
+        const companyMapping = (opts.mapping || []).find((m: any) => m.target === "company");
+        const companyIdx = companyMapping ? companyMapping.index : -1;
+
+        const candidateLeads: any[] = [];
+        for (const line of rows) {
+            const cols = line.split(",").map(c => c.trim().replace(/^["']|["']$/g, ""));
+            const email = (cols[emailIdx] || "").toLowerCase().trim();
+            if (!email || !email.includes("@")) continue;
+            candidateLeads.push({
+                email,
+                first_name: firstNameIdx >= 0 ? cols[firstNameIdx] : "",
+                last_name: lastNameIdx >= 0 ? cols[lastNameIdx] : "",
+                company: companyIdx >= 0 ? cols[companyIdx] : "",
+            });
+        }
+
+        // Query real database intelligence for batch collision check
+        let duplicates: any[] = [];
+        let quarantined: any[] = [];
+        try {
+            const batchRes = await fetch("/api/intelligence/check-batch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ emails: candidateLeads.map(c => c.email) }),
+            });
+            const batchData = await batchRes.json();
+            duplicates = batchData.duplicates || [];
+            quarantined = batchData.quarantined || [];
+        } catch {}
+
+        const duplicateEmailMap = new Map(duplicates.map(d => [d.email.toLowerCase(), d]));
+        const quarantinedEmailMap = new Map(quarantined.map(q => [q.email.toLowerCase(), q.reason]));
+
+        const existingContactsMap = new Map(contacts.map((c: any) => [(c.email || "").toLowerCase(), c]));
+
+        const cleanToInsert: any[] = [];
+        const finalAlreadyStored: any[] = [];
+        const finalQuarantined: any[] = [];
+
+        for (const item of candidateLeads) {
+            const e = item.email.toLowerCase();
+            if (quarantinedEmailMap.has(e)) {
+                finalQuarantined.push({ email: e, reason: quarantinedEmailMap.get(e) });
+                continue;
+            }
+            if (opts.dedup === "skip" && (duplicateEmailMap.has(e) || existingContactsMap.has(e))) {
+                const exist = duplicateEmailMap.get(e) || existingContactsMap.get(e);
+                finalAlreadyStored.push({
+                    email: e,
+                    name: exist.name || `${item.first_name} ${item.last_name}`.trim() || e,
+                    outreachState: exist.outreachState || exist.status || "DORMANT_REPLIED",
+                    lastSubject: exist.lastSubject || null,
+                    lastMessage: exist.lastMessage || null,
+                    daysSinceLastContact: exist.daysSinceLastContact,
+                });
+                continue;
+            }
+            cleanToInsert.push({
+                id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                email: e,
+                first_name: item.first_name || "",
+                last_name: item.last_name || "",
+                company_name: item.company || "",
+                title: "Executive",
+                status: "active",
+                tags: ["csv-import"],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            });
+        }
+
+        cleanToInsert.forEach(c => contacts.unshift(c));
+        saveStorage("contacts", contacts);
+
+        return res({
+            total: candidateLeads.length,
+            imported: cleanToInsert.length,
+            updated: 0,
+            skipped: finalAlreadyStored.length,
+            failed: finalQuarantined.length,
+            started_at: new Date().toISOString(),
+            ended_at: new Date().toISOString(),
+            already_stored: finalAlreadyStored,
+            quarantined: finalQuarantined,
+            errors: finalQuarantined.map((q, idx) => ({ line: idx + 2, email: q.email, reason: q.reason })),
+        });
     }
 
     // 7. Unibox (Unified Inbox) - Multi-Mailbox routing for all 4 profiles

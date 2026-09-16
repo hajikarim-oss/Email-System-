@@ -888,6 +888,41 @@ export function ResultStep({
                 <StatCard label="Failed"    value={result.failed}   accent={result.failed > 0 ? "red" : "slate"} />
             </div>
 
+            {(result as any).already_stored?.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50/70 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
+                        <AlertTriangleIcon className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Already Stored in Database ({(result as any).already_stored.length} Duplicates Skipped)</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-snug">
+                        The following contacts were already saved in your database and were skipped to avoid duplicate outreach:
+                    </p>
+                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                        {(result as any).already_stored.map((c: any, idx: number) => (
+                            <div key={idx} className="bg-white rounded p-2 border border-amber-200 text-xs space-y-1 shadow-2xs">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-slate-800">{c.email}</span>
+                                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9.5px] font-semibold text-amber-800 uppercase">
+                                        {c.outreachState || "Stored"}
+                                    </span>
+                                </div>
+                                {c.name && <div className="text-[11px] text-slate-500 font-medium">{c.name}</div>}
+                                {c.lastSubject && (
+                                    <div className="text-[11px] text-slate-600 font-medium">
+                                        <span className="text-slate-400 font-semibold">Subject:</span> &ldquo;{c.lastSubject}&rdquo;
+                                    </div>
+                                )}
+                                {c.lastMessage && (
+                                    <div className="text-[11px] text-slate-700 bg-amber-50/70 p-1.5 rounded border border-amber-200/50 italic leading-snug">
+                                        &ldquo;{c.lastMessage.length > 130 ? c.lastMessage.slice(0, 130) + "…" : c.lastMessage}&rdquo;
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {result.segments_pinned === false && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
                     <AlertTriangleIcon className="w-3.5 h-3.5 mt-px shrink-0 text-amber-600" />

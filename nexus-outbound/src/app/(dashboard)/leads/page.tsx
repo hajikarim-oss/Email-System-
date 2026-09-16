@@ -20,6 +20,7 @@ import {
   X,
   AlertTriangle,
   CheckCircle,
+  ShieldAlert,
 } from 'lucide-react';
 import { useListLeads, useUpdateLead } from '@/lib/api-hooks';
 export type ListLeadsCategory = 'ALL' | 'Prospect' | 'Champion' | 'Partner' | 'Disqualified';
@@ -36,6 +37,13 @@ export default function LeadsPage() {
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [addContactModalOpen, setAddContactModalOpen] = useState(false);
+
+  // Warnings & Notifications for duplicate / quarantined contacts
+  const [duplicateWarning, setDuplicateWarning] = useState<any | null>(null);
+  const [quarantineWarning, setQuarantineWarning] = useState<any | null>(null);
+  const [manualAddError, setManualAddError] = useState<string | null>(null);
+  const [manualAddSuccess, setManualAddSuccess] = useState<string | null>(null);
+  const [csvImportResult, setCsvImportResult] = useState<any | null>(null);
 
   // New Contact Form State
   const [newContact, setNewContact] = useState({
@@ -120,6 +128,7 @@ Rachel,Adams,rachel@apexventures.com,Apex Ventures,Partner`;
   const handleExecuteImport = async () => {
     if (!csvPreview.length) return;
     setIsImporting(true);
+    setCsvImportResult(null);
     try {
       const res = await fetch('/api/leads/import-csv', {
         method: 'POST',
@@ -128,37 +137,56 @@ Rachel,Adams,rachel@apexventures.com,Apex Ventures,Partner`;
       });
       const data = await res.json();
       setIsImporting(false);
-      setImportSuccessMsg(`Successfully imported ${data.importedCount || csvPreview.length} verified contacts.`);
+      setCsvImportResult(data);
       refetch();
-      setTimeout(() => {
-        setCsvModalOpen(false);
-        setImportSuccessMsg('');
-        setCsvRawText('');
-        setCsvPreview([]);
-      }, 1500);
-    } catch (e) {
+    } catch (e: any) {
       setIsImporting(false);
-      setImportSuccessMsg(`Import completed.`);
-      refetch();
-      setTimeout(() => setCsvModalOpen(false), 1500);
+      setCsvImportResult({
+        success: false,
+        error: e?.message || 'Import failed',
+        importedCount: 0,
+        alreadyStoredCount: 0,
+        alreadyStored: [],
+        quarantinedCount: 0,
+        quarantined: [],
+      });
     }
   };
 
   const handleManualAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newContact.email) return;
+    setManualAddError(null);
+    setDuplicateWarning(null);
+    setQuarantineWarning(null);
     try {
-      await fetch('/api/leads', {
+      const res = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newContact),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.isDuplicate) {
+          setDuplicateWarning(data);
+          return;
+        }
+        if (data.isQuarantined) {
+          setQuarantineWarning(data);
+          return;
+        }
+        setManualAddError(data.error || 'Failed to add contact');
+        return;
+      }
       refetch();
-      setAddContactModalOpen(false);
-      setNewContact({ name: '', email: '', company: '', title: '', category: 'Prospect' });
-    } catch (err) {
-      refetch();
-      setAddContactModalOpen(false);
+      setManualAddSuccess('Contact successfully added to database!');
+      setTimeout(() => {
+        setAddContactModalOpen(false);
+        setManualAddSuccess(null);
+        setNewContact({ name: '', email: '', company: '', title: '', category: 'Prospect' });
+      }, 1000);
+    } catch (err: any) {
+      setManualAddError(err?.message || 'Network request failed');
     }
   };
 
@@ -460,27 +488,124 @@ Rachel,Adams,rachel@apexventures.com,Apex Ventures,Partner`;
               </div>
             )}
 
-            {importSuccessMsg && (
-              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-700 border border-emerald-200">
-                <CheckCircle size={15} /> {importSuccessMsg}
-              </div>
-            )}
+            {csvImportResult ? (
+              <div className="space-y-4 py-2">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                    <p className="text-[10px] font-extrabold uppercase text-emerald-600">Imported</p>
+                    <p className="text-xl font-extrabold text-emerald-700">{csvImportResult.importedCount || 0}</p>
+                    <p className="text-[10px] text-emerald-600 font-medium mt-0.5">New Contacts</p>
+                  </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-[10px] font-extrabold uppercase text-amber-600">Already Stored</p>
+                    <p className="text-xl font-extrabold text-amber-700">{csvImportResult.alreadyStoredCount || 0}</p>
+                    <p className="text-[10px] text-amber-600 font-medium mt-0.5">Duplicates Skipped</p>
+                  </div>
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                    <p className="text-[10px] font-extrabold uppercase text-rose-600">Quarantined</p>
+                    <p className="text-xl font-extrabold text-rose-700">{csvImportResult.quarantinedCount || 0}</p>
+                    <p className="text-[10px] text-rose-600 font-medium mt-0.5">Protected Bounces</p>
+                  </div>
+                </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] pt-4">
-              <button
-                onClick={() => setCsvModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleExecuteImport}
-                disabled={!csvPreview.length || isImporting}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[hsl(var(--primary))] text-white text-xs font-bold rounded-lg hover:bg-[hsl(var(--primary)/.9)] disabled:opacity-40 shadow-sm"
-              >
-                {isImporting ? 'Importing...' : `Import ${csvPreview.length} Contacts`}
-              </button>
-            </div>
+                {csvImportResult.alreadyStored?.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+                      <AlertTriangle size={14} className="text-amber-600" />
+                      <span>Already Stored Contacts ({csvImportResult.alreadyStored.length})</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700">
+                      The following contacts were already present in your database and skipped to avoid duplicate messaging:
+                    </p>
+                    <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
+                      {csvImportResult.alreadyStored.map((c: any, idx: number) => (
+                        <div key={idx} className="bg-white rounded-lg p-2.5 border border-amber-200 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-bold text-slate-800">{c.email}</span>
+                              {c.name && <span className="text-slate-500 ml-1.5">({c.name})</span>}
+                            </div>
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-800 uppercase">
+                              {c.outreachState || 'Stored'}
+                            </span>
+                          </div>
+                          {c.lastSubject && (
+                            <div className="text-[11px] text-slate-600 font-medium">
+                              <span className="text-slate-400 font-semibold">Subject:</span> &ldquo;{c.lastSubject}&rdquo;
+                            </div>
+                          )}
+                          {c.lastMessage && (
+                            <div className="text-[11px] text-slate-700 bg-amber-50/70 p-1.5 rounded border border-amber-200/50 italic leading-snug">
+                              &ldquo;{c.lastMessage.length > 130 ? c.lastMessage.slice(0, 130) + '…' : c.lastMessage}&rdquo;
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {csvImportResult.quarantined?.length > 0 && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-rose-800">
+                      <ShieldAlert size={14} className="text-rose-600" />
+                      <span>Quarantined & Protected ({csvImportResult.quarantined.length})</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700">
+                      The following addresses are suppressed or invalid and were blocked to protect sender deliverability:
+                    </p>
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                      {csvImportResult.quarantined.map((q: any, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5 border border-rose-200 text-xs">
+                          <span className="font-bold text-slate-800">{q.email}</span>
+                          <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                            {q.reason}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={() => {
+                      setCsvModalOpen(false);
+                      setCsvImportResult(null);
+                      setCsvRawText('');
+                      setCsvPreview([]);
+                    }}
+                    className="px-4 py-2 bg-[hsl(var(--primary))] text-white text-xs font-bold rounded-lg hover:bg-[hsl(var(--primary)/.9)] shadow-sm"
+                  >
+                    Done & Refresh Table
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {importSuccessMsg && (
+                  <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-700 border border-emerald-200">
+                    <CheckCircle size={15} /> {importSuccessMsg}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] pt-4">
+                  <button
+                    onClick={() => setCsvModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleExecuteImport}
+                    disabled={!csvPreview.length || isImporting}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[hsl(var(--primary))] text-white text-xs font-bold rounded-lg hover:bg-[hsl(var(--primary)/.9)] disabled:opacity-40 shadow-sm"
+                  >
+                    {isImporting ? 'Importing...' : `Import ${csvPreview.length} Contacts`}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -490,91 +615,208 @@ Rachel,Adams,rachel@apexventures.com,Apex Ventures,Partner`;
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <form
             onSubmit={handleManualAddSubmit}
-            className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-white p-6 shadow-2xl space-y-4"
+            className="w-full max-w-md rounded-2xl border border-[hsl(var(--border))] bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between border-b border-[hsl(var(--border))] pb-3">
               <h3 className="text-sm font-extrabold text-[var(--ink)]">Add Single Contact</h3>
               <button
                 type="button"
-                onClick={() => setAddContactModalOpen(false)}
+                onClick={() => {
+                  setAddContactModalOpen(false);
+                  setDuplicateWarning(null);
+                  setQuarantineWarning(null);
+                  setManualAddError(null);
+                }}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newContact.name}
-                  onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
-                  placeholder="e.g. Alex Chen"
-                  className="w-full mt-1 p-2.5 text-xs rounded-xl border border-[hsl(var(--border))] outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/.4)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                  Work Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={newContact.email}
-                  onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                  placeholder="alex@company.com"
-                  className="w-full mt-1 p-2.5 text-xs rounded-xl border border-[hsl(var(--border))] outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/.4)]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                    Company
-                  </label>
-                  <input
-                    type="text"
-                    value={newContact.company}
-                    onChange={(e) => setNewContact({ ...newContact, company: e.target.value })}
-                    placeholder="Acme Inc"
-                    className="w-full mt-1 p-2.5 text-xs rounded-xl border border-[hsl(var(--border))] outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/.4)]"
-                  />
+            {/* Duplicate Contact Warning Alert */}
+            {duplicateWarning && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/95 p-4 text-xs text-amber-900 shadow-sm space-y-2.5 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-2 font-extrabold text-amber-800 text-sm">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                  <span>Contact Already Stored in Database</span>
                 </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    value={newContact.title}
-                    onChange={(e) => setNewContact({ ...newContact, title: e.target.value })}
-                    placeholder="VP Growth"
-                    className="w-full mt-1 p-2.5 text-xs rounded-xl border border-[hsl(var(--border))] outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/.4)]"
-                  />
-                </div>
+                <p className="text-amber-700 leading-relaxed font-medium">
+                  We already have <strong>{duplicateWarning.existingContact?.email || newContact.email}</strong> saved in your outreach database.
+                </p>
+                {duplicateWarning.existingContact && (
+                  <div className="rounded-lg bg-white/95 p-3 border border-amber-200 text-[11px] space-y-1.5 shadow-2xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-semibold">Contact Name:</span>
+                      <span className="font-bold text-slate-800">{duplicateWarning.existingContact.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-semibold">Outreach State:</span>
+                      <span className="font-bold text-amber-800 uppercase">{duplicateWarning.existingContact.outreachState || 'ACTIVE'}</span>
+                    </div>
+                    {duplicateWarning.existingContact.recencyBucket && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-semibold">Recency Window:</span>
+                        <span className="font-medium text-slate-700">{duplicateWarning.existingContact.recencyBucket}</span>
+                      </div>
+                    )}
+                    {duplicateWarning.existingContact.daysSinceLastContact !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-semibold">Last Contacted:</span>
+                        <span className="font-medium text-slate-700">{duplicateWarning.existingContact.daysSinceLastContact} days ago</span>
+                      </div>
+                    )}
+                    {duplicateWarning.existingContact.lastSubject && (
+                      <div className="pt-1 border-t border-slate-100">
+                        <span className="text-slate-500 font-semibold block text-[10px] uppercase tracking-wider">Last Subject:</span>
+                        <span className="font-medium text-slate-800 italic">&ldquo;{duplicateWarning.existingContact.lastSubject}&rdquo;</span>
+                      </div>
+                    )}
+                    {duplicateWarning.existingContact.lastMessage && (
+                      <div className="pt-1.5 border-t border-slate-100 space-y-1">
+                        <span className="text-slate-500 font-semibold text-[10px] uppercase tracking-wider flex items-center gap-1">
+                          <Mail size={11} className="text-amber-600" /> Last Conversation Message:
+                        </span>
+                        <div className="p-2 rounded bg-amber-50/80 border border-amber-200/70 text-slate-700 text-[11px] italic leading-relaxed">
+                          &ldquo;{duplicateWarning.existingContact.lastMessage}&rdquo;
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p className="text-[10px] text-amber-600 font-medium">
+                  Duplicate prevention safeguards your sending reputation and prevents duplicate messaging.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDuplicateWarning(null);
+                    setAddContactModalOpen(false);
+                  }}
+                  className="w-full mt-2 py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs transition-colors"
+                >
+                  Acknowledge & Close
+                </button>
               </div>
-            </div>
+            )}
 
-            <div className="flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] pt-4">
-              <button
-                type="button"
-                onClick={() => setAddContactModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-[hsl(var(--primary))] text-white text-xs font-bold rounded-lg hover:bg-[hsl(var(--primary)/.9)] shadow-sm"
-              >
-                Add to Database
-              </button>
-            </div>
+            {/* Quarantine Alert */}
+            {quarantineWarning && (
+              <div className="rounded-xl border border-rose-300 bg-rose-50/95 p-4 text-xs text-rose-900 shadow-sm space-y-2.5 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-2 font-extrabold text-rose-800 text-sm">
+                  <ShieldAlert size={18} className="text-rose-600 shrink-0" />
+                  <span>Quarantine Alert: Suppressed Address</span>
+                </div>
+                <p className="text-rose-700 leading-relaxed font-medium">
+                  {quarantineWarning.error || `The address ${newContact.email} is permanently suppressed.`}
+                </p>
+                <div className="rounded-lg bg-white/95 p-2.5 border border-rose-200 text-[11px] flex items-center justify-between">
+                  <span className="text-slate-500 font-semibold">Suppression Reason:</span>
+                  <span className="font-bold text-rose-700 uppercase">{quarantineWarning.reason || 'BOUNCE / SPAM'}</span>
+                </div>
+                <p className="text-[10px] text-rose-600 font-medium">
+                  This contact previously bounced or filed a spam complaint. Adding this email is strictly blocked.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuarantineWarning(null);
+                    setAddContactModalOpen(false);
+                  }}
+                  className="w-full mt-2 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+
+            {manualAddError && (
+              <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700 border border-rose-200">
+                <AlertTriangle size={15} /> {manualAddError}
+              </div>
+            )}
+
+            {manualAddSuccess && (
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-700 border border-emerald-200">
+                <CheckCircle size={15} /> {manualAddSuccess}
+              </div>
+            )}
+
+            {!duplicateWarning && !quarantineWarning && (
+              <>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newContact.name}
+                      onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                      placeholder="e.g. Alex Chen"
+                      className="w-full mt-1 p-2.5 text-xs rounded-xl border border-[hsl(var(--border))] outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/.4)]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                      Work Email
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={newContact.email}
+                      onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                      placeholder="alex@company.com"
+                      className="w-full mt-1 p-2.5 text-xs rounded-xl border border-[hsl(var(--border))] outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/.4)]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                        Company
+                      </label>
+                      <input
+                        type="text"
+                        value={newContact.company}
+                        onChange={(e) => setNewContact({ ...newContact, company: e.target.value })}
+                        placeholder="Acme Inc"
+                        className="w-full mt-1 p-2.5 text-xs rounded-xl border border-[hsl(var(--border))] outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/.4)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                        Title
+                      </label>
+                      <input
+                        type="text"
+                        value={newContact.title}
+                        onChange={(e) => setNewContact({ ...newContact, title: e.target.value })}
+                        placeholder="VP Growth"
+                        className="w-full mt-1 p-2.5 text-xs rounded-xl border border-[hsl(var(--border))] outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/.4)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setAddContactModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[hsl(var(--primary))] text-white text-xs font-bold rounded-lg hover:bg-[hsl(var(--primary)/.9)] shadow-sm"
+                  >
+                    Add to Database
+                  </button>
+                </div>
+              </>
+            )}
           </form>
         </div>
       )}

@@ -58,6 +58,7 @@ import {
     PUSHABLE_PROVIDERS,
     type IntegrationConnection,
 } from "@/lib/api/models/app/integrations/Integration";
+import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import type { AppError } from "@/lib/api/client/normalizeError";
 import buildError from "@/lib/helper/buildError";
@@ -363,6 +364,40 @@ export default function ContactsTable({
 
     const toggleAll = () => setRowSel((s) => rowSelection.toggleLoaded(s, loadedIDs));
     const selectAllMatching = () => setRowSel(rowSelection.selectAllMatching());
+    const queryClient = useQueryClient();
+    const [suppressing, setSuppressing] = React.useState(false);
+
+    async function bulkSuppress() {
+        if (selectionCount === 0) return;
+        const selectedRows = rows.filter((r) => isRowSelected(r.id));
+        const emails = selectedRows.map((r) => r.email);
+        const ids = selectedRows.map((r) => r.id);
+
+        confirm?.show(
+            `Quarantine & Suppress ${selectionCount.toLocaleString()} contact${selectionCount === 1 ? "" : "s"}? They will be immediately marked as BURNED, moved to the suppression list, and blocked from all future outbound campaigns.`,
+            async () => {
+                try {
+                    setSuppressing(true);
+                    confirm?.setLoading(true);
+                    const res = await fetch("/api/intelligence/suppress-contacts", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ emails, ids, reason: "MANUAL" }),
+                    });
+                    if (!res.ok) throw new Error("Failed to suppress contacts");
+                    toast.success(`Suppressed & quarantined ${selectionCount.toLocaleString()} contact${selectionCount === 1 ? "" : "s"}`);
+                    queryClient.invalidateQueries({ queryKey: ["contacts"] });
+                    clearSelection();
+                } catch (err: any) {
+                    toast.error(err.message || "Failed to suppress contacts");
+                } finally {
+                    setSuppressing(false);
+                    confirm?.setLoading(false);
+                    confirm?.setShow(false);
+                }
+            }
+        );
+    }
 
     async function bulkDelete(target: ContactSelection, count: number) {
         if (count === 0) return;
@@ -370,11 +405,21 @@ export default function ContactsTable({
             confirm?.setLoading(true);
             try {
                 setDelete(true);
+                const selectedRows = rows.filter((r) => isRowSelected(r.id));
+                const emails = selectedRows.map((r) => r.email);
+                const ids = selectedRows.map((r) => r.id);
+                fetch("/api/intelligence/delete-contacts", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ emails, ids }),
+                }).catch(() => {});
+
                 await toast.promise(contactsBulkDelete.mutateAsync(target), {
                     loading: `Deleting ${count.toLocaleString()} ${count === 1 ? "contact" : "contacts"}…`,
                     success: count === 1 ? "Contact deleted" : "Contacts deleted",
                     error: (err: AppError) => buildError(err),
                 });
+                queryClient.invalidateQueries({ queryKey: ["contacts"] });
                 clearSelection();
             } finally {
                 setDelete(false);
@@ -953,6 +998,8 @@ export default function ContactsTable({
                 onVerify={bulkVerify}
                 onMarkDeliverable={bulkMarkDeliverable}
                 verifying={verification.isPending}
+                onSuppress={bulkSuppress}
+                suppressing={suppressing}
                 onDelete={() =>
                     confirm?.show(
                         deletePrompt(selectionCount),
@@ -1212,9 +1259,16 @@ function ContactsTableBody({
                             />
                         </th>
                         <Th className="max-w-0 w-full md:max-w-none md:w-auto">Name</Th>
-                        <Th className="hidden md:table-cell">Company</Th>
-                        <Th className="hidden lg:table-cell">Phone</Th>
-                        <Th className="w-auto md:w-32">{embedded ? "Progress" : "Status"}</Th>
+                        <Th className="hidden md:table-cell">Company / Domain</Th>
+                        {embedded ? (
+                            <Th className="hidden lg:table-cell">Phone</Th>
+                        ) : (
+                            <>
+                                <Th className="hidden lg:table-cell w-36">Outreach State</Th>
+                                <Th className="hidden xl:table-cell max-w-[280px]">Last Conversation</Th>
+                            </>
+                        )}
+                        <Th className="w-auto md:w-28">{embedded ? "Progress" : "Status"}</Th>
                         {embedded && (
                             <>
                                 <Th className="w-16 hidden md:table-cell">
@@ -1332,25 +1386,77 @@ function ContactsTableBody({
                                     </div>
                                 </td>
                                 <td className="px-3 text-[12px] text-slate-600 truncate hidden md:table-cell">
-                                    {c.company ? (
-                                        <span className="inline-flex items-center gap-1.5">
+                                    {c.is_email_handler ? (
+                                        <span className="inline-flex items-center gap-1.5 text-slate-400" title={`Personal email handler (${c.email.split("@")[1] || "webmail"})`}>
+                                            <MailIcon className="w-3 h-3 text-slate-400" />
+                                            <span className="truncate italic text-[11.5px]">{c.company}</span>
+                                        </span>
+                                    ) : (c.company || c.domain) ? (
+                                        <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
                                             <Building2Icon className="w-3 h-3 text-slate-400" />
-                                            {c.company}
+                                            <span className="truncate">{c.company || c.domain}</span>
                                         </span>
                                     ) : (
                                         <span className="text-slate-300">—</span>
                                     )}
                                 </td>
-                                <td className="px-3 text-[12px] text-slate-600 truncate hidden lg:table-cell font-mono">
-                                    {c.phone ? (
-                                        <span className="inline-flex items-center gap-1.5">
-                                            <PhoneIcon className="w-3 h-3 text-slate-400" />
-                                            {c.phone}
-                                        </span>
-                                    ) : (
-                                        <span className="text-slate-300">—</span>
-                                    )}
-                                </td>
+                                {embedded ? (
+                                    <td className="px-3 text-[12px] text-slate-600 truncate hidden lg:table-cell font-mono">
+                                        {c.phone ? (
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <PhoneIcon className="w-3 h-3 text-slate-400" />
+                                                {c.phone}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-300">—</span>
+                                        )}
+                                    </td>
+                                ) : (
+                                    <>
+                                        <td className="px-3 hidden lg:table-cell">
+                                            {c.temporal_state?.outreach_state ? (
+                                                <div className="flex flex-col">
+                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-tight w-fit ${
+                                                        c.temporal_state.outreach_state === "DORMANT_REPLIED"
+                                                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                                            : c.temporal_state.outreach_state === "WARM_STALE"
+                                                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                                            : c.temporal_state.outreach_state === "COLD_REENGAGEMENT"
+                                                            ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                                            : c.temporal_state.outreach_state === "BURNED"
+                                                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                                            : "bg-slate-100 text-slate-600 border border-slate-200"
+                                                    }`}>
+                                                        {c.temporal_state.outreach_state.replace(/_/g, " ")}
+                                                    </span>
+                                                    {c.temporal_state.days_since_last_contact !== null && c.temporal_state.days_since_last_contact !== undefined ? (
+                                                        <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                            {c.temporal_state.days_since_last_contact}d ago
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-300 text-[11px]">—</span>
+                                            )}
+                                        </td>
+                                        <td className="px-3 hidden xl:table-cell max-w-[280px]">
+                                            {c.last_message_context?.subject && c.last_message_context.subject !== "No prior outreach" ? (
+                                                <div className="flex flex-col min-w-0" title={`${c.last_message_context.subject}\n\n${c.last_message_context.body_hook || ""}`}>
+                                                    <span className="text-[11.5px] font-medium text-slate-800 truncate leading-tight">
+                                                        {c.last_message_context.subject}
+                                                    </span>
+                                                    {c.last_message_context.body_hook && (
+                                                        <span className="text-[10.5px] text-slate-500 truncate leading-tight mt-0.5 italic">
+                                                            "{c.last_message_context.body_hook}"
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-300 text-[11px] font-mono">—</span>
+                                            )}
+                                        </td>
+                                    </>
+                                )}
                                 <td className="px-3">
                                     {embedded ? (
                                         <LeadStatusPill lead={lead} />
@@ -1868,6 +1974,8 @@ function SelectionBar({
     campaign,
     onRemoveFromCampaign,
     removing,
+    onSuppress,
+    suppressing,
 }: {
     count: number;
     deleting: boolean;
@@ -1889,6 +1997,8 @@ function SelectionBar({
     campaign?: MiniCampaign;
     onRemoveFromCampaign?: () => void;
     removing?: boolean;
+    onSuppress?: () => void;
+    suppressing?: boolean;
 }) {
     if (count === 0) return null;
     return (
@@ -1991,6 +2101,17 @@ function SelectionBar({
             {/* Inside a campaign the destructive action is leaving the campaign,
                 not leaving the workspace — same rule as the row action, which
                 shows Remove instead of Delete there. */}
+            {!campaign && onSuppress && (
+                <button
+                    type="button"
+                    onClick={onSuppress}
+                    disabled={suppressing}
+                    className="h-7 px-2.5 rounded text-[12px] text-amber-700 hover:text-white hover:bg-amber-600 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                >
+                    {suppressing ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <BanIcon className="w-3 h-3" />}
+                    <span className="hidden sm:inline">Suppress / Quarantine</span>
+                </button>
+            )}
             {!campaign && (
                 <button
                     type="button"

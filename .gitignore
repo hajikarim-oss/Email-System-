@@ -37,3 +37,19 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Python & Databases
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite
+*.sqlite3
+
+# Large Data Exports & Raw Dumps (>50MB)
+data/
+**/data/*.csv
+**/data/*.json
+**/data/*.db

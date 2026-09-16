@@ -1,0 +1,1012 @@
+{
+  "distribution": {
+    "interested": 88,
+    "not-now": 7,
+    "unsubscribe": 2,
+    "wrong-person": 1,
+    "auto-responder": 1,
+    "OOO": 1
+  },
+  "samples": [
+    {
+      "id": "669a098364df7002d2331169",
+      "to_email": "dhiraj.seth@ginzalimited.com",
+      "subject": "Re: Dhiraj, a quick Friday Check-In!",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hi Dhiraj,    Thank you for getting back to me!     Pleasure to E-Meet the Team aswell.      Sure, I am confirming on th"
+    },
+    {
+      "id": "64771f3ad4c64700c30bd6bf",
+      "to_email": "creative_cfpl@centuaryindia.com",
+      "subject": "Re: Assets Creation and Influencer Marketing Proposal",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Dear Avantika,Before sharing profiles I have a few questions.    Is it more important for a profile to have a significan"
+    },
+    {
+      "id": "650c445260c2fc0001622f7d",
+      "to_email": "victor@proftmedia.com",
+      "subject": "Re: Proftmedia X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Victor,   I understand that your schedule might be busy, and I apologise if my previous email got buried among your n"
+    },
+    {
+      "id": "65dd7d02355df303006bea74",
+      "to_email": "saloniharitwal13@gmail.com",
+      "subject": "Re: Woggles x TheBoredMonkey ll Influencer Marketing ll February",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hey Saloni,  Thank you for sharing your concerns.  Let's jump on a quick call now to address them and ensure we get ever"
+    },
+    {
+      "id": "6780de5083868001b0ca24c3",
+      "to_email": "divyansh.bhatnagar@meso-in.com",
+      "subject": "Re: Niche Haircare Ad Creatives \u2013 A Quick Look",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hi Divyansh,  I hope you're doing well!  My senior manager, Simran, was waiting on the meeting link for about 10 minute"
+    },
+    {
+      "id": "67b46e010fdc1000219d861b",
+      "to_email": "shahala.thahir@myhq.in",
+      "subject": "Re: myHQ <> theboredmonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "not_interested",
+      "classification": "not-now",
+      "body_preview": " Hi Shahala,     Hope you're doing well.     Thank you for your follow-up. To address your questions, I've outlined our "
+    },
+    {
+      "id": "68b146d907baa20011afa177",
+      "to_email": "utkarsh@comets.in",
+      "subject": "Re: Utkarsh + Comet II Content Bank",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": " Hi Utkarsh, Good Morning.  I wanted to drop in a quick reminder about our meeting, scheduled for 3:30 pm today. I hope "
+    },
+    {
+      "id": "64afa5ee8854b90001a3cf5a",
+      "to_email": "mayank@logicloop.io",
+      "subject": "Re: Logicloop X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Mayank Just wanted to drop a quick touch base to see if you had a chance to think about my previous mail. I unders"
+    },
+    {
+      "id": "672c6dbbeb36bf01b0e271b5",
+      "to_email": "rohang@mymuse.in",
+      "subject": "Re: MyMuse India + Insight-Driven Ad Targeting",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hey Shaleena and Rohang!  Following up on my last email, I wanted to check if you\u2019re available for a quick call today. "
+    },
+    {
+      "id": "64d1352b1d51390001694c69",
+      "to_email": "v@magsway.co",
+      "subject": "MagSway X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "  Greeting Viswanadh,   I am Suraj Maurya, the founder of TheBoredMonkey, a Creative Influencer marketing agency that wa"
+    },
+    {
+      "id": "66ceb16635032102b84d8266",
+      "to_email": "anuradha.v@spinircle.com",
+      "subject": "Re: Shankar X Learner Circle ll South & PAN Influencer Marketing",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hello Anuradha,   Thank you for your response!     We can connect over a phone call to discuss how the influencer market"
+    },
+    {
+      "id": "665489704123e501eb7b3309",
+      "to_email": "ashima.gupta@rpsg.in",
+      "subject": "Re: TBM <> Dr. Vaidya's - Connect @ Mon, May 27, 2024 6:00pm \u2013 6:20pm (GMT+05:30)",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hey Ashima,  I jumped off the call at 6:08 thinking we might need to reschedule it in case you were busy. Can we schedu"
+    },
+    {
+      "id": "6507b8237caef300017cbf6c",
+      "to_email": "anuradha.daswani@onecode.in",
+      "subject": "Re: ZET || TheBoredMonkey ",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Good day Anuradha,   Reflecting on our past interactions, I remember your keen interest in innovation and progress. I'm "
+    },
+    {
+      "id": "650aea7b81a9bc00ba70d7ea",
+      "to_email": "jinal.vyas@abbott.com",
+      "subject": "Re: abbott || TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Jinal,Thank you for your email.  Are you available at 3:00? Please confirm your availability.  Will send you a Goo"
+    },
+    {
+      "id": "64bf34dfe8b4a60001017157",
+      "to_email": "sonalipriy@thehatchproject.in",
+      "subject": "Re: The Hatch Project Pvt X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Good day, Sonali.   I trust you're doing well. Just touching base regarding our potential collaboration and how TheBored"
+    },
+    {
+      "id": "67dd1061886d0b001147ea91",
+      "to_email": "rithik.kandregula@atomberg.com",
+      "subject": "Re: Invoice || Feb 2025 || Atomberg x TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": " Hi Rithik,  Thank you for the update.         Thanks & Kind Regards      Monu Jaiswal, Finance Head.   Website:www.theb"
+    },
+    {
+      "id": "679b29f5847e8502b73b4562",
+      "to_email": "kuldeep.thakur@brandconcepts.in",
+      "subject": "Re: For every \u20b91 Spent, \u20b97.58 was Earned!",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "  Hi Kuldeep,  Hope you're doing well!  Let us know if you're available for a quick call today at 5 PM. We'd love to con"
+    },
+    {
+      "id": "661133d16892db043b9869b9",
+      "to_email": "neelay@aceblend.com",
+      "subject": "Re: Ace Blend + UGC : Increased Brand Engagement",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": " Hello Neelay & Shivam,  Thank you for providing the necessary information yesterday.   As per the brief, we are pleased"
+    },
+    {
+      "id": "66b9f8f855362201b5561391",
+      "to_email": "vandana@offbeatracks.com",
+      "subject": "Re: Offbeat Tracks + Festive Content || Increased Engagement",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": "Hello Vandana,   Thank you for your response. We can connect tomorrow at 1PM if that works for you.  Feel free to sugges"
+    },
+    {
+      "id": "6509b8a7b0b9cf00014f97e2",
+      "to_email": "jeremy@jmaverickstudios.com",
+      "subject": "Re: JMS media X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Jeremy,   I understand that your schedule might be busy, and I apologise if my previous email got buried among your n"
+    },
+    {
+      "id": "67066b8811015b01afabc083",
+      "to_email": "vervecompliance@gmail.com",
+      "subject": "Re: Auditor Appointment Document - Marketinghive Technologies",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": " Hey Vishal,    Please share the signed documents as soon as possible.       Thanks & Kind Regards      Monu Jaiswal, Fi"
+    },
+    {
+      "id": "6830413f1b14b3001df2d159",
+      "to_email": "yogesh@pristyncare.com",
+      "subject": "Re: TBM <> Pristyn Care-Connect @ Fri, May 23, 2025 3:00pm \u2013 3:20pm (GMT+05:30)",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "   Hey Yogesh,    We have a pre-scheduled call at 3:30 PM, so we won\u2019t be able to have a detailed conversation then. Can"
+    },
+    {
+      "id": "6694dc2efc68e802943ff718",
+      "to_email": "mridu@perforacare.com",
+      "subject": "Re: The Bored Monkey <> Perfora - UGC Content - Discussion",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Sure Mridu   Thank You & Kind Regards  Simran Dhanuka, Brand Partnerships Manager   WhatsApp: +917340526496             "
+    },
+    {
+      "id": "672c79591311dd01b0260ce7",
+      "to_email": "sujata@myavni.com",
+      "subject": "Re: Myavni + Insight-Driven Ad Targeting",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hey Sujata,    Good Noon!     I wanted to drop in a quick reminder for our scheduled meeting today at 3:30 PM.      Look"
+    },
+    {
+      "id": "66557bf22f2f6203482b65fd",
+      "to_email": "namrataoza@babuline.com",
+      "subject": "Re: Namrata + babulinebaby + Biggest Challenge?",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Sure Namrata,    I will share across the invite for 11:30 PM tomorrow.      Looking forward to connecting with you.     "
+    },
+    {
+      "id": "67d91e6d18b638000d90ae44",
+      "to_email": "pratik@theboredmonkey.com",
+      "subject": "Re: Invoice || Boult x TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": "  Hello Shivi,   Please find the attached tax invoice and get this clear by Friday.   Let me know if you have any questi"
+    },
+    {
+      "id": "6645a4729786fc01d3f4c9db",
+      "to_email": "monica@moharorganics.com",
+      "subject": "Monica+Laiqa+Increased Engagement",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": "Hey Monica,    I want to work with you for\u00a0Laiqa\u00a0so I thought about calling you and telling you all of the things I'm go"
+    },
+    {
+      "id": "66d018f631284502b8089bdd",
+      "to_email": "shruthireddy@garbhagudi.com",
+      "subject": "Re: Influencer marketing for Garbhagudi",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hi Shruthi & Team, Good Morning!  I hope everything is going well at GarbhaGudi HQ!  As part of our ongoing collaborati"
+    },
+    {
+      "id": "65d7125d209cf4043b415647",
+      "to_email": "anezka@itarajewelry.com",
+      "subject": "Increased Presence with Strategic Influencer Marketing",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "not_interested",
+      "classification": "not-now",
+      "body_preview": " Hi Stac Team,   As you may well know, Luxury isn't just a word; it's an experience. It's about weaving elegance, sophis"
+    },
+    {
+      "id": "658147547d28b001c692c773",
+      "to_email": "shreya@himaira.com",
+      "subject": "Re: Himaira X TheBoredMonkey || Influencer Marketing II December",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hi Shreya & Raghav,    Hope you are doing well!    As per our last conversation, we are pleased to provide you with a sa"
+    },
+    {
+      "id": "6874c38e8c09310011d85ada",
+      "to_email": "harshi@rorosaur.com",
+      "subject": "Re: Rorosaur X TBM : Ad Creatives",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": " Hello Harshi,     Thank you for sharing the details.     Please find the PI attached to this mail.     Kindly share the"
+    },
+    {
+      "id": "665453b5235e4d01eb427bca",
+      "to_email": "media@myop.in",
+      "subject": "Re: Shahil + Make Your Own Perfume + Influencer Marketing Creatives!",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": " Hey Team,  I tried calling the number mentioned in the signature, but it seems to be switched off.  Would 5 PM today wo"
+    },
+    {
+      "id": "659e79ad9f0e3a00015ac860",
+      "to_email": "elliot.allison@brewdog.com",
+      "subject": "Re: BrewDog || TheBoredMonkey ",
+      "status": "completed",
+      "bounced": false,
+      "reply_class_raw": "unsubscribe",
+      "classification": "unsubscribe",
+      "body_preview": "Good day Elliot,   Reflecting on our past interactions, I remember your keen interest in innovation and progress. I'm re"
+    },
+    {
+      "id": "65d72805619b740574722574",
+      "to_email": "whatup@theburlappeople.com",
+      "subject": "Re: The Burlap People x TheBoredMonkey : Creative Synergy",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Do you realise the impact of UGC content with influencers? It's the perfect opportunity for TBP to leverage influencer "
+    },
+    {
+      "id": "687f38411c0f860021285ef1",
+      "to_email": "apoorv@atomiccapital.in",
+      "subject": "As Per Our Conversation:Apoorv x TBM",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "   Hi Apoorv,  I want to work with you to craft influencer campaigns and Meta Ad creatives that scale- not just look goo"
+    },
+    {
+      "id": "67e53f720a1ceb000d80100d",
+      "to_email": "riddhi.j@superbottoms.com",
+      "subject": "Re: Meta Creatives for SuperBottoms",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "  Hello Riddhi,   Please let us know when we can expect the payment?              Thanks & Kind Regards      Monu Jaiswa"
+    },
+    {
+      "id": "659bc85c25f3bb000108c7c8",
+      "to_email": "sfernandez@freshdirect.com",
+      "subject": "FreshDirect || TheBoredMonkey ",
+      "status": "completed",
+      "bounced": false,
+      "reply_class_raw": "person_referral",
+      "classification": "wrong-person",
+      "body_preview": "Hello Stephanie, Do not ignore this for FreshDirect   We make UGC that sells. Data-driven, performance-focused, sales-ge"
+    },
+    {
+      "id": "64afa5f08854b90001a3cfa8",
+      "to_email": "vandana@communiqueindia.com",
+      "subject": "Re: Communique India \ud83c\uddee\ud83c\uddf3 X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Vandana Just wanted to drop a quick touch base to see if you had a chance to think about my previous mail. I under"
+    },
+    {
+      "id": "64c3898cd5027b00b849e663",
+      "to_email": "neha@wordswork.in",
+      "subject": "Re: WordsWork Communications Consulting X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Neha Just wanted to drop a quick touch base to see if you had a chance to think about my previous mail. I understa"
+    },
+    {
+      "id": "6672840349a7db0686b509e5",
+      "to_email": "kunsh@charmacy-india.com",
+      "subject": "Re: Stand Out in the Regional Space: Charmacy Milano x TBM",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Kunsh, I understand you have a busy schedule, and I appreciate your consideration of our previous communications. On "
+    },
+    {
+      "id": "64bf7c4384ea2000a3c2bc5b",
+      "to_email": "leonpark@asana.com",
+      "subject": "Re: Asana Intro",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "I wanted to know if I should buy a separate seat for each team member.    Thank You & Kind Regards  Suraj Maurya, Founde"
+    },
+    {
+      "id": "666691078bb734038a3847e3",
+      "to_email": "trusha.daware@lohono.com",
+      "subject": "Re: Trusha X Lohono Stays || Increased Conversions",
+      "status": "failed",
+      "bounced": true,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "auto-responder",
+      "body_preview": " Quick Question:\u00a0Did you know\u00a0Influencer-Driven Content\u00a0drives\u00a06.9x more engagement\u00a0than brand-created content?   It's a"
+    },
+    {
+      "id": "659bc85d45be5600010051f5",
+      "to_email": "abrightman@upcirclebeauty.com",
+      "subject": "UpCircle || TheBoredMonkey ",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Anna, Do not ignore this for UpCircle   We make UGC that sells. Data-driven, performance-focused, sales-generating"
+    },
+    {
+      "id": "66b5b5b11e4a2201b25a01fc",
+      "to_email": "shubham@poshbox.in",
+      "subject": "Re: PoshBox + Festive Content || Increased Engagement",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hey Shubham,    Good Morning!   Since we have a pre-scheduled meeting for today, can we schedule ours to Monday instead?"
+    },
+    {
+      "id": "65f2f62c72ea5b030243945b",
+      "to_email": "socialmedia@juicychemistry.com",
+      "subject": "Re: \"Holi-fy Your Marketing Moments with Juicy Chemistry X TheBoredMonkey!\"",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "not_interested",
+      "classification": "not-now",
+      "body_preview": "Hey Team,    Yes, 3pm tomorrow works for us.      Could you please provide your contact details for the meeting?   Alter"
+    },
+    {
+      "id": "64fd82f5c6797100d039ab58",
+      "to_email": "sam@1dscollective.com",
+      "subject": "Re: Invitation: Video and image project - The Bored Monkey @ Sat Sep 9, 2023 9am - 10am (PDT) (sam@1dscollective.com)",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "No worries,Let's do one thing: send me an invitation at your convenience. We will attend the meeting accordingly.       "
+    },
+    {
+      "id": "66431891c31c5701c75cfbd9",
+      "to_email": "shefali.shetty@tatacapital.com",
+      "subject": "Re: Collaboration with Regional Creators",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": " Hi Shefali,  I hope this email finds you well.  I wanted to touch base regarding the evaluation process for the plan we"
+    },
+    {
+      "id": "6736e8ed6368d402d004d70f",
+      "to_email": "foram@sicajewellery.com",
+      "subject": "Re: Sica Jewellery || Seasonal Marketing",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hello Foram,     Thank you for your response.     Let me know if we can connect at 6PM today? I've another meeting at 5"
+    },
+    {
+      "id": "6a0c08e616e9cf001cfafcf9",
+      "to_email": "subharthi.ghosh@newtonschool.co",
+      "subject": "Re: AI intern requirement at BoredMonkey.",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Subharthi,  Thanks for reaching out. We are looking for an AI intern.  My team will share the job description shortly"
+    },
+    {
+      "id": "66728d6ec7a86f038dc89e86",
+      "to_email": "anupamasaggarwal@titan.co.in",
+      "subject": "Re: Sampurna + Titan Company Limited + Performance Marketing Creatives!",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hi Anupama,  Thank you for looking into this. Our Brand Partnerships Team will be available tomorrow between 12-1:30 PM"
+    },
+    {
+      "id": "64d1352b1d51390001694dd7",
+      "to_email": "jonathan@gymfluencers.agency",
+      "subject": "Gymfluencers.agency X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "  Greeting Jonathan,   I am Suraj Maurya, the founder of TheBoredMonkey, a Creative Influencer marketing agency that was"
+    },
+    {
+      "id": "671f3da9fd18de01b0db2263",
+      "to_email": "influencer_connect@thewellnessshop.in",
+      "subject": "Re: For Nitanjana / The Wellness Shop",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Jhanvi,   Thank you for your prompt response.     Sure, we can connect tomorrow at 5PM, I'll share a G-meet invite"
+    },
+    {
+      "id": "65c6076d3f562006c7be04d1",
+      "to_email": "hiral.mktg@cloudtailor.in",
+      "subject": "Re: CloudTailor x TheBoredMonkey : Celebrating Womanhood with Influencers",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hi Hiral,    I hope all is well with you!     We waited for you over the meeting, but I think you were occupied.      Pl"
+    },
+    {
+      "id": "66a102700c9f2602d0521d3e",
+      "to_email": "vanshika@swissbeauty.in",
+      "subject": "Re: Swiss Beauty Craze X TheBoredMonkey ll Influencer Marketing",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "not_interested",
+      "classification": "not-now",
+      "body_preview": "Hello Vanshika,   I tried connecting with you on whatsapp and over the calls in order to discuss your thoughts on the sh"
+    },
+    {
+      "id": "66a78be8dc554001b2a191a4",
+      "to_email": "team.marketing@akbarholidays.com",
+      "subject": "Re: Akbar Holidays, Influencer Marketing Brief - Umrah & Saudi | July '24",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hello Neha,   Sure, we can connect at 11am tomorrow. I'll share an invitation shortly.     Looking forward to our chat "
+    },
+    {
+      "id": "667e8da6216cee075827adca",
+      "to_email": "sanyam@smcricket.com",
+      "subject": "Re: Influencers + Store Visits = Increased Presence for SM CRICKET",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi SANYAM,    Thank you for getting back to me!     Help me with your contact number to take it forward.      Looking fo"
+    },
+    {
+      "id": "66e9357d25930c01b22812e4",
+      "to_email": "akshayaborole@purplepompa.com",
+      "subject": "Re: Neha, a quick Friday Check-In!",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Akshaya & Neha,I tried reaching out via call, but it didn\u2019t go through.   Just wanted to check if there are any addit"
+    },
+    {
+      "id": "683d55b6b9ffc50015a6089f",
+      "to_email": "harsh@thebearhouse.com",
+      "subject": "Re: The Bear House + Performance Creatives = Higher ROAS!",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hey Yash, Arushi, and Team,    Hope you\u2019re doing well.   Following up on the previous mail \u2014 I\u2019d be glad to connect ove"
+    },
+    {
+      "id": "64d16a429e9e160001162c11",
+      "to_email": "max@sicromgmt.com",
+      "subject": "Re: Sicro Management X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Max,   I understand that your schedule might be busy, and I apologise if my previous email got buried among your nume"
+    },
+    {
+      "id": "64f6c26062cbab009e932d0f",
+      "to_email": "rushali.roy@theboredmonkey.com",
+      "subject": "Re: influencer marketing",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": " Hello Team, I hope you're doing well. We're facing a bit of a challenge with our planned campaign. A lot of the influen"
+    },
+    {
+      "id": "668795fbf988b407857f952a",
+      "to_email": "info.lavenza@gmail.com",
+      "subject": "Re: Lavenza x TheBoredMonkey: Increased Brand Awareness",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hello Nupur,   Thank you for your email. Sure, let me know if 1PM today works for you for a quick phone call?  Feel free"
+    },
+    {
+      "id": "67a21505d2915d01b10fe1ab",
+      "to_email": "hiba.khan@thesouledstore.com",
+      "subject": "For every \u20b91 Spent, \u20b97.58 was Earned!  ",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "not_interested",
+      "classification": "not-now",
+      "body_preview": "  Hey Hiba,      I received your email from Paridhi from your team, sharing a brief introduction below.      Pitching in"
+    },
+    {
+      "id": "65cb04e775d88b030216537d",
+      "to_email": "shreya@zoey.in",
+      "subject": "Re: Zoey x TheBoredMonkey: Discover the Path to Increased Brand Awareness",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Shreya and Pooja,    Hope you are doing well     Just wanted to circle back on our previous conversation regarding"
+    },
+    {
+      "id": "64d13527274a3800010e0451",
+      "to_email": "reko@mwcreative.la",
+      "subject": "M+W Creative Studios X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "  Greeting Reko,   I am Suraj Maurya, the founder of TheBoredMonkey, a Creative Influencer marketing agency that was pro"
+    },
+    {
+      "id": "679b1d6f05785a01b07b31a5",
+      "to_email": "fazil.v@bluetyga.com",
+      "subject": "Re: As Per Our Conversation: Blue Tyga x TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": " Hey Fazil,  Thank you for checking with your team.  Pleasure to e-meet you, Angel & Rahul!  As mentioned in my previous"
+    },
+    {
+      "id": "64b0ea79aaee6800c1359ef1",
+      "to_email": "komal@mintandmilk.com",
+      "subject": "Mint & Milk PR X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Komal,   I hope this message finds you in good spirits. Just to add a dash of joy to your day, here's a snapshot of R"
+    },
+    {
+      "id": "6644a283303444030081d67e",
+      "to_email": "namrataoza@babuline.com",
+      "subject": "Re: Namrata + babulinebaby + High Quality UGC Creatives",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hi Namrata,    Hope you are doing well     I wanted to follow up on my previous message regarding scheduling a call to d"
+    },
+    {
+      "id": "669e41230aec2a01b3b75db4",
+      "to_email": "ankur.chaudhary@unilever.com",
+      "subject": "Re: [External] - Invitation: TBM <> Unilever - Connect @ Fri 12 Jul 2024 2pm - 2:30pm (IST) (ankur.chaudhary@unilever.com)",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": " Hi Ankur & Akanksha,  I hope you are both doing well!  As per our discussion, our team has prepared a comprehensive dec"
+    },
+    {
+      "id": "667d0f902f55a103f66410b2",
+      "to_email": "preet@reachgrowyourbizz.com",
+      "subject": "Re: Thoughts Suraj?",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Yes please do share   Thank You & Kind Regards  Suraj Maurya, Founder                   "
+    },
+    {
+      "id": "686d0c7a8495c5001d315600",
+      "to_email": "uday_vungurala2025@pgp.isb.edu",
+      "subject": "Re: Growth Marketing Connects for RARA Barefoot",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "  @Monu Jaiswal   Mail them our portfolio and check if they have a budget which aligns with our efforts        Thank You"
+    },
+    {
+      "id": "667ab27f49e39416af2af6ba",
+      "to_email": "vaishali.p@beyoung.in",
+      "subject": "Re: Invitation: TBM <> Beyoung - Connect @ Fri 24 May 2024 4pm - 4:30pm (IST) (vaishali.p@beyoung.in)",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hello Vaishali,Thank you for your email.     Sure, we can get on a call tomorrow to discuss.   Does 12pm work for you? I"
+    },
+    {
+      "id": "659b8ccc00e0a7043d77ce31",
+      "to_email": "fragrancebydivya@gmail.com",
+      "subject": "Re: fragrancebydivya x TheBoredMonkey : Discover Increased Brand Awareness",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hey Divya,   Thank you for your response! Sure I will connect with you on Wednesday.      Could we do it at 11:15 am ? T"
+    },
+    {
+      "id": "6814d14ccb075d00218333ce",
+      "to_email": "harsh@fionadiamonds.com",
+      "subject": "Re: TBM <> Fiona Diamonds - Influencer Marketing II January",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "out_of_office",
+      "classification": "OOO",
+      "body_preview": " Hi Harsh,  Hope you're doing well!  Just wanted to quickly follow up on the Fionna Diamonds campaign brief. As we\u2019ve be"
+    },
+    {
+      "id": "66823f459b3a980001a122c3",
+      "to_email": "utkarsha@zostel.com",
+      "subject": "Re: Utkarsha X Zostel || South & PAN India Influencer Marketing",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "not_interested",
+      "classification": "not-now",
+      "body_preview": " Quick Question:\u00a0Did you know\u00a0Influencer-Driven Content\u00a0drives\u00a06.9x more engagement\u00a0than brand-created content?   It's a"
+    },
+    {
+      "id": "65eff44da6193f043b01743d",
+      "to_email": "grishma@ecotrailpersonalcare.com",
+      "subject": "Re: \"Spark Valentine's Magic with TheBoredMonkey x Iba Cosmetics",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Grishma,    Hope you are doing well     Resharing the Invoice with you for your reference.      Please confirm once y"
+    },
+    {
+      "id": "6695fe8d61689a027cad7825",
+      "to_email": "shubham@serri.club",
+      "subject": "Re: Shubham, Get New Registrations for Serri",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hello Shubham,Thank you for your response!     Let me know if we can connect today at 1PM on a quick call to discuss? Ki"
+    },
+    {
+      "id": "64d13ba16348fa0001e08c80",
+      "to_email": "avi@roundbox.io",
+      "subject": "Re: RoundBox X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Avi,   I understand that your schedule might be busy, and I apologise if my previous email got buried among your nume"
+    },
+    {
+      "id": "66b314856508f102d3a9ea33",
+      "to_email": "cw@medopharm.com",
+      "subject": "Re: Request for Invoice Copy Following Campaign Completion on August 3, 2024",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Medopharm Team,    Good Morning!     Looping in +Monu Jaiswal from our Finance Team for visibility.        --  Reg"
+    },
+    {
+      "id": "669e4c0dde99e701b4a0d964",
+      "to_email": "meghana@twobrothersindia.com",
+      "subject": "Two Brothers X TheBoredMonkey || Influencer Marketing || July",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hello Meghana,   Thank you for your time at the call today.    As per our conversation, I am putting the minutes below "
+    },
+    {
+      "id": "685d1fbde8f612001d27c320",
+      "to_email": "nashvin.barnes@lotusdairy.com",
+      "subject": "Re: Lotus Dairy Products Private Limited + Influencer Based Creatives",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hey Nashvin,   Sure, aligning a quick 15 min connect for tomorrow.   Looking forward to connecting with you!      --  Re"
+    },
+    {
+      "id": "673c25ce12e1f001b0d9179e",
+      "to_email": "ritu@ilearnngrow.com",
+      "subject": "Re: Ritu X ilearnngrow || Strategic Influencer Marketing",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hello Ritu,     Hope you're doing well!     We had a meeting scheduled at 11am today and I assume you must be busy.    "
+    },
+    {
+      "id": "6780fae1bf843b02ce8ebfaa",
+      "to_email": "supriya.agrawal@brillarescience.com",
+      "subject": "Re: Brillare Science Private Limited + UGC Creatives : Increased Brand Presence",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": " Hi Supriya,  Following up on our ongoing conversation, Simran was hoping to connect with you for a quick call.   Let me"
+    },
+    {
+      "id": "686ba160c5ee7000150c1125",
+      "to_email": "aditya@neotrader.in",
+      "subject": "Re: NeoTrader x Finology: Results",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hey Aditya,   Sure, let me know if we can connect today or tomorrow as per your calendar availability.         --  Regar"
+    },
+    {
+      "id": "6641e558ce749305720afdbd",
+      "to_email": "nishant@fytika.com",
+      "subject": "Re: Nishant + Fytika + South India Market Potential !",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hi Nishant,    Sure, let me know if 5 PM today works for you.      I will make sure to send an invite for the same once "
+    },
+    {
+      "id": "6670f22e58aae1000133240d",
+      "to_email": "juhi@customholidays.in",
+      "subject": "Re: Juhi X CustomHolidays || Increased Conversions",
+      "status": "completed",
+      "bounced": false,
+      "reply_class_raw": "not_interested",
+      "classification": "not-now",
+      "body_preview": "Hi Juhi,   Choosing the right partner for your brand is a significant decision, and we want to assure you that we're com"
+    },
+    {
+      "id": "65e9568ecd4660043ca7fde8",
+      "to_email": "grishma@ecotrailpersonalcare.com",
+      "subject": "Re: \"Spark Valentine's Magic with TheBoredMonkey x Iba Cosmetics",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": "Hi Grishma,    Hope you are doing well       Here are the final shortlisted profiles.     Could you please provide me wi"
+    },
+    {
+      "id": "669a07aeb72f3e02d183d4e6",
+      "to_email": "srijitad@soch.com",
+      "subject": "Re: Opportunity with Soch - TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hi Srijita,  Pleasure to e-meet you!  Thank you for reaching out. I'd be happy to connect today.   We have a few meetin"
+    },
+    {
+      "id": "670e74886adea802cffed699",
+      "to_email": "yadavsandeep231997@gmail.com",
+      "subject": "Fwd: Marketinghive Technologies Private Limited | Tally Data",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": "    Thanks & Kind Regards      Monu Jaiswal, Finance Head.   Website:www.theboredmonkey.com                      "
+    },
+    {
+      "id": "67da7574de4f96000d2a6031",
+      "to_email": "priya@boultaudio.com",
+      "subject": "Re: Invoice || Boult x TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": " Hello Priya,   Currently, we\u2019re unable to provide individual invoices for each campaign as requested since the consolid"
+    },
+    {
+      "id": "65af6909321ae101c6e5de29",
+      "to_email": "mayuri@fearlesstea.in",
+      "subject": "Re: Fearless Tea + UGC : Increased Brand Engagement",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "follow_up_question",
+      "classification": "interested",
+      "body_preview": "Hey Mayuri,    Good Afternoon.     Thank you for that detailed overview from your side.     Looping in +Suraj Maurya for"
+    },
+    {
+      "id": "64d40df8e0a72000018365ad",
+      "to_email": "norman.swan@tonichealthmedia.com.au",
+      "subject": "Re: Tonic Media Network X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Norman,   I understand that your schedule might be busy, and I apologise if my previous email got buried among your n"
+    },
+    {
+      "id": "67a0cf9f3d1ebd01b0b175a9",
+      "to_email": "ghazalg@iima.ac.in",
+      "subject": "Re: D2C's Content & Growth Partner!",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": " Hey Ghazal,  Hope you're doing well!  I wanted to follow up on the brief email I sent earlier regarding connecting furt"
+    },
+    {
+      "id": "650a89d20ea15300babba5bc",
+      "to_email": "sumil.vs@coinswitch.co",
+      "subject": "Re: coins witch || TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Sumil,We are not into social media content services. But yes! if you want specific content we can help you to crea"
+    },
+    {
+      "id": "65b25219a9f01409a9110f71",
+      "to_email": "dipeshkataria110@gmail.com",
+      "subject": "Re: alpino health foods + UGC : Increased Brand Engagement",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Sure, Can we connect over a phone call?  Please share your contact details for the same.    Thank You & Kind Regards  Si"
+    },
+    {
+      "id": "6662b1d757dbe508c2b30b91",
+      "to_email": "jeelan@mudrex.com",
+      "subject": "Re: Jeelan X Mudrex || South & PAN India Influencer Marketing",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hello Jeelan & Team,   Hope you all are doing well!     Let me know if we can connect over a quick call today to discuss"
+    },
+    {
+      "id": "65eeae191923ba0439ea6214",
+      "to_email": "prachi@nourishyou.in",
+      "subject": "Re: Holi-fy Your Marketing Moments : Nourish You India x TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hi Prachi,    Thank you for your response!     Can we have a quick G-Meet tomorrow to discuss the same?      Let me know"
+    },
+    {
+      "id": "64d4db75a92a9800a3d81509",
+      "to_email": "tony@topcatmediagroup.com",
+      "subject": "Re: Top Cat Media Group X TheBoredMonkey || Let's connect the dots",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": "Hello Tony,Definitely, I'll stop mailing you. but to be honest I'm seriously looking for help to grow         Thank You "
+    },
+    {
+      "id": "6808bde88577fd0011a8badf",
+      "to_email": "ranjitraj.r@wakefit.co",
+      "subject": "Re: Request to share data point of Mattress || TheBoredMonkey",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": null,
+      "classification": "interested",
+      "body_preview": " Hello Ranjit, Hope you are doing well. Could you please help me with this data point What\u2019s Wakefit\u2019s search to convers"
+    },
+    {
+      "id": "66fb8e7de9342602d38c9bcc",
+      "to_email": "chetanya@marscosmetics.in",
+      "subject": "Re: Riya, this may seem off-base, but hear me out...",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "willing_to_meet",
+      "classification": "interested",
+      "body_preview": "Hey Chetanya,    Good Morning!     Apologies for the reschedule yesterday. I just wanted to quickly check in if we can h"
+    },
+    {
+      "id": "65b25d0cf80ba500014aec2f",
+      "to_email": "anastacia.glover@hfit.com",
+      "subject": "HealthFitness || TheBoredMonkey ",
+      "status": "completed",
+      "bounced": null,
+      "reply_class_raw": "unsubscribe",
+      "classification": "unsubscribe",
+      "body_preview": "Hello Anastacia, Do not ignore this for HealthFitness   We make UGC that sells. Data-driven, performance-focused, sales-"
+    }
+  ]
+}

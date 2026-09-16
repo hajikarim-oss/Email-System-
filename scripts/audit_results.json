@@ -1,0 +1,588 @@
+{
+  "summary": {
+    "total_rows": 86302,
+    "unique_ids": 86301,
+    "duplicate_ids": 1,
+    "bounced_count": 3986,
+    "bounced_pct": 4.62,
+    "spam_count": 1363,
+    "spam_pct": 1.58,
+    "replied_count": 2758,
+    "replied_pct": 3.2,
+    "clean_delivered_count": 0,
+    "clean_delivered_pct": 0.0,
+    "failed_count": 3970,
+    "failed_pct": 4.6,
+    "usable_bodies_count": 86256,
+    "usable_bodies_pct": 99.95
+  },
+  "replied_investigation": {
+    "total_replied": 2758,
+    "replied_and_bounced": 49,
+    "replied_and_bounced_pct": 1.78,
+    "replied_and_spam": 10,
+    "replied_and_spam_pct": 0.36,
+    "replied_and_failed": 48,
+    "replied_and_failed_pct": 1.74,
+    "replied_clean_delivered": 2709,
+    "replied_clean_delivered_pct": 98.22,
+    "samples": [
+      {
+        "id": "6502e816fa914b00a36349da",
+        "status": "failed",
+        "bounced": true,
+        "spam_blocked": true,
+        "subject": "Re: Third Wave Coffee || TheBoredMonkey",
+        "to_email": "abhay.kumar@thirdwavecoffee.in",
+        "body_preview": "Hello Abhay,Thank you so much for your response     Glad to e-meet you @Nilankana Das, Please help me with your availability      Looking forward to hearing from you     Thank You & Kind Regards  Sura"
+      },
+      {
+        "id": "650a92aa0ea15300a3bc13eb",
+        "status": "failed",
+        "bounced": true,
+        "spam_blocked": false,
+        "subject": "Re: Credmudra || TheBoredMonkey",
+        "to_email": "parul@credmudra.com",
+        "body_preview": "Hello Parul,I get your point that you have an in-house team for creative development.   We assist our clients with creative influencer marketing, and performance marketing creatives. We are not into p"
+      },
+      {
+        "id": "6502776662cfcf00018f8c9f",
+        "status": "failed",
+        "bounced": true,
+        "spam_blocked": false,
+        "subject": "Re: Mynerva || TheBoredMonkey ",
+        "to_email": "paarth@mynerva.in",
+        "body_preview": "Hello Paarth,    Time-sensitive insight: A CMO of a 1000cr brand has recently highlighted the surge in performance marketing creatives. The early adopters are already making their move.    You know, i"
+      },
+      {
+        "id": "6508297f494ada00a330c12c",
+        "status": "failed",
+        "bounced": true,
+        "spam_blocked": false,
+        "subject": "Re: Wiggles.in || TheBoredMonkey",
+        "to_email": "nikita.hundal@wiggles.in",
+        "body_preview": "Hello Nikita,Tomorrow we are on holiday.  Can we connect on Wednesday? at the same time?     Thank You & Kind Regards  Suraj Maurya, Founder  WhatsApp: +91 9768935723                   "
+      },
+      {
+        "id": "658e88652d004e030016380e",
+        "status": "completed",
+        "bounced": false,
+        "spam_blocked": false,
+        "subject": "Re: mineralproject x TheBoredMonkey : Discover Increased Brand Awareness",
+        "to_email": "hello@mineralproject.com",
+        "body_preview": "Hi Aditya,    Thank you for your response!     For better clarity, let's connect on Tuesday in the second half .      Please share your time availability as well for the day.      Anticipating your re"
+      },
+      {
+        "id": "658d84259f7684043b2cea1b",
+        "status": "completed",
+        "bounced": false,
+        "spam_blocked": false,
+        "subject": "Re: 24ctnaturaloils x TheBoredMonkey : Discover Increased Brand Awareness",
+        "to_email": "ctnaturaloils24@gmail.com",
+        "body_preview": "Sure Team,    Thank you for your interest. +Karishma Ahuja please connect up with them tomorrow.           --  Regards,  Vaibhavi Bhave | Brand Partnerships   Contact : +91 8828460424  Website : https"
+      },
+      {
+        "id": "658d80b97336fd030005fcea",
+        "status": "completed",
+        "bounced": false,
+        "spam_blocked": false,
+        "subject": "Shushu Babies x TheBoredMonkey ll Influencer Marketing ll December",
+        "to_email": "pr@shushubabies.com",
+        "body_preview": " Hello Prashanth,    Thank you for your time on the call today.     I am putting the minutes of our discussion below for your review:     ShuShu Babies : It is babycare and kids care category brand pr"
+      },
+      {
+        "id": "658d775a3e1127057715a6f4",
+        "status": "completed",
+        "bounced": false,
+        "spam_blocked": false,
+        "subject": "Medvarsity x TheBoredMonkey ll Influencer Marketing ll December ",
+        "to_email": "bibhuti_a@medvarsity.com",
+        "body_preview": "    Hello Bibhuti,    Thank you for your time on the call today.     I am putting the minutes of our discussion below for your review:      Medvarsity Overview:  It is a healthcare ed tech brand upsca"
+      },
+      {
+        "id": "658d2b96e4cb6e02ea8430f9",
+        "status": "completed",
+        "bounced": false,
+        "spam_blocked": false,
+        "subject": "Re: Bodd Active x TheBoredMonkey ll Influencer marketing ll December",
+        "to_email": "shruti.bodd@gmail.com",
+        "body_preview": " Hi Shruti,    Good Afternoon,    As per our previous discussion, I am sharing the commercial bifurcation for both barter & paid campaigns below:   Commercial chart for Barter creators          Influe"
+      },
+      {
+        "id": "658bb727baa98101c69aaf1a",
+        "status": "completed",
+        "bounced": false,
+        "spam_blocked": false,
+        "subject": "Re: Bodd Active x TheBoredMonkey ll Influencer marketing ll December",
+        "to_email": "simran.dhanuka@theboredmonkey.com",
+        "body_preview": "Hi Shruti,     As per our discussion yesterday, we have updated the sample sheet of creators in the mega celebs category according to the brief.      We hope you review it thoroughly and share your th"
+      }
+    ]
+  },
+  "statuses": {
+    "failed": 3970,
+    "completed": 82332
+  },
+  "types": {
+    "extension_email": 4943,
+    "outreach_automatic_email": 80738,
+    "outreach_manual_email": 619,
+    "conversation_followup_email": 2
+  },
+  "failure_reasons": [
+    [
+      "The selected send-from mailbox was not connected when we attempted to deliver this message. Please select a mailbox that is currently connected and retry delivery.",
+      5326
+    ],
+    [
+      "Bounce",
+      2542
+    ],
+    [
+      "Spam Blocked",
+      1443
+    ],
+    [
+      "Required dynamic variables are missing: brand_name",
+      277
+    ],
+    [
+      "Rate Limited",
+      4
+    ],
+    [
+      "Contact stage is Replied. Change stage for contact or adjust settings under Sequence => Settings and retry.",
+      4
+    ],
+    [
+      "Contact stage is Interested. Change stage for contact or adjust settings under Sequence => Settings and retry.",
+      4
+    ],
+    [
+      "Contact stage is Do Not Contact. Change stage for contact or adjust settings under Sequence => Settings and retry.",
+      2
+    ],
+    [
+      "Contact email was detected to be no longer verified.",
+      2
+    ]
+  ],
+  "entities": {
+    "unique_senders": 15,
+    "top_senders": [
+      [
+        "suraj@theboredmonkey.com",
+        47743
+      ],
+      [
+        "vaibhavi.bhave@theboredmonkey.com",
+        13624
+      ],
+      [
+        "karishma.ahuja@theboredmonkey.com",
+        12477
+      ],
+      [
+        "simran.dhanuka@theboredmonkey.com",
+        11285
+      ],
+      [
+        "tanaya.naringrekar@theboredmonkey.com",
+        606
+      ]
+    ],
+    "sender_domains": [
+      [
+        "theboredmonkey.com",
+        86228
+      ],
+      [
+        "theboredmonkey.in",
+        74
+      ]
+    ],
+    "unique_contacts_email": 28311,
+    "unique_contact_ids": 27828,
+    "unique_account_ids_brands": 14486,
+    "unique_recipient_domains": 15081,
+    "top_recipient_domains": [
+      [
+        "ril.com",
+        755
+      ],
+      [
+        "unilever.com",
+        520
+      ],
+      [
+        "samsung.com",
+        518
+      ],
+      [
+        "monsterenergy.com",
+        504
+      ],
+      [
+        "loreal.com",
+        466
+      ],
+      [
+        "flipkart.com",
+        465
+      ],
+      [
+        "amazon.com",
+        454
+      ],
+      [
+        "nykaa.com",
+        445
+      ],
+      [
+        "wella.com",
+        405
+      ],
+      [
+        "titan.co.in",
+        400
+      ]
+    ],
+    "burned_contacts": 3699,
+    "burned_contacts_pct": 13.07,
+    "clean_contacts": 24612,
+    "clean_contacts_pct": 86.93
+  },
+  "campaigns": {
+    "unique_campaign_names": 51,
+    "empty_campaigns": 4954,
+    "empty_campaigns_pct": 5.74,
+    "top_campaigns": [
+      [
+        "International || UGC",
+        26119
+      ],
+      [
+        "International IM and Production Agency || Founder",
+        9032
+      ],
+      [
+        "Performance marketing (Meta ads",
+        5248
+      ],
+      [
+        "",
+        4954
+      ],
+      [
+        "Fashion & Retail ll May",
+        3694
+      ],
+      [
+        "Personal care UGC - May 2024",
+        3439
+      ],
+      [
+        "Karishma || Hospitality || June",
+        2857
+      ],
+      [
+        "Influencer Marketing- A/F Brands",
+        2801
+      ],
+      [
+        "Motion Graphic|| International",
+        2756
+      ],
+      [
+        "Performance Marketing Creatives l Universal l June 24",
+        1840
+      ],
+      [
+        "Agency founders",
+        1816
+      ],
+      [
+        "Personal Care ll Holi",
+        1482
+      ],
+      [
+        "Food Category ll Gudi Padwa",
+        1358
+      ],
+      [
+        "Karishma || May 24",
+        1338
+      ],
+      [
+        "Simran II CE/Home II June",
+        1268
+      ]
+    ]
+  },
+  "temporal": {
+    "min_date": "2023-03-16 11:21:43",
+    "max_date": "2026-07-07 11:22:42",
+    "monthly_breakdown": [
+      [
+        "2023-03",
+        3
+      ],
+      [
+        "2023-04",
+        6
+      ],
+      [
+        "2023-05",
+        2767
+      ],
+      [
+        "2023-06",
+        1090
+      ],
+      [
+        "2023-07",
+        1612
+      ],
+      [
+        "2023-08",
+        7490
+      ],
+      [
+        "2023-09",
+        3613
+      ],
+      [
+        "2023-10",
+        1344
+      ],
+      [
+        "2023-11",
+        37
+      ],
+      [
+        "2023-12",
+        2693
+      ],
+      [
+        "2024-01",
+        20593
+      ],
+      [
+        "2024-02",
+        10236
+      ],
+      [
+        "2024-03",
+        5418
+      ],
+      [
+        "2024-04",
+        802
+      ],
+      [
+        "2024-05",
+        12233
+      ],
+      [
+        "2024-06",
+        9358
+      ],
+      [
+        "2024-07",
+        2474
+      ],
+      [
+        "2024-08",
+        1646
+      ],
+      [
+        "2024-09",
+        190
+      ],
+      [
+        "2024-10",
+        172
+      ],
+      [
+        "2024-11",
+        176
+      ],
+      [
+        "2024-12",
+        207
+      ],
+      [
+        "2025-01",
+        198
+      ],
+      [
+        "2025-02",
+        93
+      ],
+      [
+        "2025-03",
+        62
+      ],
+      [
+        "2025-04",
+        43
+      ],
+      [
+        "2025-05",
+        179
+      ],
+      [
+        "2025-06",
+        218
+      ],
+      [
+        "2025-07",
+        163
+      ],
+      [
+        "2025-08",
+        154
+      ],
+      [
+        "2025-09",
+        9
+      ],
+      [
+        "2025-10",
+        821
+      ],
+      [
+        "2025-11",
+        81
+      ],
+      [
+        "2025-12",
+        7
+      ],
+      [
+        "2026-01",
+        45
+      ],
+      [
+        "2026-02",
+        14
+      ],
+      [
+        "2026-03",
+        8
+      ],
+      [
+        "2026-04",
+        26
+      ],
+      [
+        "2026-05",
+        8
+      ],
+      [
+        "2026-06",
+        3
+      ],
+      [
+        "2026-07",
+        10
+      ]
+    ],
+    "recency_buckets": {
+      "> 365 days (Historical)": 84982,
+      "181-365 days (Dormant)": 1206,
+      "91-180 days (Stale)": 77,
+      "31-90 days (Warm)": 25,
+      "0-30 days (Recent)": 12
+    }
+  },
+  "threading": {
+    "unique_subjects": 34541,
+    "re_subjects": 56537,
+    "re_subjects_pct": 65.51,
+    "unique_base_subjects": 19679,
+    "single_touch_contacts": 6080,
+    "single_touch_pct": 21.48,
+    "two_touch_contacts": 6783,
+    "three_plus_touch_contacts": 15448
+  },
+  "body_hygiene": {
+    "empty_bodies": 0,
+    "whitespace_bodies": 0,
+    "short_bodies_under_100": 46,
+    "bodies_with_urls": 429,
+    "bodies_with_urls_pct": 0.5,
+    "bodies_with_phone": 1665,
+    "bodies_with_whatsapp": 1155,
+    "bodies_with_unsub": 1,
+    "bodies_with_sig": 4,
+    "bodies_with_calendly": 4662,
+    "unique_template_hashes": 52629,
+    "length_stats": {
+      "min": 26,
+      "p25": 201.0,
+      "median": 201.0,
+      "p75": 201.0,
+      "max": 201
+    }
+  },
+  "json_comparison": {
+    "sample_size": 1000,
+    "keys_count": 54,
+    "json_only_keys": [
+      "user_id",
+      "time_zone",
+      "provider_message_id",
+      "emailer_touch_id",
+      "emailer_campaign_id",
+      "emailer_step_id",
+      "failed_at",
+      "attachment_ids",
+      "enable_tracking",
+      "provider_thread_id",
+      "schedule_delayed_reason",
+      "demoed",
+      "due_at_manually_changed",
+      "not_sent_reason",
+      "bounce",
+      "tracking_disabled_reason",
+      "async_sending",
+      "due_at_source",
+      "crm_id",
+      "needs_dynamic_assemble",
+      "personalized_opener",
+      "reply_class",
+      "schedule_delayed_limit_reason",
+      "schedule_delayed_reason_details",
+      "sensitive_info_redacted",
+      "conversation_id",
+      "click_tracking_enabled",
+      "open_tracking_enabled",
+      "ai_variables_status",
+      "recipients",
+      "send_from",
+      "bcc_emails",
+      "cc_emails",
+      "send_from_info",
+      "domain_enforcement_action",
+      "block_sending_for_unhealthy_domain"
+    ],
+    "provider_thread_id_rate": 100.0,
+    "provider_message_id_rate": 100.0,
+    "emailer_step_id_rate": 90.9,
+    "emailer_touch_id_rate": 90.9
+  },
+  "field_missing_pct": {
+    "campaign_name": 5.74,
+    "due_at": 5.72,
+    "spam_blocked": 91.79,
+    "replied": 96.8,
+    "to_name": 1.08,
+    "account_id": 2.17,
+    "bounced": 88.87,
+    "failure_reason": 88.87,
+    "contact_id": 1.68,
+    "subject": 0.0,
+    "to_email": 0.01
+  }
+}

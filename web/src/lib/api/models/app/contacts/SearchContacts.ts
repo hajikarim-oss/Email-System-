@@ -23,4 +23,16 @@ export default interface SearchContacts {
     updated_before?: Date;
     sort_by: SearchContactsSortBy;
     reverse: boolean;
+
+    // Temporal Intelligence Filters
+    recency_buckets?: string[];
+    outreach_states?: string[];
+    reply_classifications?: string[];
+    days_since_contact_min?: number;
+    days_since_contact_max?: number;
+    is_burned?: boolean;
+    is_dormant?: boolean;
+    is_reengagement_candidate?: boolean;
+    domains?: string[];
+    tags?: string[];
 }
