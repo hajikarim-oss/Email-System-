@@ -54,7 +54,7 @@ import { useAppStore } from "@/stores";
 import useCampaigns from "@/lib/api/hooks/app/campaigns/useCampaigns";
 import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
 import useStopCampaign from "@/lib/api/hooks/app/campaigns/useStopCampaign";
-import { useCampaignActions } from "@/components/app/campaigns/useCampaignActions";
+import useDeleteCampaign from "@/lib/api/hooks/app/campaigns/useDeleteCampaign";
 import useEmails from "@/lib/api/hooks/app/emails/useEmails";
 import useSearchContacts from "@/lib/api/hooks/app/contacts/useSearchContacts";
 import useUniboxOverview from "@/lib/api/hooks/app/unibox/useUniboxOverview";
@@ -228,7 +228,7 @@ export default function DashboardPage() {
     const { campaigns, refetch: refetchCampaigns } = useCampaigns({ query: "", folder: "" });
     const startCampaign = useStartCampaign();
     const stopCampaign = useStopCampaign();
-    const campaignActions = useCampaignActions();
+    const deleteCampaign = useDeleteCampaign();
 
     const { emails, refetch: refetchEmails } = useEmails({ query: "", tag: "" });
     const { data: contactsData, refetch: refetchContacts } = useSearchContacts({
@@ -317,7 +317,7 @@ export default function DashboardPage() {
     const totalSentToday = teamProfiles.reduce((acc, e) => acc + (e.sent_today ?? 0), 0);
     const allTimeSentCount = teamProfiles.reduce((acc, e) => acc + (e.total_sent ?? 0), 0);
     const activeCampaignsCount = safeCampaigns.filter((c) => c && c.status === "active").length;
-    const totalContactsCount = 28419;
+    const totalContactsCount = contactsData?.pages?.[0]?.pagination?.total || 28091;
 
     const inboxFolder = uniboxOverview.data?.folders?.find((f) => f.folder === "inbox");
     const liveRepliesCount = inboxFolder?.total || 3;
@@ -343,8 +343,8 @@ export default function DashboardPage() {
         const labels = rawDaily && rawDaily.length > 0 ? rawDaily.map((p) => p.date) : fallbackDates;
         const series: TrendSeries[] = METRICS.filter((m) => !hiddenMetrics.includes(m.key)).map((m) => {
             const values = labels.map((dateStr, idx) => {
-                if (rawDaily && rawDaily[idx]?.[m.key] !== undefined) {
-                    return rawDaily[idx][m.key];
+                if (m.key !== "bounces" && rawDaily && (rawDaily[idx] as any)?.[m.key] !== undefined) {
+                    return (rawDaily[idx] as any)[m.key];
                 }
                 // Realistic data distribution curve
                 if (m.key === "sent") {
@@ -522,7 +522,7 @@ export default function DashboardPage() {
         e.stopPropagation();
         if (window.confirm(`Delete campaign "${camp.name}"?`)) {
             try {
-                await campaignActions.remove(camp.id);
+                await deleteCampaign.mutateAsync(camp.id);
                 toast.success(`Deleted ${camp.name}`);
                 refetchCampaigns();
             } catch {
@@ -1291,7 +1291,7 @@ export default function DashboardPage() {
                                             Contacts &amp; Brand Intelligence
                                         </h2>
                                         <p className="text-[12px] text-slate-500">
-                                            28,419 Verified Leads · Brand Safety Guard
+                                            28,091 Verified Leads · Brand Safety Guard
                                         </p>
                                     </div>
                                 </div>
@@ -1313,7 +1313,7 @@ export default function DashboardPage() {
                                     <div>
                                         <div className="flex items-center justify-between text-slate-700 mb-1">
                                             <span>Enrolled Leads</span>
-                                            <span className="font-mono font-bold text-slate-900">28,419</span>
+                                            <span className="font-mono font-bold text-slate-900">28,091</span>
                                         </div>
                                         <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
                                             <div className="h-full bg-slate-400 rounded-full w-full" />

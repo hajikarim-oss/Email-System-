@@ -4,7 +4,7 @@ import coreData from "./coreData.json";
 // Standalone in-browser database & API dispatcher for TheBoredMonkey Outreach
 // Powered by real core data exported from Email System 101 Prisma/Smartlead database
 
-const STORAGE_KEY_PREFIX = "tbm_core_data_v4_";
+const STORAGE_KEY_PREFIX = "tbm_core_data_v5_";
 
 function loadStorage<T>(key: string, defaultVal: T): T {
     try {
@@ -39,7 +39,7 @@ try {
     if (rawLogs116 && rawLogs116.includes("EMAIL_REPLIED")) {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789556689473");
     }
-} catch {}
+} catch { }
 
 // Initial state data loaded from real Email System 101 core database with 4 distinct sending profiles (50/day each = 200/day)
 export const DEFAULT_4_PROFILES = [
@@ -74,7 +74,7 @@ export const DEFAULT_4_PROFILES = [
         warmup_reply_rate: 35,
         reputation: 99,
         daily_limit: 50,
-        sent_today: 1,
+        sent_today: 34,
         total_sent: 142,
         mailbox_allowance: 50,
         connected_at: "2026-09-03T13:44:59.910Z",
@@ -112,7 +112,7 @@ export const DEFAULT_4_PROFILES = [
         warmup_reply_rate: 35,
         reputation: 98,
         daily_limit: 50,
-        sent_today: 0,
+        sent_today: 34,
         total_sent: 88,
         mailbox_allowance: 50,
         connected_at: "2026-09-09T11:17:23.439Z",
@@ -198,8 +198,9 @@ export const DEFAULT_4_PROFILES = [
 ];
 
 const initialEmails = DEFAULT_4_PROFILES;
-const initialCampaigns = coreData.campaigns;
-const initialContacts = coreData.contacts;
+const rawCore: any = coreData;
+const initialCampaigns = (rawCore?.campaigns || []) as any[];
+const initialContacts = (rawCore?.contacts || []) as any[];
 
 export async function handleStandaloneRequest(config: AxiosRequestConfig): Promise<AxiosResponse> {
     const rawUrl = config.url ?? "";
@@ -908,8 +909,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                                 window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: match.id } }));
                             }
                         }
-                    }).catch(() => {});
-                } catch {}
+                    }).catch(() => { });
+                } catch { }
 
                 // Broadcast queue and tracking events for real-time UI components
                 if (typeof window !== "undefined") {
@@ -993,7 +994,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ smartlead_id: match.smartlead_id, steps: match.steps }),
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
                 return res({ success: true, deleted_id: stepId });
             }
@@ -1019,7 +1020,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ smartlead_id: match.smartlead_id, steps: match.steps }),
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
                     return res(targetStep);
                 }
@@ -1053,7 +1054,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ smartlead_id: match.smartlead_id, steps: match.steps }),
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
                 return res(newStep);
             }
@@ -1474,7 +1475,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 const segData = await segRes.json();
                 return res(segData);
             }
-        } catch {}
+        } catch { }
         return res([
             { id: "seg_dormant_replied", name: "Dormant Replied (Past Responders)", count: 747, color: "#10b981" },
             { id: "seg_cold_reengagement", name: "Cold Re-engagement Candidates", count: 22896, color: "#8b5cf6" },
@@ -1559,7 +1560,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
             const optStr = config.data.get("options");
             if (typeof optStr === "string") {
-                try { opts = JSON.parse(optStr); } catch {}
+                try { opts = JSON.parse(optStr); } catch { }
             }
         }
 
@@ -1602,7 +1603,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             const batchData = await batchRes.json();
             duplicates = batchData.duplicates || [];
             quarantined = batchData.quarantined || [];
-        } catch {}
+        } catch { }
 
         const duplicateEmailMap = new Map(duplicates.map(d => [d.email.toLowerCase(), d]));
         const quarantinedEmailMap = new Map(quarantined.map(q => [q.email.toLowerCase(), q.reason]));
@@ -1884,7 +1885,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery === "/unibox/thread") {
         const threadId = queryParams.get("thread_id") || "th_reachout_101_snehal";
         const customReplies = loadStorage<any[]>(`thread_replies_${threadId}`, []);
-        
+
         let threadMessages: any[] = [];
         if (threadId === "th_reachout_101_snehal" || threadId.includes("reachout_101") || threadId.includes("snehal")) {
             threadMessages = [
@@ -2226,7 +2227,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     replies = Number(smData.reply_count ?? replies);
                     bounces = Number(smData.bounce_count ?? bounces);
                 }
-            } catch {}
+            } catch { }
         }
 
         const isRajdeep = match?.id === "cmp_1789560721755" || match?.name?.includes("120") || match?.name?.includes("116") || match?.id === "cmp_1789556689473";
@@ -2279,7 +2280,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     replies = Number(smData.reply_count ?? replies);
                     bounces = Number(smData.bounce_count ?? bounces);
                 }
-            } catch {}
+            } catch { }
         }
 
         // Cross-reference replies with Inbox threads for leads enrolled in this campaign
