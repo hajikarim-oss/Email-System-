@@ -97,7 +97,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                     queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
                     queryClient.invalidateQueries({ queryKey: ["analytics"] }),
                 ]);
-                toast.success("Batch dispatched! Mail sent via haji.karim@theboredmonkey.com", { id: "dispatch" });
+                toast.success("Batch dispatched! Mail rotated across active sending mailboxes (50/day quota each)", { id: "dispatch" });
             } else {
                 toast.dismiss("dispatch");
             }
@@ -114,7 +114,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
     const sentCount = summary?.emails_sent ?? enrichedCampaign.sent_count ?? 1;
     const totalLeads = Math.max(1, enrichedCampaign.total_leads || 1);
     const inFlightCount = isActive ? Math.max(0, totalLeads - sentCount) : 0;
-    const activeMailbox = "haji.karim@theboredmonkey.com";
+    const activePoolText = "4 Rotated Mailboxes (Vatsal, Preeti, Haji, Snehal)";
     const openCount = summary?.unique_opens ?? (enrichedCampaign.open_count != null ? enrichedCampaign.open_count : 1);
     const replyCount = summary?.replies ?? (enrichedCampaign.reply_count != null ? enrichedCampaign.reply_count : 0);
     const openRate = summary?.open_rate != null ? Math.round(summary.open_rate) : Math.min(100, Math.round((openCount / Math.max(1, sentCount)) * 100));
@@ -130,9 +130,8 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                         )}
                         <span
-                            className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                                isActive ? "bg-emerald-500" : "bg-amber-500"
-                            }`}
+                            className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isActive ? "bg-emerald-500" : "bg-amber-500"
+                                }`}
                         />
                     </span>
                     <div className="flex items-center gap-1.5">
@@ -141,11 +140,10 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                             Live Outreach Queue
                         </span>
                         <span
-                            className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${
-                                isActive
+                            className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${isActive
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                     : "bg-amber-50 text-amber-700 border-amber-200"
-                            }`}
+                                }`}
                         >
                             {isActive ? "ACTIVE DISPATCH" : "PAUSED"}
                         </span>
@@ -231,16 +229,16 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                 <div className="p-3.5 flex flex-col justify-between">
                     <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
                         <ServerIcon className="w-3.5 h-3.5 text-indigo-600" />
-                        Active Sending Mailbox
+                        Active Sending Pool
                     </div>
                     <div className="mt-1.5 truncate">
                         <span className="text-[12px] font-semibold text-slate-800 truncate block">
-                            {activeMailbox}
+                            {activePoolText}
                         </span>
                     </div>
                     <div className="text-[10.5px] text-emerald-700 mt-1 flex items-center gap-1">
                         <ShieldCheckIcon className="w-3 h-3 text-emerald-600" />
-                        Google SMTP &bull; Quota: 1/50
+                        Smartlead Rotation &bull; 200/day capacity
                     </div>
                 </div>
 

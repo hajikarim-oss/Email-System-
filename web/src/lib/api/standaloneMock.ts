@@ -120,14 +120,14 @@ export const DEFAULT_4_PROFILES = [
         updated_at: "2026-09-09T11:29:53.612Z"
     },
     {
-        id: "eml_tbm_suraj_03",
-        email: "theboredmonkeytech@gmail.com",
-        name: "Suraj Maurya",
-        signature_plain: "Best regards,\nSuraj Maurya\nTech Systems | TheBoredMonkey",
-        signature_html: "<p>Best regards,<br/><strong>Suraj Maurya</strong><br/>Tech Systems | TheBoredMonkey</p>",
+        id: "cmu6m304o00003307qj8ex6oa",
+        email: "vatsal.vadecha@theboredmonkey.com",
+        name: "Vatsal Vadecha",
+        signature_plain: "Best regards,\nVatsal Vadecha\nPartnerships & Outreach | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Vatsal Vadecha</strong><br/>Partnerships & Outreach | TheBoredMonkey</p>",
         signature_sync: false,
         signature_code: false,
-        tags: ["secondary", "tech", "outreach"],
+        tags: ["primary", "outreach", "partnerships"],
         provider: "google",
         status: "active",
         last_synced_at: new Date().toISOString(),
@@ -137,12 +137,12 @@ export const DEFAULT_4_PROFILES = [
         save_to_sent: true,
         tracking_domain: "mail.theboredmonkey.com",
         tracking_domain_verified: true,
-        tracking_domain_verified_at: "2026-09-10T08:00:00.000Z",
+        tracking_domain_verified_at: "2026-09-18T00:00:00.000Z",
         auth_state: "passing",
         auth_spf: true,
         auth_dkim: true,
         auth_dmarc: true,
-        warmup: "2026-09-10T08:00:00.000Z",
+        warmup: "2026-09-18T00:00:00.000Z",
         warmup_paused_at: null,
         warmup_base: 5,
         warmup_max: 50,
@@ -151,21 +151,23 @@ export const DEFAULT_4_PROFILES = [
         reputation: 99,
         daily_limit: 50,
         sent_today: 0,
-        total_sent: 64,
+        total_sent: 45,
         mailbox_allowance: 50,
-        connected_at: "2026-09-10T08:00:00.000Z",
-        created_at: "2026-09-10T08:00:00.000Z",
-        updated_at: "2026-09-10T08:00:00.000Z"
+        connected_at: "2026-09-18T00:00:00.000Z",
+        created_at: "2026-09-18T00:00:00.000Z",
+        updated_at: "2026-09-18T00:00:00.000Z",
+        smartlead_id: 23457457,
+        smartlead_api_key: "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6",
     },
     {
-        id: "eml_tbm_karim_04",
-        email: "karimsaikh356@gmail.com",
-        name: "Karim Beldaar",
-        signature_plain: "Best regards,\nKarim Beldaar\nOperations & BD | TheBoredMonkey",
-        signature_html: "<p>Best regards,<br/><strong>Karim Beldaar</strong><br/>Operations & BD | TheBoredMonkey</p>",
+        id: "cmu6m31bv00033307zao17anp",
+        email: "preeti.karki@theboredmonkey.com",
+        name: "Preeti Karki",
+        signature_plain: "Best regards,\nPreeti Karki\nAccount Executive | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Preeti Karki</strong><br/>Account Executive | TheBoredMonkey</p>",
         signature_sync: false,
         signature_code: false,
-        tags: ["enterprise", "operations", "bd"],
+        tags: ["primary", "outreach", "enterprise"],
         provider: "google",
         status: "active",
         last_synced_at: new Date().toISOString(),
@@ -175,25 +177,27 @@ export const DEFAULT_4_PROFILES = [
         save_to_sent: true,
         tracking_domain: "mail.theboredmonkey.com",
         tracking_domain_verified: true,
-        tracking_domain_verified_at: "2026-09-10T08:00:00.000Z",
+        tracking_domain_verified_at: "2026-09-18T00:00:00.000Z",
         auth_state: "passing",
         auth_spf: true,
         auth_dkim: true,
         auth_dmarc: true,
-        warmup: "2026-09-10T08:00:00.000Z",
+        warmup: "2026-09-18T00:00:00.000Z",
         warmup_paused_at: null,
         warmup_base: 5,
         warmup_max: 50,
         warmup_increase: 3,
         warmup_reply_rate: 35,
-        reputation: 98,
+        reputation: 99,
         daily_limit: 50,
         sent_today: 0,
-        total_sent: 52,
+        total_sent: 38,
         mailbox_allowance: 50,
-        connected_at: "2026-09-10T08:00:00.000Z",
-        created_at: "2026-09-10T08:00:00.000Z",
-        updated_at: "2026-09-10T08:00:00.000Z"
+        connected_at: "2026-09-18T00:00:00.000Z",
+        created_at: "2026-09-18T00:00:00.000Z",
+        updated_at: "2026-09-18T00:00:00.000Z",
+        smartlead_id: 23458016,
+        smartlead_api_key: "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt",
     }
 ];
 
@@ -246,7 +250,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/auth/me") {
-        return res({
+        const currentUser = loadStorage<any>("current_user", {
             id: "usr_tbm_haji",
             email: "haji.karim@theboredmonkey.com",
             first_name: "Haji",
@@ -256,6 +260,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             onboarding_completed_at: "2026-01-15T08:30:00Z",
             created_at: "2026-01-15T08:30:00Z",
         });
+        return res(currentUser);
     }
 
     if (pathWithoutQuery === "/auth/login") {
@@ -263,7 +268,38 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const email = (body.email || "").trim().toLowerCase();
         const password = (body.password || "").trim();
 
-        if (email !== "haji.karim@theboredmonkey.com" || password !== "9538564601") {
+        const authUsers: Record<string, any> = {
+            "haji.karim@theboredmonkey.com": {
+                id: "usr_tbm_haji",
+                email: "haji.karim@theboredmonkey.com",
+                first_name: "Haji",
+                last_name: "Karim",
+                role: "owner",
+                avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80",
+                onboarding_completed_at: "2026-01-15T08:30:00Z",
+            },
+            "vatsal.vadecha@theboredmonkey.com": {
+                id: "cmu6m304o00003307qj8ex6oa",
+                email: "vatsal.vadecha@theboredmonkey.com",
+                first_name: "Vatsal",
+                last_name: "Vadecha",
+                role: "team_member",
+                avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80",
+                onboarding_completed_at: "2026-01-15T08:30:00Z",
+            },
+            "preeti.karki@theboredmonkey.com": {
+                id: "cmu6m31bv00033307zao17anp",
+                email: "preeti.karki@theboredmonkey.com",
+                first_name: "Preeti",
+                last_name: "Karki",
+                role: "team_member",
+                avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80",
+                onboarding_completed_at: "2026-01-15T08:30:00Z",
+            }
+        };
+
+        const targetUser = authUsers[email];
+        if (!targetUser || password !== "9538564601") {
             return res({ error: "Invalid email or password. Access restricted to authorized accounts only." }, 401);
         }
 
@@ -273,19 +309,13 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             access_token_expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
             refresh_token_expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
         };
+        saveStorage("current_user", targetUser);
         return res({
             code_required: false,
             two_fa_required: false,
             token,
             ...token,
-            user: {
-                id: "usr_tbm_haji",
-                email: "haji.karim@theboredmonkey.com",
-                first_name: "Haji",
-                last_name: "Karim",
-                role: "owner",
-                onboarding_completed_at: "2026-01-15T08:30:00Z",
-            },
+            user: targetUser,
         });
     }
 
@@ -431,15 +461,41 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     // 4. Mailboxes / Emails
-    let storedEmails = loadStorage<any[]>("emails", initialEmails);
-    const hasLegacy = Array.isArray(storedEmails) && (
-        storedEmails.some((e: any) => e.email === "growth@theboredmonkey.com" || e.email === "partnerships@theboredmonkey.com") ||
-        !storedEmails.some((e: any) => e.email === "theboredmonkeytech@gmail.com")
-    );
-    const emails = !hasLegacy && Array.isArray(storedEmails) && storedEmails.length >= 4 ? storedEmails : DEFAULT_4_PROFILES;
-    if (emails !== storedEmails || hasLegacy) {
-        saveStorage("emails", emails);
+    const MIGRATION_KEY = "emails_v7_migrated";
+    const migrated = loadStorage<boolean>(MIGRATION_KEY, false);
+    const deletedList = loadStorage<string[]>("deleted_emails", []);
+    // Ensure the two removed gmail accounts are registered in deletedList
+    if (!deletedList.includes("theboredmonkeytech@gmail.com")) deletedList.push("theboredmonkeytech@gmail.com");
+    if (!deletedList.includes("karimsaikh356@gmail.com")) deletedList.push("karimsaikh356@gmail.com");
+    saveStorage("deleted_emails", deletedList);
+
+    let storedEmails = loadStorage<any[]>("emails", null as any);
+
+    if (!migrated || !Array.isArray(storedEmails)) {
+        storedEmails = DEFAULT_4_PROFILES.filter(p => !deletedList.includes(p.email.toLowerCase()));
+        saveStorage("emails", storedEmails);
+        saveStorage(MIGRATION_KEY, true);
+    } else {
+        for (const p of DEFAULT_4_PROFILES) {
+            if (deletedList.includes(p.email.toLowerCase())) continue;
+            const idx = storedEmails.findIndex((e: any) => e.email?.toLowerCase() === p.email.toLowerCase());
+            if (idx === -1) {
+                storedEmails.push(p);
+            } else if (p.smartlead_id && !storedEmails[idx].smartlead_id) {
+                storedEmails[idx] = { ...storedEmails[idx], ...p };
+            }
+        }
+        const cleaned = storedEmails.filter((e: any) => {
+            const em = (e.email || "").toLowerCase();
+            return em !== "growth@theboredmonkey.com" &&
+                em !== "partnerships@theboredmonkey.com" &&
+                !deletedList.includes(em);
+        });
+        storedEmails = cleaned;
+        saveStorage("emails", storedEmails);
+        saveStorage(MIGRATION_KEY, true);
     }
+    const emails = storedEmails;
     if (pathWithoutQuery === "/emails/allowance") {
         return res({
             used: emails.length,
@@ -501,6 +557,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             saveStorage("emails", emails);
             return res(newEmail);
         }
+        if (method === "DELETE") {
+            const queryId = queryParams.get("id");
+            if (queryId) {
+                const target = emails.find((e: { id: string; email?: string }) => e.id === queryId);
+                const curDel = loadStorage<string[]>("deleted_emails", []);
+                if (target?.email && !curDel.includes(target.email.toLowerCase())) {
+                    curDel.push(target.email.toLowerCase());
+                    saveStorage("deleted_emails", curDel);
+                }
+                const nextEmails = emails.filter((e: { id: string }) => e.id !== queryId);
+                saveStorage("emails", nextEmails);
+                return res({ success: true, message: "Mailbox removed", deleted: queryId });
+            }
+        }
         return res({
             data: emails,
             pagination: {
@@ -532,6 +602,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             return res({ status: "synced", last_synced_at: new Date().toISOString() });
         }
         const pureId = id.split("/")[0];
+        if (method === "DELETE") {
+            const target = emails.find((e: { id: string; email?: string }) => e.id === pureId);
+            const curDel = loadStorage<string[]>("deleted_emails", []);
+            if (target?.email && !curDel.includes(target.email.toLowerCase())) {
+                curDel.push(target.email.toLowerCase());
+                saveStorage("deleted_emails", curDel);
+            }
+            const nextEmails = emails.filter((e: { id: string }) => e.id !== pureId);
+            saveStorage("emails", nextEmails);
+            return res({ success: true, message: "Mailbox removed", deleted: pureId });
+        }
         const match = emails.find((e: { id: string }) => e.id === pureId) || emails[0];
         return res(match);
     }
@@ -859,11 +940,12 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 // Save realistic campaign logs for Live Activity feed
                 const firstLeadEmail = campLeads[0]?.email || "karimsaikh356@gmail.com";
                 const firstLeadName = `${campLeads[0]?.first_name || "Karim"} ${campLeads[0]?.last_name || "Beldaar"}`.trim();
+                const firstMailbox = campLeads[0]?.sent_by_mailbox || availableEmails[0]?.email || "vatsal.vadecha@theboredmonkey.com";
                 const campLogs: any[] = [
                     {
                         id: `log_snt_${Date.now()}`,
                         event_type: "EMAIL_SENT",
-                        message: `Step 1 dispatched to ${firstLeadName} (${firstLeadEmail}) via haji.karim@theboredmonkey.com`,
+                        message: `Step 1 batch dispatched across 4 rotated mailboxes (via ${firstMailbox} & pool)`,
                         metadata: { level: "info" },
                         created_at: nowIso,
                     },

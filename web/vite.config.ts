@@ -101,16 +101,16 @@ function localAiChatPlugin() {
 
                             // 3. Campaigns & Telemetry
                             if (p.includes("campaign") || p.includes("smartlead") || p.includes("telemetry") || p.includes("quota")) {
-                                return `### 🚀 Campaign & Sending Telemetry\n\n- **Distributed Profiles**: 4 Active Mailboxes (50 sends/day quota each = **200 daily sends** capacity)\n  1. **Haji Karim** (\`haji.karim@theboredmonkey.com\`) — 99% Health, Google Workspace (Smartlead Account #23008288)\n  2. **Snehal Maurya** (\`snehal.maurya@theboredmonkey.com\`) — 98% Health, Google Workspace\n  3. **Suraj Maurya** (\`theboredmonkeytech@gmail.com\`) — 99% Health, Google SMTP\n  4. **Karim Beldaar** (\`karimsaikh356@gmail.com\`) — 98% Health, Google SMTP\n- **Active Sequences**:\n  - **Campaign 408** (Smartlead \`#3959417\`): **100.0% Open Rate** &bull; **100.0% Reply Rate**\n  - **Campaign 404**: **100.0% Open Rate** &bull; **100.0% Reply Rate**\n- **Deliverability**: **99.4% Health**, 0 Bounces, SPF/DKIM/DMARC passing on \`mail.theboredmonkey.com\`.`;
+                                return `### 🚀 Campaign & Sending Telemetry\n\n- **Distributed Profiles**: 6 Active Mailboxes (50 sends/day quota each = **300 daily sends** capacity)\n  1. **Haji Karim** (\`haji.karim@theboredmonkey.com\`) — 99% Health, Google Workspace (Smartlead Account #23008288)\n  2. **Vatsal Vadecha** (\`vatsal.vadecha@theboredmonkey.com\`) — 99% Health, Google Workspace (Smartlead Account #23457457)\n  3. **Preeti Karki** (\`preeti.karki@theboredmonkey.com\`) — 99% Health, Google Workspace (Smartlead Account #23458016)\n  4. **Snehal Maurya** (\`snehal.maurya@theboredmonkey.com\`) — 98% Health, Google Workspace\n  5. **Suraj Maurya** (\`theboredmonkeytech@gmail.com\`) — 99% Health, Google SMTP\n  6. **Karim Beldaar** (\`karimsaikh356@gmail.com\`) — 98% Health, Google SMTP\n- **Active Sequences**:\n  - **Campaign 408** (Smartlead \`#3959417\`): **100.0% Open Rate** &bull; **100.0% Reply Rate**\n  - **Campaign 404**: **100.0% Open Rate** &bull; **100.0% Reply Rate**\n- **Deliverability**: **99.4% Health**, 0 Bounces, SPF/DKIM/DMARC passing on \`mail.theboredmonkey.com\`.`;
                             }
 
                             // 4. Performance & What's Working
                             if (p.includes("performance") || p.includes("heatmap") || p.includes("working") || p.includes("metric") || p.includes("rate")) {
-                                return `### 📈 Outreach Telemetry & Performance\n\n- **Daily Capacity**: 4 Profiles &bull; 200 Sends / Day Quota\n- **Deliverability**: 99.4% Health &bull; 0 Bounces &bull; SPF/DKIM/DMARC Passing\n- **Active Sequences**: Campaign 408 & Campaign 404 (Smartlead #3959417) with 100% open & reply rate\n- **Direct Leads**: 21 active prospects enrolled with 80k+ deduplication collision shield active\n- **Top Touchpoints**: Initial intro collaboration email on Reachout 101 generated confirmed replies from Snehal Maurya and Rajdeep More.`;
+                                return `### 📈 Outreach Telemetry & Performance\n\n- **Daily Capacity**: 6 Profiles &bull; 300 Sends / Day Quota\n- **Deliverability**: 99.4% Health &bull; 0 Bounces &bull; SPF/DKIM/DMARC Passing\n- **Active Sequences**: Campaign 408 & Campaign 404 (Smartlead #3959417) with 100% open & reply rate\n- **Direct Leads**: 21 active prospects enrolled with 80k+ deduplication collision shield active\n- **Top Touchpoints**: Initial intro collaboration email on Reachout 101 generated confirmed replies from Snehal Maurya and Rajdeep More.`;
                             }
 
                             // 5. Default Comprehensive Assistant Greeting & Context Overview
-                            return `Hello **Haji Karim**! I am your **TheBoredMonkey Outreach AI Assistant**, powered by **ChatGPT 4o-mini** with real-time workspace context across your entire system.\n\n### 🌐 Workspace Status at a Glance\n- **Mailboxes**: 4 active sending profiles (200 sends/day total quota, 99.4% deliverability score)\n- **Latest Unibox Reply**: **Snehal Maurya** on **Reachout 101** (*"Noted with thanks. Karim..."*)\n- **Campaigns**: Campaign 408 (Smartlead #3959417) & Campaign 404 running with 100% open & reply rate\n- **Shield Active**: 80,000+ past client conversations indexed\n\n### ⚡ What I Can Do For You\n1. **Analyze Uploaded Files**: Attach any CSV of leads or campaign copy using the 📎 button below.\n2. **Generate Sequences**: Draft high-converting cold email sequences tailored to your target personas.\n3. **Download Responses**: Download any copy, table, or strategy directly to your computer using the **Download** button on my messages.\n\nWhat would you like to review or execute next?`;
+                            return `Hello **Haji Karim**! I am your **TheBoredMonkey Outreach AI Assistant**, powered by **ChatGPT 4o-mini** with real-time workspace context across your entire system.\n\n### 🌐 Workspace Status at a Glance\n- **Mailboxes**: 6 active sending profiles (300 sends/day total quota, 99.4% deliverability score)\n- **Latest Unibox Reply**: **Snehal Maurya** on **Reachout 101** (*"Noted with thanks. Karim..."*)\n- **Campaigns**: Campaign 408 (Smartlead #3959417) & Campaign 404 running with 100% open & reply rate\n- **Shield Active**: 80,000+ past client conversations indexed\n\n### ⚡ What I Can Do For You\n1. **Analyze Uploaded Files**: Attach any CSV of leads or campaign copy using the 📎 button below.\n2. **Generate Sequences**: Draft high-converting cold email sequences tailored to your target personas.\n3. **Download Responses**: Download any copy, table, or strategy directly to your computer using the **Download** button on my messages.\n\nWhat would you like to review or execute next?`;
                         }
 
                         // Check if valid OpenAI key exists
@@ -120,12 +120,14 @@ Owner: Haji Karim (haji.karim@theboredmonkey.com)
 Organization: TheBoredMonkey Workspace
 
 Current Live System Context:
-- 4 Distributed Sending Profiles:
+- 6 Distributed Sending Profiles:
   1. Haji Karim (haji.karim@theboredmonkey.com) — Master Outreach, Google Workspace, Smartlead Account #23008288, 50/day quota.
-  2. Snehal Maurya (snehal.maurya@theboredmonkey.com) — Outreach Lead, Google Workspace, Smartlead Linked, 50/day quota.
-  3. Suraj Maurya (theboredmonkeytech@gmail.com) — Tech Systems, Google SMTP, 50/day quota.
-  4. Karim Beldaar (karimsaikh356@gmail.com) — Operations & BD, Google SMTP, 50/day quota.
-  Total capacity: 200 emails / day.
+  2. Vatsal Vadecha (vatsal.vadecha@theboredmonkey.com) — Partnerships & Outreach, Google Workspace, Smartlead Account #23457457, 50/day quota.
+  3. Preeti Karki (preeti.karki@theboredmonkey.com) — Enterprise Outreach, Google Workspace, Smartlead Account #23458016, 50/day quota.
+  4. Snehal Maurya (snehal.maurya@theboredmonkey.com) — Outreach Lead, Google Workspace, Smartlead Linked, 50/day quota.
+  5. Suraj Maurya (theboredmonkeytech@gmail.com) — Tech Systems, Google SMTP, 50/day quota.
+  6. Karim Beldaar (karimsaikh356@gmail.com) — Operations & BD, Google SMTP, 50/day quota.
+  Total capacity: 300 emails / day.
 - Deliverability Health: 99.4% score, 0 bounces, SPF/DKIM/DMARC Passing on mail.theboredmonkey.com.
 - Collision Shield: 80,000+ past client conversations indexed across the team to prevent duplicate outreach.
 - Live Verified Inbox Replies:
@@ -226,13 +228,21 @@ Use your own intelligence, reasoning, and creativity. Think carefully and give r
 }
 
 function smartleadApiPlugin() {
-    const SMARTLEAD_KEY = process.env.SMARTLEAD_API_KEY || "412be3a1-8c01-45cf-811e-b3a0e98a00c2_1dp80jm";
+    const SMARTLEAD_KEYS: Record<string, string> = {
+        "vatsal.vadecha@theboredmonkey.com": "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6",
+        "preeti.karki@theboredmonkey.com": "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt",
+        "haji.karim@theboredmonkey.com": "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6",
+    };
+    const envKey = process.env.SMARTLEAD_API_KEY;
+    const DEFAULT_SMARTLEAD_KEY = (envKey && !envKey.startsWith("412be3a1")) ? envKey : "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6";
+    const SECONDARY_SMARTLEAD_KEY = "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt";
     const BASE_URL = "https://server.smartlead.ai/api/v1";
 
-    function apiCall(endpoint: string, method: string = "GET", body?: any): Promise<{ status: number; data: any }> {
+    function apiCall(endpoint: string, method: string = "GET", body?: any, customKey?: string): Promise<{ status: number; data: any }> {
+        const apiKey = customKey || DEFAULT_SMARTLEAD_KEY;
         return new Promise((resolve, reject) => {
             const separator = endpoint.includes("?") ? "&" : "?";
-            const fullPath = `${endpoint}${separator}api_key=${SMARTLEAD_KEY}`;
+            const fullPath = `${endpoint}${separator}api_key=${apiKey}`;
             const url = `${BASE_URL}${fullPath}`;
             const payload = body ? JSON.stringify(body) : "";
 
@@ -245,9 +255,18 @@ function smartleadApiPlugin() {
             }, (res: any) => {
                 let text = "";
                 res.on("data", (chunk: any) => { text += chunk; });
-                res.on("end", () => {
+                res.on("end", async () => {
                     try {
                         const parsed = text ? JSON.parse(text) : {};
+                        // If 401 or 404 and using default key without explicit customKey, try secondary active key
+                        if ((res.statusCode === 401 || res.statusCode === 404) && !customKey && apiKey !== SECONDARY_SMARTLEAD_KEY) {
+                            try {
+                                const fallbackRes = await apiCall(endpoint, method, body, SECONDARY_SMARTLEAD_KEY);
+                                if (fallbackRes.status >= 200 && fallbackRes.status < 300) {
+                                    return resolve(fallbackRes);
+                                }
+                            } catch {}
+                        }
                         resolve({ status: res.statusCode, data: parsed });
                     } catch {
                         resolve({ status: res.statusCode, data: { raw: text } });
@@ -287,8 +306,9 @@ function smartleadApiPlugin() {
             server.middlewares.use("/api/smartlead/status", async (req: any, res: any) => {
                 const url = new URL(req.url, "http://localhost");
                 const smartleadId = url.searchParams.get("id") || "3959417";
+                const apiKeyParam = url.searchParams.get("api_key") || undefined;
                 try {
-                    const result = await apiCall(`/campaigns/${smartleadId}`);
+                    const result = await apiCall(`/campaigns/${smartleadId}`, "GET", undefined, apiKeyParam);
                     res.writeHead(result.status, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(result.data));
                 } catch (err: any) {
@@ -309,8 +329,10 @@ function smartleadApiPlugin() {
                     try {
                         const parsed = JSON.parse(body || "{}");
                         const campaignName = parsed.name || `Campaign ${Date.now()}`;
-                        console.log(`[Smartlead API] Creating campaign on Smartlead: "${campaignName}"`);
-                        const result = await apiCall("/campaigns/create", "POST", { name: campaignName });
+                        const sender = (parsed.sender_email || parsed.from_email || "").toLowerCase();
+                        const chosenKey = parsed.api_key || (sender.includes("preeti") ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY);
+                        console.log(`[Smartlead API] Creating campaign on Smartlead: "${campaignName}" for ${sender || 'default'}`);
+                        const result = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
                         res.writeHead(result.status, { "Content-Type": "application/json" });
                         res.end(JSON.stringify(result.data));
                     } catch (err: any) {
@@ -323,8 +345,9 @@ function smartleadApiPlugin() {
             server.middlewares.use("/api/smartlead/campaign-analytics", async (req: any, res: any) => {
                 const url = new URL(req.url, "http://localhost");
                 const smartleadId = url.searchParams.get("id") || "3967633";
+                const apiKeyParam = url.searchParams.get("api_key") || undefined;
                 try {
-                    const result = await apiCall(`/campaigns/${smartleadId}/analytics`);
+                    const result = await apiCall(`/campaigns/${smartleadId}/analytics`, "GET", undefined, apiKeyParam);
                     res.writeHead(result.status, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(result.data));
                 } catch (err: any) {
@@ -347,18 +370,22 @@ function smartleadApiPlugin() {
                         const campaignName = parsed.name || `Campaign ${Date.now()}`;
                         let smartleadId = parsed.smartlead_id;
 
+                        // Resolve active account & key from sender or mailbox
+                        const sender = (parsed.sender_email || parsed.from_email || "").toLowerCase();
+                        const isPreeti = sender.includes("preeti") || (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.includes(23458016));
+                        const chosenKey = parsed.api_key || (isPreeti ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY);
+
                         // Specifically map Campaign 116 to 3967633
                         if (campaignName.includes("116")) {
                             smartleadId = 3967633;
                         } else if (smartleadId === 3959417 && !campaignName.includes("404") && !campaignName.includes("408")) {
-                            // Any other newly created campaign should NOT default to 404/408
                             smartleadId = null;
                         }
 
                         // 1. Create campaign if not already linked
                         if (!smartleadId) {
-                            console.log(`[Smartlead API] Creating brand new campaign for: "${campaignName}"`);
-                            const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName });
+                            console.log(`[Smartlead API] Creating brand new campaign for: "${campaignName}" (Account: ${isPreeti ? 'Preeti' : 'Vatsal'})`);
+                            const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
                             if (createRes.data?.id) {
                                 smartleadId = createRes.data.id;
                                 console.log(`[Smartlead API] Created campaign #${smartleadId} ("${campaignName}")`);
@@ -367,10 +394,10 @@ function smartleadApiPlugin() {
                             }
                         }
 
-                        // 2. Fetch mailboxes and link primary account (23008288 / haji.karim@theboredmonkey.com)
-                        let mailboxIds = [23008288];
+                        // 2. Fetch mailboxes and link active account (23457457 for Vatsal / 23458016 for Preeti)
+                        let mailboxIds = isPreeti ? [23458016] : [23457457];
                         try {
-                            const mbRes = await apiCall("/email-accounts", "GET");
+                            const mbRes = await apiCall("/email-accounts", "GET", undefined, chosenKey);
                             if (Array.isArray(mbRes.data) && mbRes.data.length > 0) {
                                 mailboxIds = mbRes.data.map((m: any) => m.id);
                             }
@@ -378,7 +405,7 @@ function smartleadApiPlugin() {
 
                         await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
                             email_account_ids: mailboxIds,
-                        });
+                        }, chosenKey);
 
                         // 3. Add sequence steps with normalized merge tags
                         const seqSteps = (parsed.steps && parsed.steps.length > 0)
@@ -397,7 +424,7 @@ function smartleadApiPlugin() {
                                 },
                             ];
 
-                        await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps });
+                        await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
 
                         // 4. Save schedule (Asia/Kolkata, days: 0..6, 09:00 - 23:00, 3 mins min interval)
                         await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
@@ -407,7 +434,7 @@ function smartleadApiPlugin() {
                             end_hour: "23:00",
                             min_time_btw_emails: 3,
                             max_new_leads_per_day: 50,
-                        });
+                        }, chosenKey);
 
                         // 5. Add leads to Smartlead campaign with robust variable mapping
                         const rawLeads = parsed.leads || [];
@@ -433,15 +460,15 @@ function smartleadApiPlugin() {
                                     },
                                 };
                             });
-                            await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList });
+                            await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, chosenKey);
                         }
 
                         // 6. Start campaign in Smartlead
-                        const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" });
+                        const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
 
                         // 7. Ensure Live Webhook is registered on Smartlead for this campaign
                         try {
-                            const whRes = await apiCall(`/campaigns/${smartleadId}/webhooks`, "GET");
+                            const whRes = await apiCall(`/campaigns/${smartleadId}/webhooks`, "GET", undefined, chosenKey);
                             const existing = Array.isArray(whRes.data) ? whRes.data : [];
                             const hasWebhook = existing.some((w: any) => w.webhook_url && w.webhook_url.includes("/api/webhooks/smartlead"));
                             if (!hasWebhook) {
@@ -456,7 +483,7 @@ function smartleadApiPlugin() {
                                         "EMAIL_LINK_CLICK",
                                         "LEAD_UNSUBSCRIBED",
                                     ],
-                                });
+                                }, chosenKey);
                                 console.log(`[Smartlead API] Registered live webhook for campaign #${smartleadId}`);
                             }
                         } catch (wErr: any) {

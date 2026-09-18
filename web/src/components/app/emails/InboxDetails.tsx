@@ -36,9 +36,12 @@ import {
     HourglassIcon,
     XCircleIcon,
     RefreshCwIcon,
+    Trash2Icon,
     type LucideIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import removeEmail from "@/lib/api/client/app/emails/removeEmail";
+import patchEmailLists from "@/lib/api/hooks/app/emails/patchEmailLists";
 
 import type Inbox from "@/lib/api/models/app/emails/Inbox";
 import type AccountStatusModel from "@/lib/api/models/app/analytics/AccountStatus";
@@ -461,7 +464,7 @@ function Detail({ mailbox, onClose, initialTab = "overview", canWarmup = true }:
                 {tab === "analytics" && <AnalyticsTab warmup={warmup.data} loading={warmup.isPending} />}
                 {tab === "warmup" && <WarmupTab form={form} update={update} status={status.data} mailbox={mailbox} canWarmup={canWarmup} />}
                 {tab === "sending" && <SendingBehaviorTab mailboxId={mailbox.id} />}
-                {tab === "settings" && <SettingsTab form={form} update={update} mailbox={mailbox} />}
+                {tab === "settings" && <SettingsTab form={form} update={update} mailbox={mailbox} onClose={onClose} />}
             </div>
 
             {/* Save bar — only when something changed */}
@@ -1479,7 +1482,32 @@ function TrackingDomainCard({ mailbox }: { mailbox: Inbox }) {
 
 /* ── Settings (editable) ─────────────────────── */
 
-function SettingsTab({ form, update, mailbox }: { form: Inbox; update: (p: Partial<Inbox>) => void; mailbox: Inbox }) {
+function SettingsTab({ form, update, mailbox, onClose }: { form: Inbox; update: (p: Partial<Inbox>) => void; mailbox: Inbox; onClose?: () => void }) {
+    const confirm = useConfirm();
+    const queryClient = useQueryClient();
+    const [removing, setRemoving] = useState(false);
+
+    const handleDisconnect = () => {
+        confirm.show(
+            `Are you sure you want to remove ${mailbox.email}? This will disconnect the mailbox from TheBoredMonkey, halt warmup, and pause active campaigns using this account.`,
+            async () => {
+                setRemoving(true);
+                try {
+                    await removeEmail(mailbox.id);
+                    patchEmailLists(queryClient, (rows) => rows.filter((c) => c.id !== mailbox.id));
+                    await queryClient.invalidateQueries({ queryKey: ["emails"] });
+                    await queryClient.invalidateQueries({ queryKey: ["analytics", "accounts"] });
+                    toast.success(`Removed ${mailbox.email}`);
+                    onClose?.();
+                } catch {
+                    toast.error("Failed to remove mailbox");
+                } finally {
+                    setRemoving(false);
+                }
+            }
+        );
+    };
+
     return (
         <div className="divide-y divide-slate-200/60">
             <div className="px-5 py-5 space-y-4">
@@ -1583,6 +1611,26 @@ function SettingsTab({ form, update, mailbox }: { form: Inbox; update: (p: Parti
 
             <div className="flex flex-wrap items-center gap-1.5 px-5 py-3 text-[11px] text-slate-400">
                 <SendIcon className="w-3 h-3" /> Changes apply to new sends. <ReplyIcon className="w-3 h-3 ml-1" /> Signature applies to replies too.
+            </div>
+
+            <div className="p-5">
+                <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                        <div className="text-[12.5px] font-medium text-rose-950">Remove Mailbox</div>
+                        <div className="text-[11.5px] text-rose-800/80 mt-0.5">
+                            Disconnect this email account from TheBoredMonkey Outreach.
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleDisconnect}
+                        disabled={removing}
+                        className="h-8 px-3 rounded-md bg-white border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors shrink-0 disabled:opacity-50"
+                    >
+                        {removing ? <Loading className="!w-3 h-3 text-rose-600" /> : <Trash2Icon className="w-3.5 h-3.5" />}
+                        <span>Remove mailbox</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

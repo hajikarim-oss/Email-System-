@@ -28,6 +28,7 @@ import buildError from "@/lib/helper/buildError";
 import type { AppError } from "@/lib/api/client/normalizeError";
 import BulkWarmupDialog from "@/components/app/emails/BulkWarmupDialog";
 import BulkTagPopover from "@/components/app/emails/BulkTagPopover";
+import RemoveMailboxDialog from "@/components/app/emails/RemoveMailboxDialog";
 import type Tag from "@/lib/api/models/app/Tag";
 import type Inbox from "@/lib/api/models/app/emails/Inbox";
 import mailboxDisplayStatus from "@/lib/mailboxStatus";
@@ -104,6 +105,7 @@ export default function AddressesPage() {
     const [viewTab, setViewTab] = React.useState<string>("overview");
     const [removing, setRemoving] = React.useState(false);
     const [bulkStart, setBulkStart] = React.useState(false);
+    const [mailboxToDelete, setMailboxToDelete] = React.useState<Inbox | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const queryClient = useQueryClient();
 
@@ -397,7 +399,7 @@ export default function AddressesPage() {
                                 <th className="px-3 py-2 text-[10px] font-medium text-slate-400 uppercase tracking-[0.14em]">Account</th>
                                 <th className="px-3 py-2 text-[10px] font-medium text-slate-400 uppercase tracking-[0.14em] w-24 text-right">Warmup</th>
                                 <th className="px-3 py-2 text-[10px] font-medium text-slate-400 uppercase tracking-[0.14em] w-10 md:w-32"><span className="hidden md:inline">Health</span></th>
-                                <th className="px-3 py-2 w-16"></th>
+                                <th className="px-3 py-2 w-24 text-right"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -418,6 +420,7 @@ export default function AddressesPage() {
                                             : setSelected((bef) => [...bef, box.id])
                                     }
                                     onOpen={openDetail}
+                                    onDelete={setMailboxToDelete}
                                 />
                             ))}
                         </tbody>
@@ -479,6 +482,16 @@ export default function AddressesPage() {
                 onClose={() => setBulkStart(false)}
                 onComplete={() => setSelected([])}
             />
+
+            <RemoveMailboxDialog
+                open={!!mailboxToDelete}
+                mailbox={mailboxToDelete}
+                onClose={() => setMailboxToDelete(null)}
+                onRemoved={(id) => {
+                    setSelected((prev) => prev.filter((i) => i !== id));
+                    if (view === id) setView("");
+                }}
+            />
         </Page>
     );
 }
@@ -502,6 +515,7 @@ function MailboxRow({
     checked,
     onToggleSelect,
     onOpen,
+    onDelete,
 }: {
     box: Inbox;
     tags: Tag[];
@@ -513,6 +527,7 @@ function MailboxRow({
     checked: boolean;
     onToggleSelect: () => void;
     onOpen: (id: string, tab?: string) => void;
+    onDelete: (box: Inbox) => void;
 }) {
     const life = useWarmupLifecycle(box.id);
     const confirm = useConfirm();
@@ -689,8 +704,8 @@ function MailboxRow({
                     <span className="uppercase tracking-[0.08em] hidden md:inline">{tone.label}</span>
                 </button>
             </td>
-            <td className="px-3">
-                <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+            <td className="px-3 text-right">
+                <div className="flex items-center justify-end gap-1 opacity-80 md:opacity-40 group-hover:opacity-100 transition-opacity">
                     <PopoverMenu align="end">
                         <PopoverMenuTrigger asChild>
                             <button
@@ -766,6 +781,14 @@ function MailboxRow({
                             <PopoverMenuItem onSelect={() => onOpen(box.id, "overview")} icon={<GaugeIcon className="w-3 h-3" />}>
                                 Mailbox health
                             </PopoverMenuItem>
+                            <PopoverMenuSeparator />
+                            <PopoverMenuItem
+                                danger
+                                onSelect={() => onDelete(box)}
+                                icon={<Trash2Icon className="w-3 h-3 text-rose-500" />}
+                            >
+                                Remove mailbox
+                            </PopoverMenuItem>
                         </PopoverMenuContent>
                     </PopoverMenu>
                     <button
@@ -773,8 +796,21 @@ function MailboxRow({
                         className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
                         onClick={(e) => { e.stopPropagation(); onOpen(box.id, "settings"); }}
                         aria-label="Mailbox settings"
+                        title="Mailbox settings"
                     >
                         <RiMoreLine className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                        type="button"
+                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(box);
+                        }}
+                        aria-label={`Remove ${box.email}`}
+                        title={`Remove ${box.email}`}
+                    >
+                        <Trash2Icon className="w-3.5 h-3.5" />
                     </button>
                 </div>
             </td>
