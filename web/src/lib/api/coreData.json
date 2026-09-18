@@ -62,7 +62,7 @@
       "warmup_reply_rate": 35,
       "reputation": 98,
       "daily_limit": 50,
-      "sent_today": 18,
+      "sent_today": 0,
       "total_sent": 142,
       "mailbox_allowance": 50,
       "connected_at": "2026-09-03T13:44:59.910Z",
@@ -103,7 +103,7 @@
       "warmup_reply_rate": 35,
       "reputation": 98,
       "daily_limit": 50,
-      "sent_today": 18,
+      "sent_today": 0,
       "total_sent": 142,
       "mailbox_allowance": 50,
       "connected_at": "2026-09-09T11:17:23.439Z",
@@ -112,6 +112,125 @@
     }
   ],
   "campaigns": [
+    {
+      "id": "cmp_1789718475256_g91f",
+      "name": "Q2 Reachout Mails",
+      "description": "Outreach sequence",
+      "status": "active",
+      "kind": "sequence",
+      "stop_on_reply": true,
+      "open_tracking": true,
+      "link_tracking": true,
+      "utm_tracking": false,
+      "utm_source": "theboredmonkey",
+      "utm_medium": "email",
+      "utm_campaign": "q2-reachout-mails",
+      "text_only": false,
+      "daily_limit": 50,
+      "unsubscribe_header": true,
+      "risky_emails": false,
+      "unsubscribe_mode": "inherit",
+      "cc": [],
+      "bcc": [],
+      "start_date": "2026-09-18T08:02:10.276Z",
+      "end_date": null,
+      "timezone": "Asia/Kolkata",
+      "days": 127,
+      "start_time": "09:00",
+      "end_time": "18:00",
+      "email_tags": [],
+      "folders": [],
+      "contact_order_by": "created_at",
+      "contact_order_dir": "asc",
+      "sender_strategy": "explicit",
+      "rotation_mode": "round_robin",
+      "senders": [
+        {
+          "email_account_id": "cmtlkufpi000o80qmmlfsfat7",
+          "weight": 100,
+          "enabled": true
+        },
+        {
+          "email_account_id": "cmtu07q0i00011wxajyd2ehui",
+          "weight": 100,
+          "enabled": true
+        }
+      ],
+      "ramp_enabled": false,
+      "ramp_start": 5,
+      "ramp_increment": 3,
+      "ramp_ceiling": 50,
+      "ramp_level": 50,
+      "esp_match_mode": "off",
+      "max_new_leads_per_day": 0,
+      "prioritize_new_leads": true,
+      "entry_delay_minutes": 0,
+      "continuous": false,
+      "guardrail_enabled": false,
+      "guardrail_bounce_rate_max": 5,
+      "guardrail_complaint_rate_max": 0.1,
+      "guardrail_reply_rate_min": 1,
+      "guardrail_min_sample": 50,
+      "guardrail_window_days": 7,
+      "tracking_domain": "mail.theboredmonkey.com",
+      "tracking_domain_verified": true,
+      "total_leads": 1876,
+      "sent_count": 1,
+      "open_count": 0,
+      "reply_count": 0,
+      "bounce_count": 0,
+      "smartlead_id": 3980868,
+      "smartlead_status": "ACTIVE",
+      "created_at": "2026-09-18T08:02:10.276Z",
+      "updated_at": "2026-09-18T08:02:10.276Z",
+      "mailboxes": [
+        "cmtlkufpi000o80qmmlfsfat7",
+        "cmtu07q0i00011wxajyd2ehui"
+      ],
+      "steps": [
+        {
+          "id": "step_q2_1",
+          "stepNumber": 1,
+          "position": 1,
+          "name": "Step 1",
+          "subject": "Discussion regarding partnership | TheBoredMonkey",
+          "body_plain": "Hey {{firstName}},\n\nWanted to connect regarding our enterprise solutions.\n\nBest,\nVatsal Vadecha | TheBoredMonkey",
+          "body_html": "<p>Hey {{firstName}},</p><p>Wanted to connect regarding our enterprise solutions.</p><p>Best,<br/>Vatsal Vadecha | TheBoredMonkey</p>",
+          "wait_after": 0
+        },
+        {
+          "id": "step_q2_2",
+          "stepNumber": 2,
+          "position": 2,
+          "name": "Step 2",
+          "subject": "Re: Discussion regarding partnership | TheBoredMonkey",
+          "body_plain": "Hey {{firstName}},\n\nWanted to follow up on my previous note to see if you had a chance to review.\n\nBest,\nVatsal Vadecha | TheBoredMonkey",
+          "body_html": "<p>Hey {{firstName}},</p><p>Wanted to follow up on my previous note to see if you had a chance to review.</p><p>Best,<br/>Vatsal Vadecha | TheBoredMonkey</p>",
+          "wait_after": 3
+        }
+      ],
+      "sequences": [
+        {
+          "id": "seq_q2_1",
+          "position": 1,
+          "name": "Step 1",
+          "subject": "Discussion regarding partnership | TheBoredMonkey",
+          "body_plain": "Hey {{firstName}},\n\nWanted to connect regarding our enterprise solutions.\n\nBest,\nVatsal Vadecha | TheBoredMonkey",
+          "body_html": "<p>Hey {{firstName}},</p><p>Wanted to connect regarding our enterprise solutions.</p><p>Best,<br/>Vatsal Vadecha | TheBoredMonkey</p>",
+          "wait_after": 0
+        },
+        {
+          "id": "seq_q2_2",
+          "position": 2,
+          "name": "Step 2",
+          "subject": "Re: Discussion regarding partnership | TheBoredMonkey",
+          "body_plain": "Hey {{firstName}},\n\nWanted to follow up on my previous note to see if you had a chance to review.\n\nBest,\nVatsal Vadecha | TheBoredMonkey",
+          "body_html": "<p>Hey {{firstName}},</p><p>Wanted to follow up on my previous note to see if you had a chance to review.</p><p>Best,<br/>Vatsal Vadecha | TheBoredMonkey</p>",
+          "wait_after": 3
+        }
+      ],
+      "analytics": null
+    },
     {
       "id": "cmp_1789560721755",
       "name": "campaign 120",

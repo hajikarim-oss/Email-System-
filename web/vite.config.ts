@@ -300,13 +300,44 @@ function smartleadApiPlugin() {
             .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}");
     }
 
+    function cleanCompanyName(nameOrDomain?: string): string {
+        if (!nameOrDomain) return "TheBoredMonkey";
+        let cleaned = nameOrDomain.trim();
+        if (cleaned.includes("@")) {
+            cleaned = cleaned.split("@")[1] || cleaned;
+        }
+        cleaned = cleaned.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+        cleaned = cleaned.split("/")[0].split("?")[0].trim();
+        cleaned = cleaned.replace(/\.(com|co|org|net|in|io|ai|tech|biz|info|us|uk|ca|de|jp|fr|au|ru|ch|it|nl|se|no|es|cz|eu|gov|edu)(\.[a-z]{2,3})?$/i, "");
+        cleaned = cleaned.replace(/\.[a-z]{2,4}$/i, "");
+        return cleaned || nameOrDomain;
+    }
+
     return {
         name: "smartlead-api-plugin",
         configureServer(server: any) {
             server.middlewares.use("/api/smartlead/status", async (req: any, res: any) => {
                 const url = new URL(req.url, "http://localhost");
-                const smartleadId = url.searchParams.get("id") || "3959417";
+                const smartleadId = url.searchParams.get("id") || "3980868";
                 const apiKeyParam = url.searchParams.get("api_key") || undefined;
+                if (req.method === "POST") {
+                    let body = "";
+                    req.on("data", (chunk: any) => { body += chunk; });
+                    req.on("end", async () => {
+                        try {
+                            const parsed = JSON.parse(body || "{}");
+                            const targetStatus = parsed.status || "PAUSED";
+                            console.log(`[Smartlead API] Setting campaign #${smartleadId} status to: ${targetStatus}`);
+                            const result = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: targetStatus }, apiKeyParam);
+                            res.writeHead(result.status, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify(result.data));
+                        } catch (err: any) {
+                            res.writeHead(500, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: err.message }));
+                        }
+                    });
+                    return;
+                }
                 try {
                     const result = await apiCall(`/campaigns/${smartleadId}`, "GET", undefined, apiKeyParam);
                     res.writeHead(result.status, { "Content-Type": "application/json" });
@@ -329,12 +360,13 @@ function smartleadApiPlugin() {
                     try {
                         const parsed = JSON.parse(body || "{}");
                         const campaignName = parsed.name || `Campaign ${Date.now()}`;
-                        const sender = (parsed.sender_email || parsed.from_email || "").toLowerCase();
+                        const sender = (parsed.sender_email || "").toLowerCase();
                         const chosenKey = parsed.api_key || (sender.includes("preeti") ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY);
                         console.log(`[Smartlead API] Creating campaign on Smartlead: "${campaignName}" for ${sender || 'default'}`);
-                        const result = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
-                        res.writeHead(result.status, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify(result.data));
+
+                        const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
+                        res.writeHead(createRes.status, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify(createRes.data));
                     } catch (err: any) {
                         res.writeHead(500, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ error: err.message }));
@@ -348,6 +380,20 @@ function smartleadApiPlugin() {
                 const apiKeyParam = url.searchParams.get("api_key") || undefined;
                 try {
                     const result = await apiCall(`/campaigns/${smartleadId}/analytics`, "GET", undefined, apiKeyParam);
+                    res.writeHead(result.status, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(result.data));
+                } catch (err: any) {
+                    res.writeHead(500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: err.message }));
+                }
+            });
+
+            server.middlewares.use("/api/smartlead/campaign-leads-stats", async (req: any, res: any) => {
+                const url = new URL(req.url, "http://localhost");
+                const smartleadId = url.searchParams.get("id") || "3980868";
+                const apiKeyParam = url.searchParams.get("api_key") || undefined;
+                try {
+                    const result = await apiCall(`/campaigns/${smartleadId}/statistics?limit=500`, "GET", undefined, apiKeyParam);
                     res.writeHead(result.status, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(result.data));
                 } catch (err: any) {
@@ -426,12 +472,12 @@ function smartleadApiPlugin() {
 
                         await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
 
-                        // 4. Save schedule (Asia/Kolkata, days: 0..6, 09:00 - 23:00, 3 mins min interval)
+                        // 4. Save schedule (Asia/Kolkata, Monday-Friday, 10:00 - 18:00, 3 mins min interval)
                         await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
                             timezone: parsed.timezone || "Asia/Kolkata",
-                            days_of_the_week: [0, 1, 2, 3, 4, 5, 6],
-                            start_hour: "09:00",
-                            end_hour: "23:00",
+                            days_of_the_week: [1, 2, 3, 4, 5],
+                            start_hour: "10:00",
+                            end_hour: "18:00",
                             min_time_btw_emails: 3,
                             max_new_leads_per_day: 50,
                         }, chosenKey);
@@ -442,7 +488,7 @@ function smartleadApiPlugin() {
                             const leadList = rawLeads.map((l: any) => {
                                 const fName = l.first_name || l.firstName || (l.name ? l.name.split(" ")[0] : "") || (l.email ? l.email.split("@")[0] : "Prospect");
                                 const lName = l.last_name || l.lastName || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
-                                const cName = l.company || l.company_name || l.custom_fields?.company || "TheBoredMonkey";
+                                const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
                                 const jobTitle = l.title || l.role || l.custom_fields?.title || "Executive";
                                 return {
                                     email: l.email,

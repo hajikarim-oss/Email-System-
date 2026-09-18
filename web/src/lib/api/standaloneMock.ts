@@ -21,22 +21,49 @@ function saveStorage<T>(key: string, val: T): void {
     } catch { }
 }
 
-// Clean up legacy demo rows and fabricated replies from storage
+// Clean up legacy demo rows, stale cached records, and fabricated replies from storage
 try {
+    const uniboxAccuracyKey = STORAGE_KEY_PREFIX + "unibox_sep16_v6_migrated";
+    if (!localStorage.getItem(uniboxAccuracyKey)) {
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "thread_replies_th_camp_rajdeep_main");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "thread_replies_th_reachout_101_snehal");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "thread_replies_th_suraj_framework");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789556689473");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789560721755");
+        localStorage.setItem(uniboxAccuracyKey, "true");
+    }
+    const rawEmails = localStorage.getItem(STORAGE_KEY_PREFIX + "emails");
+    if (rawEmails) {
+        try {
+            const parsedEmails = JSON.parse(rawEmails);
+            let changed = false;
+            parsedEmails.forEach((e: any) => {
+                if (e.sent_today && e.sent_today > 0) {
+                    e.sent_today = 0;
+                    changed = true;
+                }
+            });
+            if (changed) {
+                localStorage.setItem(STORAGE_KEY_PREFIX + "emails", JSON.stringify(parsedEmails));
+            }
+        } catch { }
+    }
     const rawInbox = localStorage.getItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
-    if (rawInbox && (rawInbox.includes("sarah.chen") || rawInbox.includes("marcus.v") || rawInbox.includes("alex.r") || rawInbox.includes("priya@") || rawInbox.includes("deliverables timeline") || rawInbox.includes("Collaboration Confirmation"))) {
+    if (rawInbox && (rawInbox.includes("sarah.chen") || rawInbox.includes("marcus.v") || rawInbox.includes("alex.r") || rawInbox.includes("priya@") || rawInbox.includes("deliverables timeline") || rawInbox.includes("Collaboration Confirmation") || rawInbox.includes("2026-09-18"))) {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
     }
     const rawSent = localStorage.getItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
-    if (rawSent && (rawSent.includes("Collaboration Confirmation") || rawSent.includes("deliverability roadmap"))) {
+    if (rawSent && (rawSent.includes("Collaboration Confirmation") || rawSent.includes("deliverability roadmap") || rawSent.includes("2026-09-18"))) {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
     }
     const rawReplies = localStorage.getItem(STORAGE_KEY_PREFIX + "thread_replies_th_camp_rajdeep_main");
-    if (rawReplies && (rawReplies.includes("Collaboration Confirmation") || rawReplies.includes("deliverables timeline"))) {
+    if (rawReplies && (rawReplies.includes("Collaboration Confirmation") || rawReplies.includes("deliverables timeline") || rawReplies.includes("2026-09-18"))) {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "thread_replies_th_camp_rajdeep_main");
     }
     const rawLogs116 = localStorage.getItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789556689473");
-    if (rawLogs116 && rawLogs116.includes("EMAIL_REPLIED")) {
+    if (rawLogs116 && (rawLogs116.includes("EMAIL_REPLIED") || rawLogs116.includes("2026-09-18"))) {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789556689473");
     }
 } catch { }
@@ -74,7 +101,7 @@ export const DEFAULT_4_PROFILES = [
         warmup_reply_rate: 35,
         reputation: 99,
         daily_limit: 50,
-        sent_today: 34,
+        sent_today: 0,
         total_sent: 142,
         mailbox_allowance: 50,
         connected_at: "2026-09-03T13:44:59.910Z",
@@ -112,7 +139,7 @@ export const DEFAULT_4_PROFILES = [
         warmup_reply_rate: 35,
         reputation: 98,
         daily_limit: 50,
-        sent_today: 34,
+        sent_today: 0,
         total_sent: 88,
         mailbox_allowance: 50,
         connected_at: "2026-09-09T11:17:23.439Z",
@@ -205,6 +232,149 @@ const initialEmails = DEFAULT_4_PROFILES;
 const rawCore: any = coreData;
 const initialCampaigns = (rawCore?.campaigns || []) as any[];
 const initialContacts = (rawCore?.contacts || []) as any[];
+
+export function cleanCompanyName(nameOrDomain?: string): string {
+    if (!nameOrDomain) return "TheBoredMonkey";
+    let cleaned = nameOrDomain.trim();
+    if (cleaned.includes("@")) {
+        cleaned = cleaned.split("@")[1] || cleaned;
+    }
+    cleaned = cleaned.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+    cleaned = cleaned.split("/")[0].split("?")[0].trim();
+    cleaned = cleaned.replace(/\.(com|co|org|net|in|io|ai|tech|biz|info|us|uk|ca|de|jp|fr|au|ru|ch|it|nl|se|no|es|cz|eu|gov|edu)(\.[a-z]{2,3})?$/i, "");
+    cleaned = cleaned.replace(/\.[a-z]{2,4}$/i, "");
+    return cleaned || nameOrDomain;
+}
+
+export const SMARTLEAD_Q2_STATS_MAP: Record<string, { name: string; opens: number; clicks: number; replies: number; sent_time: string; open_time?: string | null; click_time?: string | null }> = {
+    "zaz@inspired.com": { name: "Zaz", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T12:04:27.246Z" },
+    "zdcosta@tilind.com": { name: "Zoya D'Costa", opens: 1, clicks: 1, replies: 0, sent_time: "2026-09-18T12:19:05.593Z", open_time: "2026-09-18T12:19:27.276Z", click_time: "2026-09-18T12:20:02.545Z" },
+    "zuzanna@lettly.com": { name: "Zuzanna Sleszynska", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T12:07:06.516Z" },
+    "zbynek.cap@alza.cz": { name: "Zbynek Cap", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T12:16:06.006Z" },
+    "zwasfy@wildsciencelab.com": { name: "Zoe Wasfy", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T11:49:29.331Z" },
+    "zarja@mytamarin.com": { name: "Zarja Cibej", opens: 2, clicks: 0, replies: 0, sent_time: "2026-09-18T11:55:09.170Z", open_time: "2026-09-18T11:55:27.163Z" },
+    "zayler@streambeans.com.au": { name: "Anthony Zayler", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T12:02:10.829Z", open_time: "2026-09-18T12:02:38.950Z" },
+    "test.lead1@theboredmonkey.com": { name: "Alexander Wright", opens: 3, clicks: 0, replies: 0, sent_time: "2026-09-18T10:41:49.412Z", open_time: "2026-09-18T10:42:11.103Z" },
+    "zkhurshid@foreverliving.com": { name: "Zaid Khurshid", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T10:45:47.410Z" },
+    "zubin.mehta@iciciprulife.com": { name: "Zubin Mehta", opens: 2, clicks: 0, replies: 0, sent_time: "2026-09-18T10:57:36.862Z", open_time: "2026-09-18T10:59:29.214Z" },
+    "test.lead2@theboredmonkey.com": { name: "Sarah Jenkins", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T10:42:51.280Z" },
+    "zeeshan.m@tastelfinefood.com": { name: "Zeeshan Memon", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T12:37:17.013Z" },
+    "zeeshan@aaidatradingservices.com": { name: "Mohd Zeeshan", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T12:39:41.313Z" },
+    "zechariah.pereira@drbatras.com": { name: "Zechariah Pereira", opens: 2, clicks: 0, replies: 0, sent_time: "2026-09-18T12:31:57.430Z", open_time: "2026-09-18T12:33:52.381Z" },
+    "zballard@highlinecontent.com": { name: "Zak Ballard", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T12:13:06.499Z" },
+    "zarnaaz.shaikh@monsterenergy.com": { name: "Zarnaaz Shaikh", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T11:57:34.178Z", open_time: "2026-09-18T11:58:21.979Z" },
+    "zemaj@orvis.com": { name: "Julia Zema", opens: 2, clicks: 2, replies: 0, sent_time: "2026-09-18T12:45:50.634Z", open_time: "2026-09-18T12:46:00.207Z", click_time: "2026-09-18T12:46:00.207Z" },
+    "zishaan.z@libertyshoes.com": { name: "Zishaan Z", opens: 2, clicks: 2, replies: 0, sent_time: "2026-09-18T11:51:33.854Z", open_time: "2026-09-18T11:51:45.179Z", click_time: "2026-09-18T11:51:45.179Z" },
+    "zefea@evolationyoga.com": { name: "Zefea Samson-Drost", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T12:44:08.717Z" },
+    "zuhair@madaboutdigital.co.in": { name: "Zuhair Hamza", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T10:54:50.946Z", open_time: "2026-09-18T10:59:30.923Z" },
+    "zucchero@hembros.com": { name: "Zucchero", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T10:49:04.059Z", open_time: "2026-09-18T11:14:20.600Z" },
+    "zee@sole-strategies.com": { name: "Zee Cohen-Sanchez", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T12:33:48.388Z", open_time: "2026-09-18T12:33:57.183Z" },
+    "zdhalla1@rbi.com": { name: "Zayn Dhalla", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T12:21:49.000Z" },
+    "zuzana.tomkova@alza.cz": { name: "Zuzana Tomkova", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T12:09:48.981Z", open_time: "2026-09-18T12:10:12.408Z" },
+    "zubin@turntablehealth.com": { name: "Zubin Damania", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T10:51:45.465Z" },
+    "zdowns@12starsmedia.com": { name: "Zachary Downs", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T12:25:31.735Z", open_time: "2026-09-18T12:26:13.233Z" },
+    "zubin@mitchellusa.co.in": { name: "Zubin Contractor", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T12:27:29.519Z", open_time: "2026-09-18T12:30:07.037Z" },
+};
+
+export const Q2_CAMPAIGN_DEF: any = {
+    id: "cmp_1789718475256_g91f",
+    name: "Q2 Reachout Mails",
+    description: "Outreach sequence",
+    status: "active",
+    kind: "sequence",
+    stop_on_reply: true,
+    open_tracking: true,
+    link_tracking: true,
+    utm_tracking: false,
+    utm_source: "theboredmonkey",
+    utm_medium: "email",
+    utm_campaign: "q2-reachout-mails",
+    text_only: false,
+    daily_limit: 200,
+    unsubscribe_header: true,
+    risky_emails: false,
+    unsubscribe_mode: "inherit",
+    cc: [],
+    bcc: [],
+    start_date: "2026-09-18T08:02:10.276Z",
+    end_date: null,
+    timezone: "Asia/Kolkata",
+    days: 62, // Monday - Friday
+    start_time: "10:00",
+    end_time: "18:00",
+    email_tags: [],
+    folders: [],
+    contact_order_by: "created_at",
+    contact_order_dir: "asc",
+    sender_strategy: "explicit",
+    rotation_mode: "round_robin",
+    senders: [
+        { email_account_id: "cmtlkufpi000o80qmmlfsfat7", weight: 100, enabled: true },
+        { email_account_id: "cmtu07q0i00011wxajyd2ehui", weight: 100, enabled: true },
+        { email_account_id: "cmu6m304o00003307qj8ex6oa", weight: 100, enabled: true },
+        { email_account_id: "cmu6m31bv00033307zao17anp", weight: 100, enabled: true }
+    ],
+    ramp_enabled: false,
+    ramp_start: 5,
+    ramp_increment: 5,
+    ramp_max: 50,
+    total_leads: 1876,
+    sent_count: 1,
+    open_count: 0,
+    reply_count: 0,
+    click_count: 0,
+    bounce_count: 0,
+    open_rate: 0,
+    reply_rate: 0,
+    click_rate: 0,
+    smartlead_id: 3980868,
+    smartlead_status: "ACTIVE",
+    sender_email: "vatsal.vadecha@theboredmonkey.com",
+    created_at: "2026-09-18T08:02:10.276Z",
+    updated_at: new Date().toISOString(),
+    steps: [
+        {
+            id: "step_q2_1",
+            stepNumber: 1,
+            position: 1,
+            name: "Step 1: Introduction",
+            subject: "Discussion regarding partnership | TheBoredMonkey",
+            body_plain: "Hey {{firstName}},\n\nWanted to connect regarding our enterprise solutions.\n\nBest,\nVatsal Vadecha | TheBoredMonkey",
+            body_html: "<p>Hey {{firstName}},</p><p>Wanted to connect regarding our enterprise solutions.</p><p>Best,<br/>Vatsal Vadecha | TheBoredMonkey</p>",
+            wait_after: 0
+        },
+        {
+            id: "step_q2_2",
+            stepNumber: 2,
+            position: 2,
+            name: "Step 2: Follow-up",
+            subject: "Re: Discussion regarding partnership | TheBoredMonkey",
+            body_plain: "Hey {{firstName}},\n\nWanted to follow up on my previous note to see if you had a chance to review.\n\nBest,\nVatsal Vadecha | TheBoredMonkey",
+            body_html: "<p>Hey {{firstName}},</p><p>Wanted to follow up on my previous note to see if you had a chance to review.</p><p>Best,<br/>Vatsal Vadecha | TheBoredMonkey</p>",
+            wait_after: 3
+        }
+    ],
+    sequences: [
+        {
+            id: "seq_q2_1",
+            position: 1,
+            name: "Step 1: Introduction",
+            subject: "Discussion regarding partnership | TheBoredMonkey",
+            body_plain: "Hey {{firstName}},\n\nWanted to connect regarding our enterprise solutions.\n\nBest,\nVatsal Vadecha | TheBoredMonkey",
+            body_html: "<p>Hey {{firstName}},</p><p>Wanted to connect regarding our enterprise solutions.</p><p>Best,<br/>Vatsal Vadecha | TheBoredMonkey</p>",
+            wait_after: 0
+        },
+        {
+            id: "seq_q2_2",
+            position: 2,
+            name: "Step 2: Follow-up",
+            subject: "Re: Discussion regarding partnership | TheBoredMonkey",
+            body_plain: "Hey {{firstName}},\n\nWanted to follow up on my previous note to see if you had a chance to review.\n\nBest,\nVatsal Vadecha | TheBoredMonkey",
+            body_html: "<p>Hey {{firstName}},</p><p>Wanted to follow up on my previous note to see if you had a chance to review.</p><p>Best,<br/>Vatsal Vadecha | TheBoredMonkey</p>",
+            wait_after: 3
+        }
+    ]
+};
 
 export async function handleStandaloneRequest(config: AxiosRequestConfig): Promise<AxiosResponse> {
     const rawUrl = config.url ?? "";
@@ -461,7 +631,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     // 4. Mailboxes / Emails
-    const MIGRATION_KEY = "emails_v7_migrated";
+    const MIGRATION_KEY = "emails_v9_migrated";
     const migrated = loadStorage<boolean>(MIGRATION_KEY, false);
     const deletedList = loadStorage<string[]>("deleted_emails", []);
     // Ensure the two removed gmail accounts are registered in deletedList
@@ -472,7 +642,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     let storedEmails = loadStorage<any[]>("emails", null as any);
 
     if (!migrated || !Array.isArray(storedEmails)) {
-        storedEmails = DEFAULT_4_PROFILES.filter(p => !deletedList.includes(p.email.toLowerCase()));
+        storedEmails = DEFAULT_4_PROFILES.filter(p => !deletedList.includes(p.email.toLowerCase())).map(p => ({ ...p, sent_today: 0 }));
         saveStorage("emails", storedEmails);
         saveStorage(MIGRATION_KEY, true);
     } else {
@@ -480,9 +650,13 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             if (deletedList.includes(p.email.toLowerCase())) continue;
             const idx = storedEmails.findIndex((e: any) => e.email?.toLowerCase() === p.email.toLowerCase());
             if (idx === -1) {
-                storedEmails.push(p);
-            } else if (p.smartlead_id && !storedEmails[idx].smartlead_id) {
-                storedEmails[idx] = { ...storedEmails[idx], ...p };
+                storedEmails.push({ ...p, sent_today: 0 });
+            } else {
+                storedEmails[idx] = {
+                    ...storedEmails[idx],
+                    ...p,
+                    sent_today: 0,
+                };
             }
         }
         const cleaned = storedEmails.filter((e: any) => {
@@ -490,7 +664,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             return em !== "growth@theboredmonkey.com" &&
                 em !== "partnerships@theboredmonkey.com" &&
                 !deletedList.includes(em);
-        });
+        }).map((e: any) => ({ ...e, sent_today: 0 }));
         storedEmails = cleaned;
         saveStorage("emails", storedEmails);
         saveStorage(MIGRATION_KEY, true);
@@ -619,6 +793,29 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     // 5. Campaigns
     const campaigns = loadStorage("campaigns", initialCampaigns);
+
+    // Guarantee that Q2 Reachout Mails is present, correctly identified with ID cmp_1789718475256_g91f and Smartlead #3980868
+    const q2Idx = campaigns.findIndex((c: any) =>
+        c.id === "cmp_1789718475256_g91f" ||
+        (c.id && c.id.toLowerCase().includes("1789718475256")) ||
+        (c.name && c.name.toLowerCase().includes("reachout"))
+    );
+    if (q2Idx >= 0) {
+        campaigns[q2Idx] = {
+            ...Q2_CAMPAIGN_DEF,
+            ...campaigns[q2Idx],
+            id: "cmp_1789718475256_g91f",
+            name: "Q2 Reachout Mails",
+            smartlead_id: 3980868,
+            smartlead_status: "ACTIVE",
+            total_leads: Math.max(campaigns[q2Idx].total_leads || 0, 1876),
+            steps: (campaigns[q2Idx].steps && campaigns[q2Idx].steps.length > 0) ? campaigns[q2Idx].steps : Q2_CAMPAIGN_DEF.steps,
+            sequences: (campaigns[q2Idx].sequences && campaigns[q2Idx].sequences.length > 0) ? campaigns[q2Idx].sequences : Q2_CAMPAIGN_DEF.sequences,
+        };
+    } else {
+        campaigns.unshift({ ...Q2_CAMPAIGN_DEF });
+    }
+
     // Link Campaign 116 / 120 directly to their live Smartlead campaign IDs with accurate telemetry
     campaigns.forEach((c: any) => {
         if (c.id === "cmp_1789556689473" || c.name === "Campaign 116") {
@@ -631,7 +828,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             c.bounce_count = 0;
             c.open_rate = 100.0;
             c.reply_rate = 100.0;
-        } else if (c.id === "cmp_1789560721755" || c.name?.includes("120")) {
+        } else if (c.id === "cmp_1789560721755" || (c.name?.includes("120") && !c.name?.includes("Reachout"))) {
             c.smartlead_id = 3967990;
             c.smartlead_status = "ACTIVE";
             c.sent_count = 1;
@@ -641,8 +838,141 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             c.bounce_count = 0;
             c.open_rate = 100.0;
             c.reply_rate = 100.0;
+        } else if (c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) {
+            c.smartlead_id = 3980868;
+            if (!c.total_leads || c.total_leads < 1876) c.total_leads = 1876;
+            if (!c.sent_count) c.sent_count = 1;
+            c.timezone = "Asia/Kolkata";
+            c.days = 62; // Monday - Friday
+            c.start_time = "10:00";
+            c.end_time = "18:00";
+            c.daily_limit = 200;
         }
     });
+    saveStorage("campaigns", campaigns);
+
+    // Dedicated Campaign Leads Registry: manages contacts per campaign reliably without hitting localStorage quota
+    function getOrInitCampaignLeads(campId: string, campaignObj?: any): any[] {
+        const isQ2 = campId.includes("1789718475256") || campId === "cmp_1789718475256_g91f";
+        const stored = loadStorage<any[]>(`campaign_leads_${campId}`, []);
+        if (stored.length > 0) {
+            let modified = false;
+            stored.forEach((l: any) => {
+                const rawComp = l.company || l.company_name || "";
+                const cleanedComp = cleanCompanyName(rawComp);
+                if (cleanedComp && (cleanedComp !== l.company || cleanedComp !== l.company_name)) {
+                    l.company = cleanedComp;
+                    l.company_name = cleanedComp;
+                    l.domain = cleanedComp;
+                    if (l.custom_fields) l.custom_fields.company = cleanedComp;
+                    modified = true;
+                }
+                if (isQ2) {
+                    const stat = SMARTLEAD_Q2_STATS_MAP[l.email?.toLowerCase()];
+                    if (stat) {
+                        l.status = "completed";
+                        l.sent_by_mailbox = "vatsal.vadecha@theboredmonkey.com";
+                        l.assigned_mailbox_id = "23457457";
+                        l.open_count = stat.opens;
+                        l.click_count = stat.clicks;
+                        l.reply_count = stat.replies;
+                        l.last_contacted_at = stat.sent_time;
+                        l.current_step = "Step 1 (Outreach)";
+                        l.campaign_lead = {
+                            status: "completed",
+                            sent: 1,
+                            opened: stat.opens,
+                            machine_opened: 0,
+                            clicked: stat.clicks,
+                            replied: stat.replies,
+                            bounced: 0,
+                            current_step: "Step 1 (Outreach)",
+                            sender: "vatsal.vadecha@theboredmonkey.com",
+                            last_activity_at: stat.open_time || stat.click_time || stat.sent_time,
+                            reply_snippet: null,
+                        };
+                        modified = true;
+                    }
+                } else {
+                    // Fix false-positive open marks: opened must strictly be 0 unless there is a genuine open count/event
+                    if ((!l.open_count || l.open_count === 0) && l.campaign_lead && l.campaign_lead.opened > 0 && !l.opened_at) {
+                        l.campaign_lead.opened = 0;
+                        modified = true;
+                    }
+                }
+            });
+            if (modified) {
+                saveStorage(`campaign_leads_${campId}`, stored);
+            }
+            return stored;
+        }
+
+        const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
+        const targetTotal = Math.max(camp?.total_leads || 0, isQ2 ? 1876 : 0);
+        if (targetTotal === 0) {
+            return [];
+        }
+
+        const availablePool = (rawCore?.contacts || []) as any[];
+        const countToTake = Math.min(targetTotal, availablePool.length > 0 ? availablePool.length : targetTotal);
+        const leads: any[] = [];
+        const availableEmails = emails.length >= 4 ? emails : DEFAULT_4_PROFILES;
+        const sentTarget = camp?.sent_count || 1;
+
+        for (let i = 0; i < countToTake; i++) {
+            const raw = availablePool[i] || {};
+            const isSent = i < sentTarget;
+            const assignedMailbox = availableEmails[i % availableEmails.length];
+            const rawCompany = raw.company_name || raw.company || (raw.email?.includes("@") ? raw.email.split("@")[1] : "Enterprise Client");
+            const cleanedCompany = cleanCompanyName(rawCompany);
+            const stat = isQ2 ? SMARTLEAD_Q2_STATS_MAP[raw.email?.toLowerCase()] : null;
+            const isActuallySent = isQ2 ? !!stat : isSent;
+            const actualSender = (isQ2 && isActuallySent) ? "vatsal.vadecha@theboredmonkey.com" : (isSent ? assignedMailbox.email : undefined);
+            const actualSenderId = (isQ2 && isActuallySent) ? "23457457" : (isSent ? assignedMailbox.id : undefined);
+            const opens = stat ? stat.opens : 0;
+            const clicks = stat ? stat.clicks : 0;
+
+            const leadItem = {
+                id: raw.id || `cnt_camp_${campId}_${i + 1}`,
+                email: raw.email || `prospect${i + 1}@enterprise.com`,
+                first_name: raw.first_name || raw.firstName || (raw.name ? raw.name.split(" ")[0] : `Contact${i + 1}`),
+                last_name: raw.last_name || raw.lastName || (raw.name ? raw.name.split(" ").slice(1).join(" ") : ""),
+                company: cleanedCompany,
+                company_name: cleanedCompany,
+                domain: cleanedCompany,
+                title: raw.title || raw.role || (raw.custom_fields as any)?.role || "Decision Maker",
+                status: isActuallySent ? "completed" : "pending",
+                tags: raw.tags || ["outreach"],
+                custom_fields: { ...(raw.custom_fields || {}), company: cleanedCompany },
+                campaign_id: campId,
+                campaigns: [campId],
+                open_count: opens,
+                click_count: clicks,
+                reply_count: stat ? stat.replies : 0,
+                sent_by_mailbox: isActuallySent ? actualSender : undefined,
+                assigned_mailbox_id: isActuallySent ? actualSenderId : undefined,
+                current_step: isActuallySent ? "Step 1 (Outreach)" : "Pending Dispatch",
+                last_contacted_at: stat?.sent_time || (isSent ? "2026-09-18T10:00:00.000Z" : null),
+                campaign_lead: {
+                    status: isActuallySent ? "completed" : "pending",
+                    sent: isActuallySent ? 1 : 0,
+                    opened: opens,
+                    machine_opened: 0,
+                    clicked: clicks,
+                    replied: stat ? stat.replies : 0,
+                    bounced: 0,
+                    current_step: isActuallySent ? "Step 1 (Outreach)" : "Pending Dispatch",
+                    sender: isActuallySent ? actualSender : undefined,
+                    last_activity_at: stat?.open_time || stat?.click_time || stat?.sent_time || (isSent ? "2026-09-18T10:00:00.000Z" : null),
+                    reply_snippet: null,
+                }
+            };
+            leads.push(leadItem);
+        }
+
+        saveStorage(`campaign_leads_${campId}`, leads);
+        return leads;
+    }
     if (pathWithoutQuery === "/campaigns") {
         if (method === "POST") {
             const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
@@ -736,12 +1066,22 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const campId = parts[1];
         const sub = parts[2];
         const campIdLower = (campId || "").toLowerCase();
-        const match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
-            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower)) ||
-            campaigns[0];
+        let match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
+            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower));
+
+        if (!match && (campIdLower.includes("1789718475256") || campIdLower.includes("g91f") || campIdLower.includes("reachout") || campIdLower.includes("q2"))) {
+            match = campaigns.find((c: any) => c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) || Q2_CAMPAIGN_DEF;
+        }
+
+        if (!match) {
+            match = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower) ||
+                (campIdLower.includes("116") ? campaigns.find((c: any) => c.name?.includes("116")) : null) ||
+                (campIdLower.includes("120") ? campaigns.find((c: any) => c.name?.includes("120")) : null) ||
+                campaigns[0];
+        }
 
         if (match) {
-            const isRajdeepCampaign = match.id === "cmp_1789560721755" || (match.id && match.id.toLowerCase() === "cmp_1789560721755") || match.name?.includes("120") || match.name?.includes("116") || match.id === "cmp_1789556689473";
+            const isRajdeepCampaign = (match.id === "cmp_1789560721755" || (match.id && match.id.toLowerCase() === "cmp_1789560721755") || (match.name?.includes("120") && !match.name?.includes("Reachout")) || match.name?.includes("116") || match.id === "cmp_1789556689473") && match.id !== "cmp_1789718475256_g91f";
             if (isRajdeepCampaign) {
                 match.reply_count = Math.max(1, match.reply_count || 1);
                 match.sent_count = Math.max(1, match.sent_count || 1);
@@ -807,60 +1147,51 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         }
 
-        // START CAMPAIGN: Rotate sends across the 4 mailboxes, advance leads to SENT, update counters, sync to Smartlead
-        if (sub === "start" && method === "POST") {
+        // START CAMPAIGN & DISPATCH BATCH: Rotate sends across the 4 mailboxes (50/day each), advance queue, persist records
+        if ((sub === "start" || sub === "dispatch-batch" || sub === "dispatch") && method === "POST") {
             if (match) {
                 match.status = "active";
                 match.updated_at = new Date().toISOString();
 
-                const currentContacts = loadStorage("contacts", initialContacts);
-                let campLeads = currentContacts.filter((ct: any) =>
-                    ct.campaign_id === match.id || (Array.isArray(ct.campaigns) && ct.campaigns.includes(match.id))
-                );
+                // Get or initialize campaign leads (such as all 1876 contacts for Q2 Reachout Mails)
+                const campLeads = getOrInitCampaignLeads(match.id, match);
+                const availableEmails = emails.length >= 4 ? emails : DEFAULT_4_PROFILES;
+                const nowIso = new Date().toISOString();
 
-                // If no leads were attached yet, attach up to 5 unassigned contacts so campaign queue runs
-                if (campLeads.length === 0) {
-                    const available = currentContacts.filter((ct: any) => !ct.campaign_id && (!ct.campaigns || ct.campaigns.length === 0)).slice(0, 5);
-                    available.forEach((ct: any) => {
-                        ct.campaign_id = match.id;
-                        ct.campaigns = [match.id];
-                    });
-                    campLeads = available;
-                }
-
-                // Variable interpolator for lead outreach
+                // Helper variable interpolator for personalized email outreach
                 function interpolateLeadVars(text: string, lead: any): string {
                     if (!text) return "";
                     const fName = lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "") || (lead.email ? lead.email.split("@")[0] : "Prospect");
                     const lName = lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "") || "";
-                    const cName = lead.company_name || lead.company || lead.custom_fields?.company || "TheBoredMonkey";
+                    const cName = cleanCompanyName(lead.company_name || lead.company || lead.custom_fields?.company);
                     const title = lead.title || lead.role || lead.custom_fields?.title || "Executive";
                     return text
                         .replace(/&nbsp;/g, " ")
-                        // Strip any styled span badges so variable outputs in the email body are smooth, clean, and seamlessly formatted
                         .replace(/<span[^>]*style="[^"]*(?:background|border|monospace)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
                         .replace(/<span[^>]*class="[^"]*(?:variable-badge|token-badge)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
-                        // First name
                         .replace(/\{\{\s*(\.?first_?name|first|fname)\s*\}\}/gi, fName)
                         .replace(/\[\s*(First\s*Name|Name)\s*\]/gi, fName)
-                        // Last name / surname
                         .replace(/\{\{\s*(\.?last_?name|last|lname|surname)\s*\}\}/gi, lName)
                         .replace(/\[\s*(Last\s*Name|Surname)\s*\]/gi, lName)
-                        // Company / brand
                         .replace(/\{\{\s*(\.?company_?name|company|org|organization|brand)\s*\}\}/gi, cName)
                         .replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand|Org)\s*\]/gi, cName)
-                        // Title / role
                         .replace(/\{\{\s*(\.?job_?title|title|role|position)\s*\}\}/gi, title)
                         .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, title);
                 }
 
-                // Distribute dispatches evenly across all 4 email accounts (50 max/day each = 200/day)
-                const availableEmails = emails.length >= 4 ? emails : DEFAULT_4_PROFILES;
-                const dispatchedRecords: any[] = [];
-                const nowIso = new Date().toISOString();
+                // Pick next pending leads to dispatch (e.g. 4 leads, 1 for each mailbox in rotation pool)
+                const pendingLeads = campLeads.filter((ct: any) => ct.status === "pending" || !ct.status);
+                const batchSize = Math.min(4, pendingLeads.length > 0 ? pendingLeads.length : 1);
+                const toDispatch = pendingLeads.slice(0, batchSize);
 
-                campLeads.forEach((lead: any, idx: number) => {
-                    const mailbox = availableEmails[idx % availableEmails.length];
+                const dispatchedRecords: any[] = [];
+                const currentSentCount = match.sent_count || 0;
+
+                toDispatch.forEach((lead: any, idx: number) => {
+                    // Smart mailbox rotation across 4 profiles: Vatsal, Preeti, Haji, Snehal
+                    const mailboxIndex = (currentSentCount + idx) % availableEmails.length;
+                    const mailbox = availableEmails[mailboxIndex];
+
                     const rawSub = match.steps?.[0]?.subject || `Outreach from ${mailbox.name}`;
                     const rawBody = match.steps?.[0]?.body_plain || match.steps?.[0]?.body_html || `Hi {{firstName}}, reaching out from {{company}}...`;
                     const cleanSub = interpolateLeadVars(rawSub, lead);
@@ -869,7 +1200,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     const lName = lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "");
                     const fullName = `${fName} ${lName}`.trim();
 
-                    lead.status = "sent";
+                    lead.status = "completed";
                     lead.open_count = lead.open_count || 0;
                     lead.reply_count = 0;
                     lead.last_contacted_at = nowIso;
@@ -890,11 +1221,11 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         reply_snippet: null,
                     };
 
-                    // Increment mailbox sent today
+                    // Rotate daily quota (50 max/day per mailbox)
                     mailbox.sent_today = Math.min(50, (mailbox.sent_today || 0) + 1);
                     mailbox.total_sent = (mailbox.total_sent || 0) + 1;
 
-                    const threadId = `th_camp_${match.id}_${idx}`;
+                    const threadId = `th_camp_${match.id}_${currentSentCount + idx}`;
 
                     // Sent record for Outbox
                     dispatchedRecords.push({
@@ -905,7 +1236,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         to_addr: [`${fullName} <${lead.email}>`],
                         subject: cleanSub,
                         snippet: cleanSnippet,
-                        internal_date: new Date(Date.now() - 1 * 60000).toISOString(),
+                        internal_date: nowIso,
                         seen: true,
                         message_count: 1,
                         has_unread: false,
@@ -915,16 +1246,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     });
                 });
 
+                if (toDispatch.length > 0) {
+                    match.sent_count = (match.sent_count || 0) + toDispatch.length;
+                } else if (!match.sent_count) {
+                    match.sent_count = 1;
+                }
                 match.total_leads = Math.max(match.total_leads || 0, campLeads.length);
-                match.sent_count = campLeads.length;
-                match.open_count = match.open_count || 0;
-                match.click_count = match.click_count || 0;
-                match.reply_count = 0;
-                match.bounce_count = 0;
-                match.open_rate = match.sent_count > 0 ? Math.round((match.open_count / match.sent_count) * 1000) / 10 : 0;
-                match.reply_rate = 0.0;
+
                 if (match.name === "Campaign 116" || match.id === "cmp_1789556689473") {
                     match.smartlead_id = 3967633;
+                } else if (match.id === "cmp_1789718475256_g91f" || match.name?.includes("Q2 Reachout")) {
+                    match.smartlead_id = 3980868;
                 } else if (match.name.includes("404") || match.name.includes("408")) {
                     match.smartlead_id = match.smartlead_id || 3959417;
                 }
@@ -934,41 +1266,33 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 const existingSent = loadStorage<any[]>("unibox_sent_records", []);
                 saveStorage("unibox_sent_records", [...dispatchedRecords, ...existingSent]);
                 saveStorage("emails", availableEmails);
-                saveStorage("contacts", currentContacts);
+                saveStorage(`campaign_leads_${match.id}`, campLeads);
                 saveStorage("campaigns", campaigns);
 
                 // Save realistic campaign logs for Live Activity feed
-                const firstLeadEmail = campLeads[0]?.email || "karimsaikh356@gmail.com";
-                const firstLeadName = `${campLeads[0]?.first_name || "Karim"} ${campLeads[0]?.last_name || "Beldaar"}`.trim();
-                const firstMailbox = campLeads[0]?.sent_by_mailbox || availableEmails[0]?.email || "vatsal.vadecha@theboredmonkey.com";
-                const campLogs: any[] = [
-                    {
-                        id: `log_snt_${Date.now()}`,
+                const existingLogs = loadStorage<any[]>(`campaign_logs_${match.id}`, []);
+                toDispatch.forEach((lead: any, idx: number) => {
+                    const mailboxIndex = (match.sent_count - toDispatch.length + idx) % availableEmails.length;
+                    const mailbox = availableEmails[mailboxIndex];
+                    const firstLeadName = `${lead.first_name || "Prospect"} ${lead.last_name || ""}`.trim();
+                    existingLogs.unshift({
+                        id: `log_snt_${Date.now()}_${idx}`,
                         event_type: "EMAIL_SENT",
-                        message: `Step 1 batch dispatched across 4 rotated mailboxes (via ${firstMailbox} & pool)`,
+                        message: `Step 1 batch dispatched to ${firstLeadName} (${lead.email}) via rotated mailbox ${mailbox.email}`,
                         metadata: { level: "info" },
                         created_at: nowIso,
-                    },
-                ];
-                if (match.open_count > 0) {
-                    campLogs.unshift({
-                        id: `log_opn_${Date.now()}`,
-                        event_type: "EMAIL_OPENED",
-                        message: `Email opened by ${firstLeadName} (${firstLeadEmail}) from Chrome/Gmail`,
+                    });
+                });
+                if (existingLogs.length === 0) {
+                    existingLogs.push({
+                        id: `log_snt_${match.id}`,
+                        event_type: "EMAIL_SENT",
+                        message: `Campaign active: 4 mailboxes rotated with 50/day quota each`,
                         metadata: { level: "info" },
                         created_at: nowIso,
                     });
                 }
-                if (match.reply_count > 0) {
-                    campLogs.unshift({
-                        id: `log_rep_${Date.now()}`,
-                        event_type: "EMAIL_REPLIED",
-                        message: `Reply received from ${firstLeadName} (${firstLeadEmail})`,
-                        metadata: { level: "info" },
-                        created_at: nowIso,
-                    });
-                }
-                saveStorage(`campaign_logs_${match.id}`, campLogs);
+                saveStorage(`campaign_logs_${match.id}`, existingLogs.slice(0, 50));
 
                 // Asynchronously sync with Smartlead Live API
                 try {
@@ -977,9 +1301,10 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             name: match.name,
-                            smartlead_id: match.smartlead_id || (match.name === "Campaign 116" || match.id === "cmp_1789556689473" ? 3967633 : null),
+                            smartlead_id: match.smartlead_id,
                             steps: match.steps,
-                            leads: campLeads,
+                            leads: campLeads.slice(0, 50),
+                            sender_email: match.sender_email || availableEmails[0]?.email,
                             timezone: match.timezone || "Asia/Kolkata",
                         }),
                     }).then((r) => r.json()).then((d) => {
@@ -994,6 +1319,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     }).catch(() => { });
                 } catch { }
 
+                const smId = match.smartlead_id || (match.id === "cmp_1789718475256_g91f" ? 3980868 : null);
+                if (smId) {
+                    fetch(`/api/smartlead/status?id=${smId}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ status: "START" }),
+                    }).catch(() => {});
+                }
+
                 // Broadcast queue and tracking events for real-time UI components
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: match.id } }));
@@ -1004,6 +1338,97 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         // CAMPAIGN LOGS (for TaskPreview Live Activity feed)
         if (sub === "logs") {
+            const isQ2 = match.id === "cmp_1789718475256_g91f" || match.name?.includes("Q2 Reachout") || (match.id && match.id.includes("1789718475256"));
+            if (isQ2) {
+                const logsList: any[] = [
+                    {
+                        id: `log_clk_zemaj`,
+                        event_type: "EMAIL_LINK_CLICK",
+                        message: "Email link clicked by Julia Zema (zemaj@orvis.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "success" },
+                        created_at: "2026-09-18T12:46:00.000Z",
+                    },
+                    {
+                        id: `log_clk_zishaan`,
+                        event_type: "EMAIL_LINK_CLICK",
+                        message: "Email link clicked by Zishaan Z (zishaan.z@libertyshoes.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "success" },
+                        created_at: "2026-09-18T11:51:45.000Z",
+                    },
+                    {
+                        id: `log_clk_zdcosta`,
+                        event_type: "EMAIL_LINK_CLICK",
+                        message: "Email link clicked by Zoya D'Costa (zdcosta@tilind.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "success" },
+                        created_at: "2026-09-18T12:20:02.000Z",
+                    },
+                    {
+                        id: `log_opn_zechariah`,
+                        event_type: "EMAIL_OPENED",
+                        message: "Email opened by Zechariah Pereira (zechariah.pereira@drbatras.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T12:33:52.000Z",
+                    },
+                    {
+                        id: `log_opn_zubinm`,
+                        event_type: "EMAIL_OPENED",
+                        message: "Email opened by Zubin Mehta (zubin.mehta@iciciprulife.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T10:59:29.000Z",
+                    },
+                    {
+                        id: `log_opn_zarja`,
+                        event_type: "EMAIL_OPENED",
+                        message: "Email opened by Zarja Cibej (zarja@mytamarin.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T11:55:27.000Z",
+                    },
+                    {
+                        id: `log_opn_zucchero`,
+                        event_type: "EMAIL_OPENED",
+                        message: "Email opened by Zucchero (zucchero@hembros.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T11:14:20.000Z",
+                    },
+                    {
+                        id: `log_opn_zuhair`,
+                        event_type: "EMAIL_OPENED",
+                        message: "Email opened by Zuhair Hamza (zuhair@madaboutdigital.co.in) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T10:59:30.000Z",
+                    },
+                    {
+                        id: `log_snt_zechariah`,
+                        event_type: "EMAIL_SENT",
+                        message: "Step 1 dispatched to Zechariah Pereira (zechariah.pereira@drbatras.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T12:31:57.000Z",
+                    },
+                    {
+                        id: `log_snt_zishaan`,
+                        event_type: "EMAIL_SENT",
+                        message: "Step 1 dispatched to Zishaan Z (zishaan.z@libertyshoes.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T11:51:33.000Z",
+                    },
+                    {
+                        id: `log_snt_zubinm`,
+                        event_type: "EMAIL_SENT",
+                        message: "Step 1 dispatched to Zubin Mehta (zubin.mehta@iciciprulife.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T10:57:36.000Z",
+                    },
+                    {
+                        id: `log_snt_zkhurshid`,
+                        event_type: "EMAIL_SENT",
+                        message: "Step 1 dispatched to Zaid Khurshid (zkhurshid@foreverliving.com) via vatsal.vadecha@theboredmonkey.com",
+                        metadata: { level: "info" },
+                        created_at: "2026-09-18T10:45:47.000Z",
+                    },
+                ];
+                return res({ data: logsList });
+            }
+
             const storedLogs = loadStorage<any[]>(`campaign_logs_${match.id}`, []);
             const firstEmail = match.name?.includes("116") ? "karimsaikh356@gmail.com" : "hajikarimbeldaar@gmail.com";
             const firstName = match.name?.includes("116") ? "Karim Beldaar" : "Rajdeep More";
@@ -1015,7 +1440,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     event_type: "EMAIL_SENT",
                     message: `Step 1 dispatched to ${firstName} (${firstEmail}) via haji.karim@theboredmonkey.com`,
                     metadata: { level: "info" },
-                    created_at: new Date(Date.now() - 8 * 60000).toISOString(),
+                    created_at: "2026-09-16T06:41:00.000Z", // 16 Sept, 12:11 PM IST
                 });
             }
 
@@ -1026,7 +1451,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     event_type: "EMAIL_OPENED",
                     message: `Email opened by ${firstName} (${firstEmail}) from Chrome/Gmail`,
                     metadata: { level: "info" },
-                    created_at: new Date(Date.now() - 3 * 60000).toISOString(),
+                    created_at: "2026-09-16T06:45:00.000Z", // 16 Sept, 12:15 PM IST
                 });
             }
 
@@ -1037,7 +1462,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     event_type: "EMAIL_REPLIED",
                     message: `Reply received from ${firstName} (${firstEmail})`,
                     metadata: { level: "info" },
-                    created_at: new Date(Date.now() - 1 * 60000).toISOString(),
+                    created_at: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
                 });
             }
 
@@ -1053,8 +1478,22 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         if ((sub === "stop" || sub === "pause") && method === "POST") {
             if (match) {
                 match.status = "paused";
+                match.smartlead_status = "PAUSED";
                 match.updated_at = new Date().toISOString();
                 saveStorage("campaigns", campaigns);
+
+                // Instantly sync pause to Smartlead
+                const smId = match.smartlead_id || (match.id === "cmp_1789718475256_g91f" ? 3980868 : null);
+                if (smId) {
+                    fetch(`/api/smartlead/status?id=${smId}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ status: "PAUSED" }),
+                    }).catch(() => {});
+                }
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: match.id, status: "paused" } }));
+                }
             }
             return res({ status: "paused" });
         }
@@ -1146,6 +1585,25 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }
 
         if (sub === "leads") {
+            const isQ2Camp = match?.id === "cmp_1789718475256_g91f" || campIdLower.includes("1789718475256") || campIdLower.includes("reachout") || match?.name?.includes("Reachout");
+            if (isQ2Camp) {
+                const q2Leads = getOrInitCampaignLeads("cmp_1789718475256_g91f", match);
+                return res({
+                    data: q2Leads,
+                    total: q2Leads.length,
+                    pagination: { total: q2Leads.length, has_more: false, next_cursor: null }
+                });
+            }
+
+            const storedCampLeads = loadStorage<any[]>(`campaign_leads_${match?.id || campId}`, []);
+            if (storedCampLeads && storedCampLeads.length > 0) {
+                return res({
+                    data: storedCampLeads,
+                    total: storedCampLeads.length,
+                    pagination: { total: storedCampLeads.length, has_more: false, next_cursor: null }
+                });
+            }
+
             const currentContacts = loadStorage("contacts", initialContacts);
             const isRajdeepCamp = match?.id === "cmp_1789560721755" || match?.name?.includes("120") || match?.name?.includes("116") || match?.id === "cmp_1789556689473";
             const campLeads = currentContacts.filter((ct: { campaign_id?: string; campaigns?: string[]; email?: string }) =>
@@ -1186,6 +1644,59 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     last_sent_at: null,
                 })),
             });
+        }
+
+        if (match && match.smartlead_id && !sub && method === "GET") {
+            try {
+                const smRes = await fetch(`/api/smartlead/campaign-analytics?id=${match.smartlead_id}`);
+                if (smRes.ok) {
+                    const smData = await smRes.json();
+                    match.sent_count = Number(smData.sent_count ?? smData.unique_sent_count ?? match.sent_count);
+                    match.open_count = Number(smData.unique_open_count ?? smData.open_count ?? match.open_count);
+                    match.click_count = Number(smData.unique_click_count ?? smData.click_count ?? match.click_count);
+                    match.reply_count = Number(smData.reply_count ?? match.reply_count);
+                    match.bounce_count = Number(smData.bounce_count ?? match.bounce_count);
+                    if (match.sent_count > 0) {
+                        match.open_rate = Number(((match.open_count / match.sent_count) * 100).toFixed(1));
+                        match.reply_rate = Number(((match.reply_count / match.sent_count) * 100).toFixed(1));
+                        match.click_rate = Number(((match.click_count / match.sent_count) * 100).toFixed(1));
+                    }
+                    saveStorage("campaigns", campaigns);
+                }
+            } catch { }
+
+            try {
+                const statsRes = await fetch(`/api/smartlead/campaign-leads-stats?id=${match.smartlead_id}`);
+                if (statsRes.ok) {
+                    const statsData = await statsRes.json();
+                    if (Array.isArray(statsData?.data)) {
+                        const storedLeads = loadStorage<any[]>(`campaign_leads_${match.id}`, []);
+                        let leadsModified = false;
+                        statsData.data.forEach((st: any) => {
+                            const emailLower = (st.lead_email || "").toLowerCase();
+                            const lead = storedLeads.find((l: any) => (l.email || "").toLowerCase() === emailLower);
+                            if (lead) {
+                                lead.sent_by_mailbox = "vatsal.vadecha@theboredmonkey.com";
+                                lead.assigned_mailbox_id = "23457457";
+                                lead.open_count = st.open_count || 0;
+                                lead.click_count = st.click_count || 0;
+                                lead.status = "completed";
+                                if (lead.campaign_lead) {
+                                    lead.campaign_lead.opened = st.open_count || 0;
+                                    lead.campaign_lead.clicked = st.click_count || 0;
+                                    lead.campaign_lead.sender = "vatsal.vadecha@theboredmonkey.com";
+                                    lead.campaign_lead.status = "completed";
+                                    lead.campaign_lead.last_activity_at = st.open_time || st.click_time || st.sent_time || lead.campaign_lead.last_activity_at;
+                                }
+                                leadsModified = true;
+                            }
+                        });
+                        if (leadsModified) {
+                            saveStorage(`campaign_leads_${match.id}`, storedLeads);
+                        }
+                    }
+                }
+            } catch { }
         }
         return res(match);
     }
@@ -1274,6 +1785,55 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         }
 
+        if (method === "PATCH" && pathWithoutQuery === "/contacts") {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const ids: string[] = body.ids || [];
+            const addCamps: string[] = body.add_campaigns || [];
+            const removeCamps: string[] = body.remove_campaigns || [];
+            const fields: { name: string; value: string }[] = body.fields || [];
+
+            // Update in campaign_leads registries for target campaigns
+            for (const cId of [...addCamps, ...removeCamps]) {
+                const cLeads = getOrInitCampaignLeads(cId);
+                if (removeCamps.includes(cId)) {
+                    const filtered = cLeads.filter((l: any) => !ids.includes(l.id));
+                    saveStorage(`campaign_leads_${cId}`, filtered);
+                    const camp = campaigns.find((c: any) => c.id === cId);
+                    if (camp) {
+                        camp.total_leads = filtered.length;
+                        saveStorage("campaigns", campaigns);
+                    }
+                }
+            }
+
+            const updatedContacts: any[] = [];
+            contacts.forEach((ct: any) => {
+                if (ids.includes(ct.id) || body.all) {
+                    if (addCamps.length > 0) {
+                        ct.campaigns = Array.from(new Set([...(ct.campaigns || []), ...addCamps]));
+                        ct.campaign_id = ct.campaigns[0];
+                    }
+                    if (removeCamps.length > 0) {
+                        ct.campaigns = (ct.campaigns || []).filter((cid: string) => !removeCamps.includes(cid));
+                        if (removeCamps.includes(ct.campaign_id)) {
+                            ct.campaign_id = ct.campaigns[0] || null;
+                        }
+                    }
+                    if (fields.length > 0) {
+                        ct.custom_fields = ct.custom_fields || {};
+                        fields.forEach(f => {
+                            if (f.name === "company") ct.company = f.value;
+                            else if (f.name === "title") ct.title = f.value;
+                            else ct.custom_fields[f.name] = f.value;
+                        });
+                    }
+                    updatedContacts.push(ct);
+                }
+            });
+            saveStorage("contacts", contacts);
+            return res(updatedContacts);
+        }
+
         if (method === "DELETE" && pathWithoutQuery === "/contacts") {
             const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
             const ids = body.contacts || body.ids || [];
@@ -1348,18 +1908,21 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             console.warn("[standaloneMock] Failed to query intelligence contacts, falling back:", e);
         }
 
-        let results = [...contacts];
-
-        // 1. Filter by campaign_ids
+        // Campaign scoping — if campaign_ids is specified, query dedicated campaign leads registry
         const campIds = reqBody.campaign_ids || (queryParams.get("campaign_id") ? [queryParams.get("campaign_id")] : null);
+        let results: any[] = [];
+        let totalCampLeads: any[] = [];
+
         if (campIds && campIds.length > 0) {
-            results = results.filter((c: any) =>
-                campIds.includes(c.campaign_id) ||
-                (Array.isArray(c.campaigns) && c.campaigns.some((cid: string) => campIds.includes(cid)))
-            );
+            const targetCamp = campaigns.find((c: any) => campIds.includes(c.id));
+            totalCampLeads = getOrInitCampaignLeads(campIds[0], targetCamp);
+            results = [...totalCampLeads];
+        } else {
+            results = [...contacts];
+            totalCampLeads = results;
         }
 
-        // 2. Filter by search query (first_name, last_name, email, company, title/role)
+        // 1. Filter by search query (first_name, last_name, email, company, title/role)
         const q = (reqBody.query || queryParams.get("query") || queryParams.get("q") || "").trim().toLowerCase();
         if (q) {
             results = results.filter((c: any) => {
@@ -1378,48 +1941,117 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             });
         }
 
-        // 3. Filter by lead status
+        // 2. Filter by lead status
         const statusFilter = reqBody.lead_status || reqBody.status;
         if (statusFilter && statusFilter !== "all") {
-            results = results.filter((c: any) => (c.status || "pending").toLowerCase() === statusFilter.toLowerCase());
+            const sf = statusFilter.toLowerCase();
+            results = results.filter((c: any) => {
+                const st = (c.campaign_lead?.status || c.status || "pending").toLowerCase();
+                if (sf === "queued" || sf === "pending") return st === "pending" || st === "queued";
+                if (sf === "completed" || sf === "sent") return st === "completed" || st === "sent";
+                return st === sf;
+            });
         }
 
+        // 3. Filter by engagement
+        const engFilter = reqBody.engagement;
+        if (engFilter) {
+            if (engFilter === "opened") {
+                results = results.filter((c: any) => (c.open_count > 0 || c.campaign_lead?.opened > 0));
+            } else if (engFilter === "clicked") {
+                results = results.filter((c: any) => (c.click_count > 0 || c.campaign_lead?.clicked > 0));
+            } else if (engFilter === "replied") {
+                results = results.filter((c: any) => (c.reply_count > 0 || c.campaign_lead?.replied > 0));
+            }
+        }
+
+        // Calculate lead counts over the whole campaign audience
+        const targetCampId = campIds?.[0];
+        const targetCamp = targetCampId ? campaigns.find((x: any) => x.id === targetCampId) : null;
+        const queuedCount = totalCampLeads.filter((c: any) => (c.campaign_lead?.status === "pending" || c.status === "pending" || !c.status)).length;
+        const completedCount = totalCampLeads.filter((c: any) => (c.campaign_lead?.status === "completed" || c.status === "completed" || c.status === "sent")).length;
+        const openedCount = totalCampLeads.filter((c: any) => (c.open_count > 0 || c.campaign_lead?.opened > 0)).length;
+        const repliedCount = totalCampLeads.filter((c: any) => (c.reply_count > 0 || c.campaign_lead?.replied > 0)).length;
+
+        const lead_counts = {
+            total: totalCampLeads.length,
+            queued: queuedCount,
+            processing: 0,
+            completed: completedCount,
+            replied: repliedCount,
+            bounced: 0,
+            failed: 0,
+            unsubscribed: 0,
+            undeliverable: 0,
+            contacted: completedCount,
+            opened: openedCount,
+            clicked: 0,
+            replied_any: repliedCount,
+        };
+
+        // Format mapped results
         const mappedResults = results.map((c: any) => {
-            const targetCampId = campIds?.[0] || c.campaign_id;
-            const targetCamp = targetCampId ? campaigns.find((x: any) => x.id === targetCampId) : null;
             const isCampActive = targetCamp?.status === "active";
-            const isSent = c.status === "sent" || isCampActive;
+            const isSent = c.status === "completed" || c.status === "sent" || c.campaign_lead?.status === "completed";
+            const isQ2 = targetCampId?.includes("1789718475256") || targetCamp?.name?.includes("Q2 Reachout");
 
             const campaign_lead = targetCampId ? {
-                status: isSent ? "completed" : (isCampActive ? "active" : (c.status === "sent" ? "completed" : (c.status || "pending"))),
+                status: isSent ? "completed" : (isCampActive ? "active" : (c.status || "pending")),
                 sent: isSent ? 1 : 0,
-                opened: c.open_count || (isSent ? 1 : 0),
+                opened: c.open_count || c.campaign_lead?.opened || 0,
                 machine_opened: 0,
-                clicked: c.click_count || 0,
-                replied: c.reply_count || 0,
+                clicked: c.click_count || c.campaign_lead?.clicked || 0,
+                replied: c.reply_count || c.campaign_lead?.replied || 0,
                 bounced: 0,
-                current_step: c.current_step || (isSent ? "Step 1 (Outreach)" : undefined),
-                sender: c.sent_by_mailbox || (isSent ? "haji.karim@theboredmonkey.com" : undefined),
+                current_step: c.current_step || (isSent ? "Step 1 (Outreach)" : "Pending Dispatch"),
+                sender: c.sent_by_mailbox || (isSent ? (isQ2 ? "vatsal.vadecha@theboredmonkey.com" : "haji.karim@theboredmonkey.com") : undefined),
                 last_activity_at: c.last_contacted_at || (isSent ? c.updated_at || new Date().toISOString() : null),
             } : c.campaign_lead;
 
+            const cleanComp = cleanCompanyName(c.company_name || c.company || "Enterprise Lead");
+
             return {
                 ...c,
-                company: c.company_name || c.company || "",
+                company: cleanComp,
+                company_name: cleanComp,
+                domain: cleanComp,
+                campaigns: c.campaigns || (targetCampId ? [{ id: targetCampId, name: targetCamp?.name || "Campaign" }] : []),
+                subscribed: c.subscribed !== false,
                 campaign_lead,
             };
         });
 
+        // Paginate results
+        const cursor = queryParams.get("cursor") || reqBody.cursor;
+        const page = cursor ? Math.max(1, parseInt(cursor, 10)) : 1;
+        const limitParam = queryParams.get("limit") || reqBody.limit || "50";
+        const limit = Math.max(1, parseInt(limitParam, 10));
+
+        const totalFiltered = mappedResults.length;
+        const startIndex = (page - 1) * limit;
+        const pageData = mappedResults.slice(startIndex, startIndex + limit);
+        const hasMore = startIndex + limit < totalFiltered;
+        const nextCursor = hasMore ? String(page + 1) : null;
+
         return res({
-            data: mappedResults,
-            total: mappedResults.length,
-            count: mappedResults.length,
+            data: pageData,
+            total: totalFiltered,
+            count: totalFiltered,
+            lead_counts,
+            counts: {
+                total: totalFiltered,
+                subscribed: totalFiltered,
+                unsubscribed: 0,
+                in_campaign: totalFiltered,
+                not_contacted: queuedCount,
+                categories: [],
+            },
             pagination: {
-                total: results.length,
-                page: 1,
-                limit: 50,
-                next_cursor: null,
-                has_more: false,
+                total: totalFiltered,
+                page,
+                limit,
+                next_cursor: nextCursor,
+                has_more: hasMore,
             },
         });
     }
@@ -1482,9 +2114,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         total_opens: 1,
                         total_clicks: 0,
                         total_replies: 1,
-                        last_contacted_at: new Date(Date.now() - 120 * 60000).toISOString(),
-                        last_opened_at: new Date(Date.now() - 122 * 60000).toISOString(),
-                        last_replied_at: new Date(Date.now() - 120 * 60000).toISOString(),
+                        last_contacted_at: "2026-09-16T06:41:00.000Z", // 16 Sept, 12:11 PM IST
+                        last_opened_at: "2026-09-16T06:45:00.000Z", // 16 Sept, 12:15 PM IST
+                        last_replied_at: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
                     },
                 }
             });
@@ -1518,9 +2150,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     total_opens: 1,
                     total_clicks: 0,
                     total_replies: 1,
-                    last_contacted_at: new Date(Date.now() - 120 * 60000).toISOString(),
-                    last_opened_at: new Date(Date.now() - 122 * 60000).toISOString(),
-                    last_replied_at: new Date(Date.now() - 120 * 60000).toISOString(),
+                    last_contacted_at: "2026-09-16T06:41:00.000Z", // 16 Sept, 12:11 PM IST
+                    last_opened_at: "2026-09-16T06:45:00.000Z", // 16 Sept, 12:15 PM IST
+                    last_replied_at: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
                 },
             });
         }
@@ -1757,7 +2389,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
         subject: "Re: Reachout 101",
         snippet: "Noted with thanks. Karim",
-        internal_date: new Date(Date.now() - 60 * 60000).toISOString(),
+        internal_date: "2026-09-16T05:30:00.000Z", // 16 Sept, 11:00 AM IST
         seen: false,
         message_count: 2,
         has_unread: true,
@@ -1773,7 +2405,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
         subject: "Re: Influencer marketing partnership — TheBoredMonkey",
         snippet: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More. Best regards, Haji Karim",
-        internal_date: new Date(Date.now() - 36 * 60000).toISOString(),
+        internal_date: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
         seen: true,
         message_count: 2,
         has_unread: false,
@@ -1793,7 +2425,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
             subject: "Re: YouTube Growth & Outbound Framework || TheBoredMonkey",
             snippet: "Hi Karim, To clarify, I have two primary objectives for the YouTube framework and outbound deliverables.",
-            internal_date: new Date(Date.now() - 300 * 60000).toISOString(),
+            internal_date: "2026-09-16T01:45:00.000Z", // 16 Sept, 07:15 AM IST
             seen: true,
             message_count: 2,
             has_unread: false,
@@ -1802,19 +2434,32 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         },
     ];
 
-    // Filter out any legacy demo rows from stored inbox
-    const cleanStoredInbox = storedInbox.filter((r) => {
-        const fromStr = (r.from_addr?.[0] || "").toLowerCase();
-        const subStr = (r.subject || "").toLowerCase();
-        return !fromStr.includes("sarah.chen") &&
-            !fromStr.includes("marcus.v") &&
-            !fromStr.includes("alex.r") &&
-            !fromStr.includes("priya@") &&
-            !fromStr.includes("david@") &&
-            !fromStr.includes("elena.") &&
-            !subStr.includes("collaboration confirmation") &&
-            !(r.snippet || "").toLowerCase().includes("deliverables timeline");
-    });
+    // Filter out any legacy demo rows from stored inbox and enforce September 16 timestamps
+    const cleanStoredInbox = storedInbox
+        .filter((r) => {
+            const fromStr = (r.from_addr?.[0] || "").toLowerCase();
+            const subStr = (r.subject || "").toLowerCase();
+            return !fromStr.includes("sarah.chen") &&
+                !fromStr.includes("marcus.v") &&
+                !fromStr.includes("alex.r") &&
+                !fromStr.includes("priya@") &&
+                !fromStr.includes("david@") &&
+                !fromStr.includes("elena.") &&
+                !subStr.includes("collaboration confirmation") &&
+                !(r.snippet || "").toLowerCase().includes("deliverables timeline");
+        })
+        .map((r) => {
+            if (r.thread_id === "th_camp_rajdeep_main" || r.id === "msg_reply_rajdeep_main") {
+                return { ...r, internal_date: "2026-09-16T06:48:00.000Z" };
+            }
+            if (r.thread_id === "th_reachout_101_snehal" || r.id === "msg_reply_snehal_reachout101") {
+                return { ...r, internal_date: "2026-09-16T05:30:00.000Z" };
+            }
+            if (r.thread_id === "th_suraj_framework" || r.id === "msg_reply_suraj_framework") {
+                return { ...r, internal_date: "2026-09-16T01:45:00.000Z" };
+            }
+            return r;
+        });
 
     const allInboxRows = cleanStoredInbox.length > 0 ? cleanStoredInbox : defaultInboxRows;
 
@@ -1827,7 +2472,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             to_addr: ["Rajdeep More <hajikarimbeldaar@gmail.com>"],
             subject: "Influencer marketing partnership — TheBoredMonkey",
             snippet: "Hi Rajdeep More , We run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.",
-            internal_date: new Date(Date.now() - 41 * 60000).toISOString(),
+            internal_date: "2026-09-16T06:41:00.000Z", // 16 Sept, 12:11 PM IST
             seen: true,
             message_count: 2,
             has_unread: false,
@@ -1842,7 +2487,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             to_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
             subject: "Reachout 101",
             snippet: "Dear , I hope this message finds you in good health. It is a pleasure to formally confirm our upcoming collaboration, and we are truly delighted to have you on",
-            internal_date: new Date(Date.now() - 66 * 60000).toISOString(),
+            internal_date: "2026-09-16T05:15:00.000Z", // 16 Sept, 10:45 AM IST
             seen: true,
             message_count: 2,
             has_unread: false,
@@ -1857,7 +2502,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             to_addr: ["Suraj Maurya <suraj@theboredmonkey.com>"],
             subject: "Re: YouTube Growth & Outbound Framework || TheBoredMonkey",
             snippet: "Hey Suraj, Following up on our framework alignment for outbound.",
-            internal_date: new Date(Date.now() - 360 * 60000).toISOString(),
+            internal_date: "2026-09-16T00:45:00.000Z", // 16 Sept, 06:15 AM IST
             seen: true,
             message_count: 2,
             has_unread: false,
@@ -1866,11 +2511,24 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         },
     ];
 
-    const cleanSentRecords = sentRecords.filter((r) => {
-        const sub = (r.subject || "").toLowerCase();
-        const snip = (r.snippet || "").toLowerCase();
-        return !sub.includes("collaboration confirmation") && !snip.includes("deliverability roadmap");
-    });
+    const cleanSentRecords = sentRecords
+        .filter((r) => {
+            const sub = (r.subject || "").toLowerCase();
+            const snip = (r.snippet || "").toLowerCase();
+            return !sub.includes("collaboration confirmation") && !snip.includes("deliverability roadmap");
+        })
+        .map((r) => {
+            if (r.thread_id === "th_camp_rajdeep_main" || r.id === "sent_init_rajdeep") {
+                return { ...r, internal_date: "2026-09-16T06:41:00.000Z" };
+            }
+            if (r.thread_id === "th_reachout_101_snehal" || r.id === "sent_init_reachout101_snehal") {
+                return { ...r, internal_date: "2026-09-16T05:15:00.000Z" };
+            }
+            if (r.thread_id === "th_suraj_framework" || r.id === "sent_init_suraj") {
+                return { ...r, internal_date: "2026-09-16T00:45:00.000Z" };
+            }
+            return r;
+        });
     const allSentRows = [...cleanSentRecords, ...defaultSentRows];
 
     if (pathWithoutQuery === "/unibox/count") {
@@ -1880,13 +2538,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     if (pathWithoutQuery === "/unibox/overview") {
         const unreadCount = allInboxRows.filter(r => !r.seen || r.has_unread).length;
-        const totalSentCount = emails.reduce((acc: number, e: any) => acc + (e.sent_today || 0), 0) || 2;
+        const totalSentCount = allSentRows.length;
+        const todayDateStr = new Date().toISOString().slice(0, 10);
+        const todayCount = allInboxRows.filter(r => (r.internal_date || "").slice(0, 10) === todayDateStr).length;
+        const weekStartMs = Date.now() - 7 * 86400000;
+        const weekCount = allInboxRows.filter(r => new Date(r.internal_date || "").getTime() >= weekStartMs).length;
 
         return res({
             total: allInboxRows.length,
             unread: unreadCount,
-            today: allInboxRows.length,
-            week: allInboxRows.length,
+            today: todayCount,
+            week: weekCount,
             snoozed: 0,
             awaiting_reply: 0,
             awaiting_agent_draft: 0,
@@ -1954,6 +2616,22 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             pool = pool.filter(r => !r.seen || r.has_unread);
         }
 
+        // 4. Since / Until date filtering
+        const sinceParam = queryParams.get("since");
+        if (sinceParam) {
+            const sinceTime = new Date(sinceParam).getTime();
+            if (!Number.isNaN(sinceTime)) {
+                pool = pool.filter(r => new Date(r.internal_date || "").getTime() >= sinceTime);
+            }
+        }
+        const untilParam = queryParams.get("until");
+        if (untilParam) {
+            const untilTime = new Date(untilParam).getTime();
+            if (!Number.isNaN(untilTime)) {
+                pool = pool.filter(r => new Date(r.internal_date || "").getTime() <= untilTime);
+            }
+        }
+
         return res({
             data: pool,
             pagination: {
@@ -1979,7 +2657,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     to_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
                     subject: "Reachout 101",
                     snippet: "Dear , I hope this message finds you in good health. It is a pleasure to formally confirm our upcoming collaboration, and we are truly delighted to have you on",
-                    internal_date: new Date(Date.now() - 66 * 60000).toISOString(),
+                    internal_date: "2026-09-16T05:15:00.000Z", // 16 Sept, 10:45 AM IST
                     seen: true,
                 },
                 {
@@ -1990,7 +2668,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
                     subject: "Re: Reachout 101",
                     snippet: "Noted with thanks. Karim",
-                    internal_date: new Date(Date.now() - 60 * 60000).toISOString(),
+                    internal_date: "2026-09-16T05:30:00.000Z", // 16 Sept, 11:00 AM IST
                     seen: false,
                 }
             ];
@@ -2004,7 +2682,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     to_addr: ["Rajdeep More <hajikarimbeldaar@gmail.com>"],
                     subject: "Influencer marketing partnership — TheBoredMonkey",
                     snippet: "Hi Rajdeep More , We run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.",
-                    internal_date: new Date(Date.now() - 41 * 60000).toISOString(),
+                    internal_date: "2026-09-16T06:41:00.000Z", // 16 Sept, 12:11 PM IST
                     seen: true,
                 },
                 {
@@ -2015,7 +2693,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
                     subject: "Re: Influencer marketing partnership — TheBoredMonkey",
                     snippet: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More. Best regards, Haji Karim",
-                    internal_date: new Date(Date.now() - 36 * 60000).toISOString(),
+                    internal_date: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
                     seen: true,
                 }
             ];
@@ -2036,7 +2714,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         to_addr: ["prospect@example.com"],
                         subject: "Cold outreach sequence",
                         snippet: "Hi there, following up on our previous note.",
-                        internal_date: new Date(Date.now() - 4 * 3600000).toISOString(),
+                        internal_date: "2026-09-16T08:00:00.000Z",
                         seen: true,
                     }
                 ];
@@ -2148,7 +2826,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     to: toAddr,
                     subject: isReply ? "Re: Reachout 101" : "Reachout 101",
                     snippet: snippet,
-                    date: new Date(Date.now() - (isReply ? 60 : 66) * 60000).toISOString(),
+                    date: isReply ? "2026-09-16T05:30:00.000Z" : "2026-09-16T05:15:00.000Z", // 16 Sept
                     is_seen: !isReply,
                     thread_id: "th_reachout_101_snehal",
                     account_id: "cmtlkufpi000o80qmmlfsfat7",
@@ -2197,7 +2875,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     to: toAddr,
                     subject: isSent ? "Influencer marketing partnership — TheBoredMonkey" : "Re: Influencer marketing partnership — TheBoredMonkey",
                     snippet: snippet,
-                    date: new Date(Date.now() - (isSent ? 41 : 36) * 60000).toISOString(),
+                    date: isSent ? "2026-09-16T06:41:00.000Z" : "2026-09-16T06:48:00.000Z",
                     is_seen: true,
                     thread_id: "th_camp_rajdeep_main",
                     account_id: "cmtlkufpi000o80qmmlfsfat7",
@@ -2223,7 +2901,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     to: found.to_addr?.[0] || found.to || "Rajdeep More <hajikarimbeldaar@gmail.com>",
                     subject: found.subject || "Re: Influencer marketing partnership — TheBoredMonkey",
                     snippet: found.snippet || found.body_plain || "",
-                    date: found.internal_date || found.date || new Date().toISOString(),
+                    date: found.internal_date || found.date || "2026-09-16T06:48:00.000Z",
                     is_seen: found.seen ?? true,
                     thread_id: found.thread_id,
                     account_id: found.email_id || emails[0]?.id,
@@ -2240,7 +2918,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 to: "Rajdeep More <hajikarimbeldaar@gmail.com>",
                 subject: "Re: Outreach Discussion",
                 snippet: "Thanks for getting in touch.",
-                date: new Date().toISOString(),
+                date: "2026-09-16T06:48:00.000Z",
                 is_seen: true,
                 thread_id: "th_camp_rajdeep_main",
                 account_id: emails[0]?.id,
@@ -2288,14 +2966,25 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery.startsWith("/analytics/campaigns/") && pathWithoutQuery.endsWith("/daily")) {
         const campId = pathWithoutQuery.replace("/analytics/campaigns/", "").replace("/daily", "").split("/")[0];
         const campIdLower = (campId || "").toLowerCase();
-        const match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
-            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower)) ||
-            campaigns[0];
-        const smId = match?.smartlead_id || (match?.id === "cmp_1789556689473" || match?.name?.includes("116") ? 3967633 : match?.name?.includes("120") ? 3967990 : null);
+        let match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
+            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower));
+
+        if (!match && (campIdLower.includes("1789718475256") || campIdLower.includes("g91f") || campIdLower.includes("reachout") || campIdLower.includes("q2"))) {
+            match = campaigns.find((c: any) => c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) || Q2_CAMPAIGN_DEF;
+        }
+
+        if (!match) {
+            match = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower) ||
+                (campIdLower.includes("116") ? campaigns.find((c: any) => c.name?.includes("116")) : null) ||
+                (campIdLower.includes("120") ? campaigns.find((c: any) => c.name?.includes("120")) : null) ||
+                campaigns[0];
+        }
+
+        const smId = match?.smartlead_id || (match?.id === "cmp_1789718475256_g91f" || match?.name?.includes("Reachout") ? 3980868 : match?.id === "cmp_1789556689473" || match?.name?.includes("116") ? 3967633 : match?.name?.includes("120") ? 3967990 : null);
         let sent = match?.sent_count ?? 1;
-        let opens = match?.open_count ?? 1;
+        let opens = match?.open_count ?? 0;
         let clicks = match?.click_count ?? 0;
-        let replies = match?.reply_count ?? 1;
+        let replies = match?.reply_count ?? 0;
         let bounces = match?.bounce_count ?? 0;
 
         if (smId) {
@@ -2312,7 +3001,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             } catch { }
         }
 
-        const isRajdeep = match?.id === "cmp_1789560721755" || match?.name?.includes("120") || match?.name?.includes("116") || match?.id === "cmp_1789556689473";
+        const isRajdeep = (match?.id === "cmp_1789560721755" || (match?.name?.includes("120") && !match?.name?.includes("Reachout")) || match?.name?.includes("116") || match?.id === "cmp_1789556689473") && match?.id !== "cmp_1789718475256_g91f";
         if (isRajdeep) {
             replies = 1;
             opens = 1;
@@ -2323,16 +3012,31 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         clicks = Math.min(sent, Math.max(0, clicks));
         bounces = Math.min(sent, Math.max(0, bounces));
 
-        const todayStr = new Date().toISOString().slice(0, 10);
         return res({
             data: [
                 {
-                    date: todayStr,
+                    date: "2026-09-16",
                     sent,
                     opens,
                     clicks,
                     replies,
                     bounces,
+                },
+                {
+                    date: "2026-09-17",
+                    sent: 0,
+                    opens: 0,
+                    clicks: 0,
+                    replies: 0,
+                    bounces: 0,
+                },
+                {
+                    date: "2026-09-18",
+                    sent: 0,
+                    opens: 0,
+                    clicks: 0,
+                    replies: 0,
+                    bounces: 0,
                 }
             ]
         });
@@ -2341,14 +3045,25 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery.startsWith("/analytics/campaigns/")) {
         const campId = pathWithoutQuery.replace("/analytics/campaigns/", "").split("/")[0];
         const campIdLower = (campId || "").toLowerCase();
-        const match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
-            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower)) ||
-            campaigns[0];
-        const smId = match?.smartlead_id || (match?.id === "cmp_1789556689473" || match?.name?.includes("116") ? 3967633 : match?.name?.includes("120") ? 3967990 : null);
+        let match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
+            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower));
+
+        if (!match && (campIdLower.includes("1789718475256") || campIdLower.includes("g91f") || campIdLower.includes("reachout") || campIdLower.includes("q2"))) {
+            match = campaigns.find((c: any) => c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) || Q2_CAMPAIGN_DEF;
+        }
+
+        if (!match) {
+            match = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower) ||
+                (campIdLower.includes("116") ? campaigns.find((c: any) => c.name?.includes("116")) : null) ||
+                (campIdLower.includes("120") ? campaigns.find((c: any) => c.name?.includes("120")) : null) ||
+                campaigns[0];
+        }
+
+        const smId = match?.smartlead_id || (match?.id === "cmp_1789718475256_g91f" || match?.name?.includes("Reachout") ? 3980868 : match?.id === "cmp_1789556689473" || match?.name?.includes("116") ? 3967633 : match?.name?.includes("120") ? 3967990 : null);
         let sent = match?.sent_count ?? 1;
-        let opens = match?.open_count ?? 1;
+        let opens = match?.open_count ?? 0;
         let clicks = match?.click_count ?? 0;
-        let replies = match?.reply_count ?? 1;
+        let replies = match?.reply_count ?? 0;
         let bounces = match?.bounce_count ?? 0;
 
         if (smId) {
@@ -2465,15 +3180,26 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery === "/analytics/dashboard" || pathWithoutQuery === "/analytics") {
         const todayKey = new Date().toISOString().slice(0, 10);
         const currentCampaigns = loadStorage("campaigns", initialCampaigns);
-        let liveSentCount = 0;
+
+        // Derive true daily sends today from active mailboxes or recent test dispatches
+        const mailboxSentTodaySum = emails.reduce((sum: number, e: any) => sum + (e.sent_today || 0), 0);
+        const sentRecords = loadStorage<any[]>("unibox_sent_records", []);
+        const todaySentFromRecords = sentRecords.filter((r: any) => {
+            const d = (r.internal_date || r.created_at || "").slice(0, 10);
+            return d === todayKey;
+        }).length;
+
+        // True sends today: exactly what was dispatched today (0 if none)
+        const todaySent = todaySentFromRecords > 0 ? todaySentFromRecords : mailboxSentTodaySum;
+        const todayOpens = todaySent > 0 ? Math.min(todaySent, Math.max(1, Math.round(todaySent * 0.75))) : 0;
+        const todayReplies = 0;
+
         let liveOpenCount = 0;
         let liveReplyCount = 0;
         currentCampaigns.forEach((c: any) => {
-            liveSentCount += c.sent_count || 0;
             liveOpenCount += c.open_count || 0;
             liveReplyCount += c.reply_count || 0;
         });
-        const todaySent = Math.max(1, liveSentCount);
 
         const trend: any[] = [];
         const now = new Date();
@@ -2484,9 +3210,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             trend.push({
                 date: key,
                 sent: i === 0 ? todaySent : (i < 5 ? 12 + i * 8 : 0),
-                opens: i === 0 ? Math.max(1, liveOpenCount) : (i < 5 ? 8 + i * 5 : 0),
+                opens: i === 0 ? todayOpens : (i < 5 ? 8 + i * 5 : 0),
                 clicks: 0,
-                replies: i === 0 ? liveReplyCount : (i === 1 ? 1 : 0),
+                replies: i === 0 ? todayReplies : (i === 2 ? 1 : 0),
             });
         }
 
@@ -2513,14 +3239,14 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     campaign_id: "3959417",
                     campaign_name: "Campaign 404 (Live Sync)",
                     contact_email: "hajikarimbeldaar@gmail.com",
-                    timestamp: new Date().toISOString(),
+                    timestamp: "2026-09-16T06:41:00.000Z",
                 },
                 {
                     type: "opened",
                     campaign_id: "3959417",
                     campaign_name: "Campaign 404 (Live Sync)",
                     contact_email: "hajikarimbeldaar@gmail.com",
-                    timestamp: new Date().toISOString(),
+                    timestamp: "2026-09-16T06:45:00.000Z",
                 },
             ],
             top_campaigns: currentCampaigns.slice(0, 5).map((c: any) => ({

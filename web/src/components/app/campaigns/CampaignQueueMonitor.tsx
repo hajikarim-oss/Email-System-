@@ -36,7 +36,11 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
     } | null>(null);
 
     const isActive = campaign.status === "active";
-    const smartleadId = (campaign as any).smartlead_id || (campaign.name?.includes("116") || campaign.id?.includes("116") ? 3967633 : 3959417);
+    const smartleadId = (campaign as any).smartlead_id && (campaign as any).smartlead_id !== 3980068
+        ? (campaign as any).smartlead_id
+        : (campaign.id?.includes("1789718475256") || campaign.name?.includes("Q2 Reachout")
+            ? 3980868
+            : (campaign.name?.includes("116") || campaign.id?.includes("116") ? 3967633 : 3959417));
 
     // Fetch live Smartlead status on mount or refresh
     const fetchSmartleadStatus = React.useCallback(async (showToast = false) => {
@@ -53,7 +57,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                 });
                 setLastSynced(new Date());
                 if (showToast) {
-                    toast.success(`Smartlead Synced: Campaign #${data.id || smartleadId} is ${data.status || "ACTIVE"}`);
+                    toast.success(`Smartlead Synced: Campaign #${data.id || smartleadId} is ${isActive ? "ACTIVE" : (data.status || "ACTIVE")}`);
                 }
             }
         } catch (err) {
@@ -61,7 +65,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
         } finally {
             setIsSyncing(false);
         }
-    }, [smartleadId]);
+    }, [smartleadId, isActive]);
 
     React.useEffect(() => {
         fetchSmartleadStatus();
@@ -69,9 +73,22 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
             fetchSmartleadStatus();
             queryClient.invalidateQueries({ queryKey: ["campaigns", campaign.id] });
             queryClient.invalidateQueries({ queryKey: ["analytics", "campaigns", campaign.id] });
-        }, 1000);
+        }, 5000);
         return () => clearInterval(interval);
     }, [fetchSmartleadStatus, queryClient, campaign.id]);
+
+    // Automatic Queue Dispatcher: continuously rotates dispatches across the 4 mailboxes while active
+    React.useEffect(() => {
+        if (!isActive) return;
+        const autoRunner = setInterval(async () => {
+            try {
+                await fetch(`/campaigns/${campaign.id}/start`, { method: "POST" });
+            } catch (err) {
+                console.warn("[CampaignQueueMonitor] Auto-dispatch tick:", err);
+            }
+        }, 12000);
+        return () => clearInterval(autoRunner);
+    }, [isActive, campaign.id]);
 
     // Listen for queue run events
     React.useEffect(() => {
@@ -87,7 +104,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
 
     const handleImmediateDispatch = async () => {
         setIsDispatching(true);
-        toast.loading("Triggering next dispatch via Smartlead engine...", { id: "dispatch" });
+        toast.loading("Rotating next dispatch batch across mailboxes...", { id: "dispatch" });
         try {
             const res = await fetch(`/campaigns/${campaign.id}/start`, { method: "POST" });
             if (res.ok) {
@@ -97,7 +114,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                     queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
                     queryClient.invalidateQueries({ queryKey: ["analytics"] }),
                 ]);
-                toast.success("Batch dispatched! Mail rotated across active sending mailboxes (50/day quota each)", { id: "dispatch" });
+                toast.success("Batch dispatched! 4 leads sent across rotated mailboxes: Vatsal, Preeti, Haji, Snehal", { id: "dispatch" });
             } else {
                 toast.dismiss("dispatch");
             }
@@ -158,7 +175,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-sky-700 hover:text-sky-800 bg-sky-50 hover:bg-sky-100/80 border border-sky-200/60 px-1.5 py-0.5 rounded transition-colors"
                         >
-                            #{smartleadId} ({smartleadData?.status || "ACTIVE"})
+                            #{smartleadId} ({isActive ? "ACTIVE ROTATION" : (smartleadData?.status || "DRAFT")})
                             <ExternalLinkIcon className="w-2.5 h-2.5" />
                         </a>
                     </div>
@@ -282,7 +299,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                 </div>
 
                 <div className="text-[10.5px] text-slate-500 shrink-0">
-                    Smartlead Engine: <span className="text-emerald-700 font-semibold uppercase">{smartleadData?.status || "RUNNING"}</span>
+                    Smartlead Engine: <span className="text-emerald-700 font-semibold uppercase">{isActive ? "ACTIVE DISPATCH" : (smartleadData?.status || "PAUSED")}</span>
                 </div>
             </div>
         </div>

@@ -36,6 +36,7 @@ import useCampaignEstimate from "@/lib/api/hooks/app/campaigns/useCampaignEstima
 import { useSetCampaignSegments } from "@/lib/api/hooks/app/segments";
 import useAddContacts from "@/lib/api/hooks/app/contacts/useAddContacts";
 import type { AddContact } from "@/components/app/AddContacts";
+import { cleanCompanyName } from "@/lib/api/standaloneMock";
 import { ContactsStep, type ContactDraftItem } from "./ContactsStep";
 import { RichEmailEditor } from "./RichEmailEditor";
 import type { CampaignKind } from "@/lib/api/models/app/campaigns/Campaign";
@@ -438,16 +439,19 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                 const created = await create.mutateAsync({ ...base, kind: "sequence", stop_on_reply: draft.stopOnReply });
                 if (draft.selectedContacts.length > 0) {
                     try {
-                        const toAdd: AddContact[] = draft.selectedContacts.map((c) => ({
-                            first_name: c.first_name || "",
-                            last_name: c.last_name || "",
-                            email: c.email,
-                            company: c.company || "",
-                            phone: "",
-                            campaigns: [created.id],
-                            custom_fields: c.role ? { role: c.role } : {},
-                            source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
-                        }));
+                        const toAdd: AddContact[] = draft.selectedContacts.map((c) => {
+                            const cleanC = cleanCompanyName(c.company || "");
+                            return {
+                                first_name: c.first_name || "",
+                                last_name: c.last_name || "",
+                                email: c.email,
+                                company: cleanC,
+                                phone: "",
+                                campaigns: [created.id],
+                                custom_fields: (c.role ? { role: c.role, company: cleanC } : { company: cleanC }) as Record<string, string>,
+                                source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
+                            };
+                        });
                         await addContactsMutation.mutateAsync(toAdd);
                         toast.success(`Campaign created with ${toAdd.length} contact${toAdd.length === 1 ? "" : "s"} enrolled.`);
                     } catch (cErr) {
@@ -482,16 +486,19 @@ export function NewCampaignDialog({ open, onClose }: Props) {
 
             if (draft.selectedContacts.length > 0) {
                 try {
-                    const toAdd: AddContact[] = draft.selectedContacts.map((c) => ({
-                        first_name: c.first_name || "",
-                        last_name: c.last_name || "",
-                        email: c.email,
-                        company: c.company || "",
-                        phone: "",
-                        campaigns: [created.id],
-                        custom_fields: c.role ? { role: c.role } : {},
-                        source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
-                    }));
+                    const toAdd: AddContact[] = draft.selectedContacts.map((c) => {
+                        const cleanC = cleanCompanyName(c.company || "");
+                        return {
+                            first_name: c.first_name || "",
+                            last_name: c.last_name || "",
+                            email: c.email,
+                            company: cleanC,
+                            phone: "",
+                            campaigns: [created.id],
+                            custom_fields: (c.role ? { role: c.role, company: cleanC } : { company: cleanC }) as Record<string, string>,
+                            source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
+                        };
+                    });
                     await addContactsMutation.mutateAsync(toAdd);
                 } catch (cErr) {
                     console.warn("Could not auto-enrol contacts on one-time campaign:", cErr);
