@@ -544,7 +544,7 @@ function smartleadApiPlugin() {
                             if (!hasWebhook) {
                                 await apiCall(`/campaigns/${smartleadId}/webhooks`, "POST", {
                                     name: "TheBoredMonkey Live Event Webhook",
-                                    webhook_url: "https://theboredmonkey.com/api/webhooks/smartlead",
+                                    webhook_url: "https://email-system-omega.vercel.app/api/webhooks/smartlead",
                                     event_types: [
                                         "EMAIL_OPEN",
                                         "EMAIL_SENT",

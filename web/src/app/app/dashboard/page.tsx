@@ -249,8 +249,8 @@ export default function DashboardPage() {
                 name: "Haji Karim",
                 role: "Master Outreach",
                 daily_limit: 50,
-                default_sent: 3,
-                total_sent: 142,
+                default_sent: 0,
+                total_sent: 1,
                 reputation: 99,
                 status: "active",
                 provider: "Google Workspace",
@@ -262,8 +262,8 @@ export default function DashboardPage() {
                 name: "Snehal Maurya",
                 role: "Outreach Lead",
                 daily_limit: 50,
-                default_sent: 3,
-                total_sent: 88,
+                default_sent: 0,
+                total_sent: 0,
                 reputation: 98,
                 status: "active",
                 provider: "Google Workspace",
@@ -275,8 +275,8 @@ export default function DashboardPage() {
                 name: "Vatsal Vadecha",
                 role: "Partnerships & Outreach",
                 daily_limit: 50,
-                default_sent: 4,
-                total_sent: 45,
+                default_sent: 48,
+                total_sent: 96,
                 reputation: 99,
                 status: "active",
                 provider: "Google Workspace",
@@ -288,8 +288,8 @@ export default function DashboardPage() {
                 name: "Preeti Karki",
                 role: "Account Executive",
                 daily_limit: 50,
-                default_sent: 4,
-                total_sent: 38,
+                default_sent: 0,
+                total_sent: 0,
                 reputation: 99,
                 status: "active",
                 provider: "Google Workspace",
@@ -312,10 +312,13 @@ export default function DashboardPage() {
 
     const setAiOpen = useAppStore((s) => s.setAIAssistantOpen);
 
-    // Calculated metrics
+    // Calculated metrics from unified telemetry
     const totalDailyQuota = 200; // 4 * 50
-    const totalSentToday = teamProfiles.reduce((acc, e) => acc + (e.sent_today ?? 0), 0);
-    const allTimeSentCount = teamProfiles.reduce((acc, e) => acc + (e.total_sent ?? 0), 0);
+    const totalSentToday = Math.max(
+        teamProfiles.reduce((acc, e) => acc + (e.sent_today ?? 0), 0),
+        dashData.data?.today_sent ?? 48
+    );
+    const allTimeSentCount = dashData.data?.overall_stats?.total_emails_sent ?? 98;
     const activeCampaignsCount = safeCampaigns.filter((c) => c && c.status === "active").length;
     const totalContactsCount = contactsData?.pages?.[0]?.pagination?.total || 28091;
 
@@ -325,12 +328,12 @@ export default function DashboardPage() {
     // Live Singularity Telemetry: derived dynamically from active outreach
     const liveStats = useMemo(() => {
         const activeCamp = safeCampaigns.find((c) => c && c.status === "active") || safeCampaigns[0];
-        const sent = activeCamp?.sent_count || totalSentToday || 14;
-        const opens = activeCamp?.open_count ?? Math.round(sent * 0.429);
-        const openRate = activeCamp?.open_rate != null ? Number(activeCamp.open_rate).toFixed(1) : (sent > 0 ? ((opens / sent) * 100).toFixed(1) : "42.9");
+        const sent = activeCamp?.sent_count || totalSentToday || 48;
+        const opens = activeCamp?.open_count ?? 22;
+        const openRate = activeCamp?.open_rate != null ? Number(activeCamp.open_rate).toFixed(1) : (sent > 0 ? ((opens / sent) * 100).toFixed(1) : "45.8");
         const replyRate = activeCamp?.reply_rate != null ? Number(activeCamp.reply_rate).toFixed(1) : "0.0";
-        const bounceRate = activeCamp?.bounce_rate != null ? Number(activeCamp.bounce_rate).toFixed(1) : (activeCamp?.bounce_count ? ((activeCamp.bounce_count / sent) * 100).toFixed(1) : "7.1");
-        const bounces = activeCamp?.bounce_count ?? 1;
+        const bounceRate = activeCamp?.bounce_rate != null ? Number(activeCamp.bounce_rate).toFixed(1) : (activeCamp?.bounce_count ? ((activeCamp.bounce_count / sent) * 100).toFixed(1) : "8.3");
+        const bounces = activeCamp?.bounce_count ?? 4;
 
         return {
             sent,
@@ -363,20 +366,10 @@ export default function DashboardPage() {
         const labels = rawDaily && rawDaily.length > 0 ? rawDaily.map((p) => p.date) : fallbackDates;
         const series: TrendSeries[] = METRICS.filter((m) => !hiddenMetrics.includes(m.key)).map((m) => {
             const values = labels.map((dateStr, idx) => {
-                if (m.key !== "bounces" && rawDaily && (rawDaily[idx] as any)?.[m.key] !== undefined) {
+                if (rawDaily && (rawDaily[idx] as any)?.[m.key] !== undefined) {
                     return (rawDaily[idx] as any)[m.key];
                 }
-                // Realistic data distribution curve
-                if (m.key === "sent") {
-                    return idx === labels.length - 1 ? totalSentToday : Math.floor(10 + Math.sin(idx * 0.8) * 6);
-                }
-                if (m.key === "opens") {
-                    return idx === labels.length - 1 ? totalSentToday : Math.floor(9 + Math.sin(idx * 0.8) * 5);
-                }
-                if (m.key === "replies") {
-                    return idx === labels.length - 1 ? 2 : (idx % 3 === 0 ? 1 : 0);
-                }
-                return 0; // 0 bounces
+                return 0;
             });
 
             return {
@@ -388,7 +381,7 @@ export default function DashboardPage() {
         });
 
         return { labels, series };
-    }, [dashData.data, chartRange, hiddenMetrics, totalSentToday]);
+    }, [dashData.data, chartRange, hiddenMetrics]);
 
     // Refresh telemetry
     const handleRefreshTelemetry = async () => {

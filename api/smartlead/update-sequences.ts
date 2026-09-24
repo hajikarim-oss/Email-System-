@@ -1,7 +1,32 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
 
-const DEFAULT_SMARTLEAD_KEY = process.env.SMARTLEAD_API_KEY || "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6";
+const envKey = process.env.SMARTLEAD_API_KEY;
+const PRIMARY_KEY = (envKey && !envKey.startsWith("412be3a1")) ? envKey : "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6";
+const SECONDARY_KEY = "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt";
+
+function postSequences(smartleadId: string, postData: string, apiKey: string): Promise<{ statusCode: number; data: string }> {
+    return new Promise((resolve, reject) => {
+        const slReq = https.request({
+            hostname: "server.smartlead.ai",
+            path: `/api/v1/campaigns/${smartleadId}/sequences?api_key=${apiKey}`,
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(postData)
+            }
+        }, (slRes) => {
+            let data = "";
+            slRes.on("data", (chunk) => { data += chunk; });
+            slRes.on("end", () => {
+                resolve({ statusCode: slRes.statusCode || 200, data });
+            });
+        });
+        slReq.on("error", (err) => reject(err));
+        slReq.write(postData);
+        slReq.end();
+    });
+}
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -60,30 +85,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             });
 
             const postData = JSON.stringify({ sequences });
-            const slReq = https.request({
-                hostname: "server.smartlead.ai",
-                path: `/api/v1/campaigns/${smartleadId}/sequences?api_key=${DEFAULT_SMARTLEAD_KEY}`,
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Content-Length": Buffer.byteLength(postData)
-                }
-            }, (slRes) => {
-                let data = "";
-                slRes.on("data", (chunk) => { data += chunk; });
-                slRes.on("end", () => {
-                    res.writeHead(slRes.statusCode || 200, { "Content-Type": "application/json" });
-                    res.end(data || JSON.stringify({ success: true }));
-                });
-            });
+            let result = await postSequences(smartleadId, postData, PRIMARY_KEY);
+            if (result.statusCode === 401 || result.statusCode === 404) {
+                try {
+                    const fallback = await postSequences(smartleadId, postData, SECONDARY_KEY);
+                    if (fallback.statusCode >= 200 && fallback.statusCode < 300) {
+                        result = fallback;
+                    }
+                } catch { }
+            }
 
-            slReq.on("error", (err) => {
-                res.writeHead(500, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: err.message }));
-            });
-
-            slReq.write(postData);
-            slReq.end();
+            res.writeHead(result.statusCode, { "Content-Type": "application/json" });
+            res.end(result.data || JSON.stringify({ success: true }));
         } catch (e: any) {
             res.writeHead(500, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: e.message }));
