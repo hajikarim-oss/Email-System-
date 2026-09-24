@@ -163,7 +163,29 @@ export async function POST(req: Request) {
         break;
       }
 
-      case "opened":
+      case "opened": {
+        // Smart Filter: Ensure this is a genuine client open, not CC/BCC or internal team preview
+        const openerEmail = (payload.email || payload.lead_email || payload.opened_by || "").toLowerCase();
+        const bccEmail = (payload.bcc || payload.bcc_email || "").toLowerCase();
+        const fromEmail = (payload.from_email || payload.sender_email || "").toLowerCase();
+
+        const isInternalTeam = 
+          openerEmail.endsWith("@theboredmonkey.com") ||
+          openerEmail.includes("haji.karim") ||
+          openerEmail.includes("vatsal.vadecha") ||
+          openerEmail.includes("snehal.maurya") ||
+          openerEmail.includes("preeti.karki");
+
+        const isBccOrSender = 
+          (fromEmail && openerEmail === fromEmail) ||
+          (bccEmail && openerEmail === bccEmail) ||
+          (lead.email && openerEmail && openerEmail !== lead.email.toLowerCase());
+
+        if (isInternalTeam || isBccOrSender) {
+          console.log(`[SmartFilter] Ignored non-client/BCC open event for lead=${lead.email}, opener=${openerEmail}`);
+          break;
+        }
+
         await prisma.lead.update({
           where: { id: lead.id },
           data: {
@@ -177,8 +199,14 @@ export async function POST(req: Request) {
           },
         });
         break;
+      }
 
-      case "clicked":
+      case "clicked": {
+        const clickerEmail = (payload.email || payload.lead_email || "").toLowerCase();
+        if (clickerEmail.endsWith("@theboredmonkey.com")) {
+          console.log(`[SmartFilter] Ignored internal team click from ${clickerEmail}`);
+          break;
+        }
         await prisma.lead.update({
           where: { id: lead.id },
           data: {
@@ -190,6 +218,7 @@ export async function POST(req: Request) {
           },
         });
         break;
+      }
 
       case "replied":
         await prisma.lead.update({

@@ -78,6 +78,7 @@ import { NewContactDialog } from "./NewContactDialog";
 import ExportDialog from "./ExportDialog";
 import ImportWizard from "./ImportWizard";
 import AddFromContactsDialog from "./AddFromContactsDialog";
+import CampaignImportContactsModal from "./CampaignImportContactsModal";
 import AddToSegmentMenu from "@/components/app/segments/AddToSegmentMenu";
 import SegmentEditor from "@/components/app/segments/SegmentEditor";
 import { filtersToSegment } from "@/components/app/segments/filtersToSegment";
@@ -791,16 +792,29 @@ export default function ContactsTable({
                     onClose={() => setSyncOpen(false)}
                     campaign={current_campaign}
                 />
-                <ImportWizard
-                    open={importOpen}
-                    onClose={() => setImportOpen(false)}
-                    lockedCampaign={current_campaign}
-                />
-                <AddFromContactsDialog
-                    open={fromContactsOpen}
-                    onClose={() => setFromContactsOpen(false)}
-                    campaign={current_campaign}
-                />
+                {current_campaign ? (
+                    <CampaignImportContactsModal
+                        open={importOpen || fromContactsOpen}
+                        onClose={() => {
+                            setImportOpen(false);
+                            setFromContactsOpen(false);
+                        }}
+                        campaign={current_campaign}
+                    />
+                ) : (
+                    <>
+                        <ImportWizard
+                            open={importOpen}
+                            onClose={() => setImportOpen(false)}
+                            lockedCampaign={current_campaign}
+                        />
+                        <AddFromContactsDialog
+                            open={fromContactsOpen}
+                            onClose={() => setFromContactsOpen(false)}
+                            campaign={current_campaign}
+                        />
+                    </>
+                )}
                 <CampaignSegmentsDialog
                     open={fromSegmentOpen}
                     onClose={() => setFromSegmentOpen(false)}

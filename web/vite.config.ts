@@ -608,7 +608,29 @@ function smartleadApiPlugin() {
                     try {
                         const payload = JSON.parse(body || "{}");
                         const eventType = payload.event_type || payload.type || "unknown";
-                        const email = payload.email || payload.lead_email || payload.to_email || "";
+                        const email = (payload.email || payload.lead_email || payload.to_email || "").toLowerCase();
+                        const fromEmail = (payload.from_email || payload.sender_email || payload.from || "").toLowerCase();
+                        const bccEmail = (payload.bcc || payload.bcc_email || "").toLowerCase();
+
+                        // Smart Filter: Discard internal team opens or BCC opens
+                        const isInternalTeam =
+                            email.endsWith("@theboredmonkey.com") ||
+                            email.includes("haji.karim") ||
+                            email.includes("vatsal.vadecha") ||
+                            email.includes("snehal.maurya") ||
+                            email.includes("preeti.karki");
+
+                        const isBccOrSender =
+                            (fromEmail && email === fromEmail) ||
+                            (bccEmail && email === bccEmail);
+
+                        if ((eventType === "EMAIL_OPEN" || eventType === "EMAIL_OPENED") && (isInternalTeam || isBccOrSender)) {
+                            console.log(`[SmartFilter Dev] Ignored non-client/BCC open event for ${email}`);
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ received: true, ignored: true, reason: "internal_or_bcc_open" }));
+                            return;
+                        }
+
                         const record = {
                             id: `wh_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                             received_at: new Date().toISOString(),

@@ -130,6 +130,26 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
         finally { setChecking(false); }
     }, [selectedContacts, onChangeSelected]);
 
+    const pendingRef = React.useRef(pendingContacts);
+    const ignoredRef = React.useRef(ignoredEmails);
+    const showWarnRef = React.useRef(showWarn);
+    const selectedRef = React.useRef(selectedContacts);
+    pendingRef.current = pendingContacts;
+    ignoredRef.current = ignoredEmails;
+    showWarnRef.current = showWarn;
+    selectedRef.current = selectedContacts;
+
+    React.useEffect(() => {
+        return () => {
+            if (showWarnRef.current && pendingRef.current.length > 0) {
+                const kept = pendingRef.current.filter(c => !ignoredRef.current.has(c.email.toLowerCase()));
+                if (kept.length > 0) {
+                    onChangeSelected([...selectedRef.current, ...kept]);
+                }
+            }
+        };
+    }, [onChangeSelected]);
+
     const toggleIgnore = (email: string) => setIgnoredEmails(prev => { const n = new Set(prev); if (n.has(email)) n.delete(email); else n.add(email); return n; });
     const skipAllFlagged = () => {
         setIgnoredEmails(new Set(historyWarnings.map(w => w.email.toLowerCase())));

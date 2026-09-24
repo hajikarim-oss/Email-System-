@@ -280,7 +280,7 @@ export const Q2_CAMPAIGN_DEF: any = {
     id: "cmp_1789718475256_g91f",
     name: "Q2 Reachout Mails",
     description: "Outreach sequence",
-    status: "active",
+    status: "paused",
     kind: "sequence",
     stop_on_reply: true,
     open_tracking: true,
@@ -319,16 +319,17 @@ export const Q2_CAMPAIGN_DEF: any = {
     ramp_increment: 5,
     ramp_max: 50,
     total_leads: 1876,
-    sent_count: 1,
-    open_count: 0,
+    sent_count: 48,
+    open_count: 17,
     reply_count: 0,
-    click_count: 0,
-    bounce_count: 0,
-    open_rate: 0,
+    click_count: 5,
+    bounce_count: 12,
+    open_rate: 35.4,
     reply_rate: 0,
-    click_rate: 0,
+    click_rate: 10.4,
+    bounce_rate: 25.0,
     smartlead_id: 3980868,
-    smartlead_status: "ACTIVE",
+    smartlead_status: "PAUSED",
     sender_email: "vatsal.vadecha@theboredmonkey.com",
     created_at: "2026-09-18T08:02:10.276Z",
     updated_at: new Date().toISOString(),
@@ -905,6 +906,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 saveStorage(`campaign_leads_${campId}`, stored);
             }
             return stored;
+        }
+
+        // Also check if any contacts in localStorage belong to this campaign
+        const matchingContacts = contacts.filter((c: any) =>
+            c.campaign_id === campId || (Array.isArray(c.campaigns) && c.campaigns.includes(campId))
+        );
+        if (matchingContacts.length > 0) {
+            saveStorage(`campaign_leads_${campId}`, matchingContacts);
+            const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
+            if (camp) {
+                camp.total_leads = matchingContacts.length;
+                saveStorage("campaigns", campaigns);
+            }
+            return matchingContacts;
         }
 
         const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
@@ -1500,6 +1515,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         if (sub === "steps" || sub === "sequences") {
             const stepId = parts[3];
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
             match.steps = match.steps || [];
             match.sequences = match.sequences || match.steps;
 
@@ -1520,7 +1536,34 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 return res({ success: true, deleted_id: stepId });
             }
 
-            // 2. PATCH / PUT STEP: Update subject/body, sanitize badges, persist, sync to Smartlead
+            // 2. BULK PUT / POST: Save entire sequence steps list
+            if ((method === "PUT" || method === "POST") && !stepId && (body.steps || Array.isArray(body))) {
+                const incoming = Array.isArray(body) ? body : body.steps;
+                match.steps = incoming.map((s: any, idx: number) => ({
+                    id: s.id || `stp_${Date.now()}_${idx + 1}`,
+                    stepNumber: idx + 1,
+                    position: idx + 1,
+                    name: s.name || (idx === 0 ? "First email" : `Follow-up ${idx}`),
+                    subject: s.subject || "",
+                    body_plain: s.body_plain || "",
+                    body_html: s.body_html || (s.body_plain ? `<div>${s.body_plain.replace(/\n/g, "<br/>")}</div>` : ""),
+                    wait_after: s.wait_after !== undefined ? s.wait_after : (idx === 0 ? 0 : 3),
+                    updated_at: new Date(),
+                    created_at: s.created_at || new Date(),
+                }));
+                match.sequences = [...match.steps];
+                saveStorage("campaigns", campaigns);
+                if (match.smartlead_id) {
+                    fetch("/api/smartlead/update-sequences", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ smartlead_id: match.smartlead_id, steps: match.steps }),
+                    }).catch(() => { });
+                }
+                return res(match.steps);
+            }
+
+            // 3. PATCH / PUT SINGLE STEP: Update subject/body, sanitize badges, persist, sync to Smartlead
             if ((method === "PATCH" || method === "PUT") && stepId) {
                 const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
                 const targetStep = match.steps.find((s: any) => s.id === stepId) || match.sequences.find((s: any) => s.id === stepId);
@@ -1675,16 +1718,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         statsData.data.forEach((st: any) => {
                             const emailLower = (st.lead_email || "").toLowerCase();
                             const lead = storedLeads.find((l: any) => (l.email || "").toLowerCase() === emailLower);
+                            const isInternal = emailLower.includes("@theboredmonkey.com");
                             if (lead) {
-                                lead.sent_by_mailbox = "vatsal.vadecha@theboredmonkey.com";
-                                lead.assigned_mailbox_id = "23457457";
-                                lead.open_count = st.open_count || 0;
-                                lead.click_count = st.click_count || 0;
+                                lead.sent_by_mailbox = lead.sent_by_mailbox || st.mailbox_email || "vatsal.vadecha@theboredmonkey.com";
+                                lead.assigned_mailbox_id = lead.assigned_mailbox_id || st.email_account_id || "23457457";
+                                lead.open_count = isInternal ? 0 : (st.open_count || 0);
+                                lead.click_count = isInternal ? 0 : (st.click_count || 0);
                                 lead.status = "completed";
                                 if (lead.campaign_lead) {
-                                    lead.campaign_lead.opened = st.open_count || 0;
-                                    lead.campaign_lead.clicked = st.click_count || 0;
-                                    lead.campaign_lead.sender = "vatsal.vadecha@theboredmonkey.com";
+                                    lead.campaign_lead.opened = isInternal ? 0 : (st.open_count || 0);
+                                    lead.campaign_lead.clicked = isInternal ? 0 : (st.click_count || 0);
+                                    lead.campaign_lead.sender = lead.sent_by_mailbox;
                                     lead.campaign_lead.status = "completed";
                                     lead.campaign_lead.last_activity_at = st.open_time || st.click_time || st.sent_time || lead.campaign_lead.last_activity_at;
                                 }
@@ -1746,8 +1790,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     }
                     if (campId) {
                         const targetCamp = campaigns.find((c: any) => c.id === campId);
+                        const cLeads = loadStorage<any[]>(`campaign_leads_${campId}`, []);
+                        const contactToAdd = existingIdx >= 0 ? contacts[existingIdx] : newC;
+                        const clIdx = cLeads.findIndex((cl: any) => (cl.email || "").toLowerCase() === (item.email || "").toLowerCase());
+                        if (clIdx >= 0) {
+                            cLeads[clIdx] = { ...cLeads[clIdx], ...contactToAdd };
+                        } else {
+                            cLeads.push(contactToAdd);
+                        }
+                        saveStorage(`campaign_leads_${campId}`, cLeads);
                         if (targetCamp) {
-                            targetCamp.total_leads = (targetCamp.total_leads || 0) + 1;
+                            targetCamp.total_leads = cLeads.length;
                         }
                     }
                 }
@@ -2328,12 +2381,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const finalAlreadyStored: any[] = [];
         const finalQuarantined: any[] = [];
 
+        const targetCampId = opts.campaign_ids?.[0] || opts.campaign_id;
+        const targetCamp = targetCampId ? campaigns.find((c: any) => c.id === targetCampId) : null;
+        const campLeads: any[] = targetCampId ? loadStorage<any[]>(`campaign_leads_${targetCampId}`, []) : [];
+
         for (const item of candidateLeads) {
             const e = item.email.toLowerCase();
             if (quarantinedEmailMap.has(e)) {
                 finalQuarantined.push({ email: e, reason: quarantinedEmailMap.get(e) });
                 continue;
             }
+            const cleanComp = cleanCompanyName(item.company || "");
             if (opts.dedup === "skip" && (duplicateEmailMap.has(e) || existingContactsMap.has(e))) {
                 const exist = duplicateEmailMap.get(e) || existingContactsMap.get(e);
                 finalAlreadyStored.push({
@@ -2344,30 +2402,69 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     lastMessage: exist.lastMessage || null,
                     daysSinceLastContact: exist.daysSinceLastContact,
                 });
+                // If importing into a specific campaign, enroll the contact into the campaign leads registry
+                if (targetCampId) {
+                    const enrolledComp = cleanCompanyName(exist.company_name || exist.company || cleanComp || "");
+                    const enrolledContact = {
+                        id: exist.id || `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                        email: e,
+                        first_name: item.first_name || exist.first_name || "",
+                        last_name: item.last_name || exist.last_name || "",
+                        company: enrolledComp,
+                        company_name: enrolledComp,
+                        domain: enrolledComp,
+                        title: item.role || item.title || exist.title || exist.role || "Decision Maker",
+                        status: "pending",
+                        tags: ["csv-import"],
+                        campaign_id: targetCampId,
+                        campaigns: [targetCampId],
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    };
+                    if (!campLeads.some((cl: any) => (cl.email || "").toLowerCase() === e)) {
+                        campLeads.push(enrolledContact);
+                    }
+                }
                 continue;
             }
-            cleanToInsert.push({
+            const newLead = {
                 id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
                 email: e,
                 first_name: item.first_name || "",
                 last_name: item.last_name || "",
-                company_name: item.company || "",
-                title: "Executive",
-                status: "active",
+                company: cleanComp,
+                company_name: cleanComp,
+                domain: cleanComp,
+                title: item.role || item.title || "Decision Maker",
+                status: "pending",
                 tags: ["csv-import"],
+                campaign_id: targetCampId || null,
+                campaigns: targetCampId ? [targetCampId] : [],
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
-            });
+            };
+            cleanToInsert.push(newLead);
+            if (targetCampId && !campLeads.some((cl: any) => (cl.email || "").toLowerCase() === e)) {
+                campLeads.push(newLead);
+            }
         }
 
         cleanToInsert.forEach(c => contacts.unshift(c));
         saveStorage("contacts", contacts);
 
+        if (targetCampId) {
+            saveStorage(`campaign_leads_${targetCampId}`, campLeads);
+            if (targetCamp) {
+                targetCamp.total_leads = campLeads.length;
+                saveStorage("campaigns", campaigns);
+            }
+        }
+
         return res({
             total: candidateLeads.length,
-            imported: cleanToInsert.length,
+            imported: targetCampId ? campLeads.length : cleanToInsert.length,
             updated: 0,
-            skipped: finalAlreadyStored.length,
+            skipped: targetCampId ? 0 : finalAlreadyStored.length,
             failed: finalQuarantined.length,
             started_at: new Date().toISOString(),
             ended_at: new Date().toISOString(),

@@ -1,8 +1,9 @@
-import React from "react";
-import { LayersIcon, Loader2Icon, PlusIcon } from "lucide-react";
+import React, { useState } from "react";
+import { LayersIcon, Loader2Icon, MailIcon, PlusIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCampaign } from "@/hooks/context/campaign";
 import CampaignFlow from "@/components/app/campaigns/sequences/CampaignFlow";
+import CampaignTemplateEditor from "@/components/app/campaigns/templates/CampaignTemplateEditor";
 import PermissionButton from "@/components/ui/PermissionButton";
 import useSequences from "@/lib/api/hooks/app/campaigns/sequences/useSequences";
 import useCreateSequence from "@/lib/api/hooks/app/campaigns/sequences/useCreateSequence";
@@ -17,66 +18,50 @@ export default function CampaignSteps() {
 
     return (
         <React.Suspense fallback={<StepsSkeleton />}>
-            <StepsBuilder campaignId={campaign.id} />
+            <StepsContent campaign={campaign} />
         </React.Suspense>
     );
 }
 
-function StepsBuilder({ campaignId }: { campaignId: string }) {
-    const { data: sequences } = useSequences(campaignId);
-    const createSequence = useCreateSequence(campaignId);
-    const [creating, setCreating] = React.useState(false);
+function StepsContent({ campaign }: { campaign: any }) {
+    const [viewMode, setViewMode] = useState<"template" | "flow">("template");
 
-    async function create() {
-        if (creating) return;
-        setCreating(true);
-        try {
-            await toast.promise(createSequence.mutateAsync(), {
-                loading: "Adding step…",
-                success: "Step added.",
-                error: (err: AppError) => buildError(err),
-            });
-        } finally {
-            setCreating(false);
-        }
-    }
-
-    if (sequences.length === 0) {
+    if (viewMode === "flow") {
         return (
-            <div className="flex flex-col items-center justify-center rounded-md border border-slate-200 bg-white py-16">
-                <div className="mb-3 flex size-10 items-center justify-center rounded-md bg-sky-50 text-sky-600">
-                    <LayersIcon className="w-4 h-4" />
+            <div className="space-y-4">
+                <div className="flex items-center justify-between bg-white px-4 py-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-2 text-[12.5px] text-slate-600">
+                        <LayersIcon className="w-4 h-4 text-sky-600" />
+                        <span>Interactive Node Flow Canvas</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setViewMode("template")}
+                        className="h-7 px-3 rounded-md bg-sky-50 text-sky-700 hover:bg-sky-100 text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors border border-sky-200"
+                    >
+                        <MailIcon className="w-3.5 h-3.5" />
+                        Switch to Template Editor
+                    </button>
                 </div>
-                <h2 className="text-[13px] font-medium text-slate-900">Build your flow</h2>
-                <p className="mt-1 mb-4 max-w-xs text-center text-[11.5px] leading-relaxed text-slate-400">
-                    Add your first step, then drag from a step to branch on opens, clicks, or
-                    replies. The first email sends immediately; later steps wait and thread as
-                    follow-ups.
-                </p>
-                <PermissionButton
-                    permission="MANAGE_CAMPAIGNS"
-                    type="button"
-                    onClick={create}
-                    disabled={creating}
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md bg-sky-600 px-3 text-[12px] font-medium text-white transition-colors hover:bg-sky-700 disabled:opacity-60"
-                >
-                    {creating ? (
-                        <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                        <PlusIcon className="w-3.5 h-3.5" />
-                    )}
-                    Add your first step
-                </PermissionButton>
+                <CampaignFlow key={campaign.id} campaignId={campaign.id} />
             </div>
         );
     }
 
-    // Keyed by campaign: a param-only navigation (e.g. jump-to-teammate from
-    // one campaign's steps to another's) must remount the canvas, never reuse
-    // one seeded from the previous campaign.
-    return <CampaignFlow key={campaignId} campaignId={campaignId} />;
+    return (
+        <CampaignTemplateEditor
+            campaign={campaign}
+            showFlowToggle={true}
+            onSwitchToFlow={() => setViewMode("flow")}
+        />
+    );
 }
 
 function StepsSkeleton() {
-    return <div className="h-[74dvh] w-full animate-pulse rounded-md border border-slate-200 bg-slate-100/60" />;
+    return (
+        <div className="max-w-4xl mx-auto space-y-4 py-6">
+            <div className="h-14 w-full bg-slate-100 rounded-xl animate-pulse" />
+            <div className="h-64 w-full bg-slate-100 rounded-xl animate-pulse" />
+        </div>
+    );
 }

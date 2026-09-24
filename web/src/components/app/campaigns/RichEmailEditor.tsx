@@ -34,6 +34,11 @@ function derivePlainText(html: string): string {
     return temp.textContent || temp.innerText || "";
 }
 
+function ensureNoReferrerImages(html: string): string {
+    if (!html) return "";
+    return html.replace(/<img\b(?![^>]*\breferrerpolicy\b)/gi, '<img referrerpolicy="no-referrer"');
+}
+
 export function RichEmailEditor({
     subject,
     onSubjectChange,
@@ -47,16 +52,27 @@ export function RichEmailEditor({
     const [viewTab, setViewTab] = React.useState<"edit" | "preview">("edit");
     const [mode, setMode] = React.useState<"visual" | "code">("visual");
     const editorRef = React.useRef<HTMLDivElement>(null);
-    const lastHtmlRef = React.useRef<string>(bodyHtml);
+    const lastHtmlRef = React.useRef<string>("");
 
     // Initial and external sync to contentEditable
     React.useEffect(() => {
         if (editorRef.current && mode === "visual" && viewTab === "edit") {
-            const currentDOMHtml = editorRef.current.innerHTML;
-            const targetHtml = bodyHtml || (bodyPlain ? `<div>${bodyPlain.replace(/\n/g, "<br/>")}</div>` : "");
-            if (currentDOMHtml !== targetHtml && lastHtmlRef.current !== targetHtml) {
-                editorRef.current.innerHTML = targetHtml;
-                lastHtmlRef.current = targetHtml;
+            const rawTarget = bodyHtml || (bodyPlain ? `<div>${bodyPlain.replace(/\n/g, "<br/>")}</div>` : "");
+            const targetHtml = ensureNoReferrerImages(rawTarget);
+            const isFocused = document.activeElement === editorRef.current;
+
+            if (isFocused) {
+                // While user is actively typing, only sync if externally changed
+                if (editorRef.current.innerHTML !== targetHtml && lastHtmlRef.current !== targetHtml) {
+                    editorRef.current.innerHTML = targetHtml;
+                    lastHtmlRef.current = targetHtml;
+                }
+            } else {
+                // Initial mount or external data update: always populate DOM innerHTML
+                if (editorRef.current.innerHTML !== targetHtml) {
+                    editorRef.current.innerHTML = targetHtml;
+                    lastHtmlRef.current = targetHtml;
+                }
             }
         }
     }, [bodyHtml, bodyPlain, mode, viewTab]);
@@ -137,7 +153,7 @@ export function RichEmailEditor({
         const html = e.clipboardData?.getData("text/html");
         if (html && html.trim().length > 0) {
             e.preventDefault();
-            insertHtmlAtCaret(html);
+            insertHtmlAtCaret(ensureNoReferrerImages(html));
             return;
         }
 
@@ -182,7 +198,7 @@ export function RichEmailEditor({
     const handlePromptImage = () => {
         const url = window.prompt("Enter image URL (e.g. https://.../banner.png):");
         if (url && url.trim()) {
-            insertHtmlAtCaret(`<p><img src="${url.trim()}" alt="Image" style="max-width: 100%; height: auto; border-radius: 6px; margin: 8px 0;" /></p>`);
+            insertHtmlAtCaret(`<p><img src="${url.trim()}" referrerpolicy="no-referrer" alt="Image" style="max-width: 100%; height: auto; border-radius: 6px; margin: 8px 0;" /></p>`);
         }
     };
 
@@ -197,6 +213,8 @@ export function RichEmailEditor({
     const renderEvaluatedContent = (rawText: string) => {
         if (!rawText) return "";
         let out = cleanVariableBadges(rawText);
+        // Ensure no-referrer policy on all images in preview so Google-hosted signatures load
+        out = ensureNoReferrerImages(out);
         // Evaluate conditionals like {{if .Company}}...{{end}}
         out = out.replace(/\{\{\s*if\s+\.?Company\s*\}\}([\s\S]*?)\{\{\s*end\s*\}\}/gi, "$1");
         // Replace variable tokens seamlessly matching paragraph typography

@@ -8,6 +8,7 @@ import {
     CalendarIcon,
     ListChecksIcon,
     Loader2Icon,
+    MailIcon,
     PauseIcon,
     PlayIcon,
     SendIcon,
@@ -33,6 +34,7 @@ import { CampaignQueueMonitor } from "@/components/app/campaigns/CampaignQueueMo
 const TABS = [
     { label: "Overview", path: "", Icon: BarChart3Icon },
     { label: "Leads", path: "/leads", Icon: UsersIcon },
+    { label: "Template", path: "/template", Icon: MailIcon },
     { label: "Steps", path: "/steps", Icon: ListChecksIcon },
     { label: "Schedule", path: "/schedule", Icon: CalendarIcon },
     { label: "Settings", path: "/preferences", Icon: Settings2Icon },
