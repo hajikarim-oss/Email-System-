@@ -374,6 +374,30 @@ function smartleadApiPlugin() {
                 });
             });
 
+            server.middlewares.use("/api/smartlead/campaigns", async (_req: any, res: any) => {
+                try {
+                    const keys = [DEFAULT_SMARTLEAD_KEY, SECONDARY_SMARTLEAD_KEY];
+                    const calls = await Promise.all(keys.map((k) => apiCall("/campaigns", "GET", undefined, k)));
+                    const allCamps: any[] = [];
+                    const seen = new Set<number>();
+                    for (const c of calls) {
+                        if (Array.isArray(c.data)) {
+                            for (const item of c.data) {
+                                if (item?.id && !seen.has(item.id)) {
+                                    seen.add(item.id);
+                                    allCamps.push(item);
+                                }
+                            }
+                        }
+                    }
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(allCamps));
+                } catch (err: any) {
+                    res.writeHead(500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: err.message }));
+                }
+            });
+
             server.middlewares.use("/api/smartlead/campaign-analytics", async (req: any, res: any) => {
                 const url = new URL(req.url, "http://localhost");
                 const smartleadId = url.searchParams.get("id") || "3967633";

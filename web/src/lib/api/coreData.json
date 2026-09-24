@@ -113,10 +113,81 @@
   ],
   "campaigns": [
     {
+      "id": "cmp_1790233732719_dvlj",
+      "name": "Q3 Campaign",
+      "description": "Outreach sequence",
+      "status": "active",
+      "kind": "sequence",
+      "stop_on_reply": true,
+      "open_tracking": true,
+      "link_tracking": true,
+      "utm_tracking": false,
+      "utm_source": "theboredmonkey",
+      "utm_medium": "email",
+      "utm_campaign": "q3-campaign",
+      "text_only": false,
+      "daily_limit": 200,
+      "unsubscribe_header": true,
+      "risky_emails": false,
+      "unsubscribe_mode": "inherit",
+      "cc": [],
+      "bcc": [],
+      "start_date": "2026-09-24T08:06:53.145Z",
+      "end_date": null,
+      "timezone": "Asia/Kolkata",
+      "days": 62,
+      "start_time": "10:00",
+      "end_time": "18:00",
+      "email_tags": [],
+      "folders": [],
+      "contact_order_by": "created_at",
+      "contact_order_dir": "asc",
+      "sender_strategy": "explicit",
+      "rotation_mode": "round_robin",
+      "total_leads": 1785,
+      "sent_count": 20,
+      "open_count": 8,
+      "reply_count": 0,
+      "click_count": 1,
+      "bounce_count": 1,
+      "open_rate": 40,
+      "reply_rate": 0,
+      "click_rate": 5,
+      "bounce_rate": 5,
+      "smartlead_id": 4015596,
+      "smartlead_status": "ACTIVE",
+      "sender_email": "vatsal.vadecha@theboredmonkey.com",
+      "created_at": "2026-09-24T08:06:53.145Z",
+      "updated_at": "2026-09-24T09:14:25.415Z",
+      "steps": [
+        {
+          "id": "stp_q3_1",
+          "stepNumber": 1,
+          "position": 1,
+          "name": "Step 1 (Outreach)",
+          "subject": "Influencer marketing partnerships for {{company_name}}",
+          "body_plain": "Hi {{first_name}},\n\nWe run creator-led campaigns for brands like Atomberg and Wakefit...",
+          "body_html": "<p>Hi {{first_name}},</p><p>We run creator-led campaigns...</p>",
+          "wait_after": 0
+        }
+      ],
+      "sequences": [
+        {
+          "id": "seq_q3_1",
+          "position": 1,
+          "name": "Step 1 (Outreach)",
+          "subject": "Influencer marketing partnerships for {{company_name}}",
+          "body_plain": "Hi {{first_name}},\n\nWe run creator-led campaigns for brands like Atomberg and Wakefit...",
+          "body_html": "<p>Hi {{first_name}},</p><p>We run creator-led campaigns...</p>",
+          "wait_after": 0
+        }
+      ]
+    },
+    {
       "id": "cmp_1789718475256_g91f",
       "name": "Q2 Reachout Mails",
       "description": "Outreach sequence",
-      "status": "active",
+      "status": "paused",
       "kind": "sequence",
       "stop_on_reply": true,
       "open_tracking": true,
@@ -180,7 +251,7 @@
       "reply_count": 0,
       "bounce_count": 0,
       "smartlead_id": 3980868,
-      "smartlead_status": "ACTIVE",
+      "smartlead_status": "PAUSED",
       "created_at": "2026-09-18T08:02:10.276Z",
       "updated_at": "2026-09-18T08:02:10.276Z",
       "mailboxes": [
@@ -235,7 +306,7 @@
       "id": "cmp_1789560721755",
       "name": "campaign 120",
       "description": "Outreach Campaign (campaign 120) with 1 prospects",
-      "status": "active",
+      "status": "paused",
       "kind": "sequence",
       "stop_on_reply": true,
       "open_tracking": true,
@@ -306,13 +377,14 @@
       ],
       "steps": [],
       "sequences": [],
-      "analytics": null
+      "analytics": null,
+      "smartlead_status": "PAUSED"
     },
     {
       "id": "cmp_1789556689473",
       "name": "Campaign 116",
       "description": "Outreach Campaign (Campaign 116) with 20 prospects",
-      "status": "active",
+      "status": "paused",
       "kind": "sequence",
       "stop_on_reply": true,
       "open_tracking": true,
@@ -383,7 +455,8 @@
       ],
       "steps": [],
       "sequences": [],
-      "analytics": null
+      "analytics": null,
+      "smartlead_status": "PAUSED"
     },
     {
       "id": "cmtwouf2s00017xsh30o2t69b",
@@ -992,7 +1065,7 @@
       "id": "cmtvl4lye0001tdcgjxhipix8",
       "name": "Campaign 108",
       "description": "Outreach Campaign (Campaign 108) with 0 prospects",
-      "status": "active",
+      "status": "paused",
       "kind": "sequence",
       "stop_on_reply": true,
       "open_tracking": true,
@@ -1093,13 +1166,14 @@
           "created_at": "2026-09-10T13:51:50.189Z"
         }
       ],
-      "analytics": null
+      "analytics": null,
+      "smartlead_status": "PAUSED"
     },
     {
       "id": "cmtvi0fiz0001gkjds7ym4te0",
       "name": "Campaign 106",
       "description": "Outreach Campaign (Campaign 106) with 0 prospects",
-      "status": "active",
+      "status": "paused",
       "kind": "sequence",
       "stop_on_reply": true,
       "open_tracking": true,
@@ -1234,7 +1308,8 @@
           "created_at": "2026-09-10T13:28:19.864Z"
         }
       ],
-      "analytics": null
+      "analytics": null,
+      "smartlead_status": "PAUSED"
     }
   ],
   "contacts": [

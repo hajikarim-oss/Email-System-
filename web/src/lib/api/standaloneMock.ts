@@ -23,8 +23,10 @@ function saveStorage<T>(key: string, val: T): void {
 
 // Clean up legacy demo rows, stale cached records, and fabricated replies from storage
 try {
-    const uniboxAccuracyKey = STORAGE_KEY_PREFIX + "unibox_sep16_v6_migrated";
+    const uniboxAccuracyKey = STORAGE_KEY_PREFIX + "campaigns_sep24_v12_reconciled";
     if (!localStorage.getItem(uniboxAccuracyKey)) {
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "emails");
         localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
         localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
         localStorage.removeItem(STORAGE_KEY_PREFIX + "thread_replies_th_camp_rajdeep_main");
@@ -33,38 +35,6 @@ try {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789556689473");
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789560721755");
         localStorage.setItem(uniboxAccuracyKey, "true");
-    }
-    const rawEmails = localStorage.getItem(STORAGE_KEY_PREFIX + "emails");
-    if (rawEmails) {
-        try {
-            const parsedEmails = JSON.parse(rawEmails);
-            let changed = false;
-            parsedEmails.forEach((e: any) => {
-                if (e.sent_today && e.sent_today > 0) {
-                    e.sent_today = 0;
-                    changed = true;
-                }
-            });
-            if (changed) {
-                localStorage.setItem(STORAGE_KEY_PREFIX + "emails", JSON.stringify(parsedEmails));
-            }
-        } catch { }
-    }
-    const rawInbox = localStorage.getItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
-    if (rawInbox && (rawInbox.includes("sarah.chen") || rawInbox.includes("marcus.v") || rawInbox.includes("alex.r") || rawInbox.includes("priya@") || rawInbox.includes("deliverables timeline") || rawInbox.includes("Collaboration Confirmation") || rawInbox.includes("2026-09-18"))) {
-        localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
-    }
-    const rawSent = localStorage.getItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
-    if (rawSent && (rawSent.includes("Collaboration Confirmation") || rawSent.includes("deliverability roadmap") || rawSent.includes("2026-09-18"))) {
-        localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
-    }
-    const rawReplies = localStorage.getItem(STORAGE_KEY_PREFIX + "thread_replies_th_camp_rajdeep_main");
-    if (rawReplies && (rawReplies.includes("Collaboration Confirmation") || rawReplies.includes("deliverables timeline") || rawReplies.includes("2026-09-18"))) {
-        localStorage.removeItem(STORAGE_KEY_PREFIX + "thread_replies_th_camp_rajdeep_main");
-    }
-    const rawLogs116 = localStorage.getItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789556689473");
-    if (rawLogs116 && (rawLogs116.includes("EMAIL_REPLIED") || rawLogs116.includes("2026-09-18"))) {
-        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_logs_cmp_1789556689473");
     }
 } catch { }
 
@@ -101,7 +71,7 @@ export const DEFAULT_4_PROFILES = [
         warmup_reply_rate: 35,
         reputation: 99,
         daily_limit: 50,
-        sent_today: 0,
+        sent_today: 2,
         total_sent: 142,
         mailbox_allowance: 50,
         connected_at: "2026-09-03T13:44:59.910Z",
@@ -139,7 +109,7 @@ export const DEFAULT_4_PROFILES = [
         warmup_reply_rate: 35,
         reputation: 98,
         daily_limit: 50,
-        sent_today: 0,
+        sent_today: 2,
         total_sent: 88,
         mailbox_allowance: 50,
         connected_at: "2026-09-09T11:17:23.439Z",
@@ -177,7 +147,7 @@ export const DEFAULT_4_PROFILES = [
         warmup_reply_rate: 35,
         reputation: 99,
         daily_limit: 50,
-        sent_today: 0,
+        sent_today: 2,
         total_sent: 45,
         mailbox_allowance: 50,
         connected_at: "2026-09-18T00:00:00.000Z",
@@ -217,7 +187,7 @@ export const DEFAULT_4_PROFILES = [
         warmup_reply_rate: 35,
         reputation: 99,
         daily_limit: 50,
-        sent_today: 0,
+        sent_today: 2,
         total_sent: 38,
         mailbox_allowance: 50,
         connected_at: "2026-09-18T00:00:00.000Z",
@@ -274,6 +244,107 @@ export const SMARTLEAD_Q2_STATS_MAP: Record<string, { name: string; opens: numbe
     "zubin@turntablehealth.com": { name: "Zubin Damania", opens: 0, clicks: 0, replies: 0, sent_time: "2026-09-18T10:51:45.465Z" },
     "zdowns@12starsmedia.com": { name: "Zachary Downs", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T12:25:31.735Z", open_time: "2026-09-18T12:26:13.233Z" },
     "zubin@mitchellusa.co.in": { name: "Zubin Contractor", opens: 1, clicks: 0, replies: 0, sent_time: "2026-09-18T12:27:29.519Z", open_time: "2026-09-18T12:30:07.037Z" },
+};
+
+export const Q3_CAMPAIGN_DEF: any = {
+    id: "cmp_1790233732719_dvlj",
+    name: "Q3 Campaign",
+    description: "Outreach sequence",
+    status: "active",
+    kind: "sequence",
+    stop_on_reply: true,
+    open_tracking: true,
+    link_tracking: true,
+    utm_tracking: false,
+    utm_source: "theboredmonkey",
+    utm_medium: "email",
+    utm_campaign: "q3-campaign",
+    text_only: false,
+    daily_limit: 200,
+    unsubscribe_header: true,
+    risky_emails: false,
+    unsubscribe_mode: "inherit",
+    cc: [],
+    bcc: [],
+    start_date: "2026-09-24T08:06:53.145Z",
+    end_date: null,
+    timezone: "Asia/Kolkata",
+    days: 62, // Monday - Friday
+    start_time: "10:00",
+    end_time: "18:00",
+    email_tags: [],
+    folders: [],
+    contact_order_by: "created_at",
+    contact_order_dir: "asc",
+    sender_strategy: "explicit",
+    rotation_mode: "round_robin",
+    senders: [
+        { email_account_id: "cmu6m304o00003307qj8ex6oa", weight: 100, enabled: true },
+        { email_account_id: "cmu6m31bv00033307zao17anp", weight: 100, enabled: true },
+        { email_account_id: "cmtu07q0i00011wxajyd2ehui", weight: 100, enabled: true },
+        { email_account_id: "cmtlkufpi000o80qmmlfsfat7", weight: 100, enabled: true }
+    ],
+    ramp_enabled: false,
+    ramp_start: 5,
+    ramp_increment: 5,
+    ramp_max: 50,
+    total_leads: 1785,
+    sent_count: 20,
+    open_count: 8,
+    reply_count: 0,
+    click_count: 1,
+    bounce_count: 1,
+    open_rate: 40.0,
+    reply_rate: 0,
+    click_rate: 5.0,
+    bounce_rate: 5.0,
+    smartlead_id: 4015596,
+    smartlead_status: "ACTIVE",
+    sender_email: "vatsal.vadecha@theboredmonkey.com",
+    created_at: "2026-09-24T08:06:53.145Z",
+    updated_at: new Date().toISOString(),
+    steps: [
+        {
+            id: "stp_q3_1",
+            stepNumber: 1,
+            position: 1,
+            name: "Step 1 (Outreach)",
+            subject: "Influencer marketing partnerships for {{company_name}}",
+            body_plain: "Hi {{first_name}},\n\nWe run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.\n\nI wanted to explore what an influencer marketing partnership could look like for {{company_name}}.\n\nBest regards,\nTheBoredMonkey Team",
+            body_html: "<p>Hi {{first_name}},</p><p>We run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.</p><p>I wanted to explore what an influencer marketing partnership could look like for {{company_name}}.</p><p>Best regards,<br/>TheBoredMonkey Team</p>",
+            wait_after: 0
+        },
+        {
+            id: "stp_q3_2",
+            stepNumber: 2,
+            position: 2,
+            name: "Step 2 (Follow-up)",
+            subject: "Re: Influencer marketing partnerships for {{company_name}}",
+            body_plain: "Hi again,\n\nFollowing up on my note below. One more data point that might be relevant: we ran a campaign for a jewellery brand at ₹0.04 cost per view, well below typical category benchmarks.\n\nWorth a quick call this week?\n\nBest regards,\nTheBoredMonkey Team",
+            body_html: "<p>Hi again,</p><p>Following up on my note below. One more data point that might be relevant: we ran a campaign for a jewellery brand at ₹0.04 cost per view, well below typical category benchmarks.</p><p>Worth a quick call this week?</p><p>Best regards,<br/>TheBoredMonkey Team</p>",
+            wait_after: 1
+        }
+    ],
+    sequences: [
+        {
+            id: "seq_q3_1",
+            position: 1,
+            name: "Step 1 (Outreach)",
+            subject: "Influencer marketing partnerships for {{company_name}}",
+            body_plain: "Hi {{first_name}},\n\nWe run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.\n\nI wanted to explore what an influencer marketing partnership could look like for {{company_name}}.\n\nBest regards,\nTheBoredMonkey Team",
+            body_html: "<p>Hi {{first_name}},</p><p>We run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.</p><p>I wanted to explore what an influencer marketing partnership could look like for {{company_name}}.</p><p>Best regards,<br/>TheBoredMonkey Team</p>",
+            wait_after: 0
+        },
+        {
+            id: "seq_q3_2",
+            position: 2,
+            name: "Step 2 (Follow-up)",
+            subject: "Re: Influencer marketing partnerships for {{company_name}}",
+            body_plain: "Hi again,\n\nFollowing up on my note below. One more data point that might be relevant: we ran a campaign for a jewellery brand at ₹0.04 cost per view, well below typical category benchmarks.\n\nWorth a quick call this week?\n\nBest regards,\nTheBoredMonkey Team",
+            body_html: "<p>Hi again,</p><p>Following up on my note below. One more data point that might be relevant: we ran a campaign for a jewellery brand at ₹0.04 cost per view, well below typical category benchmarks.</p><p>Worth a quick call this week?</p><p>Best regards,<br/>TheBoredMonkey Team</p>",
+            wait_after: 1
+        }
+    ]
 };
 
 export const Q2_CAMPAIGN_DEF: any = {
@@ -795,7 +866,30 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     // 5. Campaigns
     const campaigns = loadStorage("campaigns", initialCampaigns);
 
-    // Guarantee that Q2 Reachout Mails is present, correctly identified with ID cmp_1789718475256_g91f and Smartlead #3980868
+    // Guarantee that Q3 Campaign is present and marked as ACTIVE
+    const q3Idx = campaigns.findIndex((c: any) =>
+        c.id === "cmp_1790233732719_dvlj" ||
+        c.smartlead_id === 4015596 ||
+        (c.name && c.name.toLowerCase().includes("q3"))
+    );
+    if (q3Idx >= 0) {
+        campaigns[q3Idx] = {
+            ...Q3_CAMPAIGN_DEF,
+            ...campaigns[q3Idx],
+            id: "cmp_1790233732719_dvlj",
+            name: "Q3 Campaign",
+            smartlead_id: 4015596,
+            status: "active",
+            smartlead_status: "ACTIVE",
+            total_leads: Math.max(campaigns[q3Idx].total_leads || 0, 1785),
+            steps: (campaigns[q3Idx].steps && campaigns[q3Idx].steps.length > 0) ? campaigns[q3Idx].steps : Q3_CAMPAIGN_DEF.steps,
+            sequences: (campaigns[q3Idx].sequences && campaigns[q3Idx].sequences.length > 0) ? campaigns[q3Idx].sequences : Q3_CAMPAIGN_DEF.sequences,
+        };
+    } else {
+        campaigns.unshift({ ...Q3_CAMPAIGN_DEF });
+    }
+
+    // Guarantee that Q2 Reachout Mails is present, correctly identified with ID cmp_1789718475256_g91f and Smartlead #3980868 (PAUSED)
     const q2Idx = campaigns.findIndex((c: any) =>
         c.id === "cmp_1789718475256_g91f" ||
         (c.id && c.id.toLowerCase().includes("1789718475256")) ||
@@ -808,20 +902,22 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             id: "cmp_1789718475256_g91f",
             name: "Q2 Reachout Mails",
             smartlead_id: 3980868,
-            smartlead_status: "ACTIVE",
+            status: "paused",
+            smartlead_status: "PAUSED",
             total_leads: Math.max(campaigns[q2Idx].total_leads || 0, 1876),
             steps: (campaigns[q2Idx].steps && campaigns[q2Idx].steps.length > 0) ? campaigns[q2Idx].steps : Q2_CAMPAIGN_DEF.steps,
             sequences: (campaigns[q2Idx].sequences && campaigns[q2Idx].sequences.length > 0) ? campaigns[q2Idx].sequences : Q2_CAMPAIGN_DEF.sequences,
         };
     } else {
-        campaigns.unshift({ ...Q2_CAMPAIGN_DEF });
+        campaigns.splice(1, 0, { ...Q2_CAMPAIGN_DEF });
     }
 
-    // Link Campaign 116 / 120 directly to their live Smartlead campaign IDs with accurate telemetry
+    // Link Campaign 116 / 120 / 108 / 106 as PAUSED to match live Smartlead state
     campaigns.forEach((c: any) => {
         if (c.id === "cmp_1789556689473" || c.name === "Campaign 116") {
             c.smartlead_id = 3967633;
-            c.smartlead_status = "ACTIVE";
+            c.status = "paused";
+            c.smartlead_status = "PAUSED";
             c.sent_count = 1;
             c.open_count = 1;
             c.click_count = 0;
@@ -831,7 +927,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             c.reply_rate = 100.0;
         } else if (c.id === "cmp_1789560721755" || (c.name?.includes("120") && !c.name?.includes("Reachout"))) {
             c.smartlead_id = 3967990;
-            c.smartlead_status = "ACTIVE";
+            c.status = "paused";
+            c.smartlead_status = "PAUSED";
             c.sent_count = 1;
             c.open_count = 1;
             c.click_count = 0;
@@ -839,10 +936,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             c.bounce_count = 0;
             c.open_rate = 100.0;
             c.reply_rate = 100.0;
+        } else if (c.id === "cmtvl4lye0001tdcgjxhipix8" || c.name?.includes("108")) {
+            c.status = "paused";
+            c.smartlead_status = "PAUSED";
+        } else if (c.id === "cmtvi0fiz0001gkjds7ym4te0" || c.name?.includes("106")) {
+            c.status = "paused";
+            c.smartlead_status = "PAUSED";
         } else if (c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) {
             c.smartlead_id = 3980868;
+            c.status = "paused";
+            c.smartlead_status = "PAUSED";
             if (!c.total_leads || c.total_leads < 1876) c.total_leads = 1876;
-            if (!c.sent_count) c.sent_count = 1;
+            if (!c.sent_count) c.sent_count = 48;
             c.timezone = "Asia/Kolkata";
             c.days = 62; // Monday - Friday
             c.start_time = "10:00";
