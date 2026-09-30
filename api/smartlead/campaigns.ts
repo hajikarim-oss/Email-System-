@@ -1,13 +1,14 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
     if (req.method === "OPTIONS") {
-        return res.status(200).end();
+        res.statusCode = 200;
+        return res.end();
     }
 
     const SMARTLEAD_KEYS = [
@@ -50,8 +51,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return true;
         });
 
-        return res.status(200).json(unique);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        return res.end(JSON.stringify(unique));
     } catch (err: any) {
-        return res.status(500).json({ error: err?.message || "Failed to fetch Smartlead campaigns" });
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        return res.end(JSON.stringify({ error: err?.message || "Failed to fetch Smartlead campaigns" }));
     }
 }
