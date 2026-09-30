@@ -4,6 +4,12 @@ import path from "path";
 import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { createRequire } from "module";
+import { getContacts } from "../server/contacts";
+import { getDashboard } from "../server/analytics";
+import { getCampaignStats, getCampaignAnalytics } from "../server/campaigns";
+import { getMailboxes } from "../server/mailboxes";
+import { getReport } from "../server/report";
+import { buildSegments } from "../server/segments";
 
 const cjsRequire = createRequire(import.meta.url);
 
@@ -922,7 +928,16 @@ function databaseIntelligencePlugin() {
                 });
             });
 
-            // 3. Live database contacts browser & intelligence endpoint
+            // 3. Live database contacts browser & intelligence endpoint.
+            // Filtering, counting and row mapping live in server/contacts.ts so
+            // this dev middleware and the deployed /api/intelligence/contacts
+            // function are guaranteed to return the same numbers.
+            const prismaQuery = async <T = Record<string, any>>(sql: string, params: unknown[] = []): Promise<T[]> => {
+                const prisma = getPrisma();
+                if (!prisma) throw new Error("database_unavailable");
+                return (await prisma.$queryRawUnsafe(sql, ...(params as any[]))) as T[];
+            };
+
             server.middlewares.use("/api/intelligence/contacts", async (req: any, res: any) => {
                 let body = "";
                 req.on("data", (chunk: any) => { body += chunk; });
@@ -930,268 +945,89 @@ function databaseIntelligencePlugin() {
                     try {
                         const prisma = getPrisma();
                         if (!prisma) {
-                            res.writeHead(200, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({ data: [], total: 0, pagination: { total: 0, page: 1, limit: 50, has_more: false } }));
+                            res.writeHead(503, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({
+                                error: "database_unavailable",
+                                message: "Prisma could not connect to DATABASE_URL, so live contact data cannot be read.",
+                            }));
                             return;
                         }
 
                         const parsed = req.method === "POST" ? JSON.parse(body || "{}") : {};
                         const urlObj = new URL(req.url, "http://localhost:5173");
-                        const query = (parsed.query || parsed.q || urlObj.searchParams.get("query") || urlObj.searchParams.get("q") || "").trim();
-                        const page = Math.max(1, parseInt(parsed.page || urlObj.searchParams.get("page") || "1", 10));
-                        const limit = Math.min(100, Math.max(1, parseInt(parsed.limit || urlObj.searchParams.get("limit") || "50", 10)));
-                        const outreachState = parsed.outreach_state || parsed.outreachState || urlObj.searchParams.get("outreach_state");
-                        const recencyBucket = parsed.recency_bucket || parsed.recencyBucket || urlObj.searchParams.get("recency_bucket");
-                        const subscribedParam = parsed.subscribed ?? urlObj.searchParams.get("subscribed");
+                        const pick = (key: string) => parsed[key] ?? urlObj.searchParams.get(key);
 
-                        const companyParam = (parsed.company || urlObj.searchParams.get("company") || "").trim();
-                        const domainParam = (parsed.domain || urlObj.searchParams.get("domain") || "").trim();
+                        const rawCampaignIds = [
+                            ...(Array.isArray(parsed.campaign_ids) ? parsed.campaign_ids : []),
+                            ...(urlObj.searchParams.get("campaign_ids") ? urlObj.searchParams.get("campaign_ids")!.split(",") : []),
+                            ...(parsed.campaign_id ? [parsed.campaign_id] : []),
+                            ...(urlObj.searchParams.get("campaign_id") ? [urlObj.searchParams.get("campaign_id")] : []),
+                        ].map(String).filter(Boolean);
 
-                        // Campaign scoping — only show contacts that belong to the requested campaign
-                        const campaignIdParam = parsed.campaign_id || urlObj.searchParams.get("campaign_id");
-                        const campaignIdsParam: string[] = parsed.campaign_ids ||
-                            (urlObj.searchParams.get("campaign_ids") ? urlObj.searchParams.get("campaign_ids")!.split(",") : []);
-                        const activeCampaignIds = campaignIdParam
-                            ? [String(campaignIdParam), ...(campaignIdsParam.map(String))]
-                            : campaignIdsParam.map(String);
-                        // Deduplicate
-                        const scopedCampaignIds = [...new Set(activeCampaignIds)].filter(Boolean);
+                        const subscribedRaw = parsed.subscribed ?? urlObj.searchParams.get("subscribed");
+                        const subscribed =
+                            subscribedRaw === undefined || subscribedRaw === null || subscribedRaw === ""
+                                ? null
+                                : subscribedRaw === true || subscribedRaw === "true" || subscribedRaw === "1";
 
-                        const where: any = {};
-
-                        // Apply campaign filter when requested
-                        if (scopedCampaignIds.length > 0) {
-                            where.campaignId = { in: scopedCampaignIds };
-                        }
-
-                        if (query) {
-                            const cleanQ = query.trim();
-                            where.OR = [
-                                { email: { contains: cleanQ, mode: "insensitive" } },
-                                { firstName: { contains: cleanQ, mode: "insensitive" } },
-                                { lastName: { contains: cleanQ, mode: "insensitive" } },
-                                { domain: { contains: cleanQ, mode: "insensitive" } },
-                            ];
-                        }
-                        if (companyParam) {
-                            const compClean = companyParam.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
-                            const compConditions: any[] = [
-                                { domain: { contains: compClean, mode: "insensitive" } },
-                                { email: { contains: `@${compClean}`, mode: "insensitive" } },
-                            ];
-                            if (where.OR) {
-                                where.AND = [...(where.AND || []), { OR: compConditions }];
-                            } else {
-                                where.OR = compConditions;
-                            }
-                        }
-                        if (domainParam) {
-                            const domClean = domainParam.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
-                            const domConditions: any[] = [
-                                { domain: { contains: domClean, mode: "insensitive" } },
-                                { email: { contains: `@${domClean}`, mode: "insensitive" } },
-                            ];
-                            if (where.OR) {
-                                where.AND = [...(where.AND || []), { OR: domConditions }];
-                            } else {
-                                where.OR = domConditions;
-                            }
-                        }
-                        if (outreachState && outreachState !== "all") {
-                            where.outreachState = outreachState;
-                        }
-                        if (recencyBucket && recencyBucket !== "all") {
-                            where.recencyBucket = recencyBucket;
-                        }
-                        if (subscribedParam !== undefined && subscribedParam !== null && subscribedParam !== "") {
-                            const isSub = subscribedParam === true || subscribedParam === "true";
-                            if (isSub) {
-                                where.status = { notIn: ["UNSUBSCRIBED", "BOUNCED"] };
-                                where.outreachState = { not: "BURNED" };
-                            } else {
-                                where.OR = [
-                                    { status: { in: ["UNSUBSCRIBED", "BOUNCED"] } },
-                                    { outreachState: "BURNED" },
-                                ];
-                            }
-                        }
-
-                        const isCampScope = scopedCampaignIds.length > 0;
-                        const [totalCount, leads] = await Promise.all([
-                            prisma.lead.count({ where }),
-                            prisma.lead.findMany({
-                                where,
-                                take: limit,
-                                skip: (page - 1) * limit,
-                                orderBy: isCampScope ? [
-                                    { lastContactedAt: { sort: "asc", nulls: "last" } },
-                                    { createdAt: "asc" },
-                                ] : [
-                                    { lastContactedAt: { sort: "desc", nulls: "last" } },
-                                    { createdAt: "desc" },
-                                ],
-                            }),
-                        ]);
-
-                        const EMAIL_HANDLERS = new Set([
-                            "gmail.com", "googlemail.com", "google.com",
-                            "hotmail.com", "hotmail.co.uk", "hotmail.fr", "hotmail.es", "hotmail.it", "hotmail.de",
-                            "outlook.com", "outlook.in", "live.com", "msn.com",
-                            "yahoo.com", "yahoo.co.in", "yahoo.co.uk", "yahoo.fr", "ymail.com",
-                            "icloud.com", "me.com", "mac.com",
-                            "aol.com", "zoho.com", "proton.me", "protonmail.com", "rediffmail.com", "gmx.com", "mail.com"
-                        ]);
-
-                        const mappedContacts = leads.map((l: any) => {
-                            const isSub = l.status !== "UNSUBSCRIBED" && l.status !== "BOUNCED" && l.outreachState !== "BURNED";
-                            const daysAgo = l.daysSinceLastContact !== null && l.daysSinceLastContact !== undefined ? `${l.daysSinceLastContact}d ago` : null;
-                            const stateLabel = (l.outreachState || "NEVER_REACHED").replace(/_/g, " ");
-
-                            const rawDomain = (l.domain || (l.email ? l.email.split("@")[1] : "") || "").toLowerCase().trim();
-                            const isHandler = EMAIL_HANDLERS.has(rawDomain);
-
-                            let companyName = "";
-                            if (l.customData && typeof l.customData === "object") {
-                                const cd = l.customData as any;
-                                if (cd.company && typeof cd.company === "string" && !EMAIL_HANDLERS.has(cd.company.toLowerCase().trim())) {
-                                    companyName = cd.company.trim();
-                                } else if (cd.company_name && typeof cd.company_name === "string" && !EMAIL_HANDLERS.has(cd.company_name.toLowerCase().trim())) {
-                                    companyName = cd.company_name.trim();
-                                }
-                            }
-
-                            if (!companyName) {
-                                if (!isHandler && rawDomain) {
-                                    companyName = rawDomain.charAt(0).toUpperCase() + rawDomain.slice(1);
-                                } else if (isHandler) {
-                                    const handlerName = rawDomain.split(".")[0];
-                                    const formattedHandler = handlerName.charAt(0).toUpperCase() + handlerName.slice(1);
-                                    companyName = `Personal Inbox (${formattedHandler})`;
-                                } else {
-                                    companyName = l.firstName ? `${l.firstName}'s Org` : "Direct Contact";
-                                }
-                            }
-
-                            const isCampScope = scopedCampaignIds.length > 0;
-                            const isReplied = l.email === "hajikarimbeldaar@gmail.com" || l.status === "REPLIED" || l.outreachState === "DORMANT_REPLIED" || (l.totalReplied && l.totalReplied > 0);
-                            const isDispatched = (l.totalOutbound && l.totalOutbound > 0) || l.lastContactedAt !== null || isReplied || l.status === "COMPLETED" || l.status === "SENT";
-                            const campaignLead = isCampScope ? {
-                                status: isReplied ? "replied" : isDispatched ? "completed" : "pending",
-                                sent: (isDispatched || isReplied) ? 1 : 0,
-                                opened: l.openCount || (isDispatched ? 1 : 0),
-                                machine_opened: 0,
-                                clicked: l.clickCount || 0,
-                                replied: isReplied ? 1 : 0,
-                                current_step: isReplied ? "Replied (Sequence Stopped)" : isDispatched ? "Step 1 (Outreach)" : "Ready for delivery",
-                                sender: l.lastSender || (isDispatched ? "vatsal.vadecha@theboredmonkey.com" : undefined),
-                                last_activity_at: l.lastContactedAt ? new Date(l.lastContactedAt).toISOString() : (isDispatched ? new Date().toISOString() : null),
-                            } : undefined;
-
-                            return {
-                                id: l.id,
-                                first_name: l.firstName || (l.email.split("@")[0] || "Prospect"),
-                                last_name: l.lastName || "",
-                                email: l.email,
-                                company: companyName,
-                                is_email_handler: isHandler,
-                                email_handler: isHandler ? (rawDomain.split(".")[0].charAt(0).toUpperCase() + rawDomain.split(".")[0].slice(1)) : null,
-                                phone: "",
-                                custom_fields: l.customData || {},
-                                subscribed: isSub,
-                                status: isSub ? "active" : "unsubscribed",
-                                verification_status: isSub ? "valid" : "invalid",
-                                campaigns: l.campaignId ? [{ id: l.campaignId, name: l.lastCampaign || "Q3 Campaign" }] : [],
-                                campaign_lead: campaignLead,
-                                categories: [
-                                    {
-                                        id: l.outreachState || "UNKNOWN",
-                                        title: stateLabel,
-                                        color: l.outreachState === "DORMANT_REPLIED" ? "#10b981" : l.outreachState === "BURNED" ? "#ef4444" : l.outreachState === "WARM_STALE" ? "#f59e0b" : "#8b5cf6",
-                                    },
-                                ],
-                                domain: isHandler ? "" : (l.domain || rawDomain),
-                                temporal_state: {
-                                    recency_bucket: l.recencyBucket || "NEVER_CONTACTED",
-                                    outreach_state: l.outreachState || "NEVER_REACHED",
-                                    days_since_last_contact: l.daysSinceLastContact,
-                                    first_contacted_at: l.firstContactedAt,
-                                    last_contacted_at: l.lastContactedAt,
-                                    is_dormant: l.outreachState === "DORMANT_REPLIED",
-                                    is_reengagement_candidate: l.outreachState === "DORMANT_REPLIED" || l.outreachState === "COLD_REENGAGEMENT",
-                                },
-                                engagement_state: {
-                                    total_messages: l.totalMessages || (l.lastSubject ? 1 : 0),
-                                    total_replied: l.totalReplied || (l.outreachState === "DORMANT_REPLIED" ? 1 : 0),
-                                    reply_classification: l.lastOutcome || "delivered",
-                                },
-                                last_message_context: {
-                                    id: l.lastMessageId || null,
-                                    subject: l.lastSubject || "No prior outreach",
-                                    body_hook: l.lastBodyHook || "No conversation snippet recorded yet.",
-                                    sender: l.lastSender || "vatsal.vadecha@theboredmonkey.com",
-                                    campaign: l.lastCampaign || "Q3 Campaign",
-                                    outcome: l.lastOutcome || "delivered",
-                                    date: l.lastContactedAt || l.createdAt,
-                                },
-                                tags: [l.outreachState, daysAgo, l.recencyBucket].filter(Boolean),
-                                created_at: l.createdAt,
-                                updated_at: l.updatedAt,
-                            };
-                        });
-
-                        const isQ3 = scopedCampaignIds.includes("cmp_1790233732719_dvlj");
-                        const isQ2 = scopedCampaignIds.includes("cmp_1789718475256_g91f");
-                        const completedCount = isQ3 ? 48 : (isQ2 ? 48 : 0);
-                        const openedCount = isQ3 ? 22 : (isQ2 ? 28 : 0);
-                        const clickedCount = isQ3 ? 1 : (isQ2 ? 8 : 0);
-                        const repliedCount = 0;
+                        const payload = await getContacts(
+                            {
+                                query: pick("query") || pick("q") || "",
+                                page: parseInt(String(pick("page") || "1"), 10) || 1,
+                                limit: parseInt(String(pick("limit") || "50"), 10) || 50,
+                                campaignIds: [...new Set(rawCampaignIds)],
+                                outreachState: pick("outreach_state") || undefined,
+                                recencyBucket: pick("recency_bucket") || undefined,
+                                subscribed,
+                                company: pick("company") || "",
+                                domain: pick("domain") || pick("domains") || "",
+                            },
+                            prismaQuery,
+                        );
 
                         res.writeHead(200, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({
-                            data: mappedContacts,
-                            total: totalCount,
-                            counts: {
-                                total: 28091,
-                                subscribed: 24359,
-                                unsubscribed: 3732,
-                                in_campaign: totalCount,
-                                not_contacted: Math.max(0, totalCount - completedCount),
-                                categories: [
-                                    { category_id: "DORMANT_REPLIED", count: 747 },
-                                    { category_id: "COLD_REENGAGEMENT", count: 22896 },
-                                    { category_id: "WARM_STALE", count: 694 },
-                                    { category_id: "BURNED", count: 3730 },
-                                ],
-                            },
-                            lead_counts: scopedCampaignIds.length > 0 ? {
-                                total: totalCount,
-                                queued: Math.max(0, totalCount - completedCount),
-                                processing: 0,
-                                completed: completedCount,
-                                replied: repliedCount,
-                                bounced: isQ3 ? 4 : (isQ2 ? 12 : 0),
-                                failed: 0,
-                                unsubscribed: 0,
-                                undeliverable: 0,
-                                contacted: completedCount,
-                                opened: openedCount,
-                                clicked: clickedCount,
-                                replied_any: repliedCount,
-                            } : undefined,
-                            pagination: {
-                                total: totalCount,
-                                page,
-                                limit,
-                                has_more: page * limit < totalCount,
-                                next_cursor: page * limit < totalCount ? String(page + 1) : null,
-                            },
-                        }));
+                        res.end(JSON.stringify(payload));
                     } catch (err: any) {
                         console.error("[DatabaseIntelligencePlugin] contacts error:", err);
-                        res.writeHead(500, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ error: err.message }));
+                        const unavailable = err?.message === "database_unavailable";
+                        res.writeHead(unavailable ? 503 : 500, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({
+                            error: unavailable ? "database_unavailable" : err.message,
+                            message: unavailable ? "The live database is not reachable." : err.message,
+                        }));
                     }
                 });
+            });
+
+            // 3b. Live workspace analytics (sent / opens / clicks / replies /
+            // bounces, daily trend, top campaigns, account health) — the same
+            // numbers the deployed /api/analytics/dashboard function returns.
+            server.middlewares.use("/api/analytics/dashboard", async (req: any, res: any) => {
+                try {
+                    const prisma = getPrisma();
+                    if (!prisma) {
+                        res.writeHead(503, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: "database_unavailable", message: "The live database is not reachable." }));
+                        return;
+                    }
+
+                    const urlObj = new URL(req.url, "http://localhost:5173");
+                    const period = urlObj.searchParams.get("period") || "7d";
+                    const from = urlObj.searchParams.get("from") || undefined;
+                    const to = urlObj.searchParams.get("to") || undefined;
+                    const payload = await getDashboard({ period, from, to }, prismaQuery);
+
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(payload));
+                } catch (err: any) {
+                    console.error("[DatabaseIntelligencePlugin] dashboard error:", err);
+                    const unavailable = err?.message === "database_unavailable";
+                    res.writeHead(unavailable ? 503 : 500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        error: unavailable ? "database_unavailable" : err.message,
+                        message: unavailable ? "The live database is not reachable." : err.message,
+                    }));
+                }
             });
 
             // 4. Live database suppressions endpoint (3,732 quarantined records)
@@ -1251,16 +1087,18 @@ function databaseIntelligencePlugin() {
                 });
             });
 
-            // 5. Live database segments endpoint
+            // 5. Live database segments endpoint (counts come from the same
+            //    group-by the contacts table uses)
             server.middlewares.use("/api/intelligence/segments", async (_req: any, res: any) => {
-                res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify([
-                    { id: "seg_dormant_replied", name: "Dormant Replied (Past Responders)", count: 747, color: "#10b981" },
-                    { id: "seg_cold_reengagement", name: "Cold Re-engagement Candidates", count: 22896, color: "#8b5cf6" },
-                    { id: "seg_warm_stale", name: "Warm Stale Leads", count: 694, color: "#f59e0b" },
-                    { id: "seg_suppressed", name: "Quarantined / Burned (Shield Active)", count: 3732, color: "#ef4444" },
-                    { id: "seg_in_sequence", name: "Currently In Sequence", count: 3, color: "#0ea5e9" },
-                ]));
+                try {
+                    const payload = await getContacts({ limit: 1 }, prismaQuery);
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(buildSegments(payload.counts?.categories ?? null)));
+                } catch (e) {
+                    console.error("[DatabaseIntelligencePlugin] segments error:", e);
+                    res.writeHead(503, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "database_unavailable" }));
+                }
             });
 
             // 6. Suppress / Quarantine selected contacts
@@ -1359,6 +1197,41 @@ function databaseIntelligencePlugin() {
             });
 
             // 8. Live database campaigns query
+            // Lifetime campaign statistics, aggregated from Lead + EmailEvent
+            server.middlewares.use("/api/campaigns/stats", async (_req: any, res: any) => {
+                try {
+                    const stats = await getCampaignStats(prismaQuery);
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(stats));
+                } catch (e) {
+                    console.error("[DatabaseIntelligencePlugin] campaign stats error:", e);
+                    res.writeHead(503, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "database_unavailable" }));
+                }
+            });
+
+            // Per-campaign analytics: lifetime summary, daily series, per-step
+            server.middlewares.use("/api/campaigns/analytics", async (req: any, res: any) => {
+                try {
+                    const urlObj = new URL(req.url, "http://localhost:5173");
+                    const campaignId = urlObj.searchParams.get("id") || "";
+                    const days = Math.min(365, Math.max(1, parseInt(String(urlObj.searchParams.get("days") || "30"), 10) || 30));
+                    const from = urlObj.searchParams.get("from") || undefined;
+                    if (!campaignId) {
+                        res.writeHead(400, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: "missing_campaign_id" }));
+                        return;
+                    }
+                    const payload = await getCampaignAnalytics(prismaQuery, campaignId, days, from);
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(payload));
+                } catch (e) {
+                    console.error("[DatabaseIntelligencePlugin] campaign analytics error:", e);
+                    res.writeHead(503, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "database_unavailable" }));
+                }
+            });
+
             server.middlewares.use("/api/intelligence/campaigns", async (_req: any, res: any) => {
                 try {
                     const prisma = getPrisma();
@@ -1382,23 +1255,42 @@ function databaseIntelligencePlugin() {
                 }
             });
 
-            // 9. Live database mailboxes query
+            // 9. Live database mailboxes query, including each mailbox's real
+            // "sent today" / lifetime counters derived from EmailEvent rows.
             server.middlewares.use("/api/intelligence/mailboxes", async (_req: any, res: any) => {
                 try {
-                    const prisma = getPrisma();
-                    if (!prisma) {
-                        res.writeHead(500, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ error: "Database not connected" }));
-                        return;
-                    }
-                    const dbMailboxes = await prisma.mailbox.findMany({
-                        orderBy: { createdAt: "asc" },
-                    });
+                    const dbMailboxes = await getMailboxes(prismaQuery);
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(dbMailboxes));
                 } catch (err: any) {
                     res.writeHead(500, { "Content-Type": "application/json" });
                     res.end(JSON.stringify({ error: err.message }));
+                }
+            });
+
+            // 10. Lifetime system report (total mails, categories, reply mix,
+            // monthly volume, top campaigns, latest replies) — what the
+            // head-of-department sections render from.
+            server.middlewares.use("/api/analytics/report", async (_req: any, res: any) => {
+                try {
+                    const prisma = getPrisma();
+                    if (!prisma) {
+                        res.writeHead(503, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: "database_unavailable", message: "The live database is not reachable." }));
+                        return;
+                    }
+
+                    const payload = await getReport(prismaQuery);
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(payload));
+                } catch (err: any) {
+                    console.error("[DatabaseIntelligencePlugin] report error:", err);
+                    const unavailable = err?.message === "database_unavailable";
+                    res.writeHead(unavailable ? 503 : 500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        error: unavailable ? "database_unavailable" : err.message,
+                        message: unavailable ? "The live database is not reachable." : err.message,
+                    }));
                 }
             });
         },

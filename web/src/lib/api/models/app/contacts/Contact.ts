@@ -92,6 +92,10 @@ export default interface Contact {
     campaign_lead?: ContactCampaignProgress | null;
 
     // Live Email Intelligence Extensions
+    // True when the address is a provider inbox (gmail.com etc.) rather than a
+    // person's domain; used to hide the domain column and show the handler.
+    is_email_handler?: boolean;
+    email_handler?: string | null;
     domain?: string;
     temporal_state?: {
         recency_bucket: string;

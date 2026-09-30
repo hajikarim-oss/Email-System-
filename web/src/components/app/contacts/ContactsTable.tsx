@@ -1117,6 +1117,32 @@ function ContactsTableBody({
         verification_provider?: string;
         verification_checked_at?: string | null;
         verification_confidence?: number;
+        is_email_handler?: boolean;
+        email_handler?: string | null;
+        domain?: string;
+        temporal_state?: {
+            recency_bucket?: string;
+            outreach_state?: string;
+            days_since_last_contact?: number | null;
+            first_contacted_at?: string | Date | null;
+            last_contacted_at?: string | Date | null;
+            is_dormant?: boolean;
+            is_reengagement_candidate?: boolean;
+        };
+        engagement_state?: {
+            total_messages?: number;
+            total_replied?: number;
+            reply_classification?: string;
+        };
+        last_message_context?: {
+            id?: string | null;
+            subject?: string | null;
+            body_hook?: string | null;
+            sender?: string;
+            campaign?: string;
+            outcome?: string;
+            date?: string | Date | null;
+        };
         created_at: Date;
     }[];
     isRowSelected: (id: string) => boolean;

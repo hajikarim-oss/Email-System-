@@ -1,6 +1,7 @@
 import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import coreData from "./coreData.json";
 import q3LuggageLeads from "./q3LuggageLeads.json";
+import { buildCategories, buildSegments, type CategoryCount } from "../../../../server/segments";
 
 // Standalone in-browser database & API dispatcher for TheBoredMonkey Outreach
 // Powered by real core data exported from Email System 101 Prisma/Smartlead database
@@ -496,6 +497,84 @@ export const Q2_CAMPAIGN_DEF: any = {
     ]
 };
 
+/**
+ * Category counts behind the contacts sidebar (segments + category chips).
+ * Read from the live contacts endpoint so the sidebar always matches the table
+ * below it; `error` is set only when that endpoint exists and failed (e.g. the
+ * database is unreachable) — then the caller must fail rather than show stale
+ * fixture counts. `counts` stays null when no API is deployed at all, and the
+ * caller falls back to the historical fixtures.
+ */
+async function loadCategoryCounts(): Promise<{ counts: CategoryCount[] | null; error: string | null }> {
+    try {
+        const response = await fetch("/api/intelligence/contacts?limit=1");
+        if (response.ok) {
+            const body = await response.json();
+            const categories = body?.counts?.categories;
+            return { counts: Array.isArray(categories) ? categories : null, error: null };
+        }
+        const text = await response.text().catch(() => "");
+        try {
+            const parsed = JSON.parse(text);
+            if (parsed && typeof parsed.error === "string") {
+                return { counts: null, error: parsed.message || parsed.error };
+            }
+        } catch {
+            /* non-JSON (SPA index.html) → endpoint not deployed */
+        }
+        return { counts: null, error: null };
+    } catch (e) {
+        console.warn("[standaloneMock] category counts unavailable:", e);
+        return { counts: null, error: null };
+    }
+}
+
+/**
+ * Lifetime campaign counters from the database (Lead + EmailEvent aggregates).
+ * `stats` is null only when no API is deployed; `error` is set when the
+ * endpoint exists and failed, which the caller must surface rather than fall
+ * back to fixture counters.
+ */
+async function fetchCampaignStats(): Promise<{ stats: Map<string, any> | null; error: string | null }> {
+    try {
+        const response = await fetch("/api/campaigns/stats");
+        if (response.ok) {
+            const body = await response.json();
+            if (Array.isArray(body)) {
+                return { stats: new Map<string, any>(body.map((s: any) => [String(s.id), s])), error: null };
+            }
+            return { stats: null, error: null };
+        }
+        const text = await response.text().catch(() => "");
+        try {
+            const parsed = JSON.parse(text);
+            if (parsed && typeof parsed.error === "string") {
+                return { stats: null, error: parsed.message || parsed.error };
+            }
+        } catch {
+            /* non-JSON (SPA index.html) → endpoint not deployed */
+        }
+        return { stats: null, error: null };
+    } catch (e) {
+        console.warn("[standaloneMock] campaign stats unavailable:", e);
+        return { stats: null, error: null };
+    }
+}
+
+/** Copies lifetime counters onto a campaign; a missing row means no activity. */
+function applyCampaignStats(campaign: any, stats: any) {
+    campaign.total_leads = stats?.total_leads ?? 0;
+    campaign.sent_count = stats?.sent_count ?? 0;
+    campaign.open_count = stats?.open_count ?? 0;
+    campaign.click_count = stats?.click_count ?? 0;
+    campaign.reply_count = stats?.reply_count ?? 0;
+    campaign.bounce_count = stats?.bounce_count ?? 0;
+    campaign.open_rate = stats?.open_rate ?? 0;
+    campaign.click_rate = stats?.click_rate ?? 0;
+    campaign.reply_rate = stats?.reply_rate ?? 0;
+    campaign.bounce_rate = stats?.bounce_rate ?? 0;
+}
+
 export async function handleStandaloneRequest(config: AxiosRequestConfig): Promise<AxiosResponse> {
     const rawUrl = config.url ?? "";
     const method = (config.method ?? "GET").toUpperCase();
@@ -872,17 +951,38 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             if (dbMbRes.ok) {
                 const dbMbs = await dbMbRes.json();
                 if (Array.isArray(dbMbs) && dbMbs.length > 0) {
+                    const matched = new Set<string>();
                     dbMbs.forEach((dbm: any) => {
-                        const local = emails.find((e: any) => (e.email || "").toLowerCase() === (dbm.senderEmail || "").toLowerCase());
+                        const key = (dbm.senderEmail || "").toLowerCase();
+                        const local = emails.find((e: any) => (e.email || "").toLowerCase() === key);
                         if (local) {
+                            matched.add(key);
                             local.status = dbm.status.toLowerCase();
                             local.daily_limit = dbm.dailySendLimit || local.daily_limit;
+                            // Real counters from EmailEvent rows; a mailbox that
+                            // sent nothing today reports 0, never a seeded figure.
+                            if (typeof dbm.sent_today === "number") local.sent_today = dbm.sent_today;
+                            if (typeof dbm.total_sent === "number") local.total_sent = dbm.total_sent;
+                            // null when the database tracks no warmup score yet
+                            // so the UI shows "—" instead of a seeded percentage.
+                            local.reputation = dbm.warmupReputationScore ?? null;
+                        }
+                    });
+                    // Anything the database does not know about has no tracked
+                    // sends either, so its seeded counters are cleared too.
+                    emails.forEach((e: any) => {
+                        const key = (e.email || "").toLowerCase();
+                        if (key && !matched.has(key)) {
+                            e.sent_today = 0;
+                            e.total_sent = 0;
                         }
                     });
                     saveStorage("emails", emails);
                 }
             }
-        } catch { }
+        } catch {
+            /* endpoint unreachable or not deployed - keep stored values */
+        }
 
         return res({
             data: emails,
@@ -1502,6 +1602,19 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         } catch { }
 
+        // Lifetime send/engagement counters, aggregated from the Lead and
+        // EmailEvent tables. Fixture counters are only kept when no API is
+        // deployed at all — an endpoint that exists and fails must surface,
+        // otherwise the Campaigns page shows numbers no query backs.
+        const { stats: campaignStatsById, error: campaignStatsError } = await fetchCampaignStats();
+        if (campaignStatsError) {
+            throw new Error(campaignStatsError);
+        }
+        if (campaignStatsById) {
+            campaigns.forEach((c: any) => applyCampaignStats(c, campaignStatsById.get(String(c.id))));
+            saveStorage("campaigns", campaigns);
+        }
+
         const campQuery = (queryParams.get("query") || queryParams.get("q") || "").toLowerCase().trim();
         const campResults = campQuery
             ? campaigns.filter((c: any) => (c.name || "").toLowerCase().includes(campQuery) || (c.description || "").toLowerCase().includes(campQuery))
@@ -1536,13 +1649,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 campaigns[0];
         }
 
-        if (match) {
-            const isRajdeepCampaign = (match.id === "cmp_1789560721755" || (match.id && match.id.toLowerCase() === "cmp_1789560721755") || (match.name?.includes("120") && !match.name?.includes("Reachout")) || match.name?.includes("116") || match.id === "cmp_1789556689473") && match.id !== "cmp_1789718475256_g91f";
-            if (isRajdeepCampaign) {
-                match.reply_count = Math.max(1, match.reply_count || 1);
-                match.sent_count = Math.max(1, match.sent_count || 1);
-                match.reply_rate = 100.0;
-                match.open_rate = 100.0;
+        if (match && method === "GET" && !sub) {
+            // Detail reads overlay the same lifetime stats as the list, so the
+            // detail view never shows counters the database doesn't have.
+            const { stats: detailStats, error: detailStatsError } = await fetchCampaignStats();
+            if (detailStatsError) throw new Error(detailStatsError);
+            if (detailStats) {
+                const target = campaigns.includes(match) ? match : { ...match };
+                applyCampaignStats(target, detailStats.get(String(target.id)));
+                match = target;
             }
         }
 
@@ -2344,6 +2459,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const reqBody = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
 
         // Query the live PostgreSQL Database Intelligence layer first
+        let liveContactsError: string | null = null;
         try {
             const intParams = new URLSearchParams();
             const q = (reqBody.query || queryParams.get("query") || queryParams.get("q") || "").trim();
@@ -2394,9 +2510,25 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         pagination: intJson.pagination,
                     });
                 }
+            } else {
+                const errText = await intRes.text().catch(() => "");
+                try {
+                    const errBody = JSON.parse(errText);
+                    // The endpoint exists and answered with a structured error
+                    // (e.g. the database is unreachable). Surface it instead of
+                    // quietly serving fixture rows that contradict the database.
+                    if (errBody && typeof errBody.error === "string") {
+                        liveContactsError = errBody.message || errBody.error;
+                    }
+                } catch {
+                    /* non-JSON (SPA index.html) → endpoint not deployed, fall back */
+                }
             }
         } catch (e) {
             console.warn("[standaloneMock] Failed to query intelligence contacts, falling back:", e);
+        }
+        if (liveContactsError) {
+            throw new Error(liveContactsError);
         }
 
         // Campaign scoping — if campaign_ids is specified, query dedicated campaign leads registry
@@ -2675,29 +2807,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/contacts/segments") {
-        try {
-            const segRes = await fetch("/api/intelligence/segments");
-            if (segRes.ok) {
-                const segData = await segRes.json();
-                return res(segData);
-            }
-        } catch { }
-        return res([
-            { id: "seg_dormant_replied", name: "Dormant Replied (Past Responders)", count: 747, color: "#10b981" },
-            { id: "seg_cold_reengagement", name: "Cold Re-engagement Candidates", count: 22896, color: "#8b5cf6" },
-            { id: "seg_warm_stale", name: "Warm Stale Leads", count: 694, color: "#f59e0b" },
-            { id: "seg_suppressed", name: "Quarantined / Burned (Shield Active)", count: 3732, color: "#ef4444" },
-            { id: "seg_in_sequence", name: "Currently In Sequence", count: 3, color: "#0ea5e9" },
-        ]);
+        const { counts, error } = await loadCategoryCounts();
+        if (error) throw new Error(error);
+        return res(buildSegments(counts));
     }
 
     if (pathWithoutQuery === "/contacts/categories") {
-        return res([
-            { id: "DORMANT_REPLIED", title: "Dormant Replied", count: 747, color: "#10b981" },
-            { id: "COLD_REENGAGEMENT", title: "Cold Re-engagement", count: 22896, color: "#8b5cf6" },
-            { id: "WARM_STALE", title: "Warm Stale", count: 694, color: "#f59e0b" },
-            { id: "BURNED", title: "Burned / Quarantined", count: 3730, color: "#ef4444" },
-        ]);
+        const { counts, error } = await loadCategoryCounts();
+        if (error) throw new Error(error);
+        return res(buildCategories(counts));
     }
 
     if (pathWithoutQuery === "/contacts/custom-fields") {
@@ -3501,211 +3619,165 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     if (pathWithoutQuery.startsWith("/analytics/campaigns/") && pathWithoutQuery.endsWith("/daily")) {
         const campId = pathWithoutQuery.replace("/analytics/campaigns/", "").replace("/daily", "").split("/")[0];
-        const campIdLower = (campId || "").toLowerCase();
-        let match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
-            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower));
+        const from = queryParams.get("from");
+        const to = queryParams.get("to");
 
-        if (!match && (campIdLower.includes("1789718475256") || campIdLower.includes("g91f") || campIdLower.includes("reachout") || campIdLower.includes("q2"))) {
-            match = campaigns.find((c: any) => c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) || Q2_CAMPAIGN_DEF;
+        // Live daily series from the database: sends deduped against
+        // lastContactedAt plus real engagement, zero-filled across the window
+        // the client asked for.
+        let windowDays = 30;
+        if (from && /^\d{4}-\d{2}-\d{2}$/.test(from) && to && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+            const diff = Math.round((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / 86400000);
+            windowDays = Math.min(365, Math.max(1, diff + 1));
         }
+        const dailyParams = new URLSearchParams({ id: campId, days: String(windowDays) });
+        if (from) dailyParams.set("from", from);
 
-        if (!match) {
-            match = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower) ||
-                (campIdLower.includes("116") ? campaigns.find((c: any) => c.name?.includes("116")) : null) ||
-                (campIdLower.includes("120") ? campaigns.find((c: any) => c.name?.includes("120")) : null) ||
-                campaigns[0];
-        }
-
-        const smId = match?.smartlead_id || (match?.id === "cmp_1789718475256_g91f" || match?.name?.includes("Reachout") ? 3980868 : match?.id === "cmp_1789556689473" || match?.name?.includes("116") ? 3967633 : match?.name?.includes("120") ? 3967990 : null);
-        let sent = match?.sent_count ?? 1;
-        let opens = match?.open_count ?? 0;
-        let clicks = match?.click_count ?? 0;
-        let replies = match?.reply_count ?? 0;
-        let bounces = match?.bounce_count ?? 0;
-
-        if (smId) {
-            try {
-                const smRes = await fetch(`/api/smartlead/campaign-analytics?id=${smId}`);
-                if (smRes.ok) {
-                    const smData = await smRes.json();
-                    sent = Number(smData.sent_count ?? smData.unique_sent_count ?? sent);
-                    opens = Number(smData.unique_open_count ?? smData.open_count ?? opens);
-                    clicks = Number(smData.unique_click_count ?? smData.click_count ?? clicks);
-                    replies = Number(smData.reply_count ?? replies);
-                    bounces = Number(smData.bounce_count ?? bounces);
+        let dailyError: string | null = null;
+        try {
+            const dailyRes = await fetch(`/api/campaigns/analytics?${dailyParams.toString()}`);
+            if (dailyRes.ok) {
+                const dailyJson = await dailyRes.json();
+                if (dailyJson && Array.isArray(dailyJson.daily_stats)) {
+                    return res({ data: dailyJson.daily_stats });
                 }
-            } catch { }
-        }
-
-        const isRajdeep = (match?.id === "cmp_1789560721755" || (match?.name?.includes("120") && !match?.name?.includes("Reachout")) || match?.name?.includes("116") || match?.id === "cmp_1789556689473") && match?.id !== "cmp_1789718475256_g91f";
-        if (isRajdeep) {
-            replies = 1;
-            opens = 1;
-            sent = Math.max(1, sent);
-        }
-        replies = Math.min(sent, Math.max(0, replies));
-        opens = Math.min(sent, Math.max(0, opens));
-        clicks = Math.min(sent, Math.max(0, clicks));
-        bounces = Math.min(sent, Math.max(0, bounces));
-
-        return res({
-            data: [
-                {
-                    date: "2026-09-16",
-                    sent,
-                    opens,
-                    clicks,
-                    replies,
-                    bounces,
-                },
-                {
-                    date: "2026-09-17",
-                    sent: 0,
-                    opens: 0,
-                    clicks: 0,
-                    replies: 0,
-                    bounces: 0,
-                },
-                {
-                    date: "2026-09-18",
-                    sent: 0,
-                    opens: 0,
-                    clicks: 0,
-                    replies: 0,
-                    bounces: 0,
+            } else {
+                const errText = await dailyRes.text().catch(() => "");
+                try {
+                    const errBody = JSON.parse(errText);
+                    if (errBody && typeof errBody.error === "string") {
+                        dailyError = errBody.message || errBody.error;
+                    }
+                } catch {
+                    /* non-JSON (SPA index.html) - endpoint not deployed */
                 }
-            ]
-        });
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] campaign daily stats unavailable:", e);
+        }
+        if (dailyError) {
+            throw new Error(dailyError);
+        }
+
+        // No API deployed at all: return an empty series instead of the old
+        // pinned three-day history, which claimed sends on fixed dates.
+        return res({ data: [] });
     }
 
     if (pathWithoutQuery.startsWith("/analytics/campaigns/")) {
         const campId = pathWithoutQuery.replace("/analytics/campaigns/", "").split("/")[0];
         const campIdLower = (campId || "").toLowerCase();
-        let match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
-            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower));
+        const match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
+            campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower)) ||
+            campaigns[0];
 
-        if (!match && (campIdLower.includes("1789718475256") || campIdLower.includes("g91f") || campIdLower.includes("reachout") || campIdLower.includes("q2"))) {
-            match = campaigns.find((c: any) => c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) || Q2_CAMPAIGN_DEF;
-        }
-
-        if (!match) {
-            match = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower) ||
-                (campIdLower.includes("116") ? campaigns.find((c: any) => c.name?.includes("116")) : null) ||
-                (campIdLower.includes("120") ? campaigns.find((c: any) => c.name?.includes("120")) : null) ||
-                campaigns[0];
-        }
-
-        const smId = match?.smartlead_id || (match?.id === "cmp_1789718475256_g91f" || match?.name?.includes("Reachout") ? 3980868 : match?.id === "cmp_1789556689473" || match?.name?.includes("116") ? 3967633 : match?.name?.includes("120") ? 3967990 : null);
-        let sent = match?.sent_count ?? 1;
-        let opens = match?.open_count ?? 0;
-        let clicks = match?.click_count ?? 0;
-        let replies = match?.reply_count ?? 0;
-        let bounces = match?.bounce_count ?? 0;
-
-        if (smId) {
-            try {
-                const smRes = await fetch(`/api/smartlead/campaign-analytics?id=${smId}`);
-                if (smRes.ok) {
-                    const smData = await smRes.json();
-                    sent = Number(smData.sent_count ?? smData.unique_sent_count ?? sent);
-                    opens = Number(smData.unique_open_count ?? smData.open_count ?? opens);
-                    clicks = Number(smData.unique_click_count ?? smData.click_count ?? clicks);
-                    replies = Number(smData.reply_count ?? replies);
-                    bounces = Number(smData.bounce_count ?? bounces);
+        // Lifetime summary, daily series and per-step counters from the
+        // database. This replaces the old Smartlead fixture merge, inbox
+        // cross-referencing and pinned engagement splits, none of which any
+        // query produced.
+        let aggError: string | null = null;
+        let live: any = null;
+        try {
+            const aggRes = await fetch(`/api/campaigns/analytics?id=${encodeURIComponent(campId)}&days=30`);
+            if (aggRes.ok) {
+                const aggJson = await aggRes.json();
+                if (aggJson && aggJson.summary) live = aggJson;
+            } else {
+                const errText = await aggRes.text().catch(() => "");
+                try {
+                    const errBody = JSON.parse(errText);
+                    if (errBody && typeof errBody.error === "string") {
+                        aggError = errBody.message || errBody.error;
+                    }
+                } catch {
+                    /* non-JSON (SPA index.html) - endpoint not deployed */
                 }
-            } catch { }
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] campaign analytics unavailable:", e);
+        }
+        if (aggError) {
+            throw new Error(aggError);
         }
 
-        // Cross-reference replies with Inbox threads for leads enrolled in this campaign
-        const inboxSenderEmails = new Set(
-            allInboxRows
-                .filter((r: any) => r.folder === "inbox")
-                .map((r: any) => (r.from_addr?.[0] || "").toLowerCase())
-        );
+        const storedStats = match
+            ? {
+                  id: String(match.id),
+                  total_leads: match.total_leads || 0,
+                  sent_count: match.sent_count || 0,
+                  open_count: match.open_count || 0,
+                  click_count: match.click_count || 0,
+                  reply_count: match.reply_count || 0,
+                  bounce_count: match.bounce_count || 0,
+                  open_rate: match.open_rate || 0,
+                  click_rate: match.click_rate || 0,
+                  reply_rate: match.reply_rate || 0,
+                  bounce_rate: match.bounce_rate || 0,
+              }
+            : null;
+        const stats = live?.summary || storedStats;
+        const sent = stats?.sent_count || 0;
+        const opens = stats?.open_count || 0;
+        const clicks = stats?.click_count || 0;
+        const replies = stats?.reply_count || 0;
+        const bounces = stats?.bounce_count || 0;
+        const totalLeads = stats?.total_leads || 0;
 
-        // Deduplicate contacts enrolled in this campaign by unique email address
-        const uniqueCampEmails = new Set<string>();
-        contacts.forEach((c: any) => {
-            const isAssigned = (c.campaign_id && c.campaign_id.toLowerCase() === campIdLower) ||
-                (Array.isArray(c.campaigns) && c.campaigns.some((cid: string) => cid.toLowerCase() === campIdLower)) ||
-                (match?.name?.includes("120") && c.email === "hajikarimbeldaar@gmail.com") ||
-                (match?.name?.includes("116") && c.email === "hajikarimbeldaar@gmail.com");
-            if (isAssigned && c.email) {
-                uniqueCampEmails.add(c.email.toLowerCase());
-            }
-        });
-
-        // Count unique enrolled leads who have replied
-        let uniqueRepliedCount = 0;
-        uniqueCampEmails.forEach((email: string) => {
-            const hasInboxReply = Array.from(inboxSenderEmails).some((inboxFrom: string) => inboxFrom.includes(email));
-            if (hasInboxReply || email === "hajikarimbeldaar@gmail.com") {
-                uniqueRepliedCount++;
-            }
-        });
-
-        // Sent count is at least unique contacts enrolled
-        sent = Math.max(sent, uniqueCampEmails.size, 1);
-
-        // Crucial: In email marketing, unique replies can NEVER exceed sent leads (max 100% rate)
-        replies = Math.min(sent, Math.max(match?.reply_count || 0, uniqueRepliedCount));
-        opens = Math.min(sent, Math.max(opens, replies));
-        clicks = Math.min(sent, Math.max(0, clicks));
-        bounces = Math.min(sent, Math.max(0, bounces));
-
-        const openRate = sent > 0 ? Math.min(100, Math.round((opens / sent) * 1000) / 10) : 0;
-        const clickRate = sent > 0 ? Math.min(100, Math.round((clicks / sent) * 1000) / 10) : 0;
-        const replyRate = sent > 0 ? Math.min(100, Math.round((replies / sent) * 1000) / 10) : 0;
-        const bounceRate = sent > 0 ? Math.min(100, Math.round((bounces / sent) * 1000) / 10) : 0;
-
-        if (match) {
-            match.sent_count = sent;
-            match.open_count = opens;
-            match.click_count = clicks;
-            match.reply_count = replies;
-            match.bounce_count = bounces;
-            match.open_rate = openRate;
-            match.reply_rate = replyRate;
+        if (match && live?.summary) {
+            applyCampaignStats(match, live.summary);
             saveStorage("campaigns", campaigns);
         }
 
+        const stepStats = new Map<number, any>(
+            (live?.steps || []).map((s: any) => [Number(s.step_number), s]),
+        );
+        const today = new Date().toISOString().slice(0, 10);
+
         return res({
-            campaign_id: match.id,
-            name: match.name,
-            status: match.status,
-            date_range: { from: "2026-03-01", to: "2026-03-11" },
+            campaign_id: match?.id || campId,
+            name: match?.name || "",
+            status: match?.status,
+            date_range: {
+                from: match?.created_at ? String(match.created_at).slice(0, 10) : "",
+                to: today,
+            },
             summary: {
-                total_contacts: Math.max(sent, match.total_leads || 0),
+                total_contacts: Math.max(totalLeads, sent),
                 emails_sent: sent,
-                emails_pending: Math.max(0, (match.total_leads || 0) - sent),
+                emails_pending: Math.max(0, totalLeads - sent),
                 unique_opens: opens,
                 machine_opens: 0,
                 machine_clicks: 0,
                 unique_clicks: clicks,
-                replies: replies,
-                bounces: bounces,
+                replies,
+                bounces,
                 unsubscribes: 0,
-                open_rate: openRate,
-                click_rate: clickRate,
-                reply_rate: replyRate,
-                bounce_rate: bounceRate,
+                open_rate: stats?.open_rate || 0,
+                click_rate: stats?.click_rate || 0,
+                reply_rate: stats?.reply_rate || 0,
+                bounce_rate: stats?.bounce_rate || 0,
             },
-            steps: (match.steps || []).map((s: { id: string; stepNumber?: number; position?: number; subject: string }) => ({
-                step_id: s.id,
-                name: `Step ${s.stepNumber || s.position || 1}`,
-                position: s.stepNumber || s.position || 1,
-                emails_sent: sent > 0 ? Math.ceil(sent / (match.steps.length || 1)) : 0,
-                opens: opens > 0 ? Math.ceil(opens / (match.steps.length || 1)) : 0,
-                clicks: clicks > 0 ? Math.ceil(clicks / (match.steps.length || 1)) : 0,
-                replies: replies > 0 ? Math.ceil(replies / (match.steps.length || 1)) : 0,
-                bounces: bounces > 0 ? Math.ceil(bounces / (match.steps.length || 1)) : 0,
-            })),
-            daily_stats: [],
-            engagement: sent > 0 ? {
-                countries: [{ key: "IN", opens: Math.ceil(opens * 0.7), clicks: Math.ceil(clicks * 0.7) }, { key: "US", opens: Math.floor(opens * 0.3), clicks: Math.floor(clicks * 0.3) }],
-                clients: [{ key: "Gmail", opens: Math.ceil(opens * 0.8), clicks: Math.ceil(clicks * 0.8) }, { key: "Apple Mail", opens: Math.floor(opens * 0.2), clicks: Math.floor(clicks * 0.2) }],
-                devices: [{ key: "Desktop", opens: Math.ceil(opens * 0.7), clicks: Math.ceil(clicks * 0.7) }, { key: "Mobile", opens: Math.floor(opens * 0.3), clicks: Math.floor(clicks * 0.3) }],
-            } : {
+            steps: ((match?.steps || []) as any[]).map((s, idx) => {
+                const position = Number(s.stepNumber || s.position || idx + 1);
+                const step = stepStats.get(position);
+                return {
+                    step_id: s.id,
+                    name: `Step ${position}`,
+                    position,
+                    // Per-step counts are recovered from webhook payload step
+                    // numbers; without a live API they stay zero instead of
+                    // being spread evenly across steps.
+                    emails_sent: step?.emails_sent || 0,
+                    opens: step?.opens || 0,
+                    clicks: step?.clicks || 0,
+                    replies: step?.replies || 0,
+                    bounces: step?.bounces || 0,
+                };
+            }),
+            daily_stats: live?.daily_stats || [],
+            // Events carry no geo, client or device fields, so these
+            // breakdowns stay empty rather than showing invented splits.
+            engagement: {
                 countries: [],
                 clients: [],
                 devices: [],
@@ -3714,145 +3786,211 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/analytics/dashboard" || pathWithoutQuery === "/analytics") {
-        const todayKey = new Date().toISOString().slice(0, 10);
+        const period = queryParams.get("period") || "30d";
+        const from = queryParams.get("from") || "";
+        const to = queryParams.get("to") || "";
+
+        // 1. Live database first. Both the Vite dev server and the deployed
+        //    /api/analytics/dashboard function aggregate the real EmailEvent,
+        //    Lead and Mailbox tables, so "sent today" is whatever the database
+        //    actually recorded — never a pinned historical value.
+        let liveAnalyticsError: string | null = null;
+        try {
+            const dashQuery = new URLSearchParams({ period });
+            if (from) dashQuery.set("from", from);
+            if (to) dashQuery.set("to", to);
+            const dashRes = await fetch(`/api/analytics/dashboard?${dashQuery.toString()}`);
+            if (dashRes.ok) {
+                const dashJson = await dashRes.json();
+                if (dashJson && dashJson.overall_stats && Array.isArray(dashJson.daily_trend)) {
+                    return res({ ...dashJson, period: dashJson.period || period });
+                }
+            } else {
+                const errText = await dashRes.text().catch(() => "");
+                try {
+                    const errBody = JSON.parse(errText);
+                    if (errBody && typeof errBody.error === "string") {
+                        liveAnalyticsError = errBody.message || errBody.error;
+                    }
+                } catch {
+                    /* non-JSON (SPA index.html) → endpoint not deployed, use fixtures */
+                }
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] live analytics endpoint unavailable, using fixtures:", e);
+        }
+        if (liveAnalyticsError) {
+            throw new Error(liveAnalyticsError);
+        }
+
+        // 2. Fixture fallback for static hosting without an /api deployment.
+        //    Totals come from the stored campaign stats so they still match the
+        //    Campaigns page, but the daily series stays at zero: fixtures carry
+        //    no per-day history, and inventing one is what made every day look
+        //    like it had 48 sends.
         const currentCampaigns = loadStorage("campaigns", initialCampaigns);
-        const activeCamp = currentCampaigns.find((c: any) => c.status === "active") || currentCampaigns[0];
-
-        // Dispatched today is strictly the active Q3 campaign sends (48)
-        const todaySent = Math.max(activeCamp?.sent_count || 0, 48);
-        const todayOpens = activeCamp?.open_count ?? 22;
-        const todayClicks = activeCamp?.click_count ?? 1;
-        const todayReplies = activeCamp?.reply_count ?? 0;
-        const todayBounces = activeCamp?.bounce_count ?? 4;
-
-        let liveOpenCount = 0;
-        let liveReplyCount = 0;
-        let liveBounceCount = 0;
-        let liveClickCount = 0;
-        let liveSentCount = 0;
+        let sent = 0;
+        let opens = 0;
+        let clicks = 0;
+        let replies = 0;
+        let bounces = 0;
         currentCampaigns.forEach((c: any) => {
-            liveSentCount += c.sent_count || 0;
-            liveOpenCount += c.open_count || 0;
-            liveClickCount += c.click_count || 0;
-            liveReplyCount += c.reply_count || 0;
-            liveBounceCount += c.bounce_count || 0;
+            sent += c.sent_count || 0;
+            opens += c.open_count || 0;
+            clicks += c.click_count || 0;
+            replies += c.reply_count || 0;
+            bounces += c.bounce_count || 0;
         });
 
-        // Exact all-time sends across the workspace (98: 48 Q3 + 48 Q2 + 2 tests)
-        const totalSentCalc = liveSentCount > 0 ? liveSentCount : 98;
-        const overallOpenRate = totalSentCalc > 0 ? Math.round((liveOpenCount / totalSentCalc) * 1000) / 10 : 45.8;
-        const overallClickRate = totalSentCalc > 0 ? Math.round((liveClickCount / totalSentCalc) * 1000) / 10 : 2.1;
-        const overallReplyRate = totalSentCalc > 0 ? Math.round((liveReplyCount / totalSentCalc) * 1000) / 10 : 0.0;
-        const overallBounceRate = totalSentCalc > 0 ? Math.round((liveBounceCount / totalSentCalc) * 1000) / 10 : 8.3;
-
-        // Daily trend: Map real historical campaign activity without fabrication
+        const delivered = Math.max(0, sent - bounces);
+        const r1 = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0);
         const trend: any[] = [];
         const now = new Date();
         for (let i = 13; i >= 0; i--) {
             const d = new Date(now);
             d.setUTCDate(now.getUTCDate() - i);
-            const key = d.toISOString().slice(0, 10);
-
-            // True historical points:
-            // - Today (2026-09-24): Q3 Campaign dispatch (48 sent, 22 opens, 1 click, 0 replies, 4 bounces)
-            // - 2026-09-18 (6 days ago): Q2 Reachout Mails dispatch (48 sent, 28 opens, 8 clicks, 0 replies, 12 bounces)
-            // - 2026-09-16 (8 days ago): Verification test sequences (2 sent, 2 opens, 0 clicks, 2 replies, 0 bounces)
-            let s = 0, o = 0, cl = 0, r = 0, b = 0;
-            if (key === todayKey || i === 0) {
-                s = todaySent;
-                o = todayOpens;
-                cl = todayClicks;
-                r = todayReplies;
-                b = todayBounces;
-            } else if (key === "2026-09-18" || i === 6) {
-                s = 48;
-                o = 28;
-                cl = 8;
-                r = 0;
-                b = 12;
-            } else if (key === "2026-09-16" || i === 8) {
-                s = 2;
-                o = 2;
-                cl = 0;
-                r = 2;
-                b = 0;
-            }
-            trend.push({
-                date: key,
-                sent: s,
-                opens: o,
-                clicks: cl,
-                replies: r,
-                bounces: b,
-            });
+            trend.push({ date: d.toISOString().slice(0, 10), sent: 0, opens: 0, clicks: 0, replies: 0, bounces: 0 });
         }
 
+        const healthyAccounts = emails.filter((e: any) => e.status === "active").length;
+        const warningAccounts = emails.filter((e: any) => e.status === "warming" || e.status === "paused").length;
+
         return res({
-            period: queryParams.get("period") || "30d",
-            today_sent: todaySent,
+            period,
+            today_sent: 0,
+            daily_capacity: emails.reduce((sum: number, e: any) => sum + (e.campaign_limit ?? 50), 0),
             overall_stats: {
-                total_emails_sent: totalSentCalc,
-                total_opens: liveOpenCount,
+                total_emails_sent: sent,
+                total_opens: opens,
                 machine_opens: 0,
-                total_clicks: liveClickCount,
+                total_clicks: clicks,
                 machine_clicks: 0,
-                total_replies: liveReplyCount,
-                total_bounces: liveBounceCount,
-                open_rate: overallOpenRate,
-                click_rate: overallClickRate,
-                reply_rate: overallReplyRate,
-                bounce_rate: overallBounceRate,
-                active_campaigns: currentCampaigns.filter((c: any) => c.status === "active").length || 1,
-                active_accounts: 4,
+                total_replies: replies,
+                total_bounces: bounces,
+                open_rate: r1(opens, delivered),
+                click_rate: r1(clicks, delivered),
+                reply_rate: r1(replies, delivered),
+                bounce_rate: r1(bounces, sent),
+                active_campaigns: currentCampaigns.filter((c: any) => c.status === "active").length,
+                active_accounts: emails.length,
             },
-            recent_activity: [
-                {
-                    type: "sent",
-                    campaign_id: "4015596",
-                    campaign_name: "Q3 Campaign",
-                    contact_email: "hrishita@fgear.in",
-                    timestamp: "2026-09-24T09:03:36.744Z",
-                },
-                {
-                    type: "opened",
-                    campaign_id: "4015596",
-                    campaign_name: "Q3 Campaign",
-                    contact_email: "hrishita@fgear.in",
-                    timestamp: "2026-09-24T09:04:11.587Z",
-                },
-                {
-                    type: "clicked",
-                    campaign_id: "4015596",
-                    campaign_name: "Q3 Campaign",
-                    contact_email: "sagarika.mukerji@vipbags.com",
-                    timestamp: "2026-09-24T08:26:29.522Z",
-                },
-            ],
-            top_campaigns: currentCampaigns.map((c: any) => {
-                const sent = c.sent_count || 0;
-                const opens = c.open_count || 0;
-                const clicks = c.click_count || 0;
-                const replies = c.reply_count || 0;
-                const openRate = c.open_rate != null ? Number(c.open_rate) : (sent > 0 ? Number(((opens / sent) * 100).toFixed(1)) : 0);
-                const clickRate = c.click_rate != null ? Number(c.click_rate) : (sent > 0 ? Number(((clicks / sent) * 100).toFixed(1)) : 0);
-                const replyRate = c.reply_rate != null ? Number(c.reply_rate) : (sent > 0 ? Number(((replies / sent) * 100).toFixed(1)) : 0);
-                return {
-                    campaign_id: c.id,
-                    name: c.name,
-                    status: c.status,
-                    emails_sent: sent,
-                    open_rate: openRate,
-                    click_rate: clickRate,
-                    reply_rate: replyRate,
-                };
-            }),
+            recent_activity: [],
+            top_campaigns: currentCampaigns.map((c: any) => ({
+                campaign_id: c.id,
+                name: c.name,
+                status: c.status,
+                emails_sent: c.sent_count || 0,
+                open_rate: r1(c.open_count || 0, Math.max(0, (c.sent_count || 0) - (c.bounce_count || 0))),
+                click_rate: r1(c.click_count || 0, Math.max(0, (c.sent_count || 0) - (c.bounce_count || 0))),
+                reply_rate: r1(c.reply_count || 0, Math.max(0, (c.sent_count || 0) - (c.bounce_count || 0))),
+            })),
             account_health: {
-                total_accounts: 4,
-                healthy_accounts: 4,
-                warning_accounts: 0,
-                error_accounts: 0,
+                total_accounts: emails.length,
+                healthy_accounts: healthyAccounts,
+                warning_accounts: warningAccounts,
+                error_accounts: Math.max(0, emails.length - healthyAccounts - warningAccounts),
             },
             daily_trend: trend,
+        });
+    }
+
+    if (pathWithoutQuery === "/analytics/report") {
+        // 1. Live database first: the same numbers the deployed
+        //    /api/analytics/report function computes from EmailMessage, Lead,
+        //    Brand and Mailbox (total mails, categories, reply mix, campaigns).
+        let liveReportError: string | null = null;
+        try {
+            const reportRes = await fetch("/api/analytics/report");
+            if (reportRes.ok) {
+                const reportJson = await reportRes.json();
+                if (reportJson && reportJson.lifetime && Array.isArray(reportJson.categories)) {
+                    return res(reportJson);
+                }
+            } else {
+                const errText = await reportRes.text().catch(() => "");
+                try {
+                    const errBody = JSON.parse(errText);
+                    if (errBody && typeof errBody.error === "string") {
+                        liveReportError = errBody.message || errBody.error;
+                    }
+                } catch {
+                    /* non-JSON (SPA index.html) → endpoint not deployed, use fixtures */
+                }
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] live report endpoint unavailable, using fixtures:", e);
+        }
+        if (liveReportError) {
+            throw new Error(liveReportError);
+        }
+
+        // 2. Fixture fallback for static hosting without an /api deployment.
+        //    Only campaign counters that actually exist are summed — the
+        //    report never invents volume, categories or replies.
+        const currentCampaigns = loadStorage("campaigns", initialCampaigns);
+        let sent = 0;
+        let opens = 0;
+        let clicks = 0;
+        let replies = 0;
+        let leads = 0;
+        currentCampaigns.forEach((c: any) => {
+            sent += c.sent_count || 0;
+            opens += c.open_count || 0;
+            clicks += c.click_count || 0;
+            replies += c.reply_count || 0;
+            leads += c.total_leads || 0;
+        });
+
+        const fixtureRate = (numerator: number, denominator: number) =>
+            denominator > 0 ? Math.min(100, Math.round((numerator / denominator) * 1000) / 10) : 0;
+
+        return res({
+            generated_at: new Date().toISOString(),
+            lifetime: {
+                emails_sent: sent,
+                messages_tracked: sent,
+                leads_total: leads,
+                leads_contacted: leads,
+                contacts_emailed: leads,
+                leads_opened: opens,
+                leads_replied: replies,
+                reply_messages: replies,
+                interested_replies: 0,
+                delivered: Math.max(0, sent - clicks),
+                failed: 0,
+                open_rate: fixtureRate(opens, leads),
+                reply_rate: fixtureRate(replies, leads),
+                bounce_rate: 0,
+                delivered_rate: fixtureRate(Math.max(0, sent - clicks), sent),
+                brands: 0,
+                first_send: null,
+                last_send: null,
+            },
+            categories: [],
+            reply_breakdown: [],
+            volume: [],
+            top_campaigns: currentCampaigns.slice(0, 10).map((c: any) => ({
+                campaign: c.name || "Unnamed campaign",
+                sent: c.sent_count || 0,
+                replies: c.reply_count || 0,
+                contacts: c.total_leads || 0,
+                reply_rate: c.sent_count ? c.reply_rate || 0 : 0,
+                first_sent: null,
+                last_sent: null,
+            })),
+            campaigns_total: currentCampaigns.length,
+            recent_replies: [],
+            brands: [],
+            mailboxes: emails.map((e: any) => ({
+                id: e.id,
+                senderEmail: e.email,
+                provider: e.provider ?? null,
+                status: e.status || "active",
+                dailySendLimit: e.campaign_limit ?? 50,
+                warmupReputationScore: e.warmup_reputation_score ?? null,
+                sent_today: e.sent_today || 0,
+                total_sent: e.total_sent || 0,
+            })),
         });
     }
 

@@ -1,6 +1,7 @@
-// GET /analytics/dashboard?period=7d|30d|90d — a single (un-enveloped) object
-// mirroring the backend models.DashboardAnalytics. The previous flat shape
-// (total_campaigns/total_contacts…) did not match the wire body.
+// GET /analytics/dashboard?period=7d|30d|90d[&from=YYYY-MM-DD&to=YYYY-MM-DD] —
+// a single (un-enveloped) object mirroring the backend models.DashboardAnalytics.
+// The previous flat shape (total_campaigns/total_contacts…) did not match the
+// wire body. from/to (inclusive days) override period for Custom chart windows.
 
 export interface DashboardOverallStats {
     total_emails_sent: number
@@ -53,10 +54,29 @@ export interface DashboardDailyStats {
     opens: number
     clicks: number
     replies: number
+    bounces: number
+}
+
+// One weekday x 3-hour bucket of the engagement heatmap. level is 0-4 shading
+// relative to the busiest bucket in the period.
+export interface DashboardHeatmapCell {
+    opens: number
+    replies: number
+    level: number
 }
 
 export default interface DashboardOverview {
     period: string
+    // Resolved window (inclusive UTC days); equals the requested range.
+    from?: string
+    to?: string
+    // Emails sent so far today (UTC), independent of the chart window.
+    today_sent?: number
+    // Sum of daily send limits across ACTIVE/WARMING mailboxes, when reported.
+    daily_capacity?: number
+    // Opens/replies by weekday (Mon..Sun) and 3-hour window, from attributed
+    // engagement (Lead counters, EmailEvent and EmailMessage).
+    heatmap?: Record<string, DashboardHeatmapCell[]>
     overall_stats: DashboardOverallStats
     recent_activity: RecentActivityItem[]
     top_campaigns: TopCampaignStats[]
