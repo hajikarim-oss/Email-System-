@@ -4,7 +4,7 @@
   "buildCommand": "npx pnpm@9.15.4 --dir web build",
   "outputDirectory": "web/dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

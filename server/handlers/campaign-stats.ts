@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { getReport } from "../../server/report";
-import { DatabaseUnavailableError, pgQuery } from "../../server/pg";
+import { getCampaignStats } from "../campaigns";
+import { DatabaseUnavailableError, pgQuery } from "../pg";
 
 function send(res: ServerResponse, status: number, body: unknown) {
     res.writeHead(status, { "Content-Type": "application/json" });
@@ -9,13 +9,13 @@ function send(res: ServerResponse, status: number, body: unknown) {
 
 export default async function handler(_req: IncomingMessage, res: ServerResponse) {
     try {
-        const payload = await getReport(pgQuery);
+        const payload = await getCampaignStats(pgQuery);
         send(res, 200, payload);
     } catch (err: any) {
         if (err instanceof DatabaseUnavailableError) {
             send(res, 503, {
                 error: "database_unavailable",
-                message: "DATABASE_URL is not configured for this deployment, so the system report cannot be read.",
+                message: "DATABASE_URL is not configured for this deployment, so live campaign statistics cannot be read.",
             });
             return;
         }

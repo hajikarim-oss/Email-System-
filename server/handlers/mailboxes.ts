@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { getMailboxes } from "../../server/mailboxes";
-import { DatabaseUnavailableError, pgQuery } from "../../server/pg";
+import { getMailboxes } from "../mailboxes";
+import { DatabaseUnavailableError, pgQuery } from "../pg";
 
 function send(res: ServerResponse, status: number, body: unknown) {
     res.writeHead(status, { "Content-Type": "application/json" });
