@@ -1,11 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getCampaignAnalytics } from "../campaigns";
 import { DatabaseUnavailableError, pgQuery } from "../pg";
-
-function send(res: ServerResponse, status: number, body: unknown) {
-    res.writeHead(status, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(body));
-}
+import { send } from "./send";
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {
@@ -18,7 +14,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             return;
         }
         const payload = await getCampaignAnalytics(pgQuery, campaignId, days, from);
-        send(res, 200, payload);
+        send(res, 200, payload, 60);
     } catch (err: any) {
         if (err instanceof DatabaseUnavailableError) {
             send(res, 503, {

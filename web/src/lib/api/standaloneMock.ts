@@ -1,6 +1,4 @@
 import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from "axios";
-import coreData from "./coreData.json";
-import q3LuggageLeads from "./q3LuggageLeads.json";
 import { buildCategories, buildSegments, type CategoryCount } from "../../../../server/segments";
 
 // Standalone in-browser database & API dispatcher for TheBoredMonkey Outreach
@@ -197,9 +195,36 @@ export const DEFAULT_4_PROFILES = [
 ];
 
 const initialEmails = DEFAULT_4_PROFILES;
-const rawCore: any = coreData;
-const initialCampaigns = (rawCore?.campaigns || []) as any[];
-const initialContacts = (rawCore?.contacts || []) as any[];
+
+// Fixture datasets (coreData.json ≈18.6 MB, q3LuggageLeads.json ≈1.9 MB).
+// Statically importing them made the initial JS chunk ~19 MB, so the app took
+// seconds to become interactive. They are now split into their own chunks and
+// fetched only when a fallback actually needs them: a fresh browser with an
+// empty store, or a campaign-lead backfill. Nothing here runs on first paint.
+let rawCore: any = null;
+let q3Leads: any[] = [];
+let coreDataLoad: Promise<void> | null = null;
+
+function ensureCoreData(): Promise<void> {
+    if (!coreDataLoad) {
+        coreDataLoad = Promise.all([import("./coreData.json"), import("./q3LuggageLeads.json")]).then(
+            ([core, q3]) => {
+                rawCore = (core as any).default ?? core;
+                q3Leads = ((q3 as any).default ?? q3) as any[];
+            }
+        );
+    }
+    return coreDataLoad;
+}
+
+// loadStorage only falls back to the default when the key is absent, so the
+// fixture is awaited only in that case — returning users never download it.
+async function loadStorageLazy<T>(key: string, pick: (core: any) => T): Promise<T> {
+    if (localStorage.getItem(STORAGE_KEY_PREFIX + key) == null) {
+        await ensureCoreData();
+    }
+    return loadStorage<T>(key, pick(rawCore));
+}
 
 export function cleanCompanyName(nameOrDomain?: string): string {
     if (!nameOrDomain) return "TheBoredMonkey";
@@ -1031,7 +1056,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     // 5. Campaigns
-    const campaigns = loadStorage("campaigns", initialCampaigns);
+    const campaigns = await loadStorageLazy("campaigns", (c) => c?.campaigns || []);
 
     // Guarantee that Q3 Campaign is present and marked as ACTIVE
     const q3Idx = campaigns.findIndex((c: any) =>
@@ -1143,13 +1168,14 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     saveStorage("campaigns", campaigns);
 
     // Dedicated Campaign Leads Registry: manages contacts per campaign reliably without hitting localStorage quota
-    function getOrInitCampaignLeads(campId: string, campaignObj?: any): any[] {
+    async function getOrInitCampaignLeads(campId: string, campaignObj?: any): Promise<any[]> {
+        await ensureCoreData();
         const isQ2 = campId.includes("1789718475256") || campId === "cmp_1789718475256_g91f";
         const isQ3 = campId.includes("1790233732719") || campId === "cmp_1790233732719_dvlj" || campaignObj?.smartlead_id === 4015596 || campaignObj?.name?.toLowerCase().includes("q3");
         
         // For Q3 Campaign, strictly return the authentic 1,785 Luggage leads uploaded by the user
         if (isQ3) {
-            return q3LuggageLeads as any[];
+            return q3Leads as any[];
         }
 
         let stored = loadStorage<any[]>(`campaign_leads_${campId}`, []);
@@ -1669,7 +1695,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 saveStorage("campaigns", campaigns);
             }
             // Clean up contacts referencing this campaign
-            const currentContacts = loadStorage("contacts", initialContacts);
+                const currentContacts = await loadStorageLazy("contacts", (c) => c?.contacts || []);
             let contactsModified = false;
             currentContacts.forEach((ct: any) => {
                 if (ct.campaign_id === campId) {
@@ -1725,7 +1751,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 match.updated_at = new Date().toISOString();
 
                 // Get or initialize campaign leads (such as all 1876 contacts for Q2 Reachout Mails)
-                const campLeads = getOrInitCampaignLeads(match.id, match);
+                const campLeads = await getOrInitCampaignLeads(match.id, match);
                 const availableEmails = emails.length >= 4 ? emails : DEFAULT_4_PROFILES;
                 const nowIso = new Date().toISOString();
 
@@ -2184,7 +2210,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }
 
         if (sub === "leads") {
-            const campLeads = getOrInitCampaignLeads(match?.id || campId, match);
+            const campLeads = await getOrInitCampaignLeads(match?.id || campId, match);
             return res({
                 data: campLeads,
                 total: campLeads.length,
@@ -2299,7 +2325,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     // 6. Contacts
-    const contacts: any[] = loadStorage<any[]>("contacts", initialContacts);
+    const contacts: any[] = await loadStorageLazy<any[]>("contacts", (c) => c?.contacts || []);
     if (pathWithoutQuery === "/contacts" || pathWithoutQuery === "/contacts/search") {
         if (method === "POST" && pathWithoutQuery === "/contacts") {
             const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
@@ -2400,7 +2426,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
             // Update in campaign_leads registries for target campaigns
             for (const cId of [...addCamps, ...removeCamps]) {
-                const cLeads = getOrInitCampaignLeads(cId);
+                const cLeads = await getOrInitCampaignLeads(cId);
                 if (removeCamps.includes(cId)) {
                     const filtered = cLeads.filter((l: any) => !ids.includes(l.id));
                     saveStorage(`campaign_leads_${cId}`, filtered);
@@ -2538,7 +2564,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         if (campIds && campIds.length > 0) {
             const targetCamp = campaigns.find((c: any) => campIds.includes(c.id));
-            totalCampLeads = getOrInitCampaignLeads(campIds[0], targetCamp);
+            totalCampLeads = await getOrInitCampaignLeads(campIds[0], targetCamp);
             results = [...totalCampLeads];
         } else {
             results = [...contacts];
@@ -3828,7 +3854,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         //    Campaigns page, but the daily series stays at zero: fixtures carry
         //    no per-day history, and inventing one is what made every day look
         //    like it had 48 sends.
-        const currentCampaigns = loadStorage("campaigns", initialCampaigns);
+        const currentCampaigns = await loadStorageLazy("campaigns", (c) => c?.campaigns || []);
         let sent = 0;
         let opens = 0;
         let clicks = 0;
@@ -3927,7 +3953,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         // 2. Fixture fallback for static hosting without an /api deployment.
         //    Only campaign counters that actually exist are summed — the
         //    report never invents volume, categories or replies.
-        const currentCampaigns = loadStorage("campaigns", initialCampaigns);
+        const currentCampaigns = await loadStorageLazy("campaigns", (c) => c?.campaigns || []);
         let sent = 0;
         let opens = 0;
         let clicks = 0;

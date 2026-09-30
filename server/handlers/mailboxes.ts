@@ -1,16 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getMailboxes } from "../mailboxes";
 import { DatabaseUnavailableError, pgQuery } from "../pg";
-
-function send(res: ServerResponse, status: number, body: unknown) {
-    res.writeHead(status, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(body));
-}
+import { send } from "./send";
 
 export default async function handler(_req: IncomingMessage, res: ServerResponse) {
     try {
         const payload = await getMailboxes(pgQuery);
-        send(res, 200, payload);
+        send(res, 200, payload, 60);
     } catch (err: any) {
         if (err instanceof DatabaseUnavailableError) {
             send(res, 503, {

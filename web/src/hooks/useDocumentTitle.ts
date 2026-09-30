@@ -41,6 +41,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/cloud-oauth/done": "Mailbox connected",
 
   // App
+  "/app/dashboard": "Dashboard",
   "/app/emails": "Mailboxes",
   "/app/contacts": "Contacts",
   "/app/contacts/segments": "Segments",
@@ -61,6 +62,10 @@ const ROUTE_TITLES: Record<string, string> = {
   "/app/integrations": "Integrations",
   "/app/audit": "Audit log",
   "/app/unibox": "Unibox",
+  // Redirect-only legacy paths still match briefly before navigating away.
+  "/app/crm": "Pipelines",
+  "/app/billing": "Billing",
+  "/app/team": "Members",
 
   // Settings
   "/app/settings/profile": "Profile",
@@ -94,6 +99,7 @@ const PARAM_ROUTES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/app\/campaigns\/[^/]+\/preferences$/, "Campaign settings"],
   [/^\/app\/campaigns\/[^/]+\/schedule$/, "Campaign schedule"],
   [/^\/app\/campaigns\/[^/]+\/steps$/, "Campaign steps"],
+  [/^\/app\/campaigns\/[^/]+\/template$/, "Campaign template"],
   [/^\/app\/campaigns\/[^/]+$/, "Campaign"],
   [/^\/app\/automations\/[^/]+$/, "Automation"],
   [/^\/app\/forms\/[^/]+$/, "Form"],

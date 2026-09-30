@@ -5,5 +5,6 @@ export default function useDashboard(period: string = "7d", range?: { from?: str
     return useQuery({
         queryKey: ["analytics", "dashboard", period, range?.from ?? "", range?.to ?? ""],
         queryFn: () => getDashboard(period, range),
+        staleTime: 60_000,
     })
 }
