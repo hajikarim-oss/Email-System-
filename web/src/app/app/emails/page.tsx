@@ -12,6 +12,7 @@ import useFeatureStatus from "@/lib/api/hooks/app/subscription/useFeatureStatus"
 import warmupLifecycle from "@/lib/api/client/app/emails/warmupLifecycle";
 import removeEmail from "@/lib/api/client/app/emails/removeEmail";
 import { useUserProfile } from "@/hooks/context/user";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
 import { useConfirm } from "@/hooks/context/confirm";
 import InboxDetails from "@/components/app/emails/InboxDetails";
 import WarmupCoverageNotice from "@/components/app/emails/WarmupCoverageNotice";
@@ -103,6 +104,7 @@ export default function AddressesPage() {
     const [selected, setSelected] = React.useState<string[]>([]);
     const [view, setView] = React.useState<string>("");
     const [viewTab, setViewTab] = React.useState<string>("overview");
+    const access = useFeatureAccess();
     const [removing, setRemoving] = React.useState(false);
     const [bulkStart, setBulkStart] = React.useState(false);
     const [mailboxToDelete, setMailboxToDelete] = React.useState<Inbox | null>(null);
@@ -266,12 +268,14 @@ export default function AddressesPage() {
                         : "Loading…"
                 }
             >
-                <TopbarAction
-                    onClick={() => p?.setAddEmail(true)}
-                    icon={<PlusIcon className="w-3 h-3" />}
-                >
-                    Add account
-                </TopbarAction>
+                {access.canManage && (
+                    <TopbarAction
+                        onClick={() => p?.setAddEmail(true)}
+                        icon={<PlusIcon className="w-3 h-3" />}
+                    >
+                        Add account
+                    </TopbarAction>
+                )}
             </PageTopbar>
 
             <StatStrip cols={4}>
@@ -634,7 +638,7 @@ function MailboxRow({
                 <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(box.id); }} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
                     <div className="w-6 h-6 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
                         <span className="text-[9.5px] font-semibold text-sky-700">
-                            {box.email.slice(0, 2).toUpperCase()}
+                            {(box.email || "").slice(0, 2).toUpperCase() || "??"}
                         </span>
                     </div>
                     <span className="text-[12.5px] font-medium text-slate-900 truncate">{box.email}</span>

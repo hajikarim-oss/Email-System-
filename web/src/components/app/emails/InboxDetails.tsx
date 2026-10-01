@@ -409,7 +409,7 @@ function Detail({ mailbox, onClose, initialTab = "overview", canWarmup = true }:
         }
     };
 
-    const initials = mailbox.email.slice(0, 2).toUpperCase();
+    const initials = (mailbox.email || "").slice(0, 2).toUpperCase() || "??";
 
     return (
         <>

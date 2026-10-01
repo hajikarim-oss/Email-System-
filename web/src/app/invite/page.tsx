@@ -96,7 +96,7 @@ export default function InviteAcceptPage() {
                                     {preview.data.organization_avatar ? (
                                         <img src={preview.data.organization_avatar} alt="" className="w-full h-full object-cover" />
                                     ) : (
-                                        preview.data.organization_name.slice(0, 2).toUpperCase()
+                                        (preview.data.organization_name || "WK").slice(0, 2).toUpperCase()
                                     )}
                                 </div>
                                 <div className="min-w-0">

@@ -59,6 +59,16 @@ import useEmails from "@/lib/api/hooks/app/emails/useEmails";
 import useSearchContacts from "@/lib/api/hooks/app/contacts/useSearchContacts";
 import useDashboard from "@/lib/api/hooks/app/analytics/useDashboard";
 import useReport from "@/lib/api/hooks/app/analytics/useReport";
+import { useUserProfile } from "@/hooks/context/user";
+import { ChevronDownIcon } from "lucide-react";
+import {
+    SelectButton,
+    PopoverMenu,
+    PopoverMenuContent,
+    PopoverMenuItem,
+    PopoverMenuLabel,
+    PopoverMenuTrigger,
+} from "@/components/ui/popover-menu";
 import { MultiTrend, type TrendSeries } from "@/components/ui/charts";
 import { TONE_DOT } from "@/components/ui/tones";
 import type { DitherTone } from "@/components/ui/dither";
@@ -196,9 +206,23 @@ type EnrichedCampaign = {
     smartlead_id?: number;
 };
 
+
+const TEAM_MEMBERS = [
+    { id: "all", name: "All Team Members", email: "Workspace Overview", role: "Overview" },
+    { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Haji Karim", email: "haji.karim@theboredmonkey.com", role: "Master (Founder)" },
+    { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth" },
+    { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach" },
+    { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns" },
+];
+
 export default function DashboardPage() {
     const navigate = useNavigate();
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const { user } = useUserProfile();
+    const isMaster = user?.is_admin || user?.role === "owner" || (user?.roles && user.roles.includes("owner"));
+    const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
+
 
     // Chart telemetry controls
     const [chartRange, setChartRange] = useState<Range>("7d");
@@ -238,7 +262,14 @@ export default function DashboardPage() {
 
     const { emails, refetch: refetchEmails } = useEmails({ query: "", tag: "" });
     const { data: contactsData, refetch: refetchContacts } = useSearchContacts({
-        options: { query: "", custom_field_filters: [], campaign_ids: [], sort_by: "created_at", reverse: false },
+        options: {
+            query: "",
+            custom_field_filters: [],
+            campaign_ids: [],
+            sort_by: "created_at",
+            reverse: false,
+            ...(selectedMemberId !== "all" ? { member_id: selectedMemberId } as any : {}),
+        },
         limit: 50,
     });
     // The selected window (inclusive days) plus the equal-length window
@@ -276,12 +307,13 @@ export default function DashboardPage() {
     const dashData = useDashboard(
         chartRange === "custom" ? "7d" : chartRange,
         chartRange === "custom" ? { from: chartFrom, to: chartTo } : undefined,
+        selectedMemberId !== "all" ? selectedMemberId : undefined,
     );
     // Same payload for the window before this one — the comparison card's baseline.
-    const previousQuery = useDashboard("7d", windows.previous);
+    const previousQuery = useDashboard(chartRange === "custom" ? "7d" : chartRange, windows.previous, selectedMemberId !== "all" ? selectedMemberId : undefined);
     // Lifetime system report: total mails, categories, reply mix, volume,
     // top campaigns and the latest replies, all from the database.
-    const reportQuery = useReport();
+    const reportQuery = useReport(selectedMemberId !== "all" ? selectedMemberId : undefined);
     const reportData = reportQuery.data;
 
     const safeCampaigns = (Array.isArray(campaigns) ? campaigns : []) as unknown as EnrichedCampaign[];
@@ -357,7 +389,6 @@ export default function DashboardPage() {
     // the trend chart stays scoped to the selected window.
     const lifetime = reportData?.lifetime;
     const lifetimeMailCount = lifetime?.emails_sent ?? 0;
-    const periodSentCount = dashData.data?.overall_stats?.total_emails_sent ?? 0;
     const reportCategories = reportData?.categories ?? [];
     const recentReplies = reportData?.recent_replies ?? [];
     const reportBreakdown = reportData?.reply_breakdown ?? [];
@@ -368,15 +399,24 @@ export default function DashboardPage() {
             ? Math.round(((lifetime.delivered || 0) / lifetime.messages_tracked) * 100)
             : 0;
     const activeCampaignsCount = safeCampaigns.filter((c) => c && c.status === "active").length;
-    const totalContactsCount = contactsData?.pages?.[0]?.pagination?.total || 0;
+    const totalContactsCount = selectedMemberId !== "all"
+        ? (lifetime?.leads_total ?? contactsData?.pages?.[0]?.pagination?.total ?? 0)
+        : (contactsData?.pages?.[0]?.pagination?.total || lifetime?.leads_total || 0);
     // Funnel denominators prefer the report's lead count so the bars still
     // measure something if the contacts endpoint is unavailable.
     const crmLeadTotal = lifetime?.leads_total ?? totalContactsCount;
 
-    // Headline rates are lifetime figures from the report: open/reply are
-    // shares of contacted leads, bounce is a share of tracked messages — the
-    // same counts printed under each stat. Windowed event rows stay in the
-    // trend chart, never in these ratios.
+    // Window-responsive metrics from the live dashboard telemetry
+    const periodStats = dashData.data?.overall_stats;
+    const periodSentCount = periodStats?.total_emails_sent ?? 0;
+    const periodOpensCount = periodStats?.total_opens ?? 0;
+    const periodRepliesCount = periodStats?.total_replies ?? 0;
+    const periodBouncesCount = periodStats?.total_bounces ?? 0;
+    const periodOpenRate = periodStats?.open_rate !== undefined ? `${Number(periodStats.open_rate).toFixed(1)}%` : "0.0%";
+    const periodReplyRate = periodStats?.reply_rate !== undefined ? `${Number(periodStats.reply_rate).toFixed(1)}%` : "0.0%";
+    const periodBounceRate = periodStats?.bounce_rate !== undefined ? `${Number(periodStats.bounce_rate).toFixed(1)}%` : "0.0%";
+
+    // Headline lifetime figures from the report
     const lifetimeRates = useMemo(() => {
         if (!lifetime) return null;
         return {
@@ -447,7 +487,7 @@ export default function DashboardPage() {
 
     const chartTrend = useMemo(() => {
         const rawDaily = dashData.data?.daily_trend;
-        const days = chartRange === "7d" ? 7 : chartRange === "30d" ? 14 : chartRange === "90d" ? 30 : windows.days;
+        const days = chartRange === "7d" ? 7 : chartRange === "30d" ? 30 : chartRange === "90d" ? 90 : windows.days;
         const fallbackDates: string[] = [];
         const now = new Date();
         for (let i = days - 1; i >= 0; i--) {
@@ -710,8 +750,81 @@ export default function DashboardPage() {
             {/* Topbar: Hairline Chrome Aligned with Rest of App */}
             <PageTopbar
                 eyebrow="Dashboard"
-                subtitle={`TheBoredMonkey Workspace · Smartlead Distributed Engine · ${totalDailyQuota} Daily Sends`}
             >
+
+                {/* Master: Team Member Filter */}
+                {isMaster && (
+                    <PopoverMenu>
+                        <PopoverMenuTrigger asChild>
+                            <SelectButton
+                                icon={<UsersIcon className="w-3.5 h-3.5 text-sky-600" />}
+                                label={TEAM_MEMBERS.find((m) => m.id === selectedMemberId)?.name || "All Members"}
+                                title="Filter analytics by team member"
+                                className={cn(
+                                    "w-[150px] justify-between shrink-0",
+                                    selectedMemberId !== "all" && "border-sky-300 bg-sky-50/70 text-sky-800"
+                                )}
+                            />
+                        </PopoverMenuTrigger>
+                        <PopoverMenuContent align="start" className="w-64">
+                            <PopoverMenuLabel>Filter Team Member Analytics</PopoverMenuLabel>
+                            {TEAM_MEMBERS.map((m) => (
+                                <PopoverMenuItem
+                                    key={m.id}
+                                    selected={selectedMemberId === m.id}
+                                    onSelect={() => setSelectedMemberId(m.id)}
+                                    icon={<UserCheckIcon className={cn("w-3.5 h-3.5", selectedMemberId === m.id ? "text-sky-600" : "text-slate-400")} />}
+                                >
+                                    <div className="flex flex-col text-left truncate">
+                                        <span className={cn("text-[12px]", selectedMemberId === m.id ? "font-semibold text-sky-900" : "font-medium text-slate-800")}>{m.name}</span>
+                                        <span className="text-[10.5px] text-slate-400">{m.role}</span>
+                                    </div>
+                                </PopoverMenuItem>
+                            ))}
+                        </PopoverMenuContent>
+                    </PopoverMenu>
+                )}
+
+                {/* Period Selector: 7 Days / 30 Days / Custom */}
+                <div className="inline-flex items-center gap-1.5 shrink-0">
+                    <div className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-100/90 p-0.5 shadow-2xs shrink-0">
+                        {(["7d", "30d", "custom"] as const).map((r) => (
+                            <button
+                                key={r}
+                                type="button"
+                                onClick={() => setChartRange(r)}
+                                className={cn(
+                                    "h-7 px-2.5 rounded-md text-[12px] font-medium transition-all cursor-pointer shrink-0",
+                                    chartRange === r
+                                        ? "bg-white text-slate-900 shadow-xs font-semibold"
+                                        : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                                )}
+                            >
+                                {r === "7d" ? "7 Days" : r === "30d" ? "30 Days" : "Custom"}
+                            </button>
+                        ))}
+                    </div>
+                    {chartRange === "custom" && (
+                        <div className="inline-flex items-center gap-1.5 animate-in fade-in duration-200 shrink-0">
+                            <DatePicker
+                                value={chartFrom}
+                                onChange={handleChartFromChange}
+                                placeholder="From"
+                                clearable={false}
+                                className="w-[124px]"
+                            />
+                            <span className="text-[11px] text-slate-400">→</span>
+                            <DatePicker
+                                value={chartTo}
+                                onChange={handleChartToChange}
+                                placeholder="To"
+                                clearable={false}
+                                className="w-[124px]"
+                            />
+                        </div>
+                    )}
+                </div>
+
                 <button
                     type="button"
                     onClick={handleRefreshTelemetry}
@@ -746,36 +859,43 @@ export default function DashboardPage() {
                 </TopbarAction>
             </PageTopbar>
 
-            {/* TOP RATE STRIP: Total Mail Sent, Open Rate, Reply Rate, Bounce Rate, Daily Quota */}
-            <StatStrip cols={5}>
+            {/* TOP RATE STRIP: Total Contacts, Mails Sent in Period, Open Rate, Reply Rate, Bounce Rate, Daily Quota */}
+            <StatStrip cols={6}>
                 <Stat
-                    label="Total Mail Sent"
-                    value={formatNum(lifetimeMailCount)}
-                    sub={`${formatNum(lifetime?.leads_contacted)} leads contacted · ${totalSentToday} sent today`}
-                    accent={lifetimeMailCount > 0}
+                    label="Total Contacts"
+                    value={formatNum(totalContactsCount)}
+                    sub={`${formatNum(lifetime?.leads_contacted || 0)} contacted · ${formatNum(Math.max(0, totalContactsCount - (lifetime?.leads_contacted || 0)))} queued`}
+                    accent={totalContactsCount > 0}
+                    href="/app/contacts"
                 />
                 <Stat
-                    label="Open Rate"
-                    value={rateLabel(lifetimeRates?.openRate)}
-                    sub={`${formatNum(lifetimeRates?.openedLeads)} of ${formatNum(lifetimeRates?.contactedLeads)} contacted leads · lifetime`}
-                    accent
+                    label={`Mails Sent (${RANGE_CHIP[chartRange] || chartRange})`}
+                    value={formatNum(periodSentCount)}
+                    sub={`${totalSentToday} sent today · ${formatNum(lifetimeMailCount)} lifetime`}
+                    accent={periodSentCount > 0}
                 />
                 <Stat
-                    label="Reply Rate"
-                    value={rateLabel(lifetimeRates?.replyRate)}
-                    sub={`${formatNum(lifetimeRates?.repliedLeads)} of ${formatNum(lifetimeRates?.contactedLeads)} contacted leads · lifetime`}
-                    accent
+                    label={`Open Rate (${RANGE_CHIP[chartRange] || chartRange})`}
+                    value={periodOpenRate}
+                    sub={`${formatNum(periodOpensCount)} opens · ${chartWindowLabel}`}
+                    accent={periodOpensCount > 0}
                 />
                 <Stat
-                    label="Bounce Rate"
-                    value={rateLabel(lifetimeRates?.bounceRate)}
-                    sub={`${formatNum(lifetimeRates?.bounces)} of ${formatNum(lifetimeRates?.messagesTracked)} messages · lifetime`}
+                    label={`Reply Rate (${RANGE_CHIP[chartRange] || chartRange})`}
+                    value={periodReplyRate}
+                    sub={`${formatNum(periodRepliesCount)} replies · ${chartWindowLabel}`}
+                    accent={periodRepliesCount > 0}
+                />
+                <Stat
+                    label={`Bounce Rate (${RANGE_CHIP[chartRange] || chartRange})`}
+                    value={periodBounceRate}
+                    sub={`${formatNum(periodBouncesCount)} bounces · ${chartWindowLabel}`}
                     last={false}
                 />
                 <Stat
-                    label={`Daily Quota (${teamProfiles.length} Profiles)`}
+                    label={`Daily Quota (${teamProfiles.length} ${teamProfiles.length === 1 ? "Profile" : "Profiles"})`}
                     value={`${totalSentToday} / ${totalDailyQuota}`}
-                    sub={`${Math.max(0, totalDailyQuota - totalSentToday)} remaining today · ${teamProfiles.length} mailboxes`}
+                    sub={`${Math.max(0, totalDailyQuota - totalSentToday)} remaining today`}
                     last
                 />
             </StatStrip>
@@ -857,14 +977,18 @@ export default function DashboardPage() {
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h2 className="text-[14px] font-bold text-slate-900 tracking-tight">
-                                        Head of Department · Complete System Report
+                                        {selectedMemberId !== "all" && TEAM_MEMBERS.find((m) => m.id === selectedMemberId)
+                                            ? `${TEAM_MEMBERS.find((m) => m.id === selectedMemberId)?.name} · Member Performance Report`
+                                            : "Head of Department · Complete System Report"}
                                     </h2>
                                     <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/70">
                                         Lifetime
                                     </span>
                                 </div>
                                 <p className="text-[12px] text-slate-500">
-                                    Counted from the message, lead, brand and mailbox tables · first send {formatDateOnly(lifetime?.first_send)} · last send {formatDateOnly(lifetime?.last_send)}
+                                    {selectedMemberId !== "all" && TEAM_MEMBERS.find((m) => m.id === selectedMemberId)
+                                        ? `Scoped to ${TEAM_MEMBERS.find((m) => m.id === selectedMemberId)?.name}'s campaigns and mailboxes`
+                                        : `Counted from the message, lead, brand and mailbox tables · first send ${formatDateOnly(lifetime?.first_send)} · last send ${formatDateOnly(lifetime?.last_send)}`}
                                 </p>
                             </div>
                         </div>

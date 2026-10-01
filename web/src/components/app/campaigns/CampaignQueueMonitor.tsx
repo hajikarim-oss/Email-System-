@@ -128,14 +128,14 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
     const analytics = useCampaignAnalytics(campaign.id);
     const summary = analytics.data?.summary;
     const enrichedCampaign = campaign as any;
-    const sentCount = summary?.emails_sent ?? enrichedCampaign.sent_count ?? 1;
-    const totalLeads = Math.max(1, enrichedCampaign.total_leads || 1);
+    const sentCount = summary?.emails_sent ?? enrichedCampaign.sent_count ?? 0;
+    const totalLeads = enrichedCampaign.total_leads || 0;
     const inFlightCount = isActive ? Math.max(0, totalLeads - sentCount) : 0;
     const activePoolText = "4 Rotated Mailboxes (Vatsal, Preeti, Haji, Snehal)";
-    const openCount = summary?.unique_opens ?? (enrichedCampaign.open_count != null ? enrichedCampaign.open_count : 1);
-    const replyCount = summary?.replies ?? (enrichedCampaign.reply_count != null ? enrichedCampaign.reply_count : 0);
-    const openRate = summary?.open_rate != null ? Math.round(summary.open_rate) : Math.min(100, Math.round((openCount / Math.max(1, sentCount)) * 100));
-    const replyRate = summary?.reply_rate != null ? Math.round(summary.reply_rate) : Math.min(100, Math.round((replyCount / Math.max(1, sentCount)) * 100));
+    const openCount = summary?.unique_opens ?? enrichedCampaign.open_count ?? 0;
+    const replyCount = summary?.replies ?? enrichedCampaign.reply_count ?? 0;
+    const openRate = summary?.open_rate != null ? Math.round(summary.open_rate) : (sentCount > 0 ? Math.min(100, Math.round((openCount / sentCount) * 100)) : 0);
+    const replyRate = summary?.reply_rate != null ? Math.round(summary.reply_rate) : (sentCount > 0 ? Math.min(100, Math.round((replyCount / sentCount) * 100)) : 0);
 
     return (
         <div className="mx-3 sm:mx-5 my-3 rounded-xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">

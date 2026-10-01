@@ -1,12 +1,18 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getContacts } from "../../server/contacts";
 import { DatabaseUnavailableError, pgQuery } from "../../server/pg";
+import { scopeFor, scopeKey } from "../../server/scope";
+import { requireUser } from "../../server/handlers/auth";
 import { Memo, send } from "../../server/handlers/send";
 
 const memo = new Memo<unknown>(30_000);
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {
+        const user = await requireUser(req, res);
+        if (!user) return;
+        const scope = scopeFor(user);
+
         const urlObj = new URL(req.url || "", "http://localhost:3000");
         const params = urlObj.searchParams;
 
@@ -21,7 +27,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const subscribed =
             subscribedRaw === null || subscribedRaw === "" ? null : subscribedRaw === "true" || subscribedRaw === "1";
 
-        const key = urlObj.pathname + urlObj.search;
+        const key = `${scopeKey(scope)}|${urlObj.pathname}${urlObj.search}`;
         const hit = memo.get(key);
         if (hit !== undefined) {
             send(res, 200, hit, 60);
@@ -40,6 +46,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 domain: params.get("domain") || "",
             },
             pgQuery,
+            scope,
         );
         memo.set(key, payload);
 

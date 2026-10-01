@@ -1,4 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "http";
+import {
+    recordSmartleadEvent,
+    resolveWebhookSecret,
+    verifySmartleadSignature,
+} from "../../server/smartleadWebhook";
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -44,6 +49,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     req.on("end", async () => {
         try {
+            // HMAC check mirrors nexus-outbound's receiver: verified only
+            // when a secret is configured AND Smartlead sent a signature.
+            const secret = resolveWebhookSecret();
+            const provided = String(req.headers["x-webhook-signature"] || req.headers["x-smartlead-signature"] || "");
+            if (secret && provided && !verifySmartleadSignature(body, provided, secret)) {
+                res.writeHead(401, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "invalid_signature" }));
+                return;
+            }
+
             const payload = JSON.parse(body || "{}");
             const eventType = payload.event_type || payload.type || "unknown";
             const email = (payload.email || payload.lead_email || payload.to_email || "").toLowerCase();
@@ -78,13 +93,39 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             console.log(`[Smartlead Webhook] ${eventType} for ${email} (Campaign: ${campaignId}, Sender: ${fromEmail})`);
 
+            // Persist the event so opens/replies/bounces land in the
+            // analytics tables. Database trouble answers 503: Smartlead
+            // retries, and persistence is idempotent on providerEventId.
+            let outcome = "unsupported";
+            try {
+                outcome = await recordSmartleadEvent(payload);
+            } catch (err: any) {
+                console.error("[Smartlead Webhook] Persistence failed:", err?.message || err);
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ received: false, error: "persistence_failed", retry: true }));
+                return;
+            }
+            if (outcome === "no_lead") {
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({
+                    received: true,
+                    ignored: true,
+                    reason: "lead_not_found",
+                    event_type: eventType,
+                    email,
+                    timestamp: new Date().toISOString(),
+                }));
+                return;
+            }
+
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({
                 received: true,
                 event_type: eventType,
                 email,
                 campaign_id: campaignId,
-                timestamp: new Date().toISOString()
+                persisted: outcome === "persisted",
+                timestamp: new Date().toISOString(),
             }));
         } catch (err: any) {
             console.error("[Smartlead Webhook Error]", err);

@@ -21,6 +21,8 @@
 import useSubscription from "@/lib/api/hooks/app/subscription/useSubscription";
 import useAuthConfig from "@/lib/api/hooks/auth/useAuthConfig";
 import { useAppStore } from "@/stores";
+import { useContext } from "react";
+import { UserContext } from "@/hooks/context/user";
 import { PERMISSION_BITS, hasPermission } from "@/lib/permissions";
 import {
     getPlan,
@@ -63,6 +65,17 @@ export interface FeatureAccess {
 }
 
 export default function useFeatureAccess(): FeatureAccess {
+    // Role, not plan, decides administration: a team member runs the same
+    // UI as the master but never manages membership, roles or the
+    // workspace's Settings surfaces. Read the live session identity from
+    // UserContext (null-safe: some callers render before the provider).
+    const userCtx = useContext(UserContext);
+    const user = userCtx?.user as any;
+    const role = (user?.role || "").toUpperCase();
+    const roles: string[] = (user?.roles || []).map((r: any) => String(r).toUpperCase());
+    const isMaster = Boolean(user) && (role === "MASTER" || role === "OWNER" || roles.includes("MASTER") || roles.includes("OWNER") || user?.is_admin === true);
+    const isTeamMember = Boolean(user) && !isMaster;
+
     return {
         loading: false,
         status: "active",
@@ -77,7 +90,7 @@ export default function useFeatureAccess(): FeatureAccess {
         hasBulkOps: true,
         hasTeam: true,
         hasWebhooks: true,
-        isOwner: true,
-        canManage: true,
+        isOwner: isMaster,
+        canManage: isMaster,
     };
 }

@@ -25,7 +25,7 @@ export default function RemoveMailboxDialog({
 
     if (!mailbox) return null;
 
-    const initials = mailbox.email.slice(0, 2).toUpperCase();
+    const initials = (mailbox.email || "").slice(0, 2).toUpperCase() || "??";
 
     const handleConfirmRemove = async () => {
         if (!mailbox || loading) return;

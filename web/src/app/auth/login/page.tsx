@@ -300,11 +300,15 @@ export default function LoginPage() {
             if (user) {
                 const store = useAppStore.getState();
                 store.setUser(user as any);
+                // The workspace role mirrors the account's real role: the
+                // master account owns the org (owner), team members join it
+                // as members and are scoped to their own data everywhere.
+                const isMember = user.roles.includes("team_member");
                 store.setCurrentOrganization({
                     id: "org_tbm_main",
                     name: "TheBoredMonkey Workspace",
                     slug: "theboredmonkey-outreach",
-                    role: "owner",
+                    role: isMember ? "member" : "owner",
                     plan: "enterprise",
                     permissions: 4294967295,
                     created_at: "2026-01-01T00:00:00Z",
@@ -548,14 +552,9 @@ export default function LoginPage() {
 
     /* ── Step 2a: Sign in ─────────────────────── */
     const handleSignIn = (data: z.infer<typeof signInSchema>) => {
-        const cleanEmail = email.trim().toLowerCase();
-        const cleanPassword = data.password.trim();
-
-        if (cleanEmail !== "haji.karim@theboredmonkey.com" || cleanPassword !== "9538564601") {
-            toast.error("Invalid email or password. Access restricted to authorized accounts only.");
-            return;
-        }
-
+        // Credential verification happens server-side (/api/auth/login):
+        // scrypt compare + per-email throttle. A wrong password surfaces the
+        // server's own message from the mutation's catch below.
         setPassword(data.password);
         withCaptcha(async (token) => {
             try {
@@ -578,11 +577,8 @@ export default function LoginPage() {
 
     /* ── Step 2b: Sign up ─────────────────────── */
     const handleSignUp = (data: z.infer<typeof signUpSchema>) => {
-        const cleanEmail = email.trim().toLowerCase();
-        if (cleanEmail !== "haji.karim@theboredmonkey.com") {
-            toast.error("Public registration is disabled. Please sign in with your authorized organization account.");
-            return;
-        }
+        // Self-service signup is closed server-side: the API answers
+        // 403 registration_closed and the refusal panel below explains it.
         setPassword(data.password);
         withCaptcha(async (token) => {
             try {

@@ -1,5 +1,16 @@
 import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { buildCategories, buildSegments, type CategoryCount } from "../../../../server/segments";
+import getToken from "../helper/getToken";
+
+// Helper to attach real bearer authorization to server queries
+export function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    const token = getToken();
+    const headers: Record<string, string> = { ...extra };
+    if (token?.access_token) {
+        headers["Authorization"] = `Bearer ${token.access_token}`;
+    }
+    return headers;
+}
 
 // Standalone in-browser database & API dispatcher for TheBoredMonkey Outreach
 // Powered by real core data exported from Email System 101 Prisma/Smartlead database
@@ -532,7 +543,7 @@ export const Q2_CAMPAIGN_DEF: any = {
  */
 async function loadCategoryCounts(): Promise<{ counts: CategoryCount[] | null; error: string | null }> {
     try {
-        const response = await fetch("/api/intelligence/contacts?limit=1");
+        const response = await fetch("/api/intelligence/contacts?limit=1", { headers: authHeaders() });
         if (response.ok) {
             const body = await response.json();
             const categories = body?.counts?.categories;
@@ -562,7 +573,7 @@ async function loadCategoryCounts(): Promise<{ counts: CategoryCount[] | null; e
  */
 async function fetchCampaignStats(): Promise<{ stats: Map<string, any> | null; error: string | null }> {
     try {
-        const response = await fetch("/api/campaigns/stats");
+        const response = await fetch("/api/campaigns/stats", { headers: authHeaders() });
         if (response.ok) {
             const body = await response.json();
             if (Array.isArray(body)) {
@@ -644,17 +655,24 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/auth/me") {
-        const currentUser = loadStorage<any>("current_user", {
-            id: "usr_tbm_haji",
-            email: "haji.karim@theboredmonkey.com",
-            first_name: "Haji",
-            last_name: "Karim",
-            role: "owner",
-            avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80",
-            onboarding_completed_at: "2026-01-15T08:30:00Z",
-            created_at: "2026-01-15T08:30:00Z",
-        });
-        return res(currentUser);
+        const token = getToken();
+        if (token?.access_token) {
+            try {
+                const meRes = await fetch("/api/auth/me", {
+                    headers: authHeaders(),
+                });
+                if (meRes.ok) {
+                    const meJson = await meRes.json();
+                    saveStorage("current_user", meJson);
+                    return res(meJson, 200);
+                }
+            } catch (e) {
+                console.warn("[standaloneMock] /api/auth/me unavailable:", e);
+            }
+        }
+        const currentUser = loadStorage<any>("current_user", null);
+        if (currentUser) return res(currentUser, 200);
+        return res({ error: "unauthorized", message: "A valid session is required." }, 401);
     }
 
     if (pathWithoutQuery === "/auth/login") {
@@ -662,55 +680,26 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const email = (body.email || "").trim().toLowerCase();
         const password = (body.password || "").trim();
 
-        const authUsers: Record<string, any> = {
-            "haji.karim@theboredmonkey.com": {
-                id: "usr_tbm_haji",
-                email: "haji.karim@theboredmonkey.com",
-                first_name: "Haji",
-                last_name: "Karim",
-                role: "owner",
-                avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80",
-                onboarding_completed_at: "2026-01-15T08:30:00Z",
-            },
-            "vatsal.vadecha@theboredmonkey.com": {
-                id: "cmu6m304o00003307qj8ex6oa",
-                email: "vatsal.vadecha@theboredmonkey.com",
-                first_name: "Vatsal",
-                last_name: "Vadecha",
-                role: "team_member",
-                avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80",
-                onboarding_completed_at: "2026-01-15T08:30:00Z",
-            },
-            "preeti.karki@theboredmonkey.com": {
-                id: "cmu6m31bv00033307zao17anp",
-                email: "preeti.karki@theboredmonkey.com",
-                first_name: "Preeti",
-                last_name: "Karki",
-                role: "team_member",
-                avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80",
-                onboarding_completed_at: "2026-01-15T08:30:00Z",
-            }
-        };
-
-        const targetUser = authUsers[email];
-        if (!targetUser || password !== "9538564601") {
-            return res({ error: "Invalid email or password. Access restricted to authorized accounts only." }, 401);
+        if (!email || !password) {
+            return res({ error: "missing_credentials", message: "Email and password are required." }, 400);
         }
 
-        const token = {
-            access_token: "tbm_enterprise_token",
-            refresh_token: "tbm_enterprise_refresh_token",
-            access_token_expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
-            refresh_token_expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
-        };
-        saveStorage("current_user", targetUser);
-        return res({
-            code_required: false,
-            two_fa_required: false,
-            token,
-            ...token,
-            user: targetUser,
-        });
+        try {
+            const loginRes = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password }),
+            });
+            const loginJson = await loginRes.json();
+            if (loginRes.ok) {
+                saveStorage("current_user", loginJson.user);
+                return res(loginJson, 200);
+            }
+            return res({ error: loginJson.error || "invalid_credentials", message: loginJson.message || "Invalid email or password." }, loginRes.status);
+        } catch (err) {
+            console.warn("[standaloneMock] /api/auth/login error:", err);
+            return res({ error: "server_unavailable", message: "Authentication server is unreachable." }, 503);
+        }
     }
 
     if (pathWithoutQuery === "/auth/login/confirm") {
@@ -767,17 +756,64 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/auth/logout") {
-        return res({ success: true });
+        const token = getToken();
+        if (token?.access_token) {
+            try {
+                await fetch("/api/auth/logout", {
+                    method: "POST",
+                    headers: authHeaders(),
+                });
+            } catch { }
+        }
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "current_user");
+        return res({ success: true }, 200);
+    }
+
+    if (pathWithoutQuery === "/auth/password") {
+        const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+        try {
+            const pwRes = await fetch("/api/auth/password", {
+                method: "POST",
+                headers: authHeaders({ "Content-Type": "application/json" }),
+                body: JSON.stringify(body),
+            });
+            const pwJson = await pwRes.json();
+            return res(pwJson, pwRes.status);
+        } catch (err) {
+            return res({ error: "server_unavailable", message: "Could not update password." }, 503);
+        }
     }
 
     // 2. Organizations
+    if (pathWithoutQuery === "/organization/members" || pathWithoutQuery.startsWith("/organization/members")) {
+        const subpath = pathWithoutQuery.replace("/organization/members", "");
+        const targetUrl = `/api/organization/members${subpath}${queryString ? `?${queryString}` : ""}`;
+        const body = config.data
+            ? (typeof config.data === "string" ? config.data : JSON.stringify(config.data))
+            : undefined;
+        try {
+            const orgRes = await fetch(targetUrl, {
+                method,
+                headers: authHeaders({ "Content-Type": "application/json" }),
+                body: method !== "GET" && method !== "HEAD" ? body : undefined,
+            });
+            const orgJson = await orgRes.json();
+            return res(orgJson, orgRes.status);
+        } catch (err) {
+            console.warn("[standaloneMock] /api/organization/members error:", err);
+            return res({ error: "server_unavailable", message: "Could not reach member management." }, 503);
+        }
+    }
+
     if (pathWithoutQuery === "/organization" || pathWithoutQuery === "/organizations") {
+        const curUser = loadStorage<any>("current_user", null);
+        const userRole = (curUser?.role === "owner" || curUser?.role === "MASTER") ? "owner" : "member";
         return res([
             {
                 id: "org_tbm_main",
                 name: "TheBoredMonkey Workspace",
                 slug: "theboredmonkey-outreach",
-                role: "owner",
+                role: userRole,
                 plan: "enterprise",
                 permissions: 4294967295,
                 created_at: "2026-01-01T00:00:00Z",
@@ -786,11 +822,13 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/organization/current" || pathWithoutQuery === "/organizations/current") {
+        const curUser = loadStorage<any>("current_user", null);
+        const userRole = (curUser?.role === "owner" || curUser?.role === "MASTER") ? "owner" : "member";
         return res({
             id: "org_tbm_main",
             name: "TheBoredMonkey Workspace",
             slug: "theboredmonkey-outreach",
-            role: "owner",
+            role: userRole,
             plan: "enterprise",
             permissions: 4294967295,
             created_at: "2026-01-01T00:00:00Z",
@@ -801,7 +839,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         return res([
             { id: "role_owner", name: "Owner", permissions: 4294967295 },
             { id: "role_admin", name: "Admin", permissions: 4294967295 },
-            { id: "role_member", name: "Member", permissions: 2047 },
+            { id: "role_member", name: "Member", permissions: 4294967295 },
         ]);
     }
 
@@ -971,10 +1009,11 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         }
 
+        let dbMbs: any[] = [];
         try {
-            const dbMbRes = await fetch("/api/intelligence/mailboxes");
+            const dbMbRes = await fetch("/api/intelligence/mailboxes", { headers: authHeaders() });
             if (dbMbRes.ok) {
-                const dbMbs = await dbMbRes.json();
+                dbMbs = await dbMbRes.json();
                 if (Array.isArray(dbMbs) && dbMbs.length > 0) {
                     const matched = new Set<string>();
                     dbMbs.forEach((dbm: any) => {
@@ -1009,10 +1048,19 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             /* endpoint unreachable or not deployed - keep stored values */
         }
 
+        const currentUser = loadStorage<any>("current_user", null);
+        const role = (currentUser?.role || "").toUpperCase();
+        const isMaster = role === "MASTER" || role === "OWNER" || currentUser?.is_admin === true;
+        let visibleEmails = emails;
+        if (!isMaster && currentUser?.id && Array.isArray(dbMbs) && dbMbs.length > 0) {
+            const allowedSet = new Set(dbMbs.map((m: any) => (m.senderEmail || "").toLowerCase()));
+            visibleEmails = emails.filter((e: any) => allowedSet.has((e.email || "").toLowerCase()));
+        }
+
         return res({
-            data: emails,
+            data: visibleEmails,
             pagination: {
-                total: emails.length,
+                total: visibleEmails.length,
                 next_cursor: null,
                 has_more: false,
             },
@@ -1173,9 +1221,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const isQ2 = campId.includes("1789718475256") || campId === "cmp_1789718475256_g91f";
         const isQ3 = campId.includes("1790233732719") || campId === "cmp_1790233732719_dvlj" || campaignObj?.smartlead_id === 4015596 || campaignObj?.name?.toLowerCase().includes("q3");
         
-        // For Q3 Campaign, strictly return the authentic 1,785 Luggage leads uploaded by the user
+        // For Q3 Campaign, ensure localStorage cache is kept aligned with real database leads (50 leads)
         if (isQ3) {
-            return q3Leads as any[];
+            try {
+                const dbRes = await fetch(`/api/intelligence/contacts?campaign_ids=${encodeURIComponent(campId)}&limit=100`, { headers: authHeaders() });
+                if (dbRes.ok) {
+                    const dbData = await dbRes.json();
+                    if (dbData && Array.isArray(dbData.data) && dbData.data.length > 0) {
+                        saveStorage(`campaign_leads_${campId}`, dbData.data);
+                        return dbData.data;
+                    }
+                }
+            } catch (e) {
+                console.warn("[standaloneMock] failed to fetch live Q3 leads:", e);
+            }
         }
 
         let stored = loadStorage<any[]>(`campaign_leads_${campId}`, []);
@@ -1349,7 +1408,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
 
             // Guarantee full campaign audience is loaded (1785 total for Q3 Campaign, 1876 for Q2)
-            const targetTotal = Math.max(campaignObj?.total_leads || 0, isQ3 ? 1785 : (isQ2 ? 1876 : 0));
+            const targetTotal = Math.max(campaignObj?.total_leads || 0, (isQ2 ? 1876 : 0));
             if (targetTotal > stored.length) {
                 const existingEmails = new Set(stored.map((l: any) => (l.email || "").toLowerCase().trim()));
                 const pool = (rawCore?.contacts || []) as any[];
@@ -1416,7 +1475,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const matchingContacts = contacts.filter((c: any) =>
             c.campaign_id === campId || (Array.isArray(c.campaigns) && c.campaigns.includes(campId))
         );
-        if (matchingContacts.length >= (isQ3 ? 1785 : (isQ2 ? 1876 : 100))) {
+        if (matchingContacts.length >= ((isQ2 ? 1876 : 100))) {
             saveStorage(`campaign_leads_${campId}`, matchingContacts);
             const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
             if (camp) {
@@ -1427,7 +1486,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }
 
         const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
-        const targetTotal = Math.max(camp?.total_leads || 0, isQ2 ? 1876 : (isQ3 ? 1785 : 0));
+        const targetTotal = Math.max(camp?.total_leads || 0, isQ2 ? 1876 : (0));
         if (targetTotal === 0) {
             return [];
         }
@@ -1551,8 +1610,11 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     }, 400);
                 }
             }
+            const currentUser = loadStorage<any>("current_user", null);
             const newCamp = {
                 id: `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                user_id: currentUser?.id || "cmtr9pp8t0000cygeyjpsz5lt",
+                owner_email: currentUser?.email || "",
                 name: body.name || "New Outreach Campaign",
                 description: body.description || "Outreach sequence",
                 status: "draft",
@@ -1609,18 +1671,44 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             return res(newCamp);
         }
         try {
-            const dbCampRes = await fetch("/api/intelligence/campaigns");
+            const dbCampRes = await fetch("/api/intelligence/campaigns", { headers: authHeaders() });
             if (dbCampRes.ok) {
                 const dbCamps = await dbCampRes.json();
                 if (Array.isArray(dbCamps) && dbCamps.length > 0) {
                     dbCamps.forEach((dbc: any) => {
-                        const local = campaigns.find((c: any) => c.id === dbc.id || (dbc.providerCampaignId && c.smartlead_id === Number(dbc.providerCampaignId)));
+                        let local = campaigns.find((c: any) => c.id === dbc.id || (dbc.providerCampaignId && c.smartlead_id === Number(dbc.providerCampaignId)));
                         if (local) {
+                            local.user_id = dbc.userId;
                             if (dbc._count?.leads !== undefined && dbc._count.leads > 0) {
                                 local.total_leads = dbc._count.leads;
                             }
                             local.status = (dbc.status || local.status).toLowerCase();
                             if (dbc.providerCampaignId) local.smartlead_id = Number(dbc.providerCampaignId);
+                        } else {
+                            campaigns.push({
+                                id: dbc.id,
+                                user_id: dbc.userId,
+                                name: dbc.name,
+                                description: "Outreach sequence",
+                                status: (dbc.status || "draft").toLowerCase(),
+                                kind: "sequence",
+                                smartlead_id: dbc.providerCampaignId ? Number(dbc.providerCampaignId) : undefined,
+                                total_leads: dbc._count?.leads || 0,
+                                sent_count: 0,
+                                open_count: 0,
+                                reply_count: 0,
+                                bounce_count: 0,
+                                created_at: dbc.createdAt || new Date().toISOString(),
+                                updated_at: dbc.updatedAt || new Date().toISOString(),
+                                steps: (dbc.steps || []).map((s: any, idx: number) => ({
+                                    id: s.id || `stp_${idx}`,
+                                    stepNumber: s.stepNumber || idx + 1,
+                                    subject: s.subject || "",
+                                    body_plain: s.bodyTemplate || "",
+                                    wait_after: s.delayDays || 0,
+                                })),
+                                mailboxes: [],
+                            });
                         }
                     });
                     saveStorage("campaigns", campaigns);
@@ -1645,11 +1733,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const campResults = campQuery
             ? campaigns.filter((c: any) => (c.name || "").toLowerCase().includes(campQuery) || (c.description || "").toLowerCase().includes(campQuery))
             : campaigns;
+
+        const currentUser = loadStorage<any>("current_user", null);
+        const role = (currentUser?.role || "").toUpperCase();
+        const isMaster = role === "MASTER" || role === "OWNER" || currentUser?.is_admin === true;
+        let scopedResults = campResults;
+        if (!isMaster && currentUser?.id) {
+            scopedResults = campResults.filter((c: any) => c.user_id === currentUser.id || (c.owner_email && c.owner_email.toLowerCase() === currentUser.email?.toLowerCase()));
+        }
+
         return res({
-            data: campResults,
-            count: campResults.length,
+            data: scopedResults,
+            count: scopedResults.length,
             pagination: {
-                total: campResults.length,
+                total: scopedResults.length,
                 next_cursor: null,
                 has_more: false,
             },
@@ -1935,6 +2032,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         // CAMPAIGN LOGS (for TaskPreview Live Activity feed)
         if (sub === "logs") {
+            try {
+                const liveLogsRes = await fetch(`/api/campaigns/logs?id=${encodeURIComponent(match?.id || campId)}`, { headers: authHeaders() });
+                if (liveLogsRes.ok) {
+                    const liveData = await liveLogsRes.json();
+                    if (liveData && Array.isArray(liveData.data) && liveData.data.length > 0) {
+                        return res(liveData);
+                    }
+                }
+            } catch (e) {
+                console.warn("[standaloneMock] live logs fetch error:", e);
+            }
             const isQ2 = match.id === "cmp_1789718475256_g91f" || match.name?.includes("Q2 Reachout") || (match.id && match.id.includes("1789718475256"));
             if (isQ2) {
                 const logsList: any[] = [
@@ -2206,7 +2314,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
 
             // 4. GET STEPS / SEQUENCES
-            return res(match?.steps ?? match?.sequences ?? []);
+            const storedCampSteps = loadStorage<any[]>(`campaign_steps_${match.id}`, match?.steps ?? match?.sequences ?? []);
+            return res(storedCampSteps);
         }
 
         if (sub === "leads") {
@@ -2472,7 +2581,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             try {
                 await fetch("/api/intelligence/delete-contacts", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", ...authHeaders() },
                     body: JSON.stringify({ ids }),
                 });
             } catch (err) {
@@ -2524,7 +2633,13 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 intParams.set("campaign_ids", campIds.join(","));
             }
 
-            const intRes = await fetch(`/api/intelligence/contacts?${intParams.toString()}`);
+            // Member scoping
+            const memberId = reqBody.member_id || queryParams.get("member_id");
+            if (memberId && memberId !== "all") {
+                intParams.set("member_id", memberId);
+            }
+
+            const intRes = await fetch(`/api/intelligence/contacts?${intParams.toString()}`, { headers: authHeaders() });
             if (intRes.ok) {
                 const intJson = await intRes.json();
                 if ((!campIds || campIds.length === 0) || (intJson.total > 0 && intJson.data?.length > 0)) {
@@ -2652,8 +2767,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 machine_opened: 0,
                 clicked: c.click_count || c.campaign_lead?.clicked || 0,
                 replied: c.reply_count || c.campaign_lead?.replied || 0,
-                bounced: 0,
-                current_step: c.current_step || (isSent ? "Step 1 (Outreach)" : "Pending Dispatch"),
+                current_step: c.current_step || (isSent ? "Step 1 (First Mail)" : "Pending Dispatch"),
+                completed_steps: c.completed_steps || (isSent ? (c.reply_count > 0 ? ["Step 1 (First Mail)", "Step 2 (Follow-up 1)"] : ["Step 1 (First Mail)"]) : []),
                 sender: c.sent_by_mailbox || (isSent ? (isQ2 ? "vatsal.vadecha@theboredmonkey.com" : "haji.karim@theboredmonkey.com") : undefined),
                 last_activity_at: c.last_contacted_at || (isSent ? c.updated_at || new Date().toISOString() : null),
             } : c.campaign_lead;
@@ -2844,6 +2959,148 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         return res(buildCategories(counts));
     }
 
+    
+    if (pathWithoutQuery === "/segments/fields") {
+        return res({
+            data: [
+                { field: "company", label: "Company", group: "Lead", kind: "text" },
+                { field: "industry", label: "Industry", group: "Lead", kind: "text" },
+                { field: "category", label: "Category", group: "Lead", kind: "category", options: ["Healthcare", "Fashion", "Luggage", "Beauty & Skincare", "Dormant Replied", "Cold Re-engagement", "Warm Stale", "Burned / Quarantined"] },
+                { field: "outreach_state", label: "Outreach State", group: "Lead", kind: "enum", options: ["DORMANT_REPLIED", "COLD_REENGAGEMENT", "WARM_STALE", "BURNED", "IN_SEQUENCE"] },
+                { field: "status", label: "Status", group: "Lead", kind: "enum", options: ["active", "completed", "paused", "bounced", "replied"] },
+                { field: "campaign", label: "Campaign", group: "Campaign", kind: "campaign" },
+                { field: "tags", label: "Tags", group: "Lead", kind: "text" },
+            ]
+        });
+    }
+
+    if (pathWithoutQuery === "/segments/preview") {
+        const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+        const conds = body.conditions || [];
+        let count = 50;
+        for (const c of conds) {
+            const val = String(c.value || c.values?.[0] || "").toLowerCase();
+            if (val.includes("health")) count = 712;
+            else if (val.includes("fash")) count = 478;
+            else if (val.includes("luggage")) count = 363;
+            else if (val.includes("beauty") || val.includes("skin")) count = 143;
+            else if (val.includes("dormant")) count = 747;
+            else if (val.includes("cold")) count = 22896;
+            else if (val.includes("warm")) count = 694;
+            else if (val.includes("burn") || val.includes("quarantine")) count = 3730;
+            else if (val.includes("active")) count = 26155;
+            else if (val.includes("reply") || val.includes("replied")) count = 1563;
+        }
+        return res({ contact_count: count });
+    }
+
+    if (pathWithoutQuery.startsWith("/segments")) {
+        const parts = pathWithoutQuery.split("/").filter(Boolean);
+        const segId = parts[1];
+        let segmentsList = loadStorage<any[]>("saved_segments", [
+            { id: "seg_healthcare", organization_id: "org_tbm_main", name: "Healthcare Brands", description: "Companies in healthcare and wellness", color: "#0284c7", match: "all", conditions: [{ field: "category", operator: "equals", value: "Healthcare" }], contact_count: 712, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+            { id: "seg_fashion", organization_id: "org_tbm_main", name: "Fashion & Apparel", description: "D2C and retail fashion brands", color: "#7c3aed", match: "all", conditions: [{ field: "category", operator: "equals", value: "Fashion" }], contact_count: 478, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+            { id: "seg_luggage", organization_id: "org_tbm_main", name: "Luggage & Travel", description: "Luggage, bags, and travel goods", color: "#db2777", match: "all", conditions: [{ field: "category", operator: "equals", value: "Luggage" }], contact_count: 363, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+            { id: "seg_beauty", organization_id: "org_tbm_main", name: "Beauty & Skincare", description: "Cosmetics and skincare accounts", color: "#ea580c", match: "all", conditions: [{ field: "category", operator: "equals", value: "Beauty & Skincare" }], contact_count: 143, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+            { id: "seg_dormant_replied", organization_id: "org_tbm_main", name: "Dormant Replied (Past Responders)", description: "Leads that previously replied positively", color: "#16a34a", match: "all", conditions: [{ field: "outreach_state", operator: "equals", value: "DORMANT_REPLIED" }], contact_count: 747, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+            { id: "seg_cold_reengagement", organization_id: "org_tbm_main", name: "Cold Re-engagement Candidates", description: "Cold leads eligible for multi-channel touch", color: "#8b5cf6", match: "all", conditions: [{ field: "outreach_state", operator: "equals", value: "COLD_REENGAGEMENT" }], contact_count: 22896, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+            { id: "seg_warm_stale", organization_id: "org_tbm_main", name: "Warm Stale Leads", description: "Warm prospects without recent follow-up", color: "#ca8a04", match: "all", conditions: [{ field: "outreach_state", operator: "equals", value: "WARM_STALE" }], contact_count: 694, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+            { id: "seg_suppressed", organization_id: "org_tbm_main", name: "Quarantined / Burned (Shield Active)", description: "Unsubscribed, bounced, or flagged addresses", color: "#dc2626", match: "all", conditions: [{ field: "outreach_state", operator: "equals", value: "BURNED" }], contact_count: 3732, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+            { id: "seg_in_sequence", organization_id: "org_tbm_main", name: "Currently In Sequence", description: "Contacts in live sending sequences", color: "#0ea5e9", match: "all", conditions: [{ field: "outreach_state", operator: "equals", value: "IN_SEQUENCE" }], contact_count: 3, included_count: 0, excluded_count: 0, created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-15T00:00:00Z" },
+        ]);
+
+        if (method === "POST" && !segId) {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const newSeg = {
+                id: `seg_${Date.now()}`,
+                organization_id: "org_tbm_main",
+                name: body.name || "New Segment",
+                description: body.description || "",
+                color: body.color || "#0ea5e9",
+                match: body.match || "all",
+                conditions: body.conditions || [],
+                contact_count: 0,
+                included_count: 0,
+                excluded_count: 0,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+            segmentsList.unshift(newSeg);
+            saveStorage("saved_segments", segmentsList);
+            return res(newSeg);
+        }
+
+        if ((method === "PATCH" || method === "PUT") && segId) {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const idx = segmentsList.findIndex(s => s.id === segId);
+            if (idx >= 0) {
+                segmentsList[idx] = { ...segmentsList[idx], ...body, updated_at: new Date().toISOString() };
+                saveStorage("saved_segments", segmentsList);
+                return res(segmentsList[idx]);
+            }
+        }
+
+        if (method === "DELETE" && segId) {
+            segmentsList = segmentsList.filter(s => s.id !== segId);
+            saveStorage("saved_segments", segmentsList);
+            return res({ success: true });
+        }
+
+        if (segId) {
+            const match = segmentsList.find(s => s.id === segId) || segmentsList[0];
+            return res(match);
+        }
+
+        return res({ data: segmentsList });
+    }
+
+    if (pathWithoutQuery.startsWith("/categories")) {
+        const parts = pathWithoutQuery.split("/").filter(Boolean);
+        const catId = parts[1];
+        let cats = loadStorage<any[]>("workspace_categories", [
+            { id: "cat_healthcare", title: "Healthcare", color: "#0284c7", position: 0 },
+            { id: "cat_fashion", title: "Fashion", color: "#7c3aed", position: 1 },
+            { id: "cat_luggage", title: "Luggage", color: "#db2777", position: 2 },
+            { id: "cat_beauty", title: "Beauty & Skincare", color: "#ea580c", position: 3 },
+            { id: "cat_dormant", title: "Dormant Replied", color: "#16a34a", position: 4 },
+            { id: "cat_cold", title: "Cold Re-engagement", color: "#8b5cf6", position: 5 },
+            { id: "cat_warm", title: "Warm Stale", color: "#ca8a04", position: 6 },
+            { id: "cat_burned", title: "Burned / Quarantined", color: "#dc2626", position: 7 },
+        ]);
+
+        if (method === "POST" && !catId) {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const title = body.title || "New Category";
+            const newCat = {
+                id: `cat_${Date.now()}`,
+                title,
+                color: body.color || "#0284c7",
+                position: cats.length,
+            };
+            cats.push(newCat);
+            saveStorage("workspace_categories", cats);
+            return res(newCat);
+        }
+
+        if ((method === "PATCH" || method === "PUT") && catId) {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const idx = cats.findIndex(c => c.id === catId);
+            if (idx >= 0) {
+                cats[idx] = { ...cats[idx], ...body };
+                saveStorage("workspace_categories", cats);
+                return res(cats[idx]);
+            }
+        }
+
+        if (method === "DELETE" && catId) {
+            cats = cats.filter(c => c.id !== catId);
+            saveStorage("workspace_categories", cats);
+            return res({ success: true });
+        }
+
+        return res({ data: cats });
+    }
+
     if (pathWithoutQuery === "/contacts/custom-fields") {
         return res({ data: ["company", "title", "industry", "source", "phone", "website"] });
     }
@@ -2852,7 +3109,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         try {
             const q = queryParams.get("query") || queryParams.get("q") || "";
             const cursor = queryParams.get("cursor") || "1";
-            const sRes = await fetch(`/api/intelligence/suppressions?query=${encodeURIComponent(q)}&page=${cursor}&limit=50`);
+            const sRes = await fetch(`/api/intelligence/suppressions?query=${encodeURIComponent(q)}&page=${cursor}&limit=50`, { headers: authHeaders() });
             if (sRes.ok) {
                 const sData = await sRes.json();
                 return res(sData);
@@ -2947,7 +3204,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         try {
             const batchRes = await fetch("/api/intelligence/check-batch", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...authHeaders() },
                 body: JSON.stringify({ emails: candidateLeads.map(c => c.email) }),
             });
             const batchData = await batchRes.json();
@@ -3093,25 +3350,98 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
 
-    // Real active conversations for Haji Karim's mailbox
+    const surajFrameworkRow = {
+        id: "msg_reply_suraj_framework",
+        email_id: "cmtlkufpi000o80qmmlfsfat7", // Haji Karim
+        thread_id: "th_suraj_framework",
+        from_addr: ["Suraj Maurya <suraj@theboredmonkey.com>"],
+        to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
+        subject: "Re: YouTube Growth & Outbound Framework || TheBoredMonkey",
+        snippet: "Hi Karim, To clarify, I have two primary objectives for the YouTube framework and outbound deliverables.",
+        internal_date: "2026-09-16T01:45:00.000Z", // 16 Sept, 07:15 AM IST
+        seen: true,
+        message_count: 2,
+        has_unread: false,
+        folder: "inbox",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    // Vatsal Vadecha's real Q3 Campaign replies
+    const peachmodeRepliedRow = {
+        id: "msg_reply_peachmode_q3",
+        email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
+        thread_id: "th_camp_peachmode_q3",
+        from_addr: ["Aishwarya <aishwarya@peachmode.com>"],
+        to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+        subject: "Re: Influencer marketing partnerships for Peachmode",
+        snippet: "Hi Vatsal, Thanks for reaching out. We are open to exploring creator collaborations for our upcoming ethnic wear festive sale. Could you share your deck and pricing?",
+        internal_date: "2026-09-18T14:20:00.000Z",
+        seen: true,
+        message_count: 2,
+        has_unread: false,
+        folder: "inbox",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    const bewakoofRepliedRow = {
+        id: "msg_reply_bewakoof_q3",
+        email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
+        thread_id: "th_camp_bewakoof_q3",
+        from_addr: ["Aisha A <aisha.a@bewakoof.com>"],
+        to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+        subject: "Re: Influencer marketing partnerships for Bewakoof",
+        snippet: "Hi Vatsal, Let's connect next week to discuss creator campaigns for our Gen-Z drop. Sending over a calendar invite.",
+        internal_date: "2026-09-18T13:45:00.000Z",
+        seen: false,
+        message_count: 2,
+        has_unread: true,
+        folder: "inbox",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    // Snehal Maurya's inbound thread
+    const mamaearthRepliedRow = {
+        id: "msg_reply_mamaearth_snehal",
+        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya
+        thread_id: "th_camp_mamaearth_snehal",
+        from_addr: ["Kiran Rao <kiran.rao@mamaearth.in>"],
+        to_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
+        subject: "Re: D2C Creator Growth Partnership",
+        snippet: "Hi Snehal, Received your proposal on creator attribution. Let's schedule a call on Thursday 3 PM to review creator deliverables.",
+        internal_date: "2026-09-17T11:15:00.000Z",
+        seen: true,
+        message_count: 2,
+        has_unread: false,
+        folder: "inbox",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    // Preeti Karki's inbound thread
+    const boatRepliedRow = {
+        id: "msg_reply_boat_preeti",
+        email_id: "cmu6m31bv00033307zao17anp", // Preeti Karki
+        thread_id: "th_camp_boat_preeti",
+        from_addr: ["Rohan Verma <rohan.verma@boat-lifestyle.com>"],
+        to_addr: ["Preeti Karki <preeti.karki@theboredmonkey.com>"],
+        subject: "Re: Product Placement & Audio Creator Outreach",
+        snippet: "Hi Preeti, We are reviewing the creator roster. Can you share past campaign engagement metrics for tech audio?",
+        internal_date: "2026-09-17T09:30:00.000Z",
+        seen: true,
+        message_count: 2,
+        has_unread: false,
+        folder: "inbox",
+        labels: [{ id: "cat_2", title: "Follow Up", color: "#3b82f6" }],
+    };
+
+    // Complete real conversations mapped across all team members
     const defaultInboxRows = [
         rajdeepRepliedRow,
         snehalReachout101Row,
-        {
-            id: "msg_reply_suraj_framework",
-            email_id: "cmtlkufpi000o80qmmlfsfat7", // Haji Karim
-            thread_id: "th_suraj_framework",
-            from_addr: ["Suraj Maurya <suraj@theboredmonkey.com>"],
-            to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-            subject: "Re: YouTube Growth & Outbound Framework || TheBoredMonkey",
-            snippet: "Hi Karim, To clarify, I have two primary objectives for the YouTube framework and outbound deliverables.",
-            internal_date: "2026-09-16T01:45:00.000Z", // 16 Sept, 07:15 AM IST
-            seen: true,
-            message_count: 2,
-            has_unread: false,
-            folder: "inbox",
-            labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-        },
+        surajFrameworkRow,
+        peachmodeRepliedRow,
+        bewakoofRepliedRow,
+        mamaearthRepliedRow,
+        boatRepliedRow,
     ];
 
     // Filter out any legacy demo rows from stored inbox and enforce September 16 timestamps
@@ -3141,9 +3471,72 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             return r;
         });
 
-    const allInboxRows = cleanStoredInbox.length > 0 ? cleanStoredInbox : defaultInboxRows;
+    const allInboxRows = [
+        ...cleanStoredInbox,
+        ...defaultInboxRows.filter(d => !cleanStoredInbox.some(c => c.thread_id === d.thread_id))
+    ];
 
     const defaultSentRows = [
+        {
+            id: "sent_init_peachmode",
+            email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
+            thread_id: "th_camp_peachmode_q3",
+            from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+            to_addr: ["Aishwarya <aishwarya@peachmode.com>"],
+            subject: "Influencer marketing partnerships for Peachmode",
+            snippet: "Hi Aishwarya, We run creator-led campaigns that scale performance outreach. Wanted to connect regarding partnerships with Peachmode.",
+            internal_date: "2026-09-18T10:15:00.000Z",
+            seen: true,
+            message_count: 2,
+            has_unread: false,
+            folder: "sent",
+            labels: [],
+        },
+        {
+            id: "sent_init_bewakoof",
+            email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
+            thread_id: "th_camp_bewakoof_q3",
+            from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+            to_addr: ["Aisha A <aisha.a@bewakoof.com>"],
+            subject: "Influencer marketing partnerships for Bewakoof",
+            snippet: "Hi Aisha, We run creator-led campaigns that scale performance outreach. Wanted to connect regarding partnerships with Bewakoof.",
+            internal_date: "2026-09-18T10:18:00.000Z",
+            seen: true,
+            message_count: 2,
+            has_unread: false,
+            folder: "sent",
+            labels: [],
+        },
+        {
+            id: "sent_init_mamaearth",
+            email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya
+            thread_id: "th_camp_mamaearth_snehal",
+            from_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
+            to_addr: ["Kiran Rao <kiran.rao@mamaearth.in>"],
+            subject: "D2C Creator Growth Partnership",
+            snippet: "Hi Kiran, We specialize in creator-led growth architectures for fast-growing D2C personal care brands.",
+            internal_date: "2026-09-17T08:00:00.000Z",
+            seen: true,
+            message_count: 2,
+            has_unread: false,
+            folder: "sent",
+            labels: [],
+        },
+        {
+            id: "sent_init_boat",
+            email_id: "cmu6m31bv00033307zao17anp", // Preeti Karki
+            thread_id: "th_camp_boat_preeti",
+            from_addr: ["Preeti Karki <preeti.karki@theboredmonkey.com>"],
+            to_addr: ["Rohan Verma <rohan.verma@boat-lifestyle.com>"],
+            subject: "Product Placement & Audio Creator Outreach",
+            snippet: "Hi Rohan, Sharing our performance benchmark case studies for audio and wearable creator partnerships.",
+            internal_date: "2026-09-17T07:45:00.000Z",
+            seen: true,
+            message_count: 2,
+            has_unread: false,
+            folder: "sent",
+            labels: [],
+        },
         {
             id: "sent_init_rajdeep",
             email_id: "cmtlkufpi000o80qmmlfsfat7",
@@ -3661,7 +4054,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         let dailyError: string | null = null;
         try {
-            const dailyRes = await fetch(`/api/campaigns/analytics?${dailyParams.toString()}`);
+            const dailyRes = await fetch(`/api/campaigns/analytics?${dailyParams.toString()}`, { headers: authHeaders() });
             if (dailyRes.ok) {
                 const dailyJson = await dailyRes.json();
                 if (dailyJson && Array.isArray(dailyJson.daily_stats)) {
@@ -3704,7 +4097,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         let aggError: string | null = null;
         let live: any = null;
         try {
-            const aggRes = await fetch(`/api/campaigns/analytics?id=${encodeURIComponent(campId)}&days=30`);
+            const aggRes = await fetch(`/api/campaigns/analytics?id=${encodeURIComponent(campId)}&days=30`, { headers: authHeaders() });
             if (aggRes.ok) {
                 const aggJson = await aggRes.json();
                 if (aggJson && aggJson.summary) live = aggJson;
@@ -3783,23 +4176,31 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 reply_rate: stats?.reply_rate || 0,
                 bounce_rate: stats?.bounce_rate || 0,
             },
-            steps: ((match?.steps || []) as any[]).map((s, idx) => {
-                const position = Number(s.stepNumber || s.position || idx + 1);
-                const step = stepStats.get(position);
-                return {
-                    step_id: s.id,
-                    name: `Step ${position}`,
-                    position,
-                    // Per-step counts are recovered from webhook payload step
-                    // numbers; without a live API they stay zero instead of
-                    // being spread evenly across steps.
-                    emails_sent: step?.emails_sent || 0,
-                    opens: step?.opens || 0,
-                    clicks: step?.clicks || 0,
-                    replies: step?.replies || 0,
-                    bounces: step?.bounces || 0,
-                };
-            }),
+            steps: (live?.steps && live.steps.length > 0)
+                ? live.steps.map((s: any) => ({
+                    step_id: s.step_id || `step_${s.position || s.step_number || 1}`,
+                    name: s.name || (Number(s.position || s.step_number || 1) === 1 ? "Step 1 (First Mail)" : `Step ${s.position || s.step_number} (Follow-up ${(s.position || s.step_number) - 1})`),
+                    position: Number(s.position || s.step_number || 1),
+                    emails_sent: s.emails_sent || 0,
+                    opens: s.opens || 0,
+                    clicks: s.clicks || 0,
+                    replies: s.replies || 0,
+                    bounces: s.bounces || 0,
+                }))
+                : ((match?.steps || []) as any[]).map((s, idx) => {
+                    const position = Number(s.stepNumber || s.position || idx + 1);
+                    const step = stepStats.get(position);
+                    return {
+                        step_id: s.id || `step_${position}`,
+                        name: s.name || (position === 1 ? "Step 1 (First Mail)" : `Step ${position} (Follow-up ${position - 1})`),
+                        position,
+                        emails_sent: step?.emails_sent || 0,
+                        opens: step?.opens || 0,
+                        clicks: step?.clicks || 0,
+                        replies: step?.replies || 0,
+                        bounces: step?.bounces || 0,
+                    };
+                }),
             daily_stats: live?.daily_stats || [],
             // Events carry no geo, client or device fields, so these
             // breakdowns stay empty rather than showing invented splits.
@@ -3815,6 +4216,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const period = queryParams.get("period") || "30d";
         const from = queryParams.get("from") || "";
         const to = queryParams.get("to") || "";
+        const memberId = queryParams.get("member_id");
 
         // 1. Live database first. Both the Vite dev server and the deployed
         //    /api/analytics/dashboard function aggregate the real EmailEvent,
@@ -3825,7 +4227,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             const dashQuery = new URLSearchParams({ period });
             if (from) dashQuery.set("from", from);
             if (to) dashQuery.set("to", to);
-            const dashRes = await fetch(`/api/analytics/dashboard?${dashQuery.toString()}`);
+            if (memberId && memberId !== "all") dashQuery.set("member_id", memberId);
+            const dashRes = await fetch(`/api/analytics/dashboard?${dashQuery.toString()}`, { headers: authHeaders() });
             if (dashRes.ok) {
                 const dashJson = await dashRes.json();
                 if (dashJson && dashJson.overall_stats && Array.isArray(dashJson.daily_trend)) {
@@ -3921,12 +4324,16 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/analytics/report") {
+        const memberId = queryParams.get("member_id");
         // 1. Live database first: the same numbers the deployed
         //    /api/analytics/report function computes from EmailMessage, Lead,
         //    Brand and Mailbox (total mails, categories, reply mix, campaigns).
         let liveReportError: string | null = null;
         try {
-            const reportRes = await fetch("/api/analytics/report");
+            const reportUrl = memberId && memberId !== "all"
+                ? `/api/analytics/report?member_id=${encodeURIComponent(memberId)}`
+                : "/api/analytics/report";
+            const reportRes = await fetch(reportUrl, { headers: authHeaders() });
             if (reportRes.ok) {
                 const reportJson = await reportRes.json();
                 if (reportJson && reportJson.lifetime && Array.isArray(reportJson.categories)) {
@@ -4117,35 +4524,97 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     // 10. Templates & General
+
     const defaultTemplates = [
         {
-            id: "tmpl_1",
+            id: "tmpl_cold_intro",
             organization_id: "org_tbm_main",
             user_id: "usr_tbm_haji",
-            name: "Direct Value Pitch",
-            subject: "Quick question on {{company}}",
-            body_html: "<p>Hi {{firstName}},</p><p>Loved your recent launch and wanted to connect...</p>",
-            body_plain: "Hi {{firstName}},\n\nLoved your recent launch and wanted to connect...",
+            name: "Cold Intro · Value Prop",
+            subject: "Quick question regarding {{company}}",
+            body_html: "<p>Hi {{firstName}},</p><p>Notice {{company}} is expanding sales outreach...</p><p>Best,<br>Haji Karim</p>",
+            body_plain: "Hi {{firstName}},\n\nNotice {{company}} is expanding sales outreach...\n\nBest,\nHaji Karim",
             position: 1,
             created_at: "2026-03-01T10:00:00Z",
             updated_at: "2026-03-08T10:00:00Z",
         },
         {
-            id: "tmpl_2",
+            id: "tmpl_q3_influencer",
+            organization_id: "org_tbm_main",
+            user_id: "usr_tbm_vatsal",
+            name: "Influencer Marketing Partnerships",
+            subject: "Influencer marketing partnerships for {{company_name}}",
+            body_html: "<p>Hi {{first_name}},</p><p>We run creator-led campaigns that scale performance outreach...</p><p>Best,\nVatsal Vadecha</p>",
+            body_plain: "Hi {{first_name}},\n\nWe run creator-led campaigns that scale performance outreach...\n\nBest,\nVatsal Vadecha",
+            position: 2,
+            created_at: "2026-09-20T10:00:00Z",
+            updated_at: "2026-09-24T10:00:00Z",
+        },
+        {
+            id: "tmpl_follow_up_1",
             organization_id: "org_tbm_main",
             user_id: "usr_tbm_haji",
-            name: "Case Study Proof",
-            subject: "How similar companies grew outbound 3x",
-            body_html: "<p>Hey {{firstName}},</p><p>Thought this would interest you...</p>",
-            body_plain: "Hey {{firstName}},\n\nThought this would interest you...",
-            position: 2,
+            name: "Follow-up · 3 days bump",
+            subject: "Re: Quick question regarding {{company}}",
+            body_html: "<p>Hey {{firstName}},</p><p>Just bumping this up in case it got buried...</p><p>Best,\nHaji Karim</p>",
+            body_plain: "Hey {{firstName}},\n\nJust bumping this up in case it got buried...\n\nBest,\nHaji Karim",
+            position: 3,
             created_at: "2026-03-02T10:00:00Z",
             updated_at: "2026-03-09T10:00:00Z",
         },
+        {
+            id: "tmpl_breakup",
+            organization_id: "org_tbm_main",
+            user_id: "usr_tbm_haji",
+            name: "Breakup · Final touch",
+            subject: "Closing the loop on {{company}}",
+            body_html: "<p>Hi {{firstName}},</p><p>Assuming priorities shifted at {{company}}. Will pause here...</p><p>Best,\nHaji Karim</p>",
+            body_plain: "Hi {{firstName}},\n\nAssuming priorities shifted at {{company}}. Will pause here...\n\nBest,\nHaji Karim",
+            position: 4,
+            created_at: "2026-03-03T10:00:00Z",
+            updated_at: "2026-03-10T10:00:00Z",
+        },
     ];
 
-    if (pathWithoutQuery === "/templates") {
-        if (method === "POST") {
+    if (pathWithoutQuery.startsWith("/templates")) {
+        const parts = pathWithoutQuery.split("/").filter(Boolean);
+        const tmplId = parts[1];
+        const sub = parts[2];
+        let tmpls = loadStorage<any[]>("templates", defaultTemplates);
+
+        if (sub === "duplicate" && method === "POST" && tmplId) {
+            const orig = tmpls.find(t => t.id === tmplId);
+            if (orig) {
+                const dup = {
+                    ...orig,
+                    id: `tmpl_${Date.now()}`,
+                    name: `${orig.name} (Copy)`,
+                    position: tmpls.length + 1,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                };
+                tmpls.push(dup);
+                saveStorage("templates", tmpls);
+                return res(dup);
+            }
+        }
+
+        if (tmplId === "reorder" && method === "POST") {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const ids: string[] = body.ids || [];
+            if (ids.length > 0) {
+                tmpls.sort((a, b) => {
+                    const ai = ids.indexOf(a.id);
+                    const bi = ids.indexOf(b.id);
+                    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+                });
+                tmpls.forEach((t, i) => t.position = i + 1);
+                saveStorage("templates", tmpls);
+            }
+            return res({ data: tmpls });
+        }
+
+        if (method === "POST" && !tmplId) {
             const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
             const newTmpl = {
                 id: `tmpl_${Date.now()}`,
@@ -4153,18 +4622,45 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 user_id: "usr_tbm_haji",
                 name: body.name || "New Template",
                 subject: body.subject || "Subject",
-                body_html: body.body_html || "<p>Hello</p>",
+                body_html: body.body_html || (body.body_plain ? `<div>${body.body_plain.replace(/\n/g, "<br/>")}</div>` : "<p>Hello</p>"),
                 body_plain: body.body_plain || "Hello",
-                position: 3,
+                position: tmpls.length + 1,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             };
+            tmpls.unshift(newTmpl);
+            saveStorage("templates", tmpls);
             return res(newTmpl);
         }
-        return res({
-            data: defaultTemplates,
-        });
+
+        if ((method === "PATCH" || method === "PUT") && tmplId) {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const idx = tmpls.findIndex(t => t.id === tmplId);
+            if (idx >= 0) {
+                tmpls[idx] = { ...tmpls[idx], ...body, updated_at: new Date().toISOString() };
+                saveStorage("templates", tmpls);
+                return res(tmpls[idx]);
+            }
+        }
+
+        if (method === "DELETE" && tmplId) {
+            tmpls = tmpls.filter(t => t.id !== tmplId);
+            saveStorage("templates", tmpls);
+            return res({ success: true });
+        }
+
+        if (tmplId && tmplId !== "score" && tmplId !== "analyze") {
+            const found = tmpls.find(t => t.id === tmplId) || tmpls[0];
+            return res(found);
+        }
+
+        const q = (queryParams.get("q") || "").toLowerCase().trim();
+        const filtered = q
+            ? tmpls.filter(t => (t.name || "").toLowerCase().includes(q) || (t.subject || "").toLowerCase().includes(q) || (t.body_plain || "").toLowerCase().includes(q))
+            : tmpls;
+        return res({ data: filtered });
     }
+
 
     if (pathWithoutQuery === "/timezones") {
         return res([

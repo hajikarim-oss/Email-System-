@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 import type { QueryFn } from "./types";
+
+const currentDir = typeof __dirname !== "undefined"
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 
 let pool: Pool | null = null;
 
@@ -19,7 +24,15 @@ function readEnvFile(file: string): string | null {
 export function resolveDatabaseUrl(): string | null {
     if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
 
-    const roots = [process.cwd(), path.resolve(process.cwd(), "..")];
+    const roots = [
+        process.cwd(),
+        path.resolve(process.cwd(), ".."),
+        path.resolve(process.cwd(), "web"),
+        path.resolve(process.cwd(), "nexus-outbound"),
+        path.resolve(currentDir, ".."),
+        path.resolve(currentDir, "../web"),
+        path.resolve(currentDir, "../nexus-outbound"),
+    ];
     for (const root of roots) {
         for (const file of [".env.local", ".env"]) {
             const value = readEnvFile(path.join(root, file));
@@ -54,7 +67,7 @@ export function getPool(): Pool {
     pool = new Pool({
         connectionString: parsed.toString(),
         ssl: useSsl ? { rejectUnauthorized: false } : undefined,
-        max: 3,
+        max: 10,
         idleTimeoutMillis: 30_000,
         connectionTimeoutMillis: 10_000,
     });

@@ -682,8 +682,8 @@ function Stepper({
                                     done
                                         ? "bg-sky-600 text-white"
                                         : active
-                                          ? "bg-white text-sky-700 ring-1 ring-inset ring-sky-600"
-                                          : "bg-white text-slate-400 ring-1 ring-inset ring-slate-200",
+                                            ? "bg-white text-sky-700 ring-1 ring-inset ring-sky-600"
+                                            : "bg-white text-slate-400 ring-1 ring-inset ring-slate-200",
                                 )}
                             >
                                 <AnimatePresence mode="wait" initial={false}>
@@ -1346,10 +1346,10 @@ function AudienceStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft
                             {draft.segmentIds.length === 0
                                 ? "No segment picked yet"
                                 : estimate.isPending
-                                  ? "Counting…"
-                                  : estimate.isError
-                                    ? "Could not count recipients"
-                                    : `${(recipients ?? 0).toLocaleString()} recipient${recipients === 1 ? "" : "s"}`}
+                                    ? "Counting…"
+                                    : estimate.isError
+                                        ? "Could not count recipients"
+                                        : `${(recipients ?? 0).toLocaleString()} recipient${recipients === 1 ? "" : "s"}`}
                         </p>
                         <p className="text-[11px] text-slate-500 mt-0.5">
                             {recipients === 0 && !estimate.isPending && draft.segmentIds.length > 0

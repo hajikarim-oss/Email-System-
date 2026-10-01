@@ -160,6 +160,13 @@ function SettingsLayoutInner() {
         el?.scrollIntoView({ inline: "center", block: "nearest" });
     }, [location.pathname]);
 
+    // Settings is a master-only surface: team members run the same product
+    // without it (they are provisioned and de-provisioned by the master).
+    // Deep links land on the dashboard instead of a half-hidden admin area.
+    if (!access.canManage) {
+        return <Navigate to="/app/dashboard" replace />;
+    }
+
     if (
         location.pathname === "/app/settings" ||
         location.pathname === "/app/settings/"

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
+import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -12,9 +13,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     const SMARTLEAD_KEYS = [
-        "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6", // Vatsal
-        "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt", // Preeti
-    ];
+        smartleadPrimary(),   // shared pool (Vatsal's account)
+        smartleadSecondary(), // Preeti's dedicated account
+    ].filter(Boolean);
+
+    if (SMARTLEAD_KEYS.length === 0) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "smartlead_api_key_not_configured" }));
+        return;
+    }
 
     function fetchCampaigns(apiKey: string): Promise<any[]> {
         return new Promise((resolve) => {

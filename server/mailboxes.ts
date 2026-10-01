@@ -1,4 +1,5 @@
 import type { QueryFn, QueryRow } from "./types";
+import { ownerOwned, type DataScope } from "./scope";
 
 export interface MailboxRow extends QueryRow {
     id: string;
@@ -16,7 +17,7 @@ export interface MailboxRow extends QueryRow {
 // both are database rows, so a mailbox with no recorded sends reports 0 instead
 // of a seeded fixture number. "Today" means the current UTC day, matching the
 // naive UTC timestamps on those columns.
-export async function getMailboxes(query: QueryFn): Promise<MailboxRow[]> {
+export async function getMailboxes(query: QueryFn, scope: DataScope): Promise<MailboxRow[]> {
     const now = new Date();
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
         .toISOString()
@@ -57,6 +58,7 @@ export async function getMailboxes(query: QueryFn): Promise<MailboxRow[]> {
             coalesce(totals.total_sent, 0)::int AS total_sent
          FROM "Mailbox" m
          LEFT JOIN totals ON totals.email = lower(m."senderEmail")
+         WHERE ${ownerOwned(scope, `m."userId"`)}
          ORDER BY m."createdAt" ASC`,
         [todayStart],
     );

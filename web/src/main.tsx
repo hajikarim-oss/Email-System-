@@ -1,8 +1,17 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './global.css'
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom';
 import RootLayout from './app/layout';
+import useFeatureAccess from './hooks/useFeatureAccess';
+
+function ManagerOnly({ children }: { children: React.ReactNode }) {
+  const access = useFeatureAccess();
+  if (!access.canManage) {
+    return <Navigate to="/app/dashboard" replace />;
+  }
+  return <>{children}</>;
+}
 
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/600.css";
@@ -271,6 +280,7 @@ const router = createBrowserRouter([
           },
           {
             path: "forms",
+            element: <ManagerOnly><Outlet /></ManagerOnly>,
             children: [
               { index: true, element: <FormsPage /> },
               { path: ":id", element: <FormBuilderPage /> },
@@ -321,10 +331,11 @@ const router = createBrowserRouter([
           },
           {
             path: "deliverability",
-            element: <DeliverabilityPage />,
+            element: <ManagerOnly><DeliverabilityPage /></ManagerOnly>,
           },
           {
             path: "crm",
+            element: <ManagerOnly><Outlet /></ManagerOnly>,
             children: [
               {
                 index: true,
@@ -350,36 +361,36 @@ const router = createBrowserRouter([
           },
           {
             path: "templates",
-            element: <TemplatesPage />,
+            element: <ManagerOnly><TemplatesPage /></ManagerOnly>,
           },
           {
             path: "api-keys",
-            element: <APIKeysPage />,
+            element: <ManagerOnly><APIKeysPage /></ManagerOnly>,
           },
           {
             // OAuth apps moved into Settings; keep the old path working.
             path: "oauth-apps",
-            element: <Navigate to="/app/settings/oauth-apps" replace />,
+            element: <ManagerOnly><Navigate to="/app/settings/oauth-apps" replace /></ManagerOnly>,
           },
           {
             path: "integrations",
-            element: <IntegrationsPage />,
+            element: <ManagerOnly><IntegrationsPage /></ManagerOnly>,
           },
           {
             path: "automations",
-            element: <AutomationsPage />,
+            element: <ManagerOnly><AutomationsPage /></ManagerOnly>,
           },
           {
             path: "automations/:id",
-            element: <AutomationBuilderPage />,
+            element: <ManagerOnly><AutomationBuilderPage /></ManagerOnly>,
           },
           {
             path: "audit",
-            element: <AuditPage />,
+            element: <ManagerOnly><AuditPage /></ManagerOnly>,
           },
           {
             path: "settings",
-            element: <SettingsLayout />,
+            element: <ManagerOnly><SettingsLayout /></ManagerOnly>,
             children: [
               { index: true, element: <Navigate to="/app/settings/profile" replace /> },
               { path: "profile", element: <ProfileSettingsPage /> },
@@ -406,7 +417,7 @@ const router = createBrowserRouter([
           {
             // Legacy /app/billing entry points → redirect to settings.
             path: "billing",
-            element: <Navigate to="/app/settings/billing" replace />,
+            element: <ManagerOnly><Navigate to="/app/settings/billing" replace /></ManagerOnly>,
           },
           {
             // Path-based, readable inbox URLs: /app/unibox/<scope>[/<threadId>].

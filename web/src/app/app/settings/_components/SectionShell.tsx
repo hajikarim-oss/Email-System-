@@ -368,6 +368,6 @@ export function safeEmail(s: string | undefined | null): string {
 
 export function initials(email: string | undefined | null, fallback = "?") {
     const e = safeEmail(email);
-    if (!e) return fallback.slice(0, 2).toUpperCase();
+    if (!e) return (String(fallback || "?")).slice(0, 2).toUpperCase();
     return e.slice(0, 2).toUpperCase();
 }

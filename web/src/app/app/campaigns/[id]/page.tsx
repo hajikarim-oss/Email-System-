@@ -73,7 +73,8 @@ export default function CampaignOverview() {
         return { labels: rows.map((d) => d.date), series };
     }, [daily.data, hiddenMetrics]);
 
-    const loading = analytics.isPending || daily.isPending;
+    const loading = analytics.isPending;
+    const chartLoading = daily.isPending;
     const hasSends = (summary?.emails_sent ?? 0) > 0;
 
     const shareData = {
@@ -195,7 +196,7 @@ export default function CampaignOverview() {
                                 </div>
                             </SectionBar>
                             <div className="px-5 py-4">
-                                {loading ? (
+                                {chartLoading ? (
                                     <div className="h-[280px] rounded-md bg-slate-50 animate-pulse" />
                                 ) : (
                                     <MultiTrend

@@ -1,11 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getCampaignStats } from "../campaigns";
 import { DatabaseUnavailableError, pgQuery } from "../pg";
+import { scopeFor } from "../scope";
+import { requireUser } from "./auth";
 import { send } from "./send";
 
-export default async function handler(_req: IncomingMessage, res: ServerResponse) {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {
-        const payload = await getCampaignStats(pgQuery);
+        const user = await requireUser(req, res);
+        if (!user) return;
+        const payload = await getCampaignStats(pgQuery, scopeFor(user));
         send(res, 200, payload, 60);
     } catch (err: any) {
         if (err instanceof DatabaseUnavailableError) {

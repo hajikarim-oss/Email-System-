@@ -53,3 +53,9 @@ data/
 **/data/*.csv
 **/data/*.json
 **/data/*.db
+
+# Scratch and temporary scripts
+scratch/
+**/scratch/
+scratch_*
+*.scratch.*

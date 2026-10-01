@@ -22,6 +22,17 @@ import useSequences from "@/lib/api/hooks/app/campaigns/sequences/useSequences";
 import useSaveCampaignSteps from "@/lib/api/hooks/app/campaigns/sequences/useSaveCampaignSteps";
 import type Campaign from "@/lib/api/models/app/campaigns/Campaign";
 import { cn } from "@/lib/utils";
+import { FileTextIcon, ChevronDownIcon } from "lucide-react";
+import useTemplates from "@/lib/api/hooks/app/templates/useTemplates";
+import { TEMPLATE_PRESETS } from "@/app/app/templates/presets";
+import {
+    SelectButton,
+    PopoverMenu,
+    PopoverMenuContent,
+    PopoverMenuItem,
+    PopoverMenuLabel,
+    PopoverMenuTrigger,
+} from "@/components/ui/popover-menu";
 
 interface CampaignTemplateEditorProps {
     campaign: Campaign;
@@ -46,6 +57,39 @@ export default function CampaignTemplateEditor({
 }: CampaignTemplateEditorProps) {
     const { data: remoteSequences, isLoading } = useSequences(campaign.id);
     const saveStepsMutation = useSaveCampaignSteps(campaign.id);
+
+    const { data: rawStoredTemplates = [] } = useTemplates();
+    const storedTemplates = useMemo(() => {
+        const custom = Array.isArray(rawStoredTemplates) ? rawStoredTemplates : ((rawStoredTemplates as any)?.data || []);
+        if (custom.length > 0) return custom;
+        return TEMPLATE_PRESETS.map(p => ({
+            id: p.id,
+            name: p.name,
+            subject: p.subject,
+            body_plain: p.body_plain,
+            body_html: `<div>${p.body_plain.replace(/\n/g, "<br/>")}</div>`,
+        }));
+    }, [rawStoredTemplates]);
+
+    const applyTemplateToStep = useCallback((index: number, tmpl: any) => {
+        setHasUserEdited(true);
+        setSteps((prev) => {
+            const next = [...prev];
+            if (!next[index]) return prev;
+            const rawHtml = tmpl.body_html || "";
+            const rawPlain = tmpl.body_plain || (rawHtml ? rawHtml.replace(/<[^>]+>/g, "") : "");
+            const html = rawHtml || (rawPlain ? `<div>${rawPlain.replace(/\n/g, "<br/>")}</div>` : "");
+            next[index] = {
+                ...next[index],
+                subject: tmpl.subject || next[index].subject,
+                body_plain: rawPlain,
+                body_html: html,
+            };
+            return next;
+        });
+        toast.success(`Loaded "${tmpl.name}" into Step ${index + 1}! Click "Save Changes" to sync.`);
+    }, []);
+
 
     // Initial steps state seeded from remote sequences or campaign.steps / sequences
     const initialSteps = useMemo<StepItem[]>(() => {
@@ -239,6 +283,36 @@ export default function CampaignTemplateEditor({
                         </button>
                     )}
 
+                    
+                    <PopoverMenu>
+                        <PopoverMenuTrigger asChild>
+                            <SelectButton
+                                icon={<FileTextIcon className="w-3.5 h-3.5 text-sky-600" />}
+                                label="Load Template"
+                                title="Load copy from stored template catalog"
+                            />
+                        </PopoverMenuTrigger>
+                        <PopoverMenuContent align="end" className="w-72">
+                            <PopoverMenuLabel>Stored Templates ({storedTemplates.length})</PopoverMenuLabel>
+                            {storedTemplates.length === 0 ? (
+                                <div className="px-3 py-2 text-[12px] text-slate-400">No stored templates found</div>
+                            ) : (
+                                storedTemplates.map((t: any) => (
+                                    <PopoverMenuItem
+                                        key={t.id}
+                                        onSelect={() => applyTemplateToStep(0, t)}
+                                        icon={<FileTextIcon className="w-3.5 h-3.5 text-slate-400" />}
+                                    >
+                                        <div className="flex flex-col text-left truncate">
+                                            <span className="font-medium text-slate-800 text-[12px] truncate">{t.name}</span>
+                                            <span className="text-[10.5px] text-slate-400 truncate">{t.subject}</span>
+                                        </div>
+                                    </PopoverMenuItem>
+                                ))
+                            )}
+                        </PopoverMenuContent>
+                    </PopoverMenu>
+
                     <PermissionButton
                         permission="MANAGE_CAMPAIGNS"
                         type="button"
@@ -307,6 +381,36 @@ export default function CampaignTemplateEditor({
                                 </div>
 
                                 <div className="flex items-center gap-2.5 ml-auto">
+
+                                    <PopoverMenu>
+                                        <PopoverMenuTrigger asChild>
+                                            <SelectButton
+                                                icon={<FileTextIcon className="w-3.5 h-3.5 text-sky-600" />}
+                                                label="Insert Template"
+                                                title="Load stored template into this step"
+                                            />
+                                        </PopoverMenuTrigger>
+                                        <PopoverMenuContent align="end" className="w-72">
+                                            <PopoverMenuLabel>Stored Templates ({storedTemplates.length})</PopoverMenuLabel>
+                                            {storedTemplates.length === 0 ? (
+                                                <div className="px-3 py-2 text-[12px] text-slate-400">No stored templates found</div>
+                                            ) : (
+                                                storedTemplates.map((t: any) => (
+                                                    <PopoverMenuItem
+                                                        key={t.id}
+                                                        onSelect={() => applyTemplateToStep(i, t)}
+                                                        icon={<FileTextIcon className="w-3.5 h-3.5 text-slate-400" />}
+                                                    >
+                                                        <div className="flex flex-col text-left truncate">
+                                                            <span className="font-medium text-slate-800 text-[12px] truncate">{t.name}</span>
+                                                            <span className="text-[10.5px] text-slate-400 truncate">{t.subject}</span>
+                                                        </div>
+                                                    </PopoverMenuItem>
+                                                ))
+                                            )}
+                                        </PopoverMenuContent>
+                                    </PopoverMenu>
+
                                     {i > 0 && (
                                         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-[12px] shadow-2xs">
                                             <ClockIcon className="w-3.5 h-3.5 text-slate-400" />

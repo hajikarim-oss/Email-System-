@@ -1,13 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
+import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
 
-const envKey = process.env.SMARTLEAD_API_KEY;
-const PRIMARY_KEY = (envKey && !envKey.startsWith("412be3a1")) ? envKey : "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6";
-const SECONDARY_KEY = "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt";
+const PRIMARY_KEY = smartleadPrimary();
+const SECONDARY_KEY = smartleadSecondary();
 const BASE_URL = "https://server.smartlead.ai/api/v1";
 
 function apiCall(endpoint: string, method: string = "GET", body?: any, customKey?: string): Promise<{ status: number; data: any }> {
     const apiKey = customKey || PRIMARY_KEY;
+    if (!apiKey) {
+        return Promise.resolve({ status: 503, data: { error: "smartlead_api_key_not_configured" } });
+    }
     return new Promise((resolve, reject) => {
         const separator = endpoint.includes("?") ? "&" : "?";
         const fullPath = `${endpoint}${separator}api_key=${apiKey}`;
@@ -26,7 +29,7 @@ function apiCall(endpoint: string, method: string = "GET", body?: any, customKey
             res.on("end", async () => {
                 try {
                     const parsed = text ? JSON.parse(text) : {};
-                    if ((res.statusCode === 401 || res.statusCode === 404) && !customKey && apiKey !== SECONDARY_KEY) {
+                    if ((res.statusCode === 401 || res.statusCode === 404) && !customKey && SECONDARY_KEY && apiKey !== SECONDARY_KEY) {
                         try {
                             const fallbackRes = await apiCall(endpoint, method, body, SECONDARY_KEY);
                             if (fallbackRes.status >= 200 && fallbackRes.status < 300) {
@@ -158,9 +161,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 days_of_the_week: [1, 2, 3, 4, 5],
                 start_hour: "10:00",
                 end_hour: "18:00",
-                min_time_btw_emails: 3,
-                max_new_leads_per_day: 50,
-            }, chosenKey);
+                        min_time_btw_emails: 3,
+                        // Total daily capacity of the sending pool, not one
+                        // mailbox: 4 x 50 by default, raised for bigger pools.
+                        max_new_leads_per_day: Number(parsed.max_new_leads_per_day) || Number(process.env.SMARTLEAD_MAX_NEW_LEADS_PER_DAY) || 200,
+                    }, chosenKey);
 
             // 5. Leads
             const rawLeads = parsed.leads || [];

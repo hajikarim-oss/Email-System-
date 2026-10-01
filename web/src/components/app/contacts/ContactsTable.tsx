@@ -1328,7 +1328,7 @@ function ContactsTableBody({
                         )}
                         {embedded ? (
                             <>
-                                <Th className="w-28 hidden md:table-cell">Current step</Th>
+                                <Th className="w-48 hidden md:table-cell">Sequence step</Th>
                                 <Th className="w-36 hidden xl:table-cell">
                                     <span className="inline-flex items-center gap-1">
                                         Sender
@@ -1530,10 +1530,32 @@ function ContactsTableBody({
                                 {embedded ? (
                                     <>
                                     <td className="px-3 hidden md:table-cell">
-                                        {lead?.current_step ? (
+                                        {lead?.completed_steps && lead.completed_steps.length > 0 ? (
+                                            <div className="flex items-center gap-1 flex-wrap max-w-[240px]" title={`Sequence history: ${lead.completed_steps.join(" → ")}`}>
+                                                {lead.completed_steps.map((st, idx) => {
+                                                    const isLatest = idx === lead.completed_steps!.length - 1;
+                                                    return (
+                                                        <React.Fragment key={idx}>
+                                                            {idx > 0 && <span className="text-[10px] text-slate-300 select-none">→</span>}
+                                                            <span
+                                                                className={`inline-flex items-center h-5 px-1.5 rounded text-[10.5px] font-medium whitespace-nowrap ${
+                                                                    isLatest
+                                                                        ? processed
+                                                                            ? "bg-slate-100 text-slate-500 border border-slate-200"
+                                                                            : "bg-sky-100 text-sky-700 border border-sky-200"
+                                                                        : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                                                }`}
+                                                            >
+                                                                {st}
+                                                            </span>
+                                                        </React.Fragment>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : lead?.current_step ? (
                                             <span
                                                 title={lead.current_step}
-                                                className={`inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium max-w-[108px] ${
+                                                className={`inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium max-w-[160px] ${
                                                     processed
                                                         ? "bg-slate-100 text-slate-400"
                                                         : "bg-sky-100 text-sky-700"

@@ -7,6 +7,7 @@
 // Opens upward (side="top") from the trigger so the popover settles up
 // from the bottom of the sidebar instead of falling off-screen.
 
+import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -15,6 +16,8 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/stores";
 import useLogout from "@/lib/api/hooks/auth/useLogout";
+import { UserContext } from "@/hooks/context/user";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
 import {
     PopoverMenu,
     PopoverMenuContent,
@@ -25,7 +28,10 @@ import {
 
 export function UserNav() {
     const navigate = useNavigate();
-    const user = useAppStore((s) => s.user);
+    const storeUser = useAppStore((s) => s.user);
+    const userCtx = useContext(UserContext);
+    const user = userCtx?.user || storeUser;
+    const access = useFeatureAccess();
     const logoutMutation = useLogout();
 
     if (!user) return null;
@@ -36,11 +42,19 @@ export function UserNav() {
         navigate("/auth/login?force=true", { replace: true });
     };
 
-    const initials = user.email.slice(0, 2).toUpperCase();
+    const userEmail = String(user?.email || (user as any)?.username || (user as any)?.senderEmail || "").trim();
+    const firstName = typeof user?.first_name === "string" ? user.first_name.trim() : "";
+    const lastName = typeof user?.last_name === "string" ? user.last_name.trim() : "";
+    const initials = userEmail.length >= 2
+        ? userEmail.slice(0, 2).toUpperCase()
+        : firstName.length >= 2
+            ? firstName.slice(0, 2).toUpperCase()
+            : "US";
+
     const displayName =
-        user.first_name && user.last_name
-            ? `${user.first_name} ${user.last_name}`
-            : user.email;
+        firstName && lastName
+            ? `${firstName} ${lastName}`
+            : firstName || (user as any)?.name || userEmail || "User";
 
     return (
         <PopoverMenu side="top" align="start">
@@ -64,7 +78,7 @@ export function UserNav() {
                             {displayName}
                         </div>
                         <div className="text-[10.5px] text-slate-500 truncate">
-                            {user.email}
+                            {userEmail}
                         </div>
                     </div>
                 </button>
@@ -79,16 +93,20 @@ export function UserNav() {
                         {displayName}
                     </div>
                     <div className="text-[11px] text-slate-400 truncate font-mono">
-                        {user.email}
+                        {userEmail}
                     </div>
                 </div>
-                <PopoverMenuSeparator />
-                <PopoverMenuItem
-                    onSelect={() => navigate("/app/settings")}
-                    icon={<SettingsIcon className="w-3 h-3" />}
-                >
-                    Settings
-                </PopoverMenuItem>
+                {access.canManage && (
+                    <>
+                        <PopoverMenuSeparator />
+                        <PopoverMenuItem
+                            onSelect={() => navigate("/app/settings")}
+                            icon={<SettingsIcon className="w-3 h-3" />}
+                        >
+                            Settings
+                        </PopoverMenuItem>
+                    </>
+                )}
                 <PopoverMenuSeparator />
                 <PopoverMenuItem
                     onSelect={handleLogout}

@@ -13,7 +13,8 @@ const prisma = new PrismaClient({
 
 async function exportCoreData() {
   try {
-    const users = await prisma.user.findMany();
+    // smartleadApiKey is a live credential: it must never reach the browser bundle.
+    const users = (await prisma.user.findMany()).map(({ smartleadApiKey, ...u }) => u);
     const mailboxes = await prisma.mailbox.findMany();
     const campaigns = await prisma.campaign.findMany({
       include: {

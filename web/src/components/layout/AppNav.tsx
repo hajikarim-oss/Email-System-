@@ -149,27 +149,27 @@ const sections: NavSection[] = [
             { title: "Accounts", url: "/app/emails", icon: MailIcon, indicator: "accounts", advisorSurface: "emails", permission: "MANAGE_EMAILS", permissionLabel: "Manage mailboxes" },
             { title: "Campaigns", requires: "subscription", url: "/app/campaigns", icon: MegaphoneIcon, indicator: "campaigns", advisorSurface: "campaigns", permission: "VIEW_CAMPAIGNS", permissionLabel: "View campaigns" },
             { title: "Contacts", requires: "subscription", url: "/app/contacts", icon: UsersIcon, indicator: "contacts", advisorSurface: "contacts", permission: "VIEW_CONTACTS", permissionLabel: "View contacts" },
-            { title: "Forms", requires: "subscription", url: "/app/forms", icon: ClipboardListIcon, permission: "VIEW_CONTACTS", permissionLabel: "View contacts" },
+            { title: "Forms", requires: "subscription", url: "/app/forms", icon: ClipboardListIcon, permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
             { title: "Analytics", requires: "subscription", url: "/app/analytics", icon: BarChart3Icon, indicator: "analytics", permission: "VIEW_ANALYTICS", permissionLabel: "View analytics" },
-            { title: "Deliverability", requires: "subscription", url: "/app/deliverability", icon: ShieldCheckIcon, advisorSurface: "deliverability", permission: "VIEW_ANALYTICS", permissionLabel: "View analytics" },
+            { title: "Deliverability", requires: "subscription", url: "/app/deliverability", icon: ShieldCheckIcon, advisorSurface: "deliverability", permission: "VIEW_ANALYTICS", permissionLabel: "View analytics", rolesAllowed: "manage" },
         ],
     },
     {
         label: "CRM",
         items: [
-            { title: "Pipelines", requires: "subscription", url: "/app/crm/pipelines", icon: GitBranchIcon, indicator: "pipelines", permission: "VIEW_CONTACTS", permissionLabel: "View contacts" },
-            { title: "Deals", requires: "subscription", url: "/app/crm/deals", icon: CircleDollarSignIcon, indicator: "deals", permission: "VIEW_CONTACTS", permissionLabel: "View contacts" },
-            { title: "Tasks", requires: "subscription", url: "/app/crm/tasks", icon: CheckSquareIcon, indicator: "tasks", permission: "VIEW_CONTACTS", permissionLabel: "View contacts" },
-            { title: "Meetings", requires: "subscription", url: "/app/crm/meetings", icon: CalendarClockIcon, indicator: "meetings", permission: "VIEW_CONTACTS", permissionLabel: "View contacts" },
+            { title: "Pipelines", requires: "subscription", url: "/app/crm/pipelines", icon: GitBranchIcon, indicator: "pipelines", permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
+            { title: "Deals", requires: "subscription", url: "/app/crm/deals", icon: CircleDollarSignIcon, indicator: "deals", permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
+            { title: "Tasks", requires: "subscription", url: "/app/crm/tasks", icon: CheckSquareIcon, indicator: "tasks", permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
+            { title: "Meetings", requires: "subscription", url: "/app/crm/meetings", icon: CalendarClockIcon, indicator: "meetings", permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
         ],
     },
     {
         label: "Resources",
         items: [
-            { title: "Templates", requires: "subscription", url: "/app/templates", icon: FileTextIcon, indicator: "templates" },
-            { title: "Integrations", requires: "subscription", url: "/app/integrations", icon: CableIcon, indicator: "integrations", permission: "USE_INTEGRATIONS", permissionLabel: "Use integrations" },
-            { title: "Automations", requires: "subscription", url: "/app/automations", icon: ZapIcon, permission: "USE_INTEGRATIONS", permissionLabel: "Use integrations" },
-            { title: "API Keys", requires: "subscription", url: "/app/api-keys", icon: KeyIcon, indicator: "apikeys", permission: "MANAGE_API_KEYS", permissionLabel: "Manage API keys" },
+            { title: "Templates", requires: "subscription", url: "/app/templates", icon: FileTextIcon, indicator: "templates", rolesAllowed: "manage" },
+            { title: "Integrations", requires: "subscription", url: "/app/integrations", icon: CableIcon, indicator: "integrations", permission: "USE_INTEGRATIONS", permissionLabel: "Use integrations", rolesAllowed: "manage" },
+            { title: "Automations", requires: "subscription", url: "/app/automations", icon: ZapIcon, permission: "USE_INTEGRATIONS", permissionLabel: "Use integrations", rolesAllowed: "manage" },
+            { title: "API Keys", requires: "subscription", url: "/app/api-keys", icon: KeyIcon, indicator: "apikeys", permission: "MANAGE_API_KEYS", permissionLabel: "Manage API keys", rolesAllowed: "manage" },
             { title: "Audit log", requires: "subscription", url: "/app/audit", icon: ListChecksIcon, rolesAllowed: "manage" },
         ],
     },
@@ -873,6 +873,20 @@ function Sparkline({
 }
 
 export function AppNav({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {
+    // Team members get the same sidebar minus the administrative surfaces
+    // (Forms, Deliverability, the CRM and Resources sections, Settings):
+    // a section whose every row is manage-only disappears whole instead of
+    // leaving an empty label behind.
+    const access = useFeatureAccess();
+    const visibleSections = useMemo(() => {
+        if (access.canManage) return sections;
+        return sections
+            .map((s) => ({
+                ...s,
+                items: s.items.filter((it) => it.rolesAllowed !== "manage"),
+            }))
+            .filter((s) => s.items.length > 0);
+    }, [access.canManage]);
     return (
         <>
             {/* Mobile-only scrim. Tapping it closes the drawer. */}
@@ -924,16 +938,18 @@ export function AppNav({ open = false, onClose }: { open?: boolean; onClose?: ()
                         <NavRow key={it.url + it.title} item={it} />
                     ))}
                 </div>
-                {sections.map((s, i) => (
+                {visibleSections.map((s, i) => (
                     <Section key={s.label} section={s} first={i === 0 && topItems.length === 0} />
                 ))}
             </nav>
 
-            <div className="border-t border-slate-200/60 py-1 shrink-0">
-                <NavRow
-                    item={{ title: "Settings", url: "/app/settings", icon: SettingsIcon }}
-                />
-            </div>
+            {access.canManage && (
+                <div className="border-t border-slate-200/60 py-1 shrink-0">
+                    <NavRow
+                        item={{ title: "Settings", url: "/app/settings", icon: SettingsIcon }}
+                    />
+                </div>
+            )}
 
             <div className="border-t border-slate-200/60 shrink-0">
                 <UserNav />

@@ -21,11 +21,12 @@ import { ScheduledList } from "@/components/app/unibox/ScheduledList";
 import { ThreadView } from "@/components/app/unibox/ThreadView";
 import { ScopeRail, scopeKey, type UniboxScope } from "@/components/app/unibox/ScopeRail";
 import { ScopeSheet } from "@/components/app/unibox/ScopeSheet";
-import { UniboxHeader } from "@/components/app/unibox/UniboxHeader";
+import { UniboxHeader, UNIBOX_TEAM_MEMBERS } from "@/components/app/unibox/UniboxHeader";
 import useFeatureAccess from "@/hooks/useFeatureAccess";
 import { LockedSurface } from "@/components/layout/LockedSurface";
 import { NoAccess } from "@/components/layout/NoAccess";
 import { usePermission } from "@/hooks/usePermission";
+import { useUserProfile } from "@/hooks/context/user";
 import { useAppStore } from "@/stores";
 import useUniboxOverview from "@/lib/api/hooks/app/unibox/useUniboxOverview";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,25 @@ export default function UniboxPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [scopeSheetOpen, setScopeSheetOpen] = React.useState(false);
+
+  const { user } = useUserProfile();
+  const isMaster = user?.is_admin || user?.role === "owner" || (user?.roles && user.roles.includes("owner"));
+  const userTeamMember = React.useMemo(() => {
+    return UNIBOX_TEAM_MEMBERS.find((m) => m.email.toLowerCase() === user?.email?.toLowerCase());
+  }, [user]);
+
+  // Master starts at "all"; individual team members are locked to their own profile
+  const [selectedMemberId, setSelectedMemberId] = React.useState<string>(() => {
+    if (!isMaster && userTeamMember) return userTeamMember.id;
+    return "all";
+  });
+
+  // Sync if user profile loads late
+  React.useEffect(() => {
+    if (!isMaster && userTeamMember && selectedMemberId !== userTeamMember.id) {
+      setSelectedMemberId(userTeamMember.id);
+    }
+  }, [isMaster, userTeamMember, selectedMemberId]);
 
   // ── URL state ──────────────────────────────────────────────────
   // Readable, path-based URLs: /app/unibox/<scope>[/<threadId>]. The scope is a
@@ -225,24 +245,31 @@ export default function UniboxPage() {
           // mailbox.
           next.categoryIds = [scope.categoryId];
           break;
-        default:
-          break;
+      }
+
+      if (selectedMemberId !== "all" && scope.kind !== "mailbox") {
+        const mem = UNIBOX_TEAM_MEMBERS.find((m) => m.id === selectedMemberId);
+        if (mem && mem.mailboxIds.length > 0) {
+          next.accountIds = mem.mailboxIds;
+        }
       }
       return next;
     },
-    [scope, tagAccountIds],
+    [scope, tagAccountIds, selectedMemberId],
   );
   const [params, setParams] = React.useState<UniboxSearchParams>(() =>
     paramsForScope("newest"),
   );
-  // Reset filters when the scope changes (or a tag scope re-resolves as
-  // the mailbox directory loads), keeping only the sort. Setting state
-  // during render re-renders before commit, so the stale params never
-  // reach the query.
+  // Reset filters when the scope changes or member filter changes,
+  // keeping only the sort. Setting state during render re-renders before commit.
   const tagIdsKey = tagAccountIds?.join(",") ?? "";
-  const [prevReset, setPrevReset] = React.useState({ scope, tagIdsKey });
-  if (prevReset.scope !== scope || prevReset.tagIdsKey !== tagIdsKey) {
-    setPrevReset({ scope, tagIdsKey });
+  const [prevReset, setPrevReset] = React.useState({ scope, tagIdsKey, selectedMemberId });
+  if (
+    prevReset.scope !== scope ||
+    prevReset.tagIdsKey !== tagIdsKey ||
+    prevReset.selectedMemberId !== selectedMemberId
+  ) {
+    setPrevReset({ scope, tagIdsKey, selectedMemberId });
     setParams((prev) => paramsForScope(prev.sortBy));
   }
 
@@ -307,6 +334,10 @@ export default function UniboxPage() {
           scopeLabel={scopeLabel}
           onClearScope={() => setScope({ kind: "all" })}
           onOpenScopeSheet={() => setScopeSheetOpen(true)}
+          selectedMemberId={selectedMemberId}
+          onSelectMember={(id) => setSelectedMemberId(id)}
+          isMaster={isMaster}
+          currentUser={user}
         />
 
         <ScopeSheet

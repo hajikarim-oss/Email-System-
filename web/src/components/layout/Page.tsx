@@ -151,12 +151,13 @@ export function TopbarAction({
  * StatStrip — full-width grid of stats with vertical-rule dividers and a
  * bottom hairline. Use Stat as children.
  */
-export function StatStrip({ children, cols = 4 }: { children: React.ReactNode; cols?: 2 | 3 | 4 | 5 }) {
+export function StatStrip({ children, cols = 4 }: { children: React.ReactNode; cols?: 2 | 3 | 4 | 5 | 6 }) {
     const gridCls = {
         2: "grid-cols-2",
         3: "grid-cols-2 md:grid-cols-3 max-md:[&>*:last-child]:col-span-2",
         4: "grid-cols-2 md:grid-cols-4",
         5: "grid-cols-2 md:grid-cols-5 max-md:[&>*:last-child]:col-span-2",
+        6: "grid-cols-2 md:grid-cols-3 lg:grid-cols-6 max-md:[&>*:last-child]:col-span-2",
     }[cols];
     return (
         <div

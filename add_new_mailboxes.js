@@ -1,20 +1,34 @@
 const path = require('path');
+const fs = require('fs');
 const { PrismaClient } = require(path.resolve('./nexus-outbound/node_modules/@prisma/client'));
+
+// Secrets live in .env (git-ignored), never in this script.
+function envOrFile(name) {
+  if (process.env[name]) return process.env[name];
+  for (const f of ['.env.local', '.env', 'nexus-outbound/.env.local', 'nexus-outbound/.env']) {
+    try {
+      const m = fs.readFileSync(path.resolve(f), 'utf8').match(new RegExp('^\\s*' + name + '\\s*=\\s*(.+)\\s*$', 'm'));
+      if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+    } catch (e) { /* no env file here */ }
+  }
+  return '';
+}
+
 const prisma = new PrismaClient({
-  datasources: { db: { url: 'postgresql://postgres.hsmudwkfwmvinhtggxyd:9538564601Aa@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true' } }
+  datasources: { db: { url: envOrFile('DATABASE_URL') || undefined } }
 });
 
 const newAccounts = [
   {
     email: 'vatsal.vadecha@theboredmonkey.com',
     name: 'Vatsal Vadecha',
-    apiKey: '39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6',
+    apiKey: envOrFile('SMARTLEAD_API_KEY'),
     mailboxId: '23457457',
   },
   {
     email: 'preeti.karki@theboredmonkey.com',
     name: 'Preeti Karki',
-    apiKey: 'e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt',
+    apiKey: envOrFile('SMARTLEAD_SECONDARY_API_KEY'),
     mailboxId: '23458016',
   }
 ];

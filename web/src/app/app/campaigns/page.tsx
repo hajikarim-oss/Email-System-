@@ -1,6 +1,8 @@
 import { NoAccess } from "@/components/layout/NoAccess";
 import { usePermission } from "@/hooks/usePermission";
 import { useUserProfile } from "@/hooks/context/user";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
+import useMembers from "@/lib/api/hooks/app/organizations/useMembers";
 import useCampaigns from "@/lib/api/hooks/app/campaigns/useCampaigns";
 import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
 import useStopCampaign from "@/lib/api/hooks/app/campaigns/useStopCampaign";
@@ -79,6 +81,15 @@ const KIND_LABEL: Record<KindFilter, string> = {
     sequence: "Sequences",
     one_time: "One-time emails",
 };
+
+// Initials for the member strip chips and the per-row ownership marker —
+// every chip keeps the same 16px circle so the strip reads as one rhythm.
+function memberInitials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 // Per-state label + leading mark for a campaign row. "active" renders the
 // animated dot-grid loader; every other state is a 14px lucide icon so the
@@ -254,6 +265,8 @@ export default function CampaignsPage() {
     const p = useUserProfile();
     const confirm = useConfirm();
     const canView = usePermission("VIEW_CAMPAIGNS");
+    const access = useFeatureAccess();
+    const membersQuery = useMembers();
     const startCampaign = useStartCampaign();
     const stopCampaign = useStopCampaign();
     const actions = useCampaignActions();
@@ -262,6 +275,7 @@ export default function CampaignsPage() {
     const [status, setStatus] = useState<StatusFilter>("all");
     const [kind, setKind] = useState<KindFilter>("all");
     const [sort, setSort] = useState<SortMode>("newest");
+    const [memberFilter, setMemberFilter] = useState<string>("");
     const [newOpen, setNewOpen] = useState<boolean>(false);
     const [launchTarget, setLaunchTarget] = useState<Campaign | null>(null);
 
@@ -301,11 +315,42 @@ export default function CampaignsPage() {
     const advisor = useAdvisorEntityIndex("campaigns");
     const campaigns = campaignsData.campaigns ?? [];
 
+    // Ownership is stamped on each row by the live campaigns merge
+    // (`user_id`); rows the database never saw belong to the master.
+    const isMaster = access.canManage;
+    const currentUserId = p.user.id;
+    const currentUserEmail = (p.user.email || "").toLowerCase();
+    const members = membersQuery.data ?? [];
+    const teamMembers = members.filter((m) => m.role !== "owner");
+    const memberByUserId = new Map(members.map((m) => [m.user_id, m]));
+    const ownerUserId = members.find((m) => m.role === "owner")?.user_id ?? p.user.id ?? "";
+    const ownerOf = (c: Campaign) => String((c as any).user_id || "") || ownerUserId;
+
+    const isMine = (c: Campaign) => {
+        const uId = String((c as any).user_id || "");
+        const oEmail = String((c as any).owner_email || "").toLowerCase();
+        if (uId && uId === currentUserId) return true;
+        if (oEmail && oEmail === currentUserEmail) return true;
+        if (isMaster && (!uId || uId === ownerUserId)) return true;
+        return false;
+    };
+
     const folders = p.user.folders ?? [];
     const activeFolder = folders.find((f) => f.id === folder);
 
+    const scopedCampaigns = useMemo(() => {
+        if (!isMaster) {
+            return campaigns.filter(isMine);
+        }
+        if (memberFilter) {
+            return campaigns.filter((c) => ownerOf(c) === memberFilter);
+        }
+        return campaigns;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [campaigns, isMaster, currentUserId, currentUserEmail, memberFilter]);
+
     const filtered = useMemo(() => {
-        const base = campaigns.filter(
+        const base = scopedCampaigns.filter(
             (c) =>
                 (status === "all" || statusBucket(c.status) === status) &&
                 (kind === "all" || (c.kind ?? "sequence") === kind),
@@ -319,15 +364,16 @@ export default function CampaignsPage() {
             sorted.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
         }
         return sorted;
-    }, [campaigns, status, kind, sort]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scopedCampaigns, status, kind, sort]);
 
     const counts = useMemo(() => {
-        const stats = { total: campaigns.length, active: 0, paused: 0, draft: 0, completed: 0 };
-        for (const c of campaigns) {
+        const stats = { total: scopedCampaigns.length, active: 0, paused: 0, draft: 0, completed: 0 };
+        for (const c of scopedCampaigns) {
             stats[statusBucket(c.status)]++;
         }
         return stats;
-    }, [campaigns]);
+    }, [scopedCampaigns]);
 
     if (!canView) return <NoAccess feature="campaigns" permissionLabel="View campaigns" />;
 
@@ -340,7 +386,7 @@ export default function CampaignsPage() {
                         ? "Loading…"
                         : campaignsData.isError
                             ? "Failed to load"
-                            : `${campaigns.length} ${campaigns.length === 1 ? "campaign" : "campaigns"}`
+                            : `${scopedCampaigns.length} ${scopedCampaigns.length === 1 ? "campaign" : "campaigns"}`
                 }
             >
                 <TopbarAction
@@ -392,6 +438,60 @@ export default function CampaignsPage() {
                     onClick={() => setStatus("completed")}
                 />
             </StatStrip>
+
+            {/* Master-only team strip: each member chip shows how many
+                campaigns are theirs; selecting one narrows the list (and the
+                status counts above) to that member's work. */}
+            {access.canManage && teamMembers.length > 0 && (
+                <div className="px-5 pt-3 flex items-center gap-1.5 overflow-x-auto">
+                    <button
+                        type="button"
+                        onClick={() => setMemberFilter("")}
+                        className={cn(
+                            "inline-flex items-center gap-1.5 h-7 pl-2.5 pr-2.5 rounded-full border text-[11.5px] font-medium transition-colors shrink-0",
+                            memberFilter === ""
+                                ? "bg-slate-900 text-white border-slate-900"
+                                : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
+                        )}
+                    >
+                        Everyone
+                        <span className={cn("font-mono text-[10.5px] tabular-nums", memberFilter === "" ? "text-white/70" : "text-slate-400")}>
+                            {campaigns.length}
+                        </span>
+                    </button>
+                    {teamMembers.map((m) => {
+                        const count = campaigns.filter((c) => ownerOf(c) === m.user_id).length;
+                        const active = memberFilter === m.user_id;
+                        return (
+                            <button
+                                key={m.user_id}
+                                type="button"
+                                title={`Campaigns owned by ${m.name || m.email || "member"}`}
+                                onClick={() => setMemberFilter(active ? "" : m.user_id)}
+                                className={cn(
+                                    "inline-flex items-center gap-1.5 h-7 pl-1 pr-2.5 rounded-full border text-[11.5px] font-medium transition-colors shrink-0",
+                                    active
+                                        ? "bg-slate-900 text-white border-slate-900"
+                                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
+                                )}
+                            >
+                                <span
+                                    className={cn(
+                                        "grid place-items-center size-4 rounded-full text-[8.5px] font-semibold shrink-0",
+                                        active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
+                                    )}
+                                >
+                                    {memberInitials(m.name || m.email || "?")}
+                                </span>
+                                {m.name || m.email || "Member"}
+                                <span className={cn("font-mono text-[10.5px] tabular-nums", active ? "text-white/70" : "text-slate-400")}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
             <SectionBar
                 label={status === "all" ? "All campaigns" : `${status[0].toUpperCase()}${status.slice(1)}`}
@@ -543,6 +643,11 @@ export default function CampaignsPage() {
                             const stateLabel = campaignDisplayLabel(c);
                             const StateIcon =
                                 cstatus === "active" ? PauseIcon : PlayIcon;
+                            const rowOwner = ownerOf(c);
+                            const rowMember =
+                                access.canManage && rowOwner && rowOwner !== ownerUserId
+                                    ? memberByUserId.get(rowOwner)
+                                    : null;
                             return (
                                 <Link
                                     key={c.id}
@@ -557,6 +662,14 @@ export default function CampaignsPage() {
                                     <span className="text-[12.5px] text-slate-900 font-medium truncate max-w-[40%]">
                                         {c.name}
                                     </span>
+                                    {rowMember && (
+                                        <span
+                                            title={`Owned by ${rowMember.name || rowMember.email || "member"}`}
+                                            className="grid place-items-center size-4 rounded-full bg-slate-100 text-slate-500 text-[8.5px] font-semibold shrink-0 ring-1 ring-slate-200/80"
+                                        >
+                                            {memberInitials(rowMember.name || rowMember.email || "?")}
+                                        </span>
+                                    )}
                                     <span
                                         className="font-mono text-[10.5px] text-slate-500 tabular-nums shrink-0 hidden sm:inline bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80"
                                         title={`Full ID: ${c.id}`}

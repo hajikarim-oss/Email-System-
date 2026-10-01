@@ -350,7 +350,7 @@ function AuditRow({ log }: { log: AuditLog }) {
                         <span className="text-[12px] text-slate-900 font-medium">{log.entity_type}</span>
                         {log.entity_id && (
                             <span className="font-mono text-[10.5px] text-slate-400 truncate">
-                                {log.entity_id.slice(0, 8)}…
+                                {String(log.entity_id).slice(0, 8)}…
                             </span>
                         )}
                     </div>
@@ -410,7 +410,7 @@ function actorLabel(log: AuditLog): string {
         if (a.email) return a.email;
     }
     if (log.user_id && log.user_id !== "00000000-0000-0000-0000-000000000000") {
-        return `${log.user_id.slice(0, 8)}…`;
+        return `${String(log.user_id).slice(0, 8)}…`;
     }
     return "System";
 }

@@ -44,6 +44,8 @@ export interface ContactCampaignProgress {
     // Label of the step the lead is on now (latest step sent). Empty when the
     // lead hasn't been contacted yet.
     current_step?: string;
+    // List of completed steps (e.g. First Mail, Follow-up 1)
+    completed_steps?: string[];
     // The mailbox this lead's whole sequence sends from, fixed when its first
     // email went out. Empty until then.
     sender?: string;

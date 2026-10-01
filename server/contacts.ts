@@ -1,4 +1,5 @@
 import type { ContactsCounts, ContactsRequest, ContactsResponse, LeadCounts, QueryFn } from "./types";
+import { leadOwned, type DataScope } from "./scope";
 
 const EMAIL_HANDLERS = new Set([
     "gmail.com", "googlemail.com", "google.com",
@@ -22,13 +23,15 @@ interface Where {
     params: unknown[];
 }
 
-function buildWhere(req: ContactsRequest): Where {
+function buildWhere(req: ContactsRequest, scope: DataScope): Where {
     const params: unknown[] = [];
     const push = (value: unknown) => {
         params.push(value);
         return `$${params.length}`;
     };
     const conds: string[] = [];
+
+    conds.push(leadOwned(scope, `"Lead"`));
 
     const campaignIds = (req.campaignIds || []).map(String).filter(Boolean);
     if (campaignIds.length > 0) {
@@ -69,17 +72,17 @@ function buildWhere(req: ContactsRequest): Where {
     }
 
     if (req.outreachState && req.outreachState !== "all") {
-        conds.push(`"outreachState" = ${push(req.outreachState)}`);
+        conds.push(`"outreachState"::text = ${push(req.outreachState)}`);
     }
 
     if (req.recencyBucket && req.recencyBucket !== "all") {
-        conds.push(`"recencyBucket" = ${push(req.recencyBucket)}`);
+        conds.push(`"recencyBucket"::text = ${push(req.recencyBucket)}`);
     }
 
     if (req.subscribed === true) {
-        conds.push(`status NOT IN ('UNSUBSCRIBED', 'BOUNCED') AND "outreachState" <> 'BURNED'`);
+        conds.push(`status NOT IN ('UNSUBSCRIBED', 'BOUNCED') AND "outreachState"::text <> 'BURNED'`);
     } else if (req.subscribed === false) {
-        conds.push(`(status IN ('UNSUBSCRIBED', 'BOUNCED') OR "outreachState" = 'BURNED')`);
+        conds.push(`(status IN ('UNSUBSCRIBED', 'BOUNCED') OR "outreachState"::text = 'BURNED')`);
     }
 
     return { sql: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
@@ -129,19 +132,28 @@ function mapLead(l: any, campaignScoped: boolean) {
     const isDispatched =
         (l.totalOutbound && l.totalOutbound > 0) || l.lastContactedAt !== null || isReplied || l.status === "COMPLETED";
 
+    const rawStepNum = Math.max(0, l.totalOutbound || 0);
+    const stepNum = rawStepNum > 0 ? rawStepNum : (l.lastContactedAt !== null || isDispatched || isReplied) ? 1 : 0;
+    const stepLabel = (n: number): string => {
+        if (n <= 0) return "Ready for delivery";
+        if (n === 1) return "Step 1 (First Mail)";
+        return `Step ${n} (Follow-up ${n - 1})`;
+    };
+
     const campaignLead = campaignScoped
         ? {
               status: isReplied ? "replied" : isDispatched ? "completed" : "pending",
-              sent: isDispatched || isReplied ? 1 : 0,
-              opened: l.openCount || (isDispatched ? 1 : 0),
+              sent: isDispatched || isReplied ? Math.max(1, stepNum) : 0,
+              opened: l.openCount || 0,
               machine_opened: 0,
               clicked: l.clickCount || 0,
-              replied: isReplied ? 1 : 0,
+              replied: isReplied ? (l.totalReplied || 1) : 0,
               current_step: isReplied
-                  ? "Replied (Sequence Stopped)"
-                  : isDispatched
-                    ? "Step 1 (Outreach)"
-                    : "Ready for delivery",
+                  ? `Replied after ${stepLabel(stepNum)}`
+                  : stepLabel(stepNum),
+              completed_steps: stepNum > 0
+                  ? Array.from({ length: stepNum }, (_, i) => i === 0 ? "First Mail" : `Follow-up ${i}`)
+                  : [],
               sender: l.lastSender || (isDispatched ? l.lastSender || undefined : undefined),
               last_activity_at: l.lastContactedAt || null,
           }
@@ -211,24 +223,27 @@ function mapLead(l: any, campaignScoped: boolean) {
     };
 }
 
-async function readCounts(query: QueryFn): Promise<ContactsCounts> {
+async function readCounts(query: QueryFn, scope: DataScope): Promise<ContactsCounts> {
+    const owned = leadOwned(scope, `"Lead"`);
     const [facetRows, categoryRows, contactRows] = await Promise.all([
         query(`
             SELECT
                 count(*)::int AS total,
                 count(*) FILTER (
-                    WHERE status NOT IN ('UNSUBSCRIBED', 'BOUNCED') AND "outreachState" <> 'BURNED'
+                    WHERE status NOT IN ('UNSUBSCRIBED', 'BOUNCED') AND "outreachState"::text <> 'BURNED'
                 )::int AS subscribed,
                 count(*) FILTER (WHERE "campaignId" IS NOT NULL)::int AS in_campaign
             FROM "Lead"
+            WHERE ${owned}
         `),
         query(`
-            SELECT "outreachState" AS category_id, count(*)::int AS count
+            SELECT "outreachState"::text AS category_id, count(*)::int AS count
             FROM "Lead"
+            WHERE ${owned}
             GROUP BY 1
             ORDER BY 2 DESC
         `),
-        query(`SELECT count(*) FILTER (WHERE "totalOutbound" > 0)::int AS contacted FROM "Lead"`),
+        query(`SELECT count(*) FILTER (WHERE "totalOutbound" > 0)::int AS contacted FROM "Lead" WHERE ${owned}`),
     ]);
 
     const total = facetRows[0]?.total ?? 0;
@@ -245,26 +260,26 @@ async function readCounts(query: QueryFn): Promise<ContactsCounts> {
     };
 }
 
-async function readLeadCounts(query: QueryFn, campaignIds: string[]): Promise<LeadCounts> {
+async function readLeadCounts(query: QueryFn, campaignIds: string[], scope: DataScope): Promise<LeadCounts> {
     const params: unknown[] = [];
     const placeholders = campaignIds.map((id) => {
         params.push(id);
         return `$${params.length}`;
     });
-    const scope = `WHERE "campaignId" IN (${placeholders.join(", ")})`;
+    const whereSql = `WHERE "campaignId" IN (${placeholders.join(", ")}) AND ${leadOwned(scope, `"Lead"`)}`;
 
     const rows = await query(
         `SELECT
             count(*)::int AS total,
-            count(*) FILTER (WHERE "totalOutbound" = 0)::int AS queued,
-            count(*) FILTER (WHERE "totalOutbound" > 0)::int AS completed,
-            count(*) FILTER (WHERE "totalOutbound" > 0)::int AS contacted,
-            count(*) FILTER (WHERE "totalReplied" > 0)::int AS replied,
-            count(*) FILTER (WHERE status = 'BOUNCED')::int AS bounced,
-            count(*) FILTER (WHERE status = 'UNSUBSCRIBED')::int AS unsubscribed,
-            count(*) FILTER (WHERE "openCount" > 0)::int AS opened,
+            count(*) FILTER (WHERE "totalOutbound" = 0 AND "lastContactedAt" IS NULL)::int AS queued,
+            count(*) FILTER (WHERE "totalOutbound" > 0 OR "lastContactedAt" IS NOT NULL)::int AS completed,
+            count(*) FILTER (WHERE "totalOutbound" > 0 OR "lastContactedAt" IS NOT NULL)::int AS contacted,
+            count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL)::int AS replied,
+            count(*) FILTER (WHERE status::text = 'BOUNCED' OR "bounceCount" > 0 OR "totalBounced" > 0)::int AS bounced,
+            count(*) FILTER (WHERE status::text = 'UNSUBSCRIBED')::int AS unsubscribed,
+            count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL)::int AS opened,
             count(*) FILTER (WHERE "clickCount" > 0)::int AS clicked
-        FROM "Lead" ${scope}`,
+        FROM "Lead" ${whereSql}`,
         params,
     );
 
@@ -286,13 +301,13 @@ async function readLeadCounts(query: QueryFn, campaignIds: string[]): Promise<Le
     };
 }
 
-export async function getContacts(req: ContactsRequest, query: QueryFn): Promise<ContactsResponse> {
+export async function getContacts(req: ContactsRequest, query: QueryFn, scope: DataScope): Promise<ContactsResponse> {
     const page = Math.max(1, req.page || 1);
     const limit = Math.min(100, Math.max(1, req.limit || 50));
     const campaignIds = (req.campaignIds || []).map(String).filter(Boolean);
     const campaignScoped = campaignIds.length > 0;
 
-    const where = buildWhere(req);
+    const where = buildWhere(req, scope);
     const order = campaignScoped
         ? `ORDER BY "lastContactedAt" ASC NULLS LAST, "createdAt" ASC`
         : `ORDER BY "lastContactedAt" DESC NULLS LAST, "createdAt" DESC`;
@@ -305,8 +320,8 @@ export async function getContacts(req: ContactsRequest, query: QueryFn): Promise
     const [rows, countRows, counts, leadCounts] = await Promise.all([
         query(`SELECT ${SELECT_COLUMNS} FROM "Lead" ${where.sql} ${order} LIMIT ${limitPh} OFFSET ${offsetPh}`, pageParams),
         query(`SELECT count(*)::int AS total FROM "Lead" ${where.sql}`, where.params),
-        readCounts(query),
-        campaignScoped ? readLeadCounts(query, campaignIds) : Promise.resolve(undefined),
+        readCounts(query, scope),
+        campaignScoped ? readLeadCounts(query, campaignIds, scope) : Promise.resolve(undefined),
     ]);
 
     const total = countRows[0]?.total ?? 0;

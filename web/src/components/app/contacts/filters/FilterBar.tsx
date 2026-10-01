@@ -210,11 +210,11 @@ export default function FilterBar({
                 value={filters.outreach_states?.[0]}
                 onChange={(v) => setFilters((s) => ({ ...s, outreach_states: v ? [v] : undefined }))}
                 options={[
-                    { id: "DORMANT_REPLIED", label: "Dormant Replied (747)" },
-                    { id: "COLD_REENGAGEMENT", label: "Cold Re-engagement (22.9k)" },
-                    { id: "WARM_STALE", label: "Warm Stale (694)" },
-                    { id: "IN_SEQUENCE", label: "In Sequence (3)" },
-                    { id: "BURNED", label: "Burned / Quarantined (3.7k)" },
+                    { id: "IN_SEQUENCE", label: "In Sequence" },
+                    { id: "DORMANT_REPLIED", label: "Dormant Replied" },
+                    { id: "COLD_REENGAGEMENT", label: "Cold Re-engagement" },
+                    { id: "WARM_STALE", label: "Warm Stale" },
+                    { id: "BURNED", label: "Burned / Quarantined" },
                 ]}
             />
             <CompanyPill

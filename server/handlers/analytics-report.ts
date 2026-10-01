@@ -1,20 +1,31 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getReport } from "../report";
 import { DatabaseUnavailableError, pgQuery } from "../pg";
+import { scopeFor, scopeKey } from "../scope";
+import { requireUser } from "./auth";
 import { Memo, send } from "./send";
 
 const CACHE_SECONDS = 300;
 const memo = new Memo<unknown>(120_000);
 
-export default async function handler(_req: IncomingMessage, res: ServerResponse) {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {
-        const hit = memo.get("report");
+        const user = await requireUser(req, res);
+        if (!user) return;
+        const urlObj = new URL(req.url || "", "http://localhost:3000");
+        const memberId = urlObj.searchParams.get("member_id");
+        let scope = scopeFor(user);
+        if (user.role === "MASTER" && memberId && memberId !== "all") {
+            scope = { userId: memberId, master: false };
+        }
+        const key = `${scopeKey(scope)}|report|${memberId || "all"}`;
+        const hit = memo.get(key);
         if (hit !== undefined) {
             send(res, 200, hit, CACHE_SECONDS);
             return;
         }
-        const payload = await getReport(pgQuery);
-        memo.set("report", payload);
+        const payload = await getReport(pgQuery, scope);
+        memo.set(key, payload);
         send(res, 200, payload, CACHE_SECONDS);
     } catch (err: any) {
         if (err instanceof DatabaseUnavailableError) {

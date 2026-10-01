@@ -10,6 +10,13 @@ import { getCampaignStats, getCampaignAnalytics } from "../server/campaigns";
 import { getMailboxes } from "../server/mailboxes";
 import { getReport } from "../server/report";
 import { buildSegments } from "../server/segments";
+import { readBearer, resolveToken } from "../server/auth";
+import { scopeFor, type DataScope } from "../server/scope";
+import { smartleadPrimary, smartleadSecondary } from "../server/smartleadKeys";
+import { recordSmartleadEvent, resolveWebhookSecret, verifySmartleadSignature } from "../server/smartleadWebhook";
+import { resolveDatabaseUrl } from "../server/pg";
+import authHandler from "../server/handlers/auth";
+import organizationHandler from "../server/handlers/organization";
 
 const cjsRequire = createRequire(import.meta.url);
 
@@ -234,18 +241,15 @@ Use your own intelligence, reasoning, and creativity. Think carefully and give r
 }
 
 function smartleadApiPlugin() {
-    const SMARTLEAD_KEYS: Record<string, string> = {
-        "vatsal.vadecha@theboredmonkey.com": "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6",
-        "preeti.karki@theboredmonkey.com": "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt",
-        "haji.karim@theboredmonkey.com": "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6",
-    };
-    const envKey = process.env.SMARTLEAD_API_KEY;
-    const DEFAULT_SMARTLEAD_KEY = (envKey && !envKey.startsWith("412be3a1")) ? envKey : "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6";
-    const SECONDARY_SMARTLEAD_KEY = "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt";
+    const DEFAULT_SMARTLEAD_KEY = smartleadPrimary();
+    const SECONDARY_SMARTLEAD_KEY = smartleadSecondary();
     const BASE_URL = "https://server.smartlead.ai/api/v1";
 
     function apiCall(endpoint: string, method: string = "GET", body?: any, customKey?: string): Promise<{ status: number; data: any }> {
         const apiKey = customKey || DEFAULT_SMARTLEAD_KEY;
+        if (!apiKey) {
+            return Promise.resolve({ status: 503, data: { error: "smartlead_api_key_not_configured" } });
+        }
         return new Promise((resolve, reject) => {
             const separator = endpoint.includes("?") ? "&" : "?";
             const fullPath = `${endpoint}${separator}api_key=${apiKey}`;
@@ -265,7 +269,7 @@ function smartleadApiPlugin() {
                     try {
                         const parsed = text ? JSON.parse(text) : {};
                         // If 401 or 404 and using default key without explicit customKey, try secondary active key
-                        if ((res.statusCode === 401 || res.statusCode === 404) && !customKey && apiKey !== SECONDARY_SMARTLEAD_KEY) {
+                        if ((res.statusCode === 401 || res.statusCode === 404) && !customKey && SECONDARY_SMARTLEAD_KEY && apiKey !== SECONDARY_SMARTLEAD_KEY) {
                             try {
                                 const fallbackRes = await apiCall(endpoint, method, body, SECONDARY_SMARTLEAD_KEY);
                                 if (fallbackRes.status >= 200 && fallbackRes.status < 300) {
@@ -382,7 +386,12 @@ function smartleadApiPlugin() {
 
             server.middlewares.use("/api/smartlead/campaigns", async (_req: any, res: any) => {
                 try {
-                    const keys = [DEFAULT_SMARTLEAD_KEY, SECONDARY_SMARTLEAD_KEY];
+                    const keys = [DEFAULT_SMARTLEAD_KEY, SECONDARY_SMARTLEAD_KEY].filter(Boolean);
+                    if (keys.length === 0) {
+                        res.writeHead(503, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: "smartlead_api_key_not_configured" }));
+                        return;
+                    }
                     const calls = await Promise.all(keys.map((k) => apiCall("/campaigns", "GET", undefined, k)));
                     const allCamps: any[] = [];
                     const seen = new Set<number>();
@@ -509,7 +518,10 @@ function smartleadApiPlugin() {
                             start_hour: "10:00",
                             end_hour: "18:00",
                             min_time_btw_emails: 3,
-                            max_new_leads_per_day: 50,
+                            // Total daily capacity of the sending pool, not
+                            // one mailbox: 4 x 50 by default, raised for
+                            // bigger pools via env or request override.
+                            max_new_leads_per_day: Number(parsed.max_new_leads_per_day) || Number(process.env.SMARTLEAD_MAX_NEW_LEADS_PER_DAY) || 200,
                         }, chosenKey);
 
                         // 5. Add leads to Smartlead campaign with robust variable mapping
@@ -634,8 +646,18 @@ function smartleadApiPlugin() {
                 }
                 let body = "";
                 req.on("data", (chunk: any) => { body += chunk; });
-                req.on("end", () => {
+                req.on("end", async () => {
                     try {
+                        // Same HMAC check as production: verified only when a
+                        // secret is configured AND a signature was sent.
+                        const whSecret = resolveWebhookSecret();
+                        const providedSig = String(req.headers["x-webhook-signature"] || req.headers["x-smartlead-signature"] || "");
+                        if (whSecret && providedSig && !verifySmartleadSignature(body, providedSig, whSecret)) {
+                            res.writeHead(401, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "invalid_signature" }));
+                            return;
+                        }
+
                         const payload = JSON.parse(body || "{}");
                         const eventType = payload.event_type || payload.type || "unknown";
                         const email = (payload.email || payload.lead_email || payload.to_email || "").toLowerCase();
@@ -661,18 +683,32 @@ function smartleadApiPlugin() {
                             return;
                         }
 
+                        // Same persistence path as production: events land in
+                        // EmailEvent, and DB trouble answers 503 so a retry
+                        // finds them (idempotent on providerEventId).
+                        let outcome = "unsupported";
+                        try {
+                            outcome = await recordSmartleadEvent(payload);
+                        } catch (err: any) {
+                            console.error("[Smartlead Webhook] Persistence failed:", err?.message || err);
+                            res.writeHead(503, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ received: false, error: "persistence_failed", retry: true }));
+                            return;
+                        }
+
                         const record = {
                             id: `wh_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                             received_at: new Date().toISOString(),
                             event_type: eventType,
                             email,
+                            persisted: outcome === "persisted",
                             payload,
                         };
                         webhookEvents.push(record);
-                        console.log(`[Smartlead Webhook] Logged ${eventType} for ${email}`);
+                        console.log(`[Smartlead Webhook] Logged ${eventType} for ${email} (${outcome})`);
 
                         res.writeHead(200, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ received: true, event_type: eventType, email, id: record.id }));
+                        res.end(JSON.stringify({ received: true, event_type: eventType, email, id: record.id, persisted: outcome === "persisted" }));
                     } catch (err: any) {
                         res.writeHead(200, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ received: true, note: "raw_received" }));
@@ -692,7 +728,9 @@ function databaseIntelligencePlugin() {
                 prismaInstance = new PrismaClient({
                     datasources: {
                         db: {
-                            url: process.env.DATABASE_URL || "postgresql://postgres.hsmudwkfwmvinhtggxyd:9538564601Aa@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true",
+                            // Env only — no credentials in source. resolveDatabaseUrl
+                            // checks process.env then the local .env files.
+                            url: process.env.DATABASE_URL || resolveDatabaseUrl() || undefined,
                         },
                     },
                 });
@@ -701,6 +739,29 @@ function databaseIntelligencePlugin() {
             }
         }
         return prismaInstance;
+    }
+
+    // Every data middleware below answers a logged-in user only, and hands the
+    // resulting DataScope to the query layer so a TEAM_MEMBER never reads rows
+    // that belong to somebody else (mirrors requireUser in server/handlers).
+    async function requireScope(req: any, res: any): Promise<DataScope | null> {
+        try {
+            const user = await resolveToken(readBearer(req) || "");
+            if (!user) {
+                res.writeHead(401, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "unauthorized", message: "A valid session is required." }));
+                return null;
+            }
+            return scopeFor(user);
+        } catch (err: any) {
+            const unavailable = err?.name === "DatabaseUnavailableError";
+            res.writeHead(unavailable ? 503 : 500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+                error: unavailable ? "database_unavailable" : (err?.message || "auth_failed"),
+                message: unavailable ? "The live database is not reachable." : "Could not validate the session.",
+            }));
+            return null;
+        }
     }
 
     return {
@@ -943,6 +1004,8 @@ function databaseIntelligencePlugin() {
                 req.on("data", (chunk: any) => { body += chunk; });
                 req.on("end", async () => {
                     try {
+                        const scope = await requireScope(req, res);
+                        if (!scope) return;
                         const prisma = getPrisma();
                         if (!prisma) {
                             res.writeHead(503, { "Content-Type": "application/json" });
@@ -970,6 +1033,12 @@ function databaseIntelligencePlugin() {
                                 ? null
                                 : subscribedRaw === true || subscribedRaw === "true" || subscribedRaw === "1";
 
+                        const memberId = pick("member_id");
+                        let activeScope = scope;
+                        if (scope.master && memberId && memberId !== "all") {
+                            activeScope = { userId: memberId, master: false };
+                        }
+
                         const payload = await getContacts(
                             {
                                 query: pick("query") || pick("q") || "",
@@ -983,6 +1052,7 @@ function databaseIntelligencePlugin() {
                                 domain: pick("domain") || pick("domains") || "",
                             },
                             prismaQuery,
+                            activeScope,
                         );
 
                         res.writeHead(200, { "Content-Type": "application/json" });
@@ -1004,6 +1074,8 @@ function databaseIntelligencePlugin() {
             // numbers the deployed /api/analytics/dashboard function returns.
             server.middlewares.use("/api/analytics/dashboard", async (req: any, res: any) => {
                 try {
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
                     const prisma = getPrisma();
                     if (!prisma) {
                         res.writeHead(503, { "Content-Type": "application/json" });
@@ -1015,7 +1087,12 @@ function databaseIntelligencePlugin() {
                     const period = urlObj.searchParams.get("period") || "7d";
                     const from = urlObj.searchParams.get("from") || undefined;
                     const to = urlObj.searchParams.get("to") || undefined;
-                    const payload = await getDashboard({ period, from, to }, prismaQuery);
+                    const memberId = urlObj.searchParams.get("member_id");
+                    let activeScope = scope;
+                    if (scope.master && memberId && memberId !== "all") {
+                        activeScope = { userId: memberId, master: false };
+                    }
+                    const payload = await getDashboard({ period, from, to }, prismaQuery, activeScope);
 
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(payload));
@@ -1036,6 +1113,8 @@ function databaseIntelligencePlugin() {
                 req.on("data", (chunk: any) => { body += chunk; });
                 req.on("end", async () => {
                     try {
+                        const scope = await requireScope(req, res);
+                        if (!scope) return;
                         const prisma = getPrisma();
                         if (!prisma) {
                             res.writeHead(200, { "Content-Type": "application/json" });
@@ -1089,9 +1168,11 @@ function databaseIntelligencePlugin() {
 
             // 5. Live database segments endpoint (counts come from the same
             //    group-by the contacts table uses)
-            server.middlewares.use("/api/intelligence/segments", async (_req: any, res: any) => {
+            server.middlewares.use("/api/intelligence/segments", async (req: any, res: any) => {
                 try {
-                    const payload = await getContacts({ limit: 1 }, prismaQuery);
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
+                    const payload = await getContacts({ limit: 1 }, prismaQuery, scope);
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(buildSegments(payload.counts?.categories ?? null)));
                 } catch (e) {
@@ -1112,6 +1193,8 @@ function databaseIntelligencePlugin() {
                 req.on("data", (chunk: any) => { body += chunk; });
                 req.on("end", async () => {
                     try {
+                        const scope = await requireScope(req, res);
+                        if (!scope) return;
                         const prisma = getPrisma();
                         if (!prisma) {
                             res.writeHead(500, { "Content-Type": "application/json" });
@@ -1140,6 +1223,7 @@ function databaseIntelligencePlugin() {
                                         { email: { in: emails } },
                                         { id: { in: ids } },
                                     ],
+                                    ...(scope.master ? {} : { campaign: { userId: scope.userId } }),
                                 },
                                 data: {
                                     status: "UNSUBSCRIBED",
@@ -1168,6 +1252,8 @@ function databaseIntelligencePlugin() {
                 req.on("data", (chunk: any) => { body += chunk; });
                 req.on("end", async () => {
                     try {
+                        const scope = await requireScope(req, res);
+                        if (!scope) return;
                         const prisma = getPrisma();
                         if (!prisma) {
                             res.writeHead(500, { "Content-Type": "application/json" });
@@ -1184,6 +1270,7 @@ function databaseIntelligencePlugin() {
                                     { email: { in: emails } },
                                     { id: { in: ids } },
                                 ],
+                                ...(scope.master ? {} : { campaign: { userId: scope.userId } }),
                             },
                         });
 
@@ -1198,9 +1285,11 @@ function databaseIntelligencePlugin() {
 
             // 8. Live database campaigns query
             // Lifetime campaign statistics, aggregated from Lead + EmailEvent
-            server.middlewares.use("/api/campaigns/stats", async (_req: any, res: any) => {
+            server.middlewares.use("/api/campaigns/stats", async (req: any, res: any) => {
                 try {
-                    const stats = await getCampaignStats(prismaQuery);
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
+                    const stats = await getCampaignStats(prismaQuery, scope);
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(stats));
                 } catch (e) {
@@ -1211,8 +1300,108 @@ function databaseIntelligencePlugin() {
             });
 
             // Per-campaign analytics: lifetime summary, daily series, per-step
+            
+            // Campaign steps CRUD directly in PostgreSQL CampaignStep table
+            server.middlewares.use("/api/campaigns/steps", async (req: any, res: any) => {
+                let body = "";
+                req.on("data", (chunk: any) => { body += chunk; });
+                req.on("end", async () => {
+                    try {
+                        const scope = await requireScope(req, res);
+                        if (!scope) return;
+                        const prisma = getPrisma();
+                        if (!prisma) {
+                            res.writeHead(503, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "database_unavailable" }));
+                            return;
+                        }
+                        const urlObj = new URL(req.url, "http://localhost:5173");
+                        const campaignId = urlObj.searchParams.get("campaign_id") || urlObj.searchParams.get("id");
+
+                        if (req.method === "GET") {
+                            if (!campaignId) {
+                                res.writeHead(400, { "Content-Type": "application/json" });
+                                res.end(JSON.stringify({ error: "missing_campaign_id" }));
+                                return;
+                            }
+                            const steps = await prisma.campaignStep.findMany({
+                                where: { campaignId },
+                                orderBy: { stepNumber: "asc" },
+                            });
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify(steps.map((s: any) => ({
+                                id: s.id,
+                                stepNumber: s.stepNumber,
+                                position: s.stepNumber,
+                                name: s.stepNumber === 1 ? "First email" : `Follow-up ${s.stepNumber - 1}`,
+                                subject: s.subject || "",
+                                body_plain: (s.bodyTemplate || "").replace(/<[^>]+>/g, ""),
+                                body_html: s.bodyTemplate || "",
+                                wait_after: s.delayDays || (s.stepNumber === 1 ? 0 : 3),
+                                created_at: s.createdAt,
+                                updated_at: s.updatedAt,
+                            }))));
+                            return;
+                        }
+
+                        if (req.method === "POST" || req.method === "PUT") {
+                            const parsed = JSON.parse(body || "{}");
+                            const targetCampId = campaignId || parsed.campaign_id || parsed.campaignId;
+                            const stepsData = Array.isArray(parsed) ? parsed : (parsed.steps || []);
+                            if (!targetCampId || !Array.isArray(stepsData)) {
+                                res.writeHead(400, { "Content-Type": "application/json" });
+                                res.end(JSON.stringify({ error: "invalid_payload" }));
+                                return;
+                            }
+
+                            // Upsert steps
+                            const updatedSteps: any[] = [];
+                            for (let i = 0; i < stepsData.length; i++) {
+                                const s = stepsData[i];
+                                const stepNum = i + 1;
+                                const stepHtml = s.body_html || (s.body_plain ? `<div>${s.body_plain.replace(/\n/g, "<br/>")}</div>` : "<p></p>");
+                                const saved = await prisma.campaignStep.upsert({
+                                    where: {
+                                        campaignId_stepNumber: {
+                                            campaignId: targetCampId,
+                                            stepNumber: stepNum,
+                                        }
+                                    },
+                                    create: {
+                                        campaignId: targetCampId,
+                                        stepNumber: stepNum,
+                                        delayDays: s.wait_after !== undefined ? s.wait_after : (stepNum === 1 ? 0 : 3),
+                                        subject: s.subject || "",
+                                        bodyTemplate: stepHtml,
+                                    },
+                                    update: {
+                                        delayDays: s.wait_after !== undefined ? s.wait_after : (stepNum === 1 ? 0 : 3),
+                                        subject: s.subject || "",
+                                        bodyTemplate: stepHtml,
+                                    },
+                                });
+                                updatedSteps.push(saved);
+                            }
+
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify(updatedSteps));
+                            return;
+                        }
+
+                        res.writeHead(405, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: "method_not_allowed" }));
+                    } catch (err: any) {
+                        console.error("[DatabaseIntelligencePlugin] campaign steps error:", err);
+                        res.writeHead(500, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: err.message }));
+                    }
+                });
+            });
+
             server.middlewares.use("/api/campaigns/analytics", async (req: any, res: any) => {
                 try {
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     const campaignId = urlObj.searchParams.get("id") || "";
                     const days = Math.min(365, Math.max(1, parseInt(String(urlObj.searchParams.get("days") || "30"), 10) || 30));
@@ -1222,7 +1411,7 @@ function databaseIntelligencePlugin() {
                         res.end(JSON.stringify({ error: "missing_campaign_id" }));
                         return;
                     }
-                    const payload = await getCampaignAnalytics(prismaQuery, campaignId, days, from);
+                    const payload = await getCampaignAnalytics(prismaQuery, scope, campaignId, days, from);
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(payload));
                 } catch (e) {
@@ -1232,8 +1421,70 @@ function databaseIntelligencePlugin() {
                 }
             });
 
-            server.middlewares.use("/api/intelligence/campaigns", async (_req: any, res: any) => {
+            server.middlewares.use("/api/campaigns/logs", async (req: any, res: any) => {
                 try {
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
+                    const urlObj = new URL(req.url, "http://localhost:5173");
+                    const campaignId = urlObj.searchParams.get("id") || "";
+                    if (!campaignId) {
+                        res.writeHead(400, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: "missing_campaign_id" }));
+                        return;
+                    }
+                    const events = await prismaQuery(
+                        `SELECT e.id,
+                                e."eventType" AS event_type,
+                                e."createdAt" AS created_at,
+                                coalesce(e."rawPayload"->>'description', '') AS description,
+                                l.email,
+                                l."firstName" AS first_name,
+                                l."lastName" AS last_name
+                         FROM "EmailEvent" e
+                         JOIN "Lead" l ON l.id = e."leadId"
+                         WHERE l."campaignId" = $1
+                         ORDER BY e."createdAt" DESC
+                         LIMIT 50`,
+                        [campaignId]
+                    );
+                    const logs = events.map((row: any) => {
+                        const et = String(row.event_type || "").toLowerCase();
+                        const isSent = et === "sent";
+                        const isOpen = et.includes("open");
+                        const isReply = et.includes("reply");
+                        const isClick = et.includes("click");
+                        const isBounce = et.includes("bounce");
+                        const leadName = `${row.first_name || ""} ${row.last_name || ""}`.trim() || (row.email ? row.email.split("@")[0] : "Prospect");
+                        let message = row.description;
+                        if (!message) {
+                            if (isSent) message = `Email sent to ${leadName} (${row.email})`;
+                            else if (isOpen) message = `Email opened by ${leadName} (${row.email})`;
+                            else if (isReply) message = `Reply received from ${leadName} (${row.email})`;
+                            else if (isClick) message = `Link clicked by ${leadName} (${row.email})`;
+                            else if (isBounce) message = `Email bounced for ${leadName} (${row.email})`;
+                            else message = `Event ${row.event_type} for ${leadName} (${row.email})`;
+                        }
+                        return {
+                            id: row.id,
+                            event_type: isSent ? "EMAIL_SENT" : isOpen ? "EMAIL_OPENED" : isReply ? "EMAIL_REPLIED" : isClick ? "EMAIL_LINK_CLICK" : isBounce ? "EMAIL_BOUNCED" : row.event_type,
+                            message,
+                            metadata: { level: isBounce ? "error" : isReply ? "success" : "info" },
+                            created_at: row.created_at,
+                        };
+                    });
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ data: logs }));
+                } catch (e: any) {
+                    console.error("[DatabaseIntelligencePlugin] campaign logs error:", e);
+                    res.writeHead(500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: e?.message || "error_fetching_logs" }));
+                }
+            });
+
+            server.middlewares.use("/api/intelligence/campaigns", async (req: any, res: any) => {
+                try {
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
                     const prisma = getPrisma();
                     if (!prisma) {
                         res.writeHead(500, { "Content-Type": "application/json" });
@@ -1241,6 +1492,7 @@ function databaseIntelligencePlugin() {
                         return;
                     }
                     const dbCampaigns = await prisma.campaign.findMany({
+                        where: scope.master ? {} : { userId: scope.userId },
                         include: {
                             _count: { select: { leads: true } },
                             steps: { orderBy: { stepNumber: "asc" } },
@@ -1257,9 +1509,11 @@ function databaseIntelligencePlugin() {
 
             // 9. Live database mailboxes query, including each mailbox's real
             // "sent today" / lifetime counters derived from EmailEvent rows.
-            server.middlewares.use("/api/intelligence/mailboxes", async (_req: any, res: any) => {
+            server.middlewares.use("/api/intelligence/mailboxes", async (req: any, res: any) => {
                 try {
-                    const dbMailboxes = await getMailboxes(prismaQuery);
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
+                    const dbMailboxes = await getMailboxes(prismaQuery, scope);
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(dbMailboxes));
                 } catch (err: any) {
@@ -1271,8 +1525,10 @@ function databaseIntelligencePlugin() {
             // 10. Lifetime system report (total mails, categories, reply mix,
             // monthly volume, top campaigns, latest replies) — what the
             // head-of-department sections render from.
-            server.middlewares.use("/api/analytics/report", async (_req: any, res: any) => {
+            server.middlewares.use("/api/analytics/report", async (req: any, res: any) => {
                 try {
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
                     const prisma = getPrisma();
                     if (!prisma) {
                         res.writeHead(503, { "Content-Type": "application/json" });
@@ -1280,7 +1536,13 @@ function databaseIntelligencePlugin() {
                         return;
                     }
 
-                    const payload = await getReport(prismaQuery);
+                    const urlObj = new URL(req.url, "http://localhost:5173");
+                    const memberId = urlObj.searchParams.get("member_id");
+                    let activeScope = scope;
+                    if (scope.master && memberId && memberId !== "all") {
+                        activeScope = { userId: memberId, master: false };
+                    }
+                    const payload = await getReport(prismaQuery, activeScope);
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(payload));
                 } catch (err: any) {
@@ -1297,6 +1559,29 @@ function databaseIntelligencePlugin() {
     };
 }
 
+// Local session + member-management API. Mounted as one catch-all middleware
+// (rather than per-path mounts) so req.url keeps its full /api/... form,
+// exactly as Vercel preserves it for api/index.ts.
+function authApiPlugin() {
+    return {
+        name: "local-auth-api-plugin",
+        configureServer(server: any) {
+            server.middlewares.use((req: any, res: any, next: any) => {
+                const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
+                if (path === "/api/auth" || path.startsWith("/api/auth/")) {
+                    authHandler(req, res);
+                    return;
+                }
+                if (path === "/api/organization" || path.startsWith("/api/organization/")) {
+                    organizationHandler(req, res);
+                    return;
+                }
+                next();
+            });
+        },
+    };
+}
+
 export default defineConfig({
     plugins: [
         react(),
@@ -1304,6 +1589,7 @@ export default defineConfig({
         localAiChatPlugin(),
         smartleadApiPlugin(),
         databaseIntelligencePlugin(),
+        authApiPlugin(),
         ...sentryPlugins,
     ],
     build: {

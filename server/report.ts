@@ -1,5 +1,6 @@
 import type { QueryFn, QueryRow } from "./types";
 import { getMailboxes, type MailboxRow } from "./mailboxes";
+import { leadOwned, messageOwned, type DataScope } from "./scope";
 
 // Everything a head-of-department needs about the outreach system, computed
 // from the message/lead/brand tables rather than any seeded fixture:
@@ -100,7 +101,7 @@ function rate(numerator: number, denominator: number): number {
 // the "primary target brands" list.
 const FREE_MAIL_DOMAINS = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "proton.me", "aol.com"];
 
-export async function getReport(query: QueryFn): Promise<SystemReport> {
+export async function getReport(query: QueryFn, scope: DataScope): Promise<SystemReport> {
     const now = new Date();
     // First day of the month 17 months back = an 18-month window incl. this one.
     const volumeStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 17, 1))
@@ -130,7 +131,8 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
                     count(DISTINCT "contactEmail")::int AS contacts,
                     min("createdAt")::timestamp::text AS first_sent,
                     max("createdAt")::timestamp::text AS last_sent
-             FROM "EmailMessage"`,
+             FROM "EmailMessage"
+             WHERE ${messageOwned(scope, `"EmailMessage"`)}`,
         ),
         query(
             `SELECT count(*)::int AS leads,
@@ -140,15 +142,17 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
                     count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL)::int AS opened,
                     count(*) FILTER (WHERE "totalReplied" > 0)::int AS replied,
                     count(*) FILTER (WHERE "lastContactedAt" IS NULL)::int AS never_contacted
-             FROM "Lead"`,
+             FROM "Lead"
+             WHERE ${leadOwned(scope, `"Lead"`)}`,
         ),
         query(
-            `SELECT coalesce(nullif(btrim("customData"->>'category'), ''), 'Uncategorized') AS category,
+            `SELECT coalesce(nullif(btrim("customData"->>'category'), ''), 'Other Segments') AS category,
                     count(*)::int AS leads,
                     count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS contacted,
-                    count(*) FILTER (WHERE "openCount" > 0)::int AS opened,
+                    count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "totalReplied" > 0)::int AS opened,
                     count(*) FILTER (WHERE "totalReplied" > 0)::int AS replied
              FROM "Lead"
+             WHERE ${leadOwned(scope, `"Lead"`)}
              GROUP BY 1
              ORDER BY 2 DESC`,
         ),
@@ -156,7 +160,8 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
             `SELECT "replyClassification"::text AS classification, count(*)::int AS leads
              FROM "Lead"
              WHERE "replyClassification" IS NOT NULL
-               AND "replyClassification" <> 'NONE'
+               AND "replyClassification"::text <> 'NONE'
+               AND ${leadOwned(scope, `"Lead"`)}
              GROUP BY 1
              ORDER BY 2 DESC`,
         ),
@@ -167,6 +172,7 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
                        count(*) FILTER (WHERE "replied")::int AS replies
                 FROM "EmailMessage"
                 WHERE "createdAt" >= $1::timestamp
+                  AND ${messageOwned(scope, `"EmailMessage"`)}
                 GROUP BY 1
              ),
              recent AS (
@@ -176,6 +182,7 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
                 FROM "Lead"
                 WHERE "lastContactedAt" >= $1::timestamp
                   AND "lastContactedAt" > coalesce((SELECT max("createdAt") FROM "EmailMessage"), '1970-01-01'::timestamp)
+                  AND ${leadOwned(scope, `"Lead"`)}
                 GROUP BY 1
              )
              SELECT month, sum(sent)::int AS sent, sum(replies)::int AS replies
@@ -189,6 +196,7 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
                     count(*)::int AS sent,
                     count(*) FILTER (WHERE "replied")::int AS replies
              FROM "EmailMessage"
+             WHERE ${messageOwned(scope, `"EmailMessage"`)}
              GROUP BY 1
              ORDER BY 1`,
         ),
@@ -200,11 +208,16 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
                     min("createdAt")::date::text AS first_sent,
                     max("createdAt")::date::text AS last_sent
              FROM "EmailMessage"
+             WHERE ${messageOwned(scope, `"EmailMessage"`)}
              GROUP BY 1
              ORDER BY 2 DESC
              LIMIT 10`,
         ),
-        query(`SELECT count(DISTINCT nullif("campaignClean", ''))::int AS total FROM "EmailMessage"`),
+        query(
+            `SELECT count(DISTINCT nullif("campaignClean", ''))::int AS total
+             FROM "EmailMessage"
+             WHERE ${messageOwned(scope, `"EmailMessage"`)}`,
+        ),
         query(
             `SELECT "contactEmail" AS contact_email,
                     coalesce(nullif("subjectRaw", ''), '(no subject)') AS subject,
@@ -215,6 +228,7 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
                     coalesce(nullif("campaignClean", ''), '') AS campaign
              FROM "EmailMessage"
              WHERE "replied"
+               AND ${messageOwned(scope, `"EmailMessage"`)}
              ORDER BY "createdAt" DESC
              LIMIT 6`,
         ),
@@ -227,7 +241,7 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
             [FREE_MAIL_DOMAINS],
         ),
         query(`SELECT count(*)::int AS total FROM "Brand"`),
-        getMailboxes(query),
+        getMailboxes(query, scope),
     ]);
 
     const messages = messageRows[0] || {};
@@ -262,17 +276,13 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
         last_send: leads.last_contacted || messages.last_sent || null,
     };
 
-    // Top named categories stay visible; the long tail of single-lead segments
-    // and the uncategorised bulk are each folded into one card so the strip
-    // stays scrollable instead of exploding into hundreds of tiles.
-    const categorized = categoryRows.filter((row) => row.category !== "Uncategorized");
-    const uncategorized = categoryRows.find((row) => row.category === "Uncategorized");
-    // Only segments with enough leads are worth their own card; single-lead
-    // name entries (data left over from imports) join one combined card.
+    // All defined industry segments stay visible; 'Other Segments' is shown at the end
+    const otherSeg = categoryRows.find((row) => row.category === "Other Segments" || row.category === "Uncategorized");
+    const categorized = categoryRows.filter((row) => row.category !== "Other Segments" && row.category !== "Uncategorized");
     const meaningful = categorized.filter((row) => (row.leads || 0) >= 10);
     const trivial = categorized.filter((row) => (row.leads || 0) < 10);
-    const top = meaningful.slice(0, 6);
-    const tail = [...meaningful.slice(6), ...trivial];
+    const top = meaningful;
+    const tail = trivial;
     const tailTotals = tail.reduce(
         (acc, row) => ({
             leads: acc.leads + (row.leads || 0),
@@ -280,7 +290,12 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
             opened: acc.opened + (row.opened || 0),
             replied: acc.replied + (row.replied || 0),
         }),
-        { leads: 0, contacted: 0, opened: 0, replied: 0 },
+        {
+            leads: otherSeg?.leads || 0,
+            contacted: otherSeg?.contacted || 0,
+            opened: otherSeg?.opened || 0,
+            replied: otherSeg?.replied || 0,
+        },
     );
 
     const toCategory = (row: QueryRow): ReportCategory => ({
@@ -289,7 +304,7 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
         contacted: row.contacted || 0,
         opened: row.opened || 0,
         replied: row.replied || 0,
-        reply_rate: rate(row.replied || 0, row.leads || 0),
+        reply_rate: rate(row.replied || 0, row.contacted || row.leads || 0),
     });
 
     const categories: ReportCategory[] = top.map(toCategory);
@@ -300,10 +315,9 @@ export async function getReport(query: QueryFn): Promise<SystemReport> {
             contacted: tailTotals.contacted,
             opened: tailTotals.opened,
             replied: tailTotals.replied,
-            reply_rate: rate(tailTotals.replied, tailTotals.leads),
+            reply_rate: rate(tailTotals.replied, tailTotals.contacted || tailTotals.leads),
         });
     }
-    if (uncategorized) categories.push(toCategory(uncategorized));
 
     return {
         generated_at: now.toISOString(),

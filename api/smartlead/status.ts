@@ -1,11 +1,14 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
+import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
 
-const envKey = process.env.SMARTLEAD_API_KEY;
-const PRIMARY_KEY = (envKey && !envKey.startsWith("412be3a1")) ? envKey : "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6";
-const SECONDARY_KEY = "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt";
+const PRIMARY_KEY = smartleadPrimary();
+const SECONDARY_KEY = smartleadSecondary();
 
 function apiRequest(path: string, method: string = "GET", postData?: string, apiKey: string = PRIMARY_KEY): Promise<{ statusCode: number; data: string }> {
+    if (!apiKey) {
+        return Promise.resolve({ statusCode: 503, data: JSON.stringify({ error: "smartlead_api_key_not_configured" }) });
+    }
     return new Promise((resolve, reject) => {
         const separator = path.includes("?") ? "&" : "?";
         const targetUrl = `https://server.smartlead.ai/api/v1${path}${separator}api_key=${apiKey}`;
@@ -54,7 +57,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (req.method === "GET") {
         try {
             let result = await apiRequest(`/campaigns/${smartleadId}`, "GET", undefined, initialKey);
-            if ((result.statusCode === 401 || result.statusCode === 404) && !customApiKey) {
+            if ((result.statusCode === 401 || result.statusCode === 404) && !customApiKey && SECONDARY_KEY && initialKey !== SECONDARY_KEY) {
                 try {
                     const fallback = await apiRequest(`/campaigns/${smartleadId}`, "GET", undefined, SECONDARY_KEY);
                     if (fallback.statusCode >= 200 && fallback.statusCode < 300) {
@@ -82,7 +85,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 const postData = JSON.stringify({ status: newStatus });
 
                 let result = await apiRequest(`/campaigns/${smartleadId}/status`, "POST", postData, initialKey);
-                if ((result.statusCode === 401 || result.statusCode === 404) && !customApiKey) {
+                if ((result.statusCode === 401 || result.statusCode === 404) && !customApiKey && SECONDARY_KEY && initialKey !== SECONDARY_KEY) {
                     try {
                         const fallback = await apiRequest(`/campaigns/${smartleadId}/status`, "POST", postData, SECONDARY_KEY);
                         if (fallback.statusCode >= 200 && fallback.statusCode < 300) {

@@ -1,10 +1,23 @@
 const https = require('https');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const { PrismaClient } = require(path.resolve('./nexus-outbound/node_modules/@prisma/client'));
 
+// Secrets live in .env (git-ignored), never in this script.
+function envOrFile(name) {
+  if (process.env[name]) return process.env[name];
+  for (const f of ['.env.local', '.env', 'nexus-outbound/.env.local', 'nexus-outbound/.env']) {
+    try {
+      const m = fs.readFileSync(path.resolve(f), 'utf8').match(new RegExp('^\\s*' + name + '\\s*=\\s*(.+)\\s*$', 'm'));
+      if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+    } catch (e) { /* no env file here */ }
+  }
+  return '';
+}
+
 const prisma = new PrismaClient({
-  datasources: { db: { url: 'postgresql://postgres.hsmudwkfwmvinhtggxyd:9538564601Aa@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true' } }
+  datasources: { db: { url: envOrFile('DATABASE_URL') || undefined } }
 });
 
 function smartleadReq(endpoint, apiKey, method = 'GET', body = null) {
@@ -104,7 +117,7 @@ async function runTests() {
 
   // TEST 2: Live Smartlead API for Vatsal Vadecha
   console.log('\n>>> [TEST 2] Smartlead API: Vatsal Vadecha (vatsal.vadecha@theboredmonkey.com)');
-  const vatsalKey = '39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6';
+  const vatsalKey = envOrFile('SMARTLEAD_API_KEY');
   const vatsalAccounts = await smartleadReq('/email-accounts', vatsalKey);
   console.log(`  Status: ${vatsalAccounts.status}`);
   if (Array.isArray(vatsalAccounts.data)) {
@@ -124,7 +137,7 @@ async function runTests() {
 
   // TEST 3: Live Smartlead API for Preeti Karki
   console.log('\n>>> [TEST 3] Smartlead API: Preeti Karki (preeti.karki@theboredmonkey.com)');
-  const preetiKey = 'e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt';
+  const preetiKey = envOrFile('SMARTLEAD_SECONDARY_API_KEY');
   const preetiAccounts = await smartleadReq('/email-accounts', preetiKey);
   console.log(`  Status: ${preetiAccounts.status}`);
   if (Array.isArray(preetiAccounts.data)) {

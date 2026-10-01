@@ -289,7 +289,8 @@ function TeamCard({
                 ) : (
                     <div className="flex flex-wrap gap-1.5">
                         {team.members.map((m) => {
-                            const label = m.name?.trim() || safeEmail(m.email) || `user ${m.user_id.slice(0, 8)}`;
+                            const uId = String(m.user_id || "");
+                            const label = m.name?.trim() || safeEmail(m.email) || `user ${uId.slice(0, 8) || "unknown"}`;
                             return (
                                 <span
                                     key={m.user_id}
@@ -370,7 +371,8 @@ function AddMemberPicker({
                 ) : (
                     <div className="max-h-56 overflow-y-auto">
                         {filtered.map((m) => {
-                            const email = safeEmail(m.email) || `(user ${m.user_id.slice(0, 8)})`;
+                            const uId = String(m.user_id || "");
+                            const email = safeEmail(m.email) || `(user ${uId.slice(0, 8) || "unknown"})`;
                             return (
                                 <button
                                     key={m.user_id}
@@ -392,7 +394,7 @@ function AddMemberPicker({
                                             {email}
                                         </span>
                                         <span className="block text-[10px] text-slate-400 truncate font-mono leading-tight">
-                                            {m.user_id.slice(0, 8)}
+                                            {uId ? uId.slice(0, 8) : "—"}
                                         </span>
                                     </span>
                                 </button>

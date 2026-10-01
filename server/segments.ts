@@ -18,18 +18,18 @@ export interface ContactSegment {
 }
 
 const LEGACY_CATEGORY_COUNTS: Record<string, number> = {
-    DORMANT_REPLIED: 747,
-    COLD_REENGAGEMENT: 22896,
-    WARM_STALE: 694,
-    BURNED: 3730,
+    DORMANT_REPLIED: 697,
+    COLD_REENGAGEMENT: 23232,
+    WARM_STALE: 651,
+    BURNED: 3488,
 };
 
 const LEGACY_SEGMENT_COUNTS: Record<string, number> = {
-    DORMANT_REPLIED: 747,
-    COLD_REENGAGEMENT: 22896,
-    WARM_STALE: 694,
-    BURNED: 3732,
-    IN_SEQUENCE: 3,
+    DORMANT_REPLIED: 697,
+    COLD_REENGAGEMENT: 23232,
+    WARM_STALE: 651,
+    BURNED: 3488,
+    IN_SEQUENCE: 50,
 };
 
 /**

@@ -371,7 +371,7 @@ export function UniboxFilterSheet({
                             {checked && <CheckIcon className="w-2.5 h-2.5" />}
                           </span>
                           <span className="size-5 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[9px] font-semibold shrink-0">
-                            {e.email.slice(0, 2).toUpperCase()}
+                            {(e.email || "").slice(0, 2).toUpperCase() || "??"}
                           </span>
                           <span className="text-[12px] text-slate-900 truncate flex-1">
                             {e.email}

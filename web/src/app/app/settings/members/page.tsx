@@ -28,7 +28,6 @@ import useRemoveMember from "@/lib/api/hooks/app/organizations/useRemoveMember";
 import useCancelInvitation from "@/lib/api/hooks/app/organizations/useCancelInvitation";
 import useUpdateMemberRole from "@/lib/api/hooks/app/organizations/useUpdateMemberRole";
 import useRoles from "@/lib/api/hooks/app/organizations/useRoles";
-import useAuthConfig from "@/lib/api/hooks/auth/useAuthConfig";
 import type OrganizationRole from "@/lib/api/models/app/organizations/OrganizationRole";
 import { useAppStore } from "@/stores";
 import type { AppError } from "@/lib/api/client/normalizeError";
@@ -58,7 +57,6 @@ export default function MembersSettingsPage() {
     const cancelInvite = useCancelInvitation();
     const updateRole = useUpdateMemberRole();
     const customRoles = useRoles();
-    const { config: authConfig, ready: authConfigReady } = useAuthConfig();
     const currentUserId = useAppStore((s) => s.user?.id);
     const currentOrg = useAppStore((s) => s.currentOrganization);
 
@@ -124,26 +122,25 @@ export default function MembersSettingsPage() {
             {access.canManage && (
                 <Section
                     eyebrow="Invite teammates"
-                    description="Paste any number of emails — we'll separate them automatically. Pick a role; you can change it later."
+                    description="Add any number of emails, set one password for all of them, and pick a role — no invitation email is sent, so share the password yourself. Roles can change later."
                 >
                     <InviteFlow
                         pending={invite.isPending}
-                        mailDelivers={!authConfigReady || authConfig.mail_delivers}
                         customRoles={customRoles.data ?? []}
-                        onSubmit={async (emails, roleIds) => {
+                        onSubmit={async (emails, roleIds, password) => {
                             let ok = 0;
                             let failed = 0;
                             for (const e of emails) {
                                 try {
-                                    await invite.mutateAsync({ email: e, role_ids: roleIds });
+                                    await invite.mutateAsync({ email: e, password, role_ids: roleIds });
                                     ok++;
                                 } catch {
                                     failed++;
                                 }
                             }
-                            if (ok && !failed) toast.success(`Invited ${ok} ${ok === 1 ? "person" : "people"}`);
-                            else if (ok && failed) toast.success(`Invited ${ok} · ${failed} failed`);
-                            else toast.error("All invitations failed");
+                            if (ok && !failed) toast.success(`Access granted for ${ok} ${ok === 1 ? "person" : "people"} — share the password with them.`);
+                            else if (ok && failed) toast.success(`Granted ${ok} · ${failed} failed`);
+                            else toast.error("Could not grant access");
                         }}
                     />
                 </Section>
@@ -171,7 +168,8 @@ export default function MembersSettingsPage() {
                             </thead>
                             <tbody>
                                 {memberList.map((m) => {
-                                    const email = safeEmail(m.email) || `(user ${m.user_id.slice(0, 8)})`;
+                                    const userId = String(m.user_id || "");
+                                    const email = safeEmail(m.email) || `(user ${userId.slice(0, 8) || "unknown"})`;
                                     const isSelf = m.user_id === currentUserId;
                                     const isOwner = m.role === "owner";
                                     return (
@@ -196,7 +194,7 @@ export default function MembersSettingsPage() {
                                                             )}
                                                         </div>
                                                         <div className="text-[10.5px] text-slate-400 truncate font-mono leading-tight">
-                                                            {m.user_id.slice(0, 8)}
+                                                            {userId ? userId.slice(0, 8) : "—"}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -252,7 +250,7 @@ export default function MembersSettingsPage() {
                 {invites.isPending ? (
                     <p className="text-[11.5px] text-slate-400 py-2">Loading…</p>
                 ) : inviteList.length === 0 ? (
-                    <p className="text-[11.5px] text-slate-400 py-2">Nothing pending. Invite somebody above.</p>
+                    <p className="text-[11.5px] text-slate-400 py-2">Nothing pending. Access granted above takes effect immediately.</p>
                 ) : (
                     <TableSurface>
                     <div className="overflow-x-auto">
@@ -340,19 +338,22 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 function InviteFlow({
     onSubmit,
     pending,
-    mailDelivers,
     customRoles,
 }: {
-    onSubmit: (emails: string[], roleIds: string[]) => Promise<void>;
+    onSubmit: (emails: string[], roleIds: string[], password: string) => Promise<void>;
     pending: boolean;
-    mailDelivers: boolean;
     customRoles: OrganizationRole[];
 }) {
     const [chips, setChips] = React.useState<{ email: string; valid: boolean }[]>([]);
     const [draft, setDraft] = React.useState("");
     const [roleIds, setRoleIds] = React.useState<string[]>([]);
-    // Default to the seeded Viewer (least privilege), else the first role.
-    const defaultRole = customRoles.find((r) => r.name === "Viewer") ?? customRoles[0];
+    const [password, setPassword] = React.useState("");
+    // Default to the least-privileged role: granting Owner by accident would
+    // hand out the master account.
+    const defaultRole =
+        customRoles.find((r) => r.name === "Member") ??
+        customRoles.find((r) => r.name !== "Owner" && r.name !== "Admin") ??
+        customRoles[0];
     const effectiveRoleIds = roleIds.length > 0 ? roleIds : defaultRole ? [defaultRole.id] : [];
     const selectedRoles = customRoles.filter((r) => effectiveRoleIds.includes(r.id));
     const SEPARATOR_RE = /[\s,;]+/;
@@ -416,9 +417,15 @@ function InviteFlow({
             toast.error("Create a role first (Settings → Roles & access)");
             return;
         }
-        await onSubmit(valid, effectiveRoleIds);
+        const pw = password.trim();
+        if (pw.length < 8) {
+            toast.error("Password must be at least 8 characters");
+            return;
+        }
+        await onSubmit(valid, effectiveRoleIds, pw);
         setChips([]);
         setDraft("");
+        setPassword("");
     }
 
     const totalCount = chips.length + (draft.trim() ? draft.trim().split(SEPARATOR_RE).filter(Boolean).length : 0);
@@ -436,18 +443,15 @@ function InviteFlow({
     return (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4">
             <div className="space-y-3">
-                {/* MAIL_TRANSPORT=log puts the invitation in the backend log,
-                    not in anyone's inbox. Say so before they wait for it. */}
-                {!mailDelivers && (
-                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-relaxed text-amber-800">
-                        <MailIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <span>
-                            This server does not deliver mail, so the invitation email will not arrive. Invite the
-                            person anyway, then use <span className="font-medium">Copy invite link</span> on their
-                            row under Pending invitations and send it to them yourself.
-                        </span>
-                    </div>
-                )}
+                {/* Access is granted directly: no invitation email exists, so
+                    the password has to be handed over out-of-band. */}
+                <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-relaxed text-amber-800">
+                    <MailIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>
+                        No invitation email is sent. Set a password below and share it with each person yourself —
+                        they sign in with their email and that password.
+                    </span>
+                </div>
 
                 <div>
                     <Label>Emails</Label>
@@ -506,6 +510,21 @@ function InviteFlow({
                     </p>
                 </div>
 
+                <div>
+                    <Label>Password</Label>
+                    <input
+                        type="text"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="At least 8 characters"
+                        autoComplete="new-password"
+                        className="w-full h-8 px-2 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                        One password for every email above — give it to each person directly.
+                    </p>
+                </div>
+
                 <div className="flex items-center gap-2">
                     <Label className="!mb-0 w-16">Roles</Label>
                     <RoleMultiSelect
@@ -528,7 +547,7 @@ function InviteFlow({
                         className="ml-auto h-7 px-2.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                     >
                         {pending ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <SendIcon className="w-3 h-3" />}
-                        Send invitations
+                        Grant access
                     </button>
                 </div>
             </div>

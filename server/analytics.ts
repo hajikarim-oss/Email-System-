@@ -1,4 +1,5 @@
 import type { QueryFn, QueryRow } from "./types";
+import { eventOwned, leadOwned, messageOwned, ownerOwned, type DataScope } from "./scope";
 
 export interface DashboardRequest {
     period?: string;
@@ -103,7 +104,7 @@ function rate(numerator: number, denominator: number): number {
 // The bulk intelligence refresh (updatedAt) never wins over a real timestamp or
 // a send, so no engagement is painted on a date it did not happen.
 // ---------------------------------------------------------------------------
-function engagementCte(): string {
+function engagementCte(scope: DataScope): string {
     return `
         lead_activity AS (
             SELECT l.id AS lead_id,
@@ -117,6 +118,7 @@ function engagementCte(): string {
                    (l."totalBounced" > 0 OR l."bounceCount" > 0) AS has_bounce,
                    l."updatedAt" AS updated_at
             FROM "Lead" l
+            WHERE ${leadOwned(scope, "l")}
         ),
         event_dates AS (
             SELECT e."leadId" AS lead_id,
@@ -124,6 +126,7 @@ function engagementCte(): string {
                    min(e."createdAt") FILTER (WHERE e."eventType" IN ${inList(REPLY_EVENTS)}) AS reply_at,
                    min(e."createdAt") FILTER (WHERE e."eventType" IN ${inList(BOUNCE_EVENTS)}) AS bounce_at
             FROM "EmailEvent" e
+            WHERE ${eventOwned(scope, "e")}
             GROUP BY 1
         ),
         message_dates AS (
@@ -131,6 +134,7 @@ function engagementCte(): string {
                    min("createdAt") FILTER (WHERE "replied") AS reply_at,
                    min("createdAt") FILTER (WHERE "bounced") AS bounce_at
             FROM "EmailMessage"
+            WHERE ${messageOwned(scope, `"EmailMessage"`)}
             GROUP BY 1
         ),
         engagement AS (
@@ -175,21 +179,23 @@ function engagementCte(): string {
 // bounces and clicks, each joined to its campaign. Everything downstream -
 // daily trend, heatmap, engaged totals, recent activity and per-campaign
 // engagement - is bucketed from these rows in memory.
-async function readActivityRows(query: QueryFn, startTs: string, endTs: string): Promise<QueryRow[]> {
+async function readActivityRows(query: QueryFn, startTs: string, endTs: string, scope: DataScope): Promise<QueryRow[]> {
     return query(
-        `WITH ${engagementCte()},
+        `WITH ${engagementCte(scope)},
         click_rows AS (
             SELECT e."leadId" AS lead_id, 'click'::text AS type, e."createdAt" AS ts
             FROM "EmailEvent" e
             WHERE e."eventType" IN ${inList(CLICK_EVENTS)}
               AND e."createdAt" >= $1::timestamp
               AND e."createdAt" < $2::timestamp
+              AND ${eventOwned(scope, "e")}
         ),
         send_rows AS (
             SELECT l.id AS lead_id, 'sent'::text AS type, l."lastContactedAt" AS ts
             FROM "Lead" l
             WHERE l."lastContactedAt" >= $1::timestamp
               AND l."lastContactedAt" < $2::timestamp
+              AND ${leadOwned(scope, "l")}
             UNION
             SELECT e."leadId", 'sent', e."createdAt"
             FROM "EmailEvent" e
@@ -199,6 +205,7 @@ async function readActivityRows(query: QueryFn, startTs: string, endTs: string):
               AND e."createdAt" < $2::timestamp
               AND (l."lastContactedAt" IS NULL
                    OR date_trunc('day', l."lastContactedAt") <> date_trunc('day', e."createdAt"))
+              AND ${leadOwned(scope, "l")}
         ),
         activity AS (
             SELECT lead_id, type, ts FROM send_rows
@@ -220,17 +227,18 @@ async function readActivityRows(query: QueryFn, startTs: string, endTs: string):
     );
 }
 
-async function readCampaignMeta(query: QueryFn): Promise<QueryRow[]> {
+async function readCampaignMeta(query: QueryFn, scope: DataScope): Promise<QueryRow[]> {
     return query(
         `SELECT c.id AS campaign_id,
                 c.name,
                 c.status,
                 (SELECT count(*)::int FROM "Lead" l WHERE l."campaignId" = c.id)::int AS leads
-         FROM "Campaign" c`,
+         FROM "Campaign" c
+         WHERE ${ownerOwned(scope, `c."userId"`)}`,
     );
 }
 
-async function readAccountHealth(query: QueryFn): Promise<QueryRow[]> {
+async function readAccountHealth(query: QueryFn, scope: DataScope): Promise<QueryRow[]> {
     return query(
         `SELECT
             count(*)::int AS total_accounts,
@@ -238,24 +246,28 @@ async function readAccountHealth(query: QueryFn): Promise<QueryRow[]> {
             count(*) FILTER (WHERE status IN ('WARMING', 'PAUSED'))::int AS warning_accounts,
             count(*) FILTER (WHERE status = 'RETIRED')::int AS error_accounts,
             coalesce(sum("dailySendLimit") FILTER (WHERE status IN ('ACTIVE', 'WARMING')), 0)::int AS daily_capacity
-        FROM "Mailbox"`,
+        FROM "Mailbox"
+        WHERE ${ownerOwned(scope)}`,
     );
 }
 
-async function readActiveCounts(query: QueryFn): Promise<{ activeCampaigns: number }> {
-    const rows = await query(`SELECT count(*)::int AS active FROM "Campaign" WHERE status = 'ACTIVE'`);
+async function readActiveCounts(query: QueryFn, scope: DataScope): Promise<{ activeCampaigns: number }> {
+    const rows = await query(
+        `SELECT count(*)::int AS active FROM "Campaign" WHERE status = 'ACTIVE' AND ${ownerOwned(scope)}`,
+    );
     return { activeCampaigns: rows[0]?.active ?? 0 };
 }
 
 // Today's sends are always reported for the current UTC day, even when the
 // chart window ends in the past (Custom range).
-async function readTodaySends(query: QueryFn, startTs: string, endTs: string): Promise<number> {
+async function readTodaySends(query: QueryFn, startTs: string, endTs: string, scope: DataScope): Promise<number> {
     const rows = await query(
         `SELECT coalesce(sum(sent), 0)::int AS sent
          FROM (
             SELECT count(*)::int AS sent
             FROM "Lead"
             WHERE "lastContactedAt" >= $1::timestamp AND "lastContactedAt" < $2::timestamp
+              AND ${leadOwned(scope, `"Lead"`)}
             UNION ALL
             SELECT count(DISTINCT e."leadId")::int
             FROM "EmailEvent" e
@@ -264,6 +276,7 @@ async function readTodaySends(query: QueryFn, startTs: string, endTs: string): P
               AND e."createdAt" >= $1::timestamp AND e."createdAt" < $2::timestamp
               AND (l."lastContactedAt" IS NULL
                    OR date_trunc('day', l."lastContactedAt") <> date_trunc('day', e."createdAt"))
+              AND ${leadOwned(scope, "l")}
          ) parts`,
         [startTs, endTs],
     );
@@ -347,7 +360,7 @@ interface CampaignBucket {
     engaged: Set<string>;
 }
 
-export async function getDashboard(req: DashboardRequest, query: QueryFn) {
+export async function getDashboard(req: DashboardRequest, query: QueryFn, scope: DataScope) {
     const range = resolveRange(req);
     const startTs = toTs(range.start);
     const endTs = toTs(range.endExclusive);
@@ -356,11 +369,11 @@ export async function getDashboard(req: DashboardRequest, query: QueryFn) {
     const todayEnd = new Date(todayStart.getTime() + DAY_MS);
 
     const [activity, campaignMeta, healthRows, activeCounts, todaySent] = await Promise.all([
-        readActivityRows(query, startTs, endTs),
-        readCampaignMeta(query),
-        readAccountHealth(query),
-        readActiveCounts(query),
-        readTodaySends(query, toTs(todayStart), toTs(todayEnd)),
+        readActivityRows(query, startTs, endTs, scope),
+        readCampaignMeta(query, scope),
+        readAccountHealth(query, scope),
+        readActiveCounts(query, scope),
+        readTodaySends(query, toTs(todayStart), toTs(todayEnd), scope),
     ]);
 
     const daily = new Map<string, DailyBucket>();

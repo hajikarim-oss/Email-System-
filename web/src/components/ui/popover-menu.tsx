@@ -412,7 +412,7 @@ export const SelectButton = React.forwardRef<HTMLButtonElement, SelectButtonProp
                 )}
             >
                 {icon && <span className="text-slate-400 shrink-0">{icon}</span>}
-                <span className="truncate max-w-[160px]">{label ?? placeholder ?? ""}</span>
+                <span className="truncate flex-1 text-left">{label ?? placeholder ?? ""}</span>
                 <svg
                     width="10"
                     height="10"

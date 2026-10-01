@@ -7,13 +7,15 @@ import Request from "../../Request";
 export default async function getDashboard(
     period: string = "7d",
     range?: { from?: string; to?: string },
+    member_id?: string,
 ): Promise<DashboardOverview> {
     const params = new URLSearchParams({ period });
     if (range?.from) params.set("from", range.from);
     if (range?.to) params.set("to", range.to);
+    if (member_id && member_id !== "all") params.set("member_id", member_id);
     return await Request<DashboardOverview>({
         method: "GET",
         url: `/analytics/dashboard?${params.toString()}`,
         authorization: true,
-    })
+    });
 }

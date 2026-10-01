@@ -1,11 +1,14 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
+import { smartleadKeyForSender, smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
 
-const envKey = process.env.SMARTLEAD_API_KEY;
-const PRIMARY_KEY = (envKey && !envKey.startsWith("412be3a1")) ? envKey : "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6";
-const SECONDARY_KEY = "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt";
+const PRIMARY_KEY = smartleadPrimary();
+const SECONDARY_KEY = smartleadSecondary();
 
 function apiCall(endpoint: string, method: string = "GET", body?: any, apiKey: string = PRIMARY_KEY): Promise<{ status: number; data: any }> {
+    if (!apiKey) {
+        return Promise.resolve({ status: 503, data: { error: "smartlead_api_key_not_configured" } });
+    }
     return new Promise((resolve, reject) => {
         const separator = endpoint.includes("?") ? "&" : "?";
         const fullPath = `${endpoint}${separator}api_key=${apiKey}`;
@@ -59,10 +62,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const parsed = JSON.parse(body || "{}");
             const campaignName = parsed.name || `Campaign ${Date.now()}`;
             const sender = (parsed.sender_email || "").toLowerCase();
-            const chosenKey = parsed.api_key || (sender.includes("preeti") ? SECONDARY_KEY : PRIMARY_KEY);
+            const chosenKey = smartleadKeyForSender(sender, parsed.api_key);
 
             let createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
-            if ((createRes.status === 401 || createRes.status === 404) && !parsed.api_key) {
+            if ((createRes.status === 401 || createRes.status === 404) && !parsed.api_key && SECONDARY_KEY && chosenKey !== SECONDARY_KEY) {
                 try {
                     const fallback = await apiCall("/campaigns/create", "POST", { name: campaignName }, SECONDARY_KEY);
                     if (fallback.status >= 200 && fallback.status < 300) {
