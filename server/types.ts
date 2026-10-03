@@ -12,6 +12,8 @@ export interface ContactsRequest {
     subscribed?: boolean | null;
     company?: string;
     domain?: string;
+    category?: string;
+    categoryIds?: string[];
 }
 
 export interface ContactsCounts {

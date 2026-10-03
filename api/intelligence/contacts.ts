@@ -44,6 +44,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 subscribed,
                 company: params.get("company") || "",
                 domain: params.get("domain") || "",
+                category: params.get("category") || params.get("category_ids") || "",
             },
             pgQuery,
             scope,

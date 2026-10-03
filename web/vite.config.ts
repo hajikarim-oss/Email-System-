@@ -1050,6 +1050,7 @@ function databaseIntelligencePlugin() {
                                 subscribed,
                                 company: pick("company") || "",
                                 domain: pick("domain") || pick("domains") || "",
+                                category: pick("category") || pick("category_ids") || "",
                             },
                             prismaQuery,
                             activeScope,

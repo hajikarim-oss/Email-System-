@@ -23,6 +23,44 @@ interface Where {
     params: unknown[];
 }
 
+function buildCategoryCondition(catRaw: string, push: (val: unknown) => string): string {
+    const cat = catRaw.trim().toLowerCase();
+    if (cat === "cat_luggage" || cat.includes("luggage") || cat.includes("travel")) {
+        const p1 = push("%luggage%");
+        const p2 = push("%travel%");
+        return `("customData"->>'category' ILIKE ${p1} OR "customData"->>'category' ILIKE ${p2} OR "leadCategory"::text ILIKE ${p1})`;
+    }
+    if (cat === "cat_healthcare" || cat.includes("health") || cat.includes("pharma")) {
+        const p1 = push("%health%");
+        const p2 = push("%pharma%");
+        return `("customData"->>'category' ILIKE ${p1} OR "customData"->>'category' ILIKE ${p2} OR "leadCategory"::text ILIKE ${p1})`;
+    }
+    if (cat === "cat_fashion" || cat.includes("fashion") || cat.includes("apparel")) {
+        const p1 = push("%fashion%");
+        const p2 = push("%apparel%");
+        return `("customData"->>'category' ILIKE ${p1} OR "customData"->>'category' ILIKE ${p2} OR "leadCategory"::text ILIKE ${p1})`;
+    }
+    if (cat === "cat_beauty" || cat.includes("beauty") || cat.includes("skin") || cat.includes("cosmetic")) {
+        const p1 = push("%beauty%");
+        const p2 = push("%skin%");
+        return `("customData"->>'category' ILIKE ${p1} OR "customData"->>'category' ILIKE ${p2} OR "leadCategory"::text ILIKE ${p1})`;
+    }
+    if (cat === "cat_dormant" || cat.includes("dormant")) {
+        return `"outreachState"::text = 'DORMANT_REPLIED'`;
+    }
+    if (cat === "cat_cold" || cat.includes("cold")) {
+        return `"outreachState"::text = 'COLD_REENGAGEMENT'`;
+    }
+    if (cat === "cat_warm" || cat.includes("warm")) {
+        return `"outreachState"::text = 'WARM_STALE'`;
+    }
+    if (cat === "cat_burned" || cat.includes("burn") || cat.includes("quarantine")) {
+        return `"outreachState"::text = 'BURNED'`;
+    }
+    const like = push(`%${cat}%`);
+    return `("customData"->>'category' ILIKE ${like} OR "leadCategory"::text ILIKE ${like})`;
+}
+
 function buildWhere(req: ContactsRequest, scope: DataScope): Where {
     const params: unknown[] = [];
     const push = (value: unknown) => {
@@ -31,12 +69,17 @@ function buildWhere(req: ContactsRequest, scope: DataScope): Where {
     };
     const conds: string[] = [];
 
-    conds.push(leadOwned(scope, `"Lead"`));
-
+    // All contacts are accessible to both master and team members across the workspace.
+    // When a campaign filter is chosen in the dropdown, filter by that campaign.
     const campaignIds = (req.campaignIds || []).map(String).filter(Boolean);
     if (campaignIds.length > 0) {
         const placeholders = campaignIds.map((id) => push(id));
         conds.push(`"campaignId" IN (${placeholders.join(", ")})`);
+    }
+
+    const category = (req.category || req.categoryIds?.[0] || "").trim();
+    if (category && category !== "all") {
+        conds.push(buildCategoryCondition(category, push));
     }
 
     const search = (req.query || "").trim();
@@ -161,6 +204,23 @@ function mapLead(l: any, campaignScoped: boolean) {
 
     const stateLabel = (l.outreachState || "NEVER_REACHED").replace(/_/g, " ");
 
+    const customCat = typeof custom.category === "string" ? custom.category.trim() : "";
+    let leadCategoryObj: { id: string; title: string; color: string } | null = null;
+    if (customCat) {
+        const lower = customCat.toLowerCase();
+        if (lower.includes("luggage") || lower.includes("travel")) {
+            leadCategoryObj = { id: "cat_luggage", title: "Luggage", color: "#db2777" };
+        } else if (lower.includes("health") || lower.includes("pharma")) {
+            leadCategoryObj = { id: "cat_healthcare", title: "Healthcare", color: "#0284c7" };
+        } else if (lower.includes("fashion") || lower.includes("apparel")) {
+            leadCategoryObj = { id: "cat_fashion", title: "Fashion", color: "#7c3aed" };
+        } else if (lower.includes("beauty") || lower.includes("skin")) {
+            leadCategoryObj = { id: "cat_beauty", title: "Beauty and Skincare", color: "#ea580c" };
+        } else if (customCat !== "Other Segments") {
+            leadCategoryObj = { id: `cat_${customCat.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`, title: customCat, color: "#64748b" };
+        }
+    }
+
     return {
         id: l.id,
         first_name: l.firstName || (l.email ? String(l.email).split("@")[0] : "") || "Prospect",
@@ -177,8 +237,17 @@ function mapLead(l: any, campaignScoped: boolean) {
         campaigns: l.campaignId ? [{ id: l.campaignId, name: l.lastCampaign || "Q3 Campaign" }] : [],
         campaign_lead: campaignLead,
         categories: [
+            ...(leadCategoryObj ? [leadCategoryObj] : []),
             {
-                id: l.outreachState || "UNKNOWN",
+                id: l.outreachState === "DORMANT_REPLIED"
+                    ? "cat_dormant"
+                    : l.outreachState === "COLD_REENGAGEMENT"
+                      ? "cat_cold"
+                      : l.outreachState === "WARM_STALE"
+                        ? "cat_warm"
+                        : l.outreachState === "BURNED"
+                          ? "cat_burned"
+                          : l.outreachState || "UNKNOWN",
                 title: stateLabel,
                 color:
                     l.outreachState === "DORMANT_REPLIED"
@@ -214,7 +283,7 @@ function mapLead(l: any, campaignScoped: boolean) {
             outcome: l.lastOutcome || "delivered",
             date: l.lastContactedAt || l.createdAt,
         },
-        tags: [l.outreachState, daysAgo, l.recencyBucket].filter(Boolean),
+        tags: [leadCategoryObj?.title, l.outreachState, daysAgo, l.recencyBucket].filter(Boolean),
         open_count: l.openCount || 0,
         click_count: l.clickCount || 0,
         reply_count: l.totalReplied || 0,
@@ -224,7 +293,6 @@ function mapLead(l: any, campaignScoped: boolean) {
 }
 
 async function readCounts(query: QueryFn, scope: DataScope): Promise<ContactsCounts> {
-    const owned = leadOwned(scope, `"Lead"`);
     const [facetRows, categoryRows, contactRows] = await Promise.all([
         query(`
             SELECT
@@ -234,16 +302,14 @@ async function readCounts(query: QueryFn, scope: DataScope): Promise<ContactsCou
                 )::int AS subscribed,
                 count(*) FILTER (WHERE "campaignId" IS NOT NULL)::int AS in_campaign
             FROM "Lead"
-            WHERE ${owned}
         `),
         query(`
             SELECT "outreachState"::text AS category_id, count(*)::int AS count
             FROM "Lead"
-            WHERE ${owned}
             GROUP BY 1
             ORDER BY 2 DESC
         `),
-        query(`SELECT count(*) FILTER (WHERE "totalOutbound" > 0)::int AS contacted FROM "Lead" WHERE ${owned}`),
+        query(`SELECT count(*) FILTER (WHERE "totalOutbound" > 0)::int AS contacted FROM "Lead"`),
     ]);
 
     const total = facetRows[0]?.total ?? 0;
@@ -266,7 +332,7 @@ async function readLeadCounts(query: QueryFn, campaignIds: string[], scope: Data
         params.push(id);
         return `$${params.length}`;
     });
-    const whereSql = `WHERE "campaignId" IN (${placeholders.join(", ")}) AND ${leadOwned(scope, `"Lead"`)}`;
+    const whereSql = `WHERE "campaignId" IN (${placeholders.join(", ")})`;
 
     const rows = await query(
         `SELECT

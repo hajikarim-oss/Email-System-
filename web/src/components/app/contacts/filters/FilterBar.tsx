@@ -177,6 +177,7 @@ export default function FilterBar({
             sort_by: s.sort_by,
             reverse: s.reverse,
             outreach_states: undefined,
+            category_ids: undefined,
             domains: undefined,
         }));
     }
@@ -202,6 +203,15 @@ export default function FilterBar({
 
     return (
         <div className="px-5 py-1.5 border-b border-slate-200/60 bg-white flex flex-wrap items-center gap-1.5">
+            <ChoicePill<string | undefined>
+                id="category"
+                label="Category"
+                openKey={openKey}
+                setOpenKey={setOpenKey}
+                value={filters.category_ids?.[0]}
+                onChange={(v) => setFilters((s) => ({ ...s, category_ids: v ? [v] : undefined }))}
+                options={categoryOptions.map((c) => ({ id: c.id, label: c.label }))}
+            />
             <ChoicePill<string | undefined>
                 id="outreach_state"
                 label="Outreach State"

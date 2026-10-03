@@ -2641,11 +2641,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             if (reqBody.outreach_state) intParams.set("outreach_state", reqBody.outreach_state);
             if (reqBody.recency_bucket) intParams.set("recency_bucket", reqBody.recency_bucket);
 
-            // Outreach state / Category multi-select
+            // Category filter
+            if (reqBody.category_ids && reqBody.category_ids.length > 0) {
+                intParams.set("category", reqBody.category_ids[0]);
+            } else if (reqBody.category) {
+                intParams.set("category", reqBody.category);
+            } else if (queryParams.get("category")) {
+                intParams.set("category", queryParams.get("category")!);
+            }
+
+            // Outreach state multi-select
             if (reqBody.outreach_states && reqBody.outreach_states.length > 0) {
                 intParams.set("outreach_state", reqBody.outreach_states[0]);
-            } else if (reqBody.category_ids && reqBody.category_ids.length > 0) {
-                intParams.set("outreach_state", reqBody.category_ids[0]);
             }
 
             // Company and Domain filter
@@ -2718,6 +2725,25 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         } else {
             results = [...contacts];
             totalCampLeads = results;
+        }
+
+        // Filter by category
+        const catFilter = reqBody.category || reqBody.category_ids?.[0] || queryParams.get("category");
+        if (catFilter && catFilter !== "all") {
+            const cf = catFilter.toLowerCase();
+            results = results.filter((c: any) => {
+                const leadCat = (c.category || c.lead_category || c.custom_fields?.category || "").toLowerCase();
+                const leadState = (c.outreach_state || c.temporal_state?.outreach_state || "").toLowerCase();
+                if (cf.includes("luggage")) return leadCat.includes("luggage") || leadCat.includes("travel");
+                if (cf.includes("health")) return leadCat.includes("health") || leadCat.includes("pharma");
+                if (cf.includes("fash")) return leadCat.includes("fashion") || leadCat.includes("apparel");
+                if (cf.includes("beauty") || cf.includes("skin")) return leadCat.includes("beauty") || leadCat.includes("skin");
+                if (cf.includes("dormant")) return leadState.includes("dormant");
+                if (cf.includes("cold")) return leadState.includes("cold");
+                if (cf.includes("warm")) return leadState.includes("warm");
+                if (cf.includes("burn") || cf.includes("quarantine")) return leadState.includes("burn");
+                return leadCat.includes(cf) || leadState.includes(cf);
+            });
         }
 
         // 1. Filter by search query (first_name, last_name, email, company, title/role)

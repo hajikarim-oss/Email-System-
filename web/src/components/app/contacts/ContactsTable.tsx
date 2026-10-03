@@ -166,6 +166,13 @@ export default function ContactsTable({
         };
     });
 
+    React.useEffect(() => {
+        const category = params.get("category");
+        if (category && !segment && !current_campaign) {
+            setSearchProps((s) => ({ ...s, category_ids: [category] }));
+        }
+    }, [params, segment, current_campaign]);
+
     function saveAsSegment(draft: SearchContacts) {
         const { conditions, dropped } = filtersToSegment(draft, current_campaign?.id);
         if (dropped.length > 0) toast(`Not carried over: ${dropped.join(", ")}. Add a condition for it in the editor.`);
