@@ -22,6 +22,8 @@ export interface UniboxListRow {
   has_unread: boolean;
   /** Conversation labels (categories) assigned to the thread. */
   labels: { id: string; title: string; color: string }[];
+  campaign_id?: string;
+  campaign_name?: string;
 }
 
 interface UniboxListResponse {
@@ -64,6 +66,7 @@ export default async function searchIncoming(
   if (p.categoryIds && p.categoryIds.length > 0) {
     usp.set("category_ids", p.categoryIds.join(","));
   }
+  if (p.campaignId) usp.set("campaign_id", p.campaignId);
   if (p.since) usp.set("since", isoDay(p.since));
   if (p.until) usp.set("until", isoDay(p.until));
   if (p.cursor) usp.set("cursor", p.cursor);

@@ -60,7 +60,7 @@ export function normalizeNotificationPreferences(
     const billing: CategoryPref = { enabled: true, channels: { in_app: true, email: true, slack: false, push: true } };
     const minutes = p?.email_digest_minutes ?? EMAIL_WINDOW_MIN_MINUTES;
     return {
-        inbound_reply: p?.inbound_reply ?? off,
+        inbound_reply: p?.inbound_reply ?? on,
         inbound_out_of_office: p?.inbound_out_of_office ?? off,
         health_bounce: p?.health_bounce ?? on,
         health_complaint: p?.health_complaint ?? on,

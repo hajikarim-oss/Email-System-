@@ -65,6 +65,8 @@ export default function UniboxPage() {
     return "all";
   });
 
+  const [selectedCampaignId, setSelectedCampaignId] = React.useState<string>("all");
+
   // Sync if user profile loads late
   React.useEffect(() => {
     if (!isMaster && userTeamMember && selectedMemberId !== userTeamMember.id) {
@@ -253,23 +255,29 @@ export default function UniboxPage() {
           next.accountIds = mem.mailboxIds;
         }
       }
+
+      if (selectedCampaignId !== "all") {
+        next.campaignId = selectedCampaignId;
+      }
+
       return next;
     },
-    [scope, tagAccountIds, selectedMemberId],
+    [scope, tagAccountIds, selectedMemberId, selectedCampaignId],
   );
   const [params, setParams] = React.useState<UniboxSearchParams>(() =>
     paramsForScope("newest"),
   );
-  // Reset filters when the scope changes or member filter changes,
+  // Reset filters when the scope changes or member/campaign filter changes,
   // keeping only the sort. Setting state during render re-renders before commit.
   const tagIdsKey = tagAccountIds?.join(",") ?? "";
-  const [prevReset, setPrevReset] = React.useState({ scope, tagIdsKey, selectedMemberId });
+  const [prevReset, setPrevReset] = React.useState({ scope, tagIdsKey, selectedMemberId, selectedCampaignId });
   if (
     prevReset.scope !== scope ||
     prevReset.tagIdsKey !== tagIdsKey ||
-    prevReset.selectedMemberId !== selectedMemberId
+    prevReset.selectedMemberId !== selectedMemberId ||
+    prevReset.selectedCampaignId !== selectedCampaignId
   ) {
-    setPrevReset({ scope, tagIdsKey, selectedMemberId });
+    setPrevReset({ scope, tagIdsKey, selectedMemberId, selectedCampaignId });
     setParams((prev) => paramsForScope(prev.sortBy));
   }
 
@@ -336,6 +344,8 @@ export default function UniboxPage() {
           onOpenScopeSheet={() => setScopeSheetOpen(true)}
           selectedMemberId={selectedMemberId}
           onSelectMember={(id) => setSelectedMemberId(id)}
+          selectedCampaignId={selectedCampaignId}
+          onSelectCampaign={(id) => setSelectedCampaignId(id)}
           isMaster={isMaster}
           currentUser={user}
         />

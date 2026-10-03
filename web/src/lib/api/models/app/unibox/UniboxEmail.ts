@@ -13,6 +13,8 @@ export default interface UniboxEmail {
   message_count?: number;
   /** Conversation labels (categories) assigned to the thread. */
   labels?: { id: string; title: string; color: string }[];
+  campaign_id?: string;
+  campaign_name?: string;
 }
 
 /** GET /unibox/:id — the full message, body included. */

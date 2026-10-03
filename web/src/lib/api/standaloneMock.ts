@@ -675,6 +675,109 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         return res({ error: "unauthorized", message: "A valid session is required." }, 401);
     }
 
+    if (pathWithoutQuery === "/auth/me/notification-preferences") {
+        const defaultPrefs = {
+            inbound_reply: { enabled: true, channels: { in_app: true, email: true, slack: false, push: true } },
+            inbound_out_of_office: { enabled: false, channels: { in_app: true, email: false, slack: false, push: true } },
+            health_bounce: { enabled: true, channels: { in_app: true, email: false, slack: false, push: true } },
+            health_complaint: { enabled: true, channels: { in_app: true, email: false, slack: false, push: true } },
+            health_worker_downtime: { enabled: true, channels: { in_app: true, email: false, slack: false, push: true } },
+            security_new_signin: { enabled: true, channels: { in_app: true, email: false, slack: false, push: true } },
+            billing_alert: { enabled: true, channels: { in_app: true, email: true, slack: false, push: true } },
+            team_activity: { enabled: true, channels: { in_app: true, email: false, slack: false, push: true } },
+            campaign_paused: { enabled: true, channels: { in_app: true, email: true, slack: false, push: true } },
+            health_domain_auth: { enabled: true, channels: { in_app: true, email: true, slack: false, push: true } },
+            email_digest_minutes: 30,
+        };
+        if (config.method?.toLowerCase() === "put") {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const saved = body.preferences || body;
+            saveStorage("notification_preferences", saved);
+            return res({
+                preferences: saved,
+                email_delivery: { min_minutes: 30, max_minutes: 1440, daily_cap: 100 },
+            }, 200);
+        }
+        const prefs = loadStorage("notification_preferences", defaultPrefs);
+        return res({
+            preferences: prefs,
+            email_delivery: { min_minutes: 30, max_minutes: 1440, daily_cap: 100 },
+        }, 200);
+    }
+
+    if (pathWithoutQuery === "/auth/me/notifications" || pathWithoutQuery.startsWith("/auth/me/notifications/")) {
+        const defaultNotifications = [
+            {
+                id: "notif_reply_jayant_q3",
+                user_id: "cmu6m304o00003307qj8ex6oa",
+                category: "inbound_reply",
+                title: "New reply from Jayant (Miss Mosa)",
+                body: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
+                link: "/app/unibox/all/th_camp_jayant_missmosa",
+                read_at: null,
+                created_at: "2026-09-24T11:33:00.000Z",
+            },
+            {
+                id: "notif_reply_saurabh_q3",
+                user_id: "cmu6m304o00003307qj8ex6oa",
+                category: "inbound_reply",
+                title: "New reply from Saurabh (Limeroad)",
+                body: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
+                link: "/app/unibox/all/th_camp_saurabh_limeroad",
+                read_at: null,
+                created_at: "2026-09-24T10:15:00.000Z",
+            },
+            {
+                id: "notif_reply_rajdeep_q2",
+                user_id: "cmtr9pp8t0000cygeyjpsz5lt",
+                category: "inbound_reply",
+                title: "New reply from Rajdeep More",
+                body: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More.",
+                link: "/app/unibox/all/th_camp_rajdeep_main",
+                read_at: null,
+                created_at: "2026-09-16T06:48:00.000Z",
+            },
+            {
+                id: "notif_reply_snehal_101",
+                user_id: "cmtr9pp8t0000cygeyjpsz5lt",
+                category: "inbound_reply",
+                title: "New reply from Snehal Maurya",
+                body: "Noted with thanks. Karim",
+                link: "/app/unibox/all/th_reachout_101_snehal",
+                read_at: null,
+                created_at: "2026-09-16T05:30:00.000Z",
+            },
+        ];
+
+        // Mark all as read
+        if (config.method?.toLowerCase() === "put" && pathWithoutQuery === "/auth/me/notifications") {
+            const list = loadStorage<any[]>("app_notifications_feed", defaultNotifications);
+            const updated = list.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() }));
+            saveStorage("app_notifications_feed", updated);
+            return res({ status: "ok" }, 200);
+        }
+
+        // Mark single as read
+        if (config.method?.toLowerCase() === "post" && pathWithoutQuery.endsWith("/read")) {
+            const parts = pathWithoutQuery.split("/");
+            const notifId = parts[parts.length - 2];
+            const list = loadStorage<any[]>("app_notifications_feed", defaultNotifications);
+            const updated = list.map((n) => (n.id === notifId ? { ...n, read_at: new Date().toISOString() } : n));
+            saveStorage("app_notifications_feed", updated);
+            return res({ status: "ok" }, 200);
+        }
+
+        // GET notifications
+        const list = loadStorage<any[]>("app_notifications_feed", defaultNotifications);
+        const unreadOnly = queryParams.get("unread") === "1";
+        const filtered = unreadOnly ? list.filter((n) => !n.read_at) : list;
+        const unreadCount = list.filter((n) => !n.read_at).length;
+        return res({
+            notifications: filtered,
+            unread: unreadCount,
+        }, 200);
+    }
+
     if (pathWithoutQuery === "/auth/login") {
         const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
         const email = (body.email || "").trim().toLowerCase();
@@ -3426,32 +3529,36 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
 
-    // Vatsal Vadecha's real Q3 Campaign replies
-    const peachmodeRepliedRow = {
-        id: "msg_reply_peachmode_q3",
+    // Vatsal Vadecha's real Smartlead Q3 Campaign replies
+    const jayantMissmosaRepliedRow = {
+        id: "msg_reply_jayant_missmosa",
         email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
-        thread_id: "th_camp_peachmode_q3",
-        from_addr: ["Aishwarya <aishwarya@peachmode.com>"],
+        thread_id: "th_camp_jayant_missmosa",
+        campaign_id: "cmp_1790233732719_dvlj",
+        campaign_name: "Q3 Campaign",
+        from_addr: ["Jayant <jayant@missmosa.in>"],
         to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-        subject: "Re: Influencer marketing partnerships for Peachmode",
-        snippet: "Hi Vatsal, Thanks for reaching out. We are open to exploring creator collaborations for our upcoming ethnic wear festive sale. Could you share your deck and pricing?",
-        internal_date: "2026-09-18T14:20:00.000Z",
-        seen: true,
+        subject: "Re: Miss Mosa X TBM: Modern Wellness, Authentically Told",
+        snippet: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
+        internal_date: "2026-09-24T11:33:00.000Z", // 24 Sept, 5:03 PM GMT+5:30
+        seen: false,
         message_count: 2,
-        has_unread: false,
+        has_unread: true,
         folder: "inbox",
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
 
-    const bewakoofRepliedRow = {
-        id: "msg_reply_bewakoof_q3",
+    const saurabhLimeroadRepliedRow = {
+        id: "msg_reply_saurabh_limeroad",
         email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
-        thread_id: "th_camp_bewakoof_q3",
-        from_addr: ["Aisha A <aisha.a@bewakoof.com>"],
+        thread_id: "th_camp_saurabh_limeroad",
+        campaign_id: "cmp_1790233732719_dvlj",
+        campaign_name: "Q3 Campaign",
+        from_addr: ["Saurabh Ahuja <saurabh.ahuja@limeroad.com>"],
         to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-        subject: "Re: Influencer marketing partnerships for Bewakoof",
-        snippet: "Hi Vatsal, Let's connect next week to discuss creator campaigns for our Gen-Z drop. Sending over a calendar invite.",
-        internal_date: "2026-09-18T13:45:00.000Z",
+        subject: "Re: Limeroad X TBM || Influencer Marketing & Creator Outreach",
+        snippet: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
+        internal_date: "2026-09-24T10:15:00.000Z", // 24 Sept, 3:45 PM GMT+5:30
         seen: false,
         message_count: 2,
         has_unread: true,
@@ -3464,6 +3571,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         id: "msg_reply_mamaearth_snehal",
         email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya
         thread_id: "th_camp_mamaearth_snehal",
+        campaign_id: "cmp_1789560721755",
+        campaign_name: "Campaign 120",
         from_addr: ["Kiran Rao <kiran.rao@mamaearth.in>"],
         to_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
         subject: "Re: D2C Creator Growth Partnership",
@@ -3481,6 +3590,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         id: "msg_reply_boat_preeti",
         email_id: "cmu6m31bv00033307zao17anp", // Preeti Karki
         thread_id: "th_camp_boat_preeti",
+        campaign_id: "cmtvl4lye0001tdcgjxhipix8",
+        campaign_name: "Campaign 108",
         from_addr: ["Rohan Verma <rohan.verma@boat-lifestyle.com>"],
         to_addr: ["Preeti Karki <preeti.karki@theboredmonkey.com>"],
         subject: "Re: Product Placement & Audio Creator Outreach",
@@ -3498,23 +3609,32 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         rajdeepRepliedRow,
         snehalReachout101Row,
         surajFrameworkRow,
-        peachmodeRepliedRow,
-        bewakoofRepliedRow,
+        jayantMissmosaRepliedRow,
+        saurabhLimeroadRepliedRow,
         mamaearthRepliedRow,
         boatRepliedRow,
     ];
 
-    // Filter out any legacy demo rows from stored inbox and enforce September 16 timestamps
+    // Filter out any legacy demo rows from stored inbox and enforce September timestamps
     const cleanStoredInbox = storedInbox
         .filter((r) => {
             const fromStr = (r.from_addr?.[0] || "").toLowerCase();
             const subStr = (r.subject || "").toLowerCase();
+            const threadStr = (r.thread_id || "").toLowerCase();
             return !fromStr.includes("sarah.chen") &&
                 !fromStr.includes("marcus.v") &&
                 !fromStr.includes("alex.r") &&
                 !fromStr.includes("priya@") &&
                 !fromStr.includes("david@") &&
                 !fromStr.includes("elena.") &&
+                !fromStr.includes("peachmode") &&
+                !fromStr.includes("bewakoof") &&
+                !fromStr.includes("aishwarya") &&
+                !fromStr.includes("aisha") &&
+                !threadStr.includes("peachmode") &&
+                !threadStr.includes("bewakoof") &&
+                !subStr.includes("peachmode") &&
+                !subStr.includes("bewakoof") &&
                 !subStr.includes("collaboration confirmation") &&
                 !(r.snippet || "").toLowerCase().includes("deliverables timeline");
         })
@@ -3538,14 +3658,16 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     const defaultSentRows = [
         {
-            id: "sent_init_peachmode",
+            id: "sent_init_jayant_missmosa",
             email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
-            thread_id: "th_camp_peachmode_q3",
+            thread_id: "th_camp_jayant_missmosa",
+            campaign_id: "cmp_1790233732719_dvlj",
+            campaign_name: "Q3 Campaign",
             from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-            to_addr: ["Aishwarya <aishwarya@peachmode.com>"],
-            subject: "Influencer marketing partnerships for Peachmode",
-            snippet: "Hi Aishwarya, We run creator-led campaigns that scale performance outreach. Wanted to connect regarding partnerships with Peachmode.",
-            internal_date: "2026-09-18T10:15:00.000Z",
+            to_addr: ["Jayant <jayant@missmosa.in>"],
+            subject: "Miss Mosa X TBM: Modern Wellness, Authentically Told",
+            snippet: "Hi Jayant, Hope you’ve been doing great. I’ve been following Miss Mosa and truly admire the way you’ve built trust and consistency. Wanted to connect regarding creator-led influencer marketing.",
+            internal_date: "2026-09-24T08:13:33.000Z",
             seen: true,
             message_count: 2,
             has_unread: false,
@@ -3553,14 +3675,16 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             labels: [],
         },
         {
-            id: "sent_init_bewakoof",
+            id: "sent_init_saurabh_limeroad",
             email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
-            thread_id: "th_camp_bewakoof_q3",
+            thread_id: "th_camp_saurabh_limeroad",
+            campaign_id: "cmp_1790233732719_dvlj",
+            campaign_name: "Q3 Campaign",
             from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-            to_addr: ["Aisha A <aisha.a@bewakoof.com>"],
-            subject: "Influencer marketing partnerships for Bewakoof",
-            snippet: "Hi Aisha, We run creator-led campaigns that scale performance outreach. Wanted to connect regarding partnerships with Bewakoof.",
-            internal_date: "2026-09-18T10:18:00.000Z",
+            to_addr: ["Saurabh Ahuja <saurabh.ahuja@limeroad.com>"],
+            subject: "Limeroad X TBM || Influencer Marketing & Creator Outreach",
+            snippet: "Hi Saurabh, We run creator-led campaigns that scale performance marketing. Let me know if you are open to discussing influencer marketing and regional creator campaigns for Limeroad.",
+            internal_date: "2026-09-24T10:02:14.000Z",
             seen: true,
             message_count: 2,
             has_unread: false,
@@ -3571,6 +3695,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             id: "sent_init_mamaearth",
             email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya
             thread_id: "th_camp_mamaearth_snehal",
+            campaign_id: "cmp_1789560721755",
+            campaign_name: "Campaign 120",
             from_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
             to_addr: ["Kiran Rao <kiran.rao@mamaearth.in>"],
             subject: "D2C Creator Growth Partnership",
@@ -3586,6 +3712,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             id: "sent_init_boat",
             email_id: "cmu6m31bv00033307zao17anp", // Preeti Karki
             thread_id: "th_camp_boat_preeti",
+            campaign_id: "cmtvl4lye0001tdcgjxhipix8",
+            campaign_name: "Campaign 108",
             from_addr: ["Preeti Karki <preeti.karki@theboredmonkey.com>"],
             to_addr: ["Rohan Verma <rohan.verma@boat-lifestyle.com>"],
             subject: "Product Placement & Audio Creator Outreach",
@@ -3601,6 +3729,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             id: "sent_init_rajdeep",
             email_id: "cmtlkufpi000o80qmmlfsfat7",
             thread_id: "th_camp_rajdeep_main",
+            campaign_id: "cmp_1789718475256_g91f",
+            campaign_name: "Q2 Reachout Mails",
             from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
             to_addr: ["Rajdeep More <hajikarimbeldaar@gmail.com>"],
             subject: "Influencer marketing partnership — TheBoredMonkey",
@@ -3616,6 +3746,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             id: "sent_init_reachout101_snehal",
             email_id: "cmtlkufpi000o80qmmlfsfat7", // Haji Karim
             thread_id: "th_reachout_101_snehal",
+            campaign_id: "cmp_1789560721755",
+            campaign_name: "Campaign 120",
             from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
             to_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
             subject: "Reachout 101",
@@ -3631,6 +3763,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             id: "sent_init_suraj",
             email_id: "cmtlkufpi000o80qmmlfsfat7",
             thread_id: "th_suraj_framework",
+            campaign_id: "cmtwmgdm00001sikkb3l1bc3r",
+            campaign_name: "Pratik is testing",
             from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
             to_addr: ["Suraj Maurya <suraj@theboredmonkey.com>"],
             subject: "Re: YouTube Growth & Outbound Framework || TheBoredMonkey",
@@ -3648,7 +3782,13 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         .filter((r) => {
             const sub = (r.subject || "").toLowerCase();
             const snip = (r.snippet || "").toLowerCase();
-            return !sub.includes("collaboration confirmation") && !snip.includes("deliverability roadmap");
+            const threadStr = (r.thread_id || "").toLowerCase();
+            return !sub.includes("peachmode") &&
+                !sub.includes("bewakoof") &&
+                !threadStr.includes("peachmode") &&
+                !threadStr.includes("bewakoof") &&
+                !sub.includes("collaboration confirmation") &&
+                !snip.includes("deliverability roadmap");
         })
         .map((r) => {
             if (r.thread_id === "th_camp_rajdeep_main" || r.id === "sent_init_rajdeep") {
@@ -3734,6 +3874,12 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             pool = pool.filter(r => targetMailboxIds.includes(r.email_id));
         }
 
+        // 1b. Campaign filtering
+        const campaignFilter = queryParams.get("campaign_id") || queryParams.get("campaignId") || "";
+        if (campaignFilter && campaignFilter !== "all") {
+            pool = pool.filter(r => r.campaign_id === campaignFilter || r.campaignId === campaignFilter);
+        }
+
         // 2. Search query filtering
         if (searchQuery) {
             pool = pool.filter(r =>
@@ -3780,7 +3926,57 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const customReplies = loadStorage<any[]>(`thread_replies_${threadId}`, []);
 
         let threadMessages: any[] = [];
-        if (threadId === "th_reachout_101_snehal" || threadId.includes("reachout_101") || threadId.includes("snehal")) {
+        if (threadId === "th_camp_jayant_missmosa" || threadId.includes("jayant") || threadId.includes("missmosa")) {
+            threadMessages = [
+                {
+                    id: "sent_init_jayant_missmosa",
+                    email_id: "cmu6m304o00003307qj8ex6oa",
+                    thread_id: threadId,
+                    from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+                    to_addr: ["Jayant <jayant@missmosa.in>"],
+                    subject: "Miss Mosa X TBM: Modern Wellness, Authentically Told",
+                    snippet: "Hi Jayant, Hope you’ve been doing great. I’ve been following Miss Mosa and truly admire the way you’ve built trust and consistency. Wanted to connect regarding creator-led influencer marketing.",
+                    internal_date: "2026-09-24T08:13:33.000Z",
+                    seen: true,
+                },
+                {
+                    id: "msg_reply_jayant_missmosa",
+                    email_id: "cmu6m304o00003307qj8ex6oa",
+                    thread_id: threadId,
+                    from_addr: ["Jayant <jayant@missmosa.in>"],
+                    to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+                    subject: "Re: Miss Mosa X TBM: Modern Wellness, Authentically Told",
+                    snippet: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
+                    internal_date: "2026-09-24T11:33:00.000Z",
+                    seen: false,
+                }
+            ];
+        } else if (threadId === "th_camp_saurabh_limeroad" || threadId.includes("saurabh") || threadId.includes("limeroad")) {
+            threadMessages = [
+                {
+                    id: "sent_init_saurabh_limeroad",
+                    email_id: "cmu6m304o00003307qj8ex6oa",
+                    thread_id: threadId,
+                    from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+                    to_addr: ["Saurabh Ahuja <saurabh.ahuja@limeroad.com>"],
+                    subject: "Limeroad X TBM || Influencer Marketing & Creator Outreach",
+                    snippet: "Hi Saurabh, We run creator-led campaigns that scale performance marketing. Let me know if you are open to discussing influencer marketing and regional creator campaigns for Limeroad.",
+                    internal_date: "2026-09-24T10:02:14.000Z",
+                    seen: true,
+                },
+                {
+                    id: "msg_reply_saurabh_limeroad",
+                    email_id: "cmu6m304o00003307qj8ex6oa",
+                    thread_id: threadId,
+                    from_addr: ["Saurabh Ahuja <saurabh.ahuja@limeroad.com>"],
+                    to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+                    subject: "Re: Limeroad X TBM || Influencer Marketing & Creator Outreach",
+                    snippet: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
+                    internal_date: "2026-09-24T10:15:00.000Z",
+                    seen: false,
+                }
+            ];
+        } else if (threadId === "th_reachout_101_snehal" || threadId.includes("reachout_101") || threadId.includes("snehal")) {
             threadMessages = [
                 {
                     id: "msg_th_reachout101_sent",
@@ -3937,6 +4133,91 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery.startsWith("/unibox/")) {
         const emailMsgId = pathWithoutQuery.replace("/unibox/", "");
         if (emailMsgId && !emailMsgId.includes("/")) {
+            if (emailMsgId.includes("jayant") || emailMsgId.includes("missmosa")) {
+                const isReply = emailMsgId.includes("reply");
+                const fromAddr = isReply ? "Jayant <jayant@missmosa.in>" : "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>";
+                const toAddr = isReply ? "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>" : "Jayant <jayant@missmosa.in>";
+                const subject = isReply ? "Re: Miss Mosa X TBM: Modern Wellness, Authentically Told" : "Miss Mosa X TBM: Modern Wellness, Authentically Told";
+                const snippet = isReply
+                    ? "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables."
+                    : "Hi Jayant, Hope you’ve been doing great. I’ve been following Miss Mosa and truly admire the way you’ve built trust and consistency. Wanted to connect regarding creator-led influencer marketing.";
+                const html = isReply
+                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 16px 0;">Hey,</p>
+                        <p style="margin: 0 0 16px 0;">Please get in touch with Shraddha from our partnerships team at <a href="mailto:shraddha@missmosa.in" style="color: #0284c7;">shraddha@missmosa.in</a> to discuss creator deliverables and regional outreach plans.</p>
+                        <p style="margin: 0;">Thanks,<br/><strong>Jayant | Founder, Miss Mosa</strong></p>
+                    </div>`
+                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Hi Jayant,</p>
+                        <p style="margin: 0 0 14px 0;">Hope you’ve been doing great. I’ve been following Miss Mosa and truly admire the way you’ve built trust and consistency in modern wellness.</p>
+                        <p style="margin: 0 0 14px 0;">We run creator-led campaigns for consumer brands that scale both customer acquisition and regional authority. Would love to share how we can collaborate on Miss Mosa's next growth sprint.</p>
+                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
+                            <p style="margin: 0 0 4px 0;">Best regards,</p>
+                            <p style="margin: 0 0 2px 0;"><strong>Vatsal Vadecha</strong> | Growth &amp; Brand Partnerships</p>
+                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
+                            <p style="margin: 0 0 2px 0;">Email: <a href="mailto:vatsal.vadecha@theboredmonkey.com" style="color: #0284c7; text-decoration: none;">vatsal.vadecha@theboredmonkey.com</a></p>
+                        </div>
+                    </div>`;
+
+                return res({
+                    id: emailMsgId,
+                    from: fromAddr,
+                    to: toAddr,
+                    subject: subject,
+                    snippet: snippet,
+                    date: isReply ? "2026-09-24T11:33:00.000Z" : "2026-09-24T08:13:33.000Z",
+                    is_seen: !isReply,
+                    thread_id: "th_camp_jayant_missmosa",
+                    account_id: "cmu6m304o00003307qj8ex6oa",
+                    body_plain: snippet,
+                    body_html: html,
+                    body_truncated: false,
+                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+                });
+            }
+
+            if (emailMsgId.includes("saurabh") || emailMsgId.includes("limeroad")) {
+                const isReply = emailMsgId.includes("reply");
+                const fromAddr = isReply ? "Saurabh Ahuja <saurabh.ahuja@limeroad.com>" : "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>";
+                const toAddr = isReply ? "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>" : "Saurabh Ahuja <saurabh.ahuja@limeroad.com>";
+                const subject = isReply ? "Re: Limeroad X TBM || Influencer Marketing & Creator Outreach" : "Limeroad X TBM || Influencer Marketing & Creator Outreach";
+                const snippet = isReply
+                    ? "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies."
+                    : "Hi Saurabh, We run creator-led campaigns that scale performance marketing. Let me know if you are open to discussing influencer marketing and regional creator campaigns for Limeroad.";
+                const html = isReply
+                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 16px 0;">+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams.</p>
+                        <p style="margin: 0 0 16px 0;">Hi Vatsal, please share your agency credentials, creator portfolio, and recent D2C case studies for our review.</p>
+                        <p style="margin: 0;">Regards,<br/><strong>Saurabh Ahuja</strong> | Limeroad</p>
+                    </div>`
+                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Hi Saurabh,</p>
+                        <p style="margin: 0 0 14px 0;">We run creator-led campaigns that scale performance marketing for high-velocity fashion and lifestyle brands.</p>
+                        <p style="margin: 0 0 14px 0;">Let me know if you are open to exploring regional creator campaigns for Limeroad's festive collections.</p>
+                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
+                            <p style="margin: 0 0 4px 0;">Best regards,</p>
+                            <p style="margin: 0 0 2px 0;"><strong>Vatsal Vadecha</strong> | Growth &amp; Brand Partnerships</p>
+                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
+                        </div>
+                    </div>`;
+
+                return res({
+                    id: emailMsgId,
+                    from: fromAddr,
+                    to: toAddr,
+                    subject: subject,
+                    snippet: snippet,
+                    date: isReply ? "2026-09-24T10:15:00.000Z" : "2026-09-24T10:02:14.000Z",
+                    is_seen: !isReply,
+                    thread_id: "th_camp_saurabh_limeroad",
+                    account_id: "cmu6m304o00003307qj8ex6oa",
+                    body_plain: snippet,
+                    body_html: html,
+                    body_truncated: false,
+                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+                });
+            }
+
             if (emailMsgId.includes("snehal") || emailMsgId.includes("reachout101")) {
                 const isReply = emailMsgId.includes("reply");
                 const fromAddr = isReply ? "Snehal Maurya <snehal.maurya@theboredmonkey.com>" : "Haji Karim <haji.karim@theboredmonkey.com>";

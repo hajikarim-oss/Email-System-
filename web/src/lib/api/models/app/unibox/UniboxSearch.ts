@@ -61,6 +61,7 @@ export interface UniboxSearchParams {
    * ids match. Sent to the server as `category_ids`.
    */
   categoryIds?: string[];
+  campaignId?: string;
   since?: Date; // From date
   until?: Date; // To date
   sortBy?: "newest" | "oldest";
