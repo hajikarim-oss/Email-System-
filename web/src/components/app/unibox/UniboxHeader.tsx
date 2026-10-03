@@ -100,37 +100,54 @@ export function UniboxHeader({
 
             {/* Team Member Filter: Master has full workspace selector; Team member locked to own profile */}
             {isMaster ? (
-                <PopoverMenu>
+                <PopoverMenu align="start">
                     <PopoverMenuTrigger asChild>
                         <SelectButton
                             icon={<UsersIcon className="w-3.5 h-3.5 text-sky-600" />}
                             label={currentMember.name}
-                            className="h-7 text-xs font-medium w-[155px] justify-between shrink-0"
+                            className="h-7 text-xs font-medium w-[160px] justify-between shrink-0"
                         />
                     </PopoverMenuTrigger>
-                    <PopoverMenuContent align="start" className="w-60 p-1 z-50">
+                    <PopoverMenuContent minWidth={290} className="w-[300px] p-1.5 shadow-xl border border-slate-200/90 rounded-xl bg-white z-50">
+                        <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-slate-100 mb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Team Members</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{UNIBOX_TEAM_MEMBERS.length - 1} members</span>
+                        </div>
                         {UNIBOX_TEAM_MEMBERS.map((member) => (
                             <PopoverMenuItem
                                 key={member.id}
-                                onClick={() => onSelectMember?.(member.id)}
+                                selected={selectedMemberId === member.id}
+                                onSelect={() => onSelectMember?.(member.id)}
+                                trailing={
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        {member.unread > 0 && (
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 shrink-0">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-sky-600 shrink-0" />
+                                                {member.unread} unread
+                                            </span>
+                                        )}
+                                        {selectedMemberId === member.id && (
+                                            <CheckIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                        )}
+                                    </div>
+                                }
                                 className={cn(
-                                    "flex items-center justify-between text-xs px-2.5 py-1.5 rounded cursor-pointer",
-                                    selectedMemberId === member.id && "bg-sky-50 text-sky-700 font-semibold"
+                                    "flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors mb-0.5",
+                                    selectedMemberId === member.id
+                                        ? "bg-sky-50 text-sky-950 font-medium"
+                                        : "hover:bg-slate-50 text-slate-700"
                                 )}
                             >
-                                <div className="flex flex-col">
-                                    <span>{member.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-normal">{member.role}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    {member.unread > 0 && (
-                                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700 shrink-0">
-                                            ● {member.unread} unread
-                                        </span>
-                                    )}
-                                    {selectedMemberId === member.id && (
-                                        <CheckIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                                    )}
+                                <div className="flex flex-col min-w-0 pr-1">
+                                    <span className={cn(
+                                        "text-[12.5px] truncate leading-snug",
+                                        selectedMemberId === member.id ? "font-semibold text-sky-900" : "font-medium text-slate-800"
+                                    )}>
+                                        {member.name}
+                                    </span>
+                                    <span className="text-[10.5px] text-slate-400 truncate">
+                                        {member.role}
+                                    </span>
                                 </div>
                             </PopoverMenuItem>
                         ))}
@@ -145,7 +162,7 @@ export function UniboxHeader({
             )}
 
             {/* Campaign Filter Dropdown: Available for both Master and Team Members with Unread Highlight */}
-            <PopoverMenu>
+            <PopoverMenu align="start">
                 <PopoverMenuTrigger asChild>
                     <button
                         type="button"
@@ -165,31 +182,52 @@ export function UniboxHeader({
                         )}
                     </button>
                 </PopoverMenuTrigger>
-                <PopoverMenuContent align="start" className="w-64 p-1 z-50">
-                    <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                        Filter by Campaign
+                <PopoverMenuContent minWidth={320} className="w-[330px] p-1.5 shadow-xl border border-slate-200/90 rounded-xl bg-white z-50">
+                    <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-slate-100 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Filter by Campaign</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{visibleCampaigns.length - 1} campaigns</span>
                     </div>
                     {visibleCampaigns.map((camp) => (
                         <PopoverMenuItem
                             key={camp.id}
-                            onClick={() => onSelectCampaign?.(camp.id)}
+                            selected={selectedCampaignId === camp.id}
+                            onSelect={() => onSelectCampaign?.(camp.id)}
+                            trailing={
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    {camp.unread > 0 && (
+                                        <span className={cn(
+                                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold shrink-0",
+                                            camp.id === "cmp_1790233732719_dvlj"
+                                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
+                                                : "bg-sky-100 text-sky-700"
+                                        )}>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                                            {camp.unread} unread
+                                        </span>
+                                    )}
+                                    {selectedCampaignId === camp.id && (
+                                        <CheckIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                    )}
+                                </div>
+                            }
                             className={cn(
-                                "flex items-center justify-between text-xs px-2.5 py-1.5 rounded cursor-pointer",
-                                selectedCampaignId === camp.id && "bg-sky-50 text-sky-700 font-semibold"
+                                "flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors mb-0.5",
+                                selectedCampaignId === camp.id
+                                    ? "bg-sky-50 text-sky-950 font-medium"
+                                    : "hover:bg-slate-50 text-slate-700"
                             )}
                         >
-                            <div className="flex flex-col">
-                                <span className={cn(camp.unread > 0 && "font-semibold text-slate-900")}>{camp.name}</span>
-                                <span className="text-[10px] text-slate-400 font-normal">{camp.code}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                {camp.unread > 0 && (
-                                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700 shrink-0">
-                                        ● {camp.unread} unread
+                            <div className="flex flex-col min-w-0 pr-1">
+                                <span className={cn(
+                                    "text-[12.5px] truncate leading-snug",
+                                    selectedCampaignId === camp.id ? "font-semibold text-sky-900" : "font-medium text-slate-800"
+                                )}>
+                                    {camp.name}
+                                </span>
+                                {camp.id !== "all" && camp.code && (
+                                    <span className="text-[10.5px] text-slate-400 font-mono tracking-tight truncate">
+                                        {camp.code}
                                     </span>
-                                )}
-                                {selectedCampaignId === camp.id && (
-                                    <CheckIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                                 )}
                             </div>
                         </PopoverMenuItem>

@@ -57,7 +57,7 @@ interface MenuCtx {
 
 const Ctx = createContext<MenuCtx | null>(null);
 
-function useMenu() {
+export function useMenu() {
     const c = useContext(Ctx);
     if (!c) throw new Error("PopoverMenu primitives must be used inside <PopoverMenu>");
     return c;
@@ -141,14 +141,18 @@ export function PopoverMenuContent({
     className,
     minWidth = 200,
     matchTriggerWidth = false,
+    align: explicitAlign,
 }: {
     children: React.ReactNode;
     className?: string;
     minWidth?: number;
     /** Pin the panel to the trigger's measured width (for full-width selects). */
     matchTriggerWidth?: boolean;
+    align?: "start" | "end" | "center";
 }) {
-    const { open, setOpen, triggerRef, side, align, sideOffset } = useMenu();
+    const menu = useMenu();
+    const { open, setOpen, triggerRef, side, sideOffset } = menu;
+    const align = explicitAlign ?? menu.align;
     const ref = useRef<HTMLDivElement>(null);
     const [pos, setPos] = useState<{ top: number; left: number; width?: number } | null>(null);
 
@@ -320,15 +324,18 @@ export function PopoverMenuLabel({ children }: { children: React.ReactNode }) {
 export function PopoverMenuItem({
     children,
     onSelect,
+    onClick,
     icon,
     selected = false,
     danger = false,
     disabled = false,
     closeOnSelect = true,
     trailing,
+    className,
 }: {
     children: React.ReactNode;
     onSelect?: () => void;
+    onClick?: () => void;
     icon?: React.ReactNode;
     selected?: boolean;
     danger?: boolean;
@@ -337,6 +344,7 @@ export function PopoverMenuItem({
     /** Custom right-aligned content. When set, it replaces the default
      *  `selected` dot — e.g. pass a checkmark for multi-select menus. */
     trailing?: React.ReactNode;
+    className?: string;
 }) {
     const { setOpen } = useMenu();
     return (
@@ -348,21 +356,23 @@ export function PopoverMenuItem({
                 e.stopPropagation();
                 if (disabled) return;
                 onSelect?.();
+                onClick?.();
                 if (closeOnSelect) setOpen(false);
             }}
             className={cn(
-                "w-full h-7 px-3 flex items-center gap-2 text-[12.5px] text-left transition-colors",
+                "w-full min-h-[28px] px-3 flex items-center gap-2 text-[12.5px] text-left transition-colors",
                 danger
                     ? "text-red-600 hover:bg-red-50"
                     : "text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                 selected && !danger && "text-slate-900 font-medium",
                 disabled && "opacity-50 cursor-not-allowed",
+                className,
             )}
         >
             {icon && <span className="shrink-0 text-slate-400 group-hover:text-slate-600">{icon}</span>}
-            <span className="flex-1 truncate">{children}</span>
+            <div className="flex-1 min-w-0">{children}</div>
             {trailing !== undefined ? (
-                <span className="shrink-0">{trailing}</span>
+                trailing ? <div className="shrink-0">{trailing}</div> : null
             ) : selected ? (
                 <span className="text-[10px] text-sky-600 shrink-0">●</span>
             ) : null}
