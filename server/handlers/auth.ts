@@ -20,9 +20,9 @@ import {
     revokeUserSessions,
     verifyPassword,
     type AuthUser,
-} from "../auth.ts";
-import { DatabaseUnavailableError, pgQuery } from "../pg.ts";
-import { readJsonBody, send } from "./send.ts";
+} from "../auth";
+import { DatabaseUnavailableError, pgQuery } from "../pg";
+import { readJsonBody, send } from "./send";
 
 // Client-facing session + user shapes (mirror web/src/lib/api/models/auth).
 function tokenPayload(token: string, expires: Date) {

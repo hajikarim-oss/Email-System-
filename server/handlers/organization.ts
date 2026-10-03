@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { randomBytes } from "crypto";
-import { hashPassword, readBearer, resolveToken, revokeUserSessions, type AuthRole, type AuthUser } from "../auth.ts";
-import { DatabaseUnavailableError, pgQuery } from "../pg.ts";
-import { readJsonBody, send } from "./send.ts";
+import { hashPassword, readBearer, resolveToken, revokeUserSessions, type AuthRole, type AuthUser } from "../auth";
+import { DatabaseUnavailableError, pgQuery } from "../pg";
+import { readJsonBody, send } from "./send";
 
 const ORG = {
     id: "org_tbm_main",

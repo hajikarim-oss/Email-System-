@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "http";
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { pgQuery } from "./pg.ts";
+import { pgQuery } from "./pg";
 
 const scrypt = promisify(scryptCb) as (
     password: string,

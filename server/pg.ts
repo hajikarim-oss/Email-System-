@@ -1,12 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 import type { QueryFn } from "./types";
 
 const currentDir = typeof __dirname !== "undefined"
     ? __dirname
-    : path.dirname(fileURLToPath(import.meta.url));
+    : process.cwd();
 
 let pool: Pool | null = null;
 
