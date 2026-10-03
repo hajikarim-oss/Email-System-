@@ -47,6 +47,7 @@ export function readJsonBody<T = Record<string, unknown>>(req: IncomingMessage, 
 // short TTL here turns a repeat call into ~0 ms instead of a warehouse
 // round-trip (the report used to take 1.4 s warm, 9 s cold).
 export class Memo<T> {
+    private entries = new Map<string, { at: number; body: T }>();
     private ttlMs: number;
     private maxEntries: number;
 

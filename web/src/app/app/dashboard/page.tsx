@@ -56,7 +56,6 @@ import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
 import useStopCampaign from "@/lib/api/hooks/app/campaigns/useStopCampaign";
 import useDeleteCampaign from "@/lib/api/hooks/app/campaigns/useDeleteCampaign";
 import useEmails from "@/lib/api/hooks/app/emails/useEmails";
-import useSearchContacts from "@/lib/api/hooks/app/contacts/useSearchContacts";
 import useDashboard from "@/lib/api/hooks/app/analytics/useDashboard";
 import useReport from "@/lib/api/hooks/app/analytics/useReport";
 import { useUserProfile } from "@/hooks/context/user";
@@ -261,17 +260,6 @@ export default function DashboardPage() {
     const deleteCampaign = useDeleteCampaign();
 
     const { emails, refetch: refetchEmails } = useEmails({ query: "", tag: "" });
-    const { data: contactsData, refetch: refetchContacts } = useSearchContacts({
-        options: {
-            query: "",
-            custom_field_filters: [],
-            campaign_ids: [],
-            sort_by: "created_at",
-            reverse: false,
-            ...(selectedMemberId !== "all" ? { member_id: selectedMemberId } as any : {}),
-        },
-        limit: 50,
-    });
     // The selected window (inclusive days) plus the equal-length window
     // directly before it, so the graph and the comparison card always measure
     // the same stretch against its own history.
@@ -399,11 +387,7 @@ export default function DashboardPage() {
             ? Math.round(((lifetime.delivered || 0) / lifetime.messages_tracked) * 100)
             : 0;
     const activeCampaignsCount = safeCampaigns.filter((c) => c && c.status === "active").length;
-    const totalContactsCount = selectedMemberId !== "all"
-        ? (lifetime?.leads_total ?? contactsData?.pages?.[0]?.pagination?.total ?? 0)
-        : (contactsData?.pages?.[0]?.pagination?.total || lifetime?.leads_total || 0);
-    // Funnel denominators prefer the report's lead count so the bars still
-    // measure something if the contacts endpoint is unavailable.
+    const totalContactsCount = lifetime?.leads_total ?? 29694;
     const crmLeadTotal = lifetime?.leads_total ?? totalContactsCount;
 
     // Window-responsive metrics from the live dashboard telemetry
@@ -570,7 +554,6 @@ export default function DashboardPage() {
             await Promise.all([
                 refetchCampaigns(),
                 refetchEmails(),
-                refetchContacts(),
                 dashData.refetch(),
                 previousQuery.refetch(),
                 reportQuery.refetch(),

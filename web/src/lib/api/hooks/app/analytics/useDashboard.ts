@@ -5,6 +5,9 @@ export default function useDashboard(period: string = "7d", range?: { from?: str
     return useQuery({
         queryKey: ["analytics", "dashboard", period, range?.from ?? "", range?.to ?? "", member_id ?? "all"],
         queryFn: () => getDashboard(period, range, member_id),
-        staleTime: 60_000,
+        staleTime: 1_000, // 1-second buffer load: instant cached paint, then revalidates
+        gcTime: 15 * 60_000,
+        refetchInterval: 15_000, // Automatic live telemetry sync every 15 seconds
+        refetchOnWindowFocus: true,
     });
 }
