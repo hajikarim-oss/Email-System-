@@ -118,7 +118,7 @@ function engagementCte(scope: DataScope): string {
                    (l."totalBounced" > 0 OR l."bounceCount" > 0) AS has_bounce,
                    l."updatedAt" AS updated_at
             FROM "Lead" l
-            WHERE ${leadOwned(scope, "l")}
+            WHERE ${leadOwned(scope, "l")} AND l."campaignId" IS NOT NULL
         ),
         event_dates AS (
             SELECT e."leadId" AS lead_id,
@@ -141,7 +141,7 @@ function engagementCte(scope: DataScope): string {
             SELECT la.lead_id,
                    'open'::text AS kind,
                    coalesce(la.open_at, ed.open_at,
-                            CASE WHEN la.has_open THEN coalesce(la.send_at, la.updated_at) END) AS occurred_at
+                            CASE WHEN la.has_open THEN la.send_at END) AS occurred_at
             FROM lead_activity la
             LEFT JOIN event_dates ed ON ed.lead_id = la.lead_id
             WHERE la.has_open OR ed.open_at IS NOT NULL
@@ -149,8 +149,7 @@ function engagementCte(scope: DataScope): string {
             SELECT la.lead_id,
                    'reply',
                    coalesce(la.reply_at, ed.reply_at, md.reply_at,
-                            CASE WHEN la.has_reply THEN la.send_at END,
-                            CASE WHEN la.has_reply THEN la.updated_at END) AS occurred_at
+                            CASE WHEN la.has_reply THEN la.send_at END) AS occurred_at
             FROM lead_activity la
             LEFT JOIN event_dates ed ON ed.lead_id = la.lead_id
             LEFT JOIN message_dates md ON md.email = la.email AND la.email <> ''
@@ -159,8 +158,7 @@ function engagementCte(scope: DataScope): string {
             SELECT la.lead_id,
                    'bounce',
                    coalesce(la.bounce_at, ed.bounce_at, md.bounce_at,
-                            CASE WHEN la.has_bounce THEN la.send_at END,
-                            CASE WHEN la.has_bounce THEN la.updated_at END) AS occurred_at
+                            CASE WHEN la.has_bounce THEN la.send_at END) AS occurred_at
             FROM lead_activity la
             LEFT JOIN event_dates ed ON ed.lead_id = la.lead_id
             LEFT JOIN message_dates md ON md.email = la.email AND la.email <> ''
