@@ -318,7 +318,7 @@ function HostPortInput({
     portPlaceholder: string;
 }) {
     return (
-        <div className="flex items-stretch h-7 rounded-md border border-slate-200 bg-white focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 transition-colors min-w-0 overflow-hidden">
+        <div className="flex items-stretch h-7 rounded-md border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-2 focus-within:ring-[#FFE600]/30 transition-colors min-w-0 overflow-hidden">
             <input
                 value={host}
                 onChange={(e) => onHost(e.target.value)}

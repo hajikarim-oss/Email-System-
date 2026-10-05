@@ -133,11 +133,11 @@ export default function DashboardLayout({
             {/* Brand Title */}
             <div className="flex items-center gap-2">
               <Image
-                src="/tbm-logo-black.png"
-                alt="TheBoredMonkey"
-                width={130}
-                height={36}
-                className="object-contain"
+                src="/tbm-studios-logo.png"
+                alt="TheBoredMonkey Studios"
+                width={140}
+                height={32}
+                className="h-6 w-auto object-contain"
                 priority
               />
             </div>

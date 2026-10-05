@@ -185,9 +185,9 @@ export default function MailboxPicker({ value, autoTag, onChange, candidates, lo
                         >
                             {/* Search + tag filter header: one compact row */}
                             <div className="px-1.5 pt-1.5 pb-1 border-b border-slate-100 flex items-center gap-1">
-                                <div className="flex-1 min-w-0 flex items-center gap-1.5 px-1.5 h-6 rounded-md border border-slate-200 bg-white focus-within:border-sky-300 focus-within:ring-1 focus-within:ring-sky-100 transition-colors">
+                                <div className="flex-1 min-w-0 flex items-center gap-1.5 px-1.5 h-6 rounded-md border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-[#FFE600]/30 transition-colors">
                                     {loading ? (
-                                        <Loader2Icon className="w-3 h-3 animate-spin text-sky-500 shrink-0" />
+                                        <Loader2Icon className="w-3 h-3 animate-spin text-amber-500 shrink-0" />
                                     ) : (
                                         <SearchIcon className="w-3 h-3 text-slate-400 shrink-0" />
                                     )}
@@ -235,10 +235,10 @@ export default function MailboxPicker({ value, autoTag, onChange, candidates, lo
                                         }
                                         className={cn(
                                             "w-full h-8 px-2.5 flex items-center gap-2 text-left transition-colors hover:bg-slate-50",
-                                            active && "bg-sky-50/60",
+                                            active && "bg-[#FFF9DB]/60",
                                         )}
                                     >
-                                        <SparklesIcon className="w-3 h-3 text-sky-500 shrink-0" />
+                                        <SparklesIcon className="w-3 h-3 text-amber-500 shrink-0" />
                                         <span className="text-[11.5px] font-medium text-slate-900 whitespace-nowrap">
                                             {filterTag ? `Auto in ${filterTag.title}` : "Auto"}
                                         </span>
@@ -249,7 +249,7 @@ export default function MailboxPicker({ value, autoTag, onChange, candidates, lo
                                                   ? "no mailbox carries this tag"
                                                   : "best mailbox per recipient"}
                                         </span>
-                                        {active && <CheckIcon className="w-3 h-3 text-sky-600 shrink-0" />}
+                                        {active && <CheckIcon className="w-3 h-3 text-slate-900 shrink-0" />}
                                     </button>
                                 );
                             })()}
@@ -310,7 +310,7 @@ function CandidateRow({
             title={[a.name, ...a.reasons].filter(Boolean).join(" · ")}
             className={cn(
                 "w-full h-8 px-2.5 flex items-center gap-2 text-left transition-colors hover:bg-slate-50",
-                active && "bg-sky-50/60",
+                active && "bg-[#FFF9DB]/60",
             )}
         >
             <span
@@ -326,7 +326,7 @@ function CandidateRow({
             <span className="min-w-0 flex-1 text-[11.5px] text-slate-800 truncate">
                 {a.email}
                 {a.recommended && (
-                    <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-sky-600">
+                    <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-slate-900">
                         best
                     </span>
                 )}
@@ -345,7 +345,7 @@ function CandidateRow({
             >
                 {a.sent_today}/{a.daily_limit}
             </span>
-            {active && <CheckIcon className="w-3 h-3 text-sky-600 shrink-0" />}
+            {active && <CheckIcon className="w-3 h-3 text-slate-900 shrink-0" />}
         </button>
     );
 }

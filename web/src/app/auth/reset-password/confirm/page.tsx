@@ -5,13 +5,13 @@ import AuthButton from "@/components/auth/button";
 import { useResetPasswordConfirmForm } from "../../hooks/useResetPasswordConfirmForm";
 import { AlertTriangle } from "lucide-react";
 
-const INPUT = "w-full h-11 rounded-lg border border-slate-200 bg-white px-4 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors duration-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-400/15";
+const INPUT = "w-full h-11 rounded-lg border border-slate-200 bg-white px-4 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors duration-200 focus:border-slate-800 focus:ring-4 focus:ring-slate-800/15";
 
 const strengthConfig = [
     { label: "Weak", color: "bg-red-400", width: "25%" },
     { label: "Weak", color: "bg-red-400", width: "25%" },
     { label: "Fair", color: "bg-amber-400", width: "50%" },
-    { label: "Good", color: "bg-sky-400", width: "75%" },
+    { label: "Good", color: "bg-amber-400", width: "75%" },
     { label: "Strong", color: "bg-emerald-400", width: "100%" },
 ] as const;
 
@@ -30,7 +30,7 @@ export default function ResetPasswordConfirmPage() {
                 </div>
                 <Link
                     to="/auth/reset-password"
-                    className="inline-block text-sm text-sky-500 font-medium hover:text-sky-600 transition-colors pt-2"
+                    className="inline-block text-sm text-amber-500 font-medium hover:text-slate-900 transition-colors pt-2"
                 >
                     Request a new link
                 </Link>
@@ -82,7 +82,7 @@ export default function ResetPasswordConfirmPage() {
 
             <p className="text-center text-sm text-slate-400 pt-1">
                 Remember your password?{" "}
-                <Link to="/auth/login" className="text-sky-500 font-medium hover:text-sky-600 transition-colors">Sign in</Link>
+                <Link to="/auth/login" className="text-amber-500 font-medium hover:text-slate-900 transition-colors">Sign in</Link>
             </p>
         </div>
     );

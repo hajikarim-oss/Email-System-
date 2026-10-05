@@ -402,7 +402,7 @@ function BoardColumn({
                 if (dealId) onDrop(dealId);
             }}
             className={`flex flex-col rounded-md min-h-[300px] max-h-[calc(100dvh-320px)] md:max-h-[calc(100dvh-230px)] transition-colors ${
-                hover ? "bg-sky-50 border-sky-300" : "bg-slate-50 border-slate-200"
+                hover ? "bg-[#FFF9DB] border-amber-200" : "bg-slate-50 border-slate-200"
             } border`}
         >
             <div className="h-9 px-3 flex items-center gap-2 border-b border-slate-200 shrink-0">
@@ -569,7 +569,7 @@ function PipelinePicker({
 
 function SearchPill({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     return (
-        <div className="h-7 px-2 rounded-md border border-slate-200 bg-white flex items-center gap-1.5 focus-within:border-sky-400 transition-colors">
+        <div className="h-7 px-2 rounded-md border border-slate-200 bg-white flex items-center gap-1.5 focus-within:border-slate-800 transition-colors">
             <SearchIcon className="w-3 h-3 text-slate-400" />
             <input
                 value={value}

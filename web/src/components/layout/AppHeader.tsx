@@ -95,26 +95,15 @@ export function AppHeader({ onMenu }: { onMenu?: () => void }) {
                 <Menu className="w-5 h-5" />
             </button>
             <Link
-                to="/app/emails"
+                to="/app/dashboard"
                 className="h-full flex items-center gap-2.5 shrink-0 group pl-2 pr-3 md:w-64 md:px-5"
             >
-                {/* Cool blue-leaning gray at rest; deeper blue-gray on hover.
-                    Light enough to read as neutral chrome, but with a clear
-                    blue lean so the brand sneaks in. */}
-                {/* Logo color tuned to read as a real brand mark, not
-                    a washed-out accent. Deep slate (#0f172a) at rest +
-                    slight warm shift on hover. The earlier blue-gray
-                    was too pale and competed with the chrome rather
-                    than anchoring it. */}
-                <Logo className="w-7 text-slate-900 group-hover:text-slate-700 transition-colors duration-150" />
-                {/* Wordmark hides on mobile — the mark + the drawer's own brand
-                    header carry it there, leaving room for the workspace pill. */}
-                <span
-                    style={{ fontFamily: "var(--font-display)" }}
-                    className="hidden md:inline font-extrabold text-[15.5px] tracking-tight text-slate-900"
-                >
-                    TheBoredMonkey Outreach
-                </span>
+                <Logo className="w-6 text-slate-900 group-hover:text-slate-700 transition-colors duration-150 shrink-0" />
+                <img
+                    src="/tbm-studios-logo.png"
+                    alt="TheBoredMonkey Studios"
+                    className="h-6 w-auto max-w-[165px] object-contain shrink-0"
+                />
             </Link>
 
             {/* Breadcrumb: org switcher (always) > section > subpages. The
@@ -206,7 +195,7 @@ function AssistantButton() {
                 }
             }}
             aria-label="AI assistant"
-            className="relative flex items-center justify-center size-7 rounded-md text-slate-500 hover:text-sky-700 hover:bg-sky-50 transition-colors"
+            className="relative flex items-center justify-center size-7 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
         >
             <AgentMark className="w-4 h-4" />
             {(running || pending || unseen) && (
@@ -214,10 +203,10 @@ function AssistantButton() {
                     className={
                         "absolute top-0.5 right-0.5 size-1.5 rounded-full ring-2 ring-white " +
                         (running
-                            ? "bg-sky-500 animate-pulse"
+                            ? "bg-[#FFE600] animate-pulse"
                             : pending
                               ? "bg-amber-500"
-                              : "bg-sky-500")
+                              : "bg-[#18181B]")
                     }
                 />
             )}

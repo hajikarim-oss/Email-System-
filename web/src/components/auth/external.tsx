@@ -112,7 +112,7 @@ export default function ExternalLogin({
                                             {...ICON_SWAP}
                                             className="absolute inset-0 inline-flex items-center justify-center"
                                         >
-                                            <Loader2Icon className="h-4 w-4 animate-spin text-sky-500" />
+                                            <Loader2Icon className="h-4 w-4 animate-spin text-amber-500" />
                                         </motion.span>
                                     ) : (
                                         <motion.span
@@ -120,7 +120,7 @@ export default function ExternalLogin({
                                             {...ICON_SWAP}
                                             className="absolute inset-0 inline-flex items-center justify-center"
                                         >
-                                            <KeyRound className="h-4 w-4 text-sky-500" />
+                                            <KeyRound className="h-4 w-4 text-amber-500" />
                                         </motion.span>
                                     )}
                                 </AnimatePresence>
@@ -144,7 +144,7 @@ export default function ExternalLogin({
                 >
                     <CellBody>
                         {busy === "google" ? (
-                            <Loader2Icon className="h-4 w-4 shrink-0 animate-spin text-sky-500" />
+                            <Loader2Icon className="h-4 w-4 shrink-0 animate-spin text-amber-500" />
                         ) : (
                             <Google className="w-4 shrink-0" />
                         )}
@@ -166,7 +166,7 @@ export default function ExternalLogin({
                 >
                     <CellBody>
                         {busy === "apple" ? (
-                            <Loader2Icon className="size-4 shrink-0 animate-spin text-sky-500" />
+                            <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-500" />
                         ) : (
                             <RiAppleFill className="size-4 shrink-0" />
                         )}

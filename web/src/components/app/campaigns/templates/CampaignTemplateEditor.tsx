@@ -246,7 +246,7 @@ export default function CampaignTemplateEditor({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-xs">
                 <div>
                     <div className="flex items-center gap-2">
-                        <div className="size-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center font-medium">
+                        <div className="size-8 rounded-lg bg-[#FFF9DB] text-slate-900 flex items-center justify-center font-medium">
                             <MailIcon className="w-4 h-4" />
                         </div>
                         <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight">
@@ -264,9 +264,9 @@ export default function CampaignTemplateEditor({
                     </div>
                     <p className="mt-1 text-[12px] text-slate-500 leading-relaxed max-w-2xl">
                         Edit the email templates and follow-ups for <strong>{campaign.name}</strong>. Variables like{" "}
-                        <code className="px-1.5 py-0.5 rounded bg-slate-100 text-sky-700 font-mono text-[11px] font-medium">{"{{firstName}}"}</code>{" "}
+                        <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-900 font-mono text-[11px] font-medium">{"{{firstName}}"}</code>{" "}
                         and{" "}
-                        <code className="px-1.5 py-0.5 rounded bg-slate-100 text-sky-700 font-mono text-[11px] font-medium">{"{{company}}"}</code>{" "}
+                        <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-900 font-mono text-[11px] font-medium">{"{{company}}"}</code>{" "}
                         will be automatically filled from enrolled leads.
                     </p>
                 </div>
@@ -287,7 +287,7 @@ export default function CampaignTemplateEditor({
                     <PopoverMenu>
                         <PopoverMenuTrigger asChild>
                             <SelectButton
-                                icon={<FileTextIcon className="w-3.5 h-3.5 text-sky-600" />}
+                                icon={<FileTextIcon className="w-3.5 h-3.5 text-slate-900" />}
                                 label="Load Template"
                                 title="Load copy from stored template catalog"
                             />
@@ -319,7 +319,7 @@ export default function CampaignTemplateEditor({
                         onClick={addFollowUpStep}
                         className="h-8 px-3 rounded-lg border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors bg-white hover:bg-slate-50 shadow-2xs"
                     >
-                        <PlusIcon className="w-3.5 h-3.5 text-sky-600" />
+                        <PlusIcon className="w-3.5 h-3.5 text-slate-900" />
                         Add Follow-up
                     </PermissionButton>
 
@@ -331,7 +331,7 @@ export default function CampaignTemplateEditor({
                         className={cn(
                             "h-8 px-3.5 rounded-lg text-[12px] font-medium inline-flex items-center gap-1.5 transition-all shadow-xs",
                             isDirty
-                                ? "bg-sky-600 hover:bg-sky-700 text-white ring-2 ring-sky-300/50"
+                                ? "bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer ring-2 ring-[#FFE600]/40/50"
                                 : "bg-slate-100 text-slate-400 cursor-default"
                         )}
                     >
@@ -385,7 +385,7 @@ export default function CampaignTemplateEditor({
                                     <PopoverMenu>
                                         <PopoverMenuTrigger asChild>
                                             <SelectButton
-                                                icon={<FileTextIcon className="w-3.5 h-3.5 text-sky-600" />}
+                                                icon={<FileTextIcon className="w-3.5 h-3.5 text-slate-900" />}
                                                 label="Insert Template"
                                                 title="Load stored template into this step"
                                             />
@@ -469,9 +469,9 @@ export default function CampaignTemplateEditor({
                 <button
                     type="button"
                     onClick={addFollowUpStep}
-                    className="w-full py-4 rounded-xl border-2 border-dashed border-slate-200 hover:border-sky-300 hover:bg-sky-50/40 text-slate-500 hover:text-sky-700 text-[13px] font-medium inline-flex items-center justify-center gap-2 transition-all group"
+                    className="w-full py-4 rounded-xl border-2 border-dashed border-slate-200 hover:border-amber-200 hover:bg-[#FFF9DB] text-slate-500 hover:text-black text-[13px] font-medium inline-flex items-center justify-center gap-2 transition-all group"
                 >
-                    <div className="size-6 rounded-full bg-slate-100 group-hover:bg-sky-100 text-slate-500 group-hover:text-sky-600 inline-flex items-center justify-center transition-colors">
+                    <div className="size-6 rounded-full bg-slate-100 group-hover:bg-[#FFF3B0] text-slate-500 group-hover:text-slate-900 inline-flex items-center justify-center transition-colors">
                         <PlusIcon className="w-3.5 h-3.5" />
                     </div>
                     Add another follow-up email step to sequence
@@ -504,7 +504,7 @@ export default function CampaignTemplateEditor({
                                 type="button"
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="h-7 px-3.5 rounded-full bg-sky-500 hover:bg-sky-400 text-white text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors shadow-xs"
+                                className="h-7 px-3.5 rounded-full bg-amber-400 hover:bg-amber-400 text-white text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors shadow-xs"
                             >
                                 <SaveIcon className="w-3 h-3" />
                                 {saving ? "Saving…" : "Save Changes"}

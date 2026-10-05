@@ -291,7 +291,7 @@ export default function EmailEditor({
                                 setSync(on);
                                 if (on) setPlainText(htmlToPlain(htmlText));
                             }}
-                            className="w-3 h-3 rounded accent-sky-600"
+                            className="w-3 h-3 rounded accent-slate-900 cursor-pointer"
                         />
                         <span className="hidden sm:inline">Sync HTML &amp; plain</span>
                         <span className="sm:hidden">Sync</span>

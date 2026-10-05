@@ -348,7 +348,7 @@ export default function SegmentEditor({
                                 type="button"
                                 onClick={save}
                                 disabled={!canSave}
-                                className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                                className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
                             >
                                 {busy && <Loader2Icon className="w-3 h-3 animate-spin" />}
                                 {segment ? "Save segment" : "Create segment"}

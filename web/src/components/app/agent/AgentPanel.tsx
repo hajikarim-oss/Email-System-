@@ -673,7 +673,7 @@ export default function AgentPanel() {
                         onPointerDown={startResize}
                         title="Drag to resize"
                         className={cn(
-                            "hidden sm:block absolute top-0 h-full w-1.5 cursor-col-resize touch-none z-10 hover:bg-sky-400/40 active:bg-sky-500/50 transition-colors",
+                            "hidden sm:block absolute top-0 h-full w-1.5 cursor-col-resize touch-none z-10 hover:bg-amber-400/40 active:bg-amber-400/50 transition-colors",
                             side === "right" ? "left-0" : "right-0",
                         )}
                     />
@@ -701,7 +701,7 @@ export default function AgentPanel() {
                                 : !expanded && smUp && "sm:cursor-grab",
                         )}
                     >
-                        <AgentMark className="w-4 h-4 text-sky-600" />
+                        <AgentMark className="w-4 h-4 text-slate-900" />
                         <div className="text-[13px] font-semibold text-slate-900">
                             Assistant
                         </div>
@@ -854,7 +854,7 @@ export default function AgentPanel() {
                                         transition={{ duration: 0.16 }}
                                         className="flex items-center gap-2 text-[12px]"
                                     >
-                                        <AgentMark className="w-3.5 h-3.5 text-sky-500 animate-pulse" />
+                                        <AgentMark className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
                                         <span className="ai-shimmer-text font-medium">
                                             Working…
                                         </span>
@@ -890,16 +890,16 @@ export default function AgentPanel() {
                                 items-end keeps the button pinned when it grows. */}
                             {/* Attached File Preview Badge */}
                             {attachedFile && (
-                                <div className="flex items-center justify-between px-2.5 py-1 mb-2 rounded-md bg-sky-50 border border-sky-200 text-[11.5px] text-sky-800">
+                                <div className="flex items-center justify-between px-2.5 py-1 mb-2 rounded-md bg-[#FFF9DB] border border-amber-200 text-[11.5px] text-slate-900">
                                     <div className="flex items-center gap-1.5 truncate">
-                                        <FileTextIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                        <FileTextIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
                                         <span className="font-semibold truncate">{attachedFile.name}</span>
                                         <span className="text-slate-400 font-mono text-[10.5px]">({(attachedFile.size / 1024).toFixed(1)} KB)</span>
                                     </div>
                                     <button
                                         type="button"
                                         onClick={() => setAttachedFile(null)}
-                                        className="text-slate-400 hover:text-slate-700 ml-2 p-0.5 rounded hover:bg-sky-100 transition-colors cursor-pointer"
+                                        className="text-slate-400 hover:text-slate-700 ml-2 p-0.5 rounded hover:bg-[#FFF3B0] transition-colors cursor-pointer"
                                         title="Remove attachment"
                                     >
                                         <XIcon className="w-3 h-3" />
@@ -927,13 +927,13 @@ export default function AgentPanel() {
                                 }}
                             />
 
-                            <div className="flex items-end gap-2 rounded-lg border border-slate-200 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 px-2.5 py-1.5 transition-colors">
+                            <div className="flex items-end gap-2 rounded-lg border border-slate-200 focus-within:border-slate-800 focus-within:ring-2 focus-within:ring-[#FFE600]/30 px-2.5 py-1.5 transition-colors">
                                 <button
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={composerLocked}
                                     title="Upload context file (CSV, TXT, JSON, MD)"
-                                    className="size-7 rounded-md text-slate-400 hover:text-sky-600 hover:bg-slate-100 inline-flex items-center justify-center transition-colors shrink-0 cursor-pointer disabled:opacity-40"
+                                    className="size-7 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center justify-center transition-colors shrink-0 cursor-pointer disabled:opacity-40"
                                 >
                                     <PaperclipIcon className="w-4 h-4" />
                                 </button>
@@ -980,7 +980,7 @@ export default function AgentPanel() {
                                         disabled={(!draft.trim() && !attachedFile) || composerLocked}
                                         title="Send"
                                         aria-label="Send message"
-                                        className="size-7 rounded-md bg-sky-600 hover:bg-sky-700 text-white inline-flex items-center justify-center transition-colors disabled:opacity-40 cursor-pointer"
+                                        className="size-7 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer inline-flex items-center justify-center transition-colors disabled:opacity-40 cursor-pointer"
                                     >
                                         <ArrowUpIcon className="w-4 h-4" />
                                     </button>
@@ -1078,7 +1078,7 @@ function TabBar({
                         )}
                     >
                         {t.running ? (
-                            <Loader2Icon className="w-3 h-3 shrink-0 animate-spin text-sky-500" />
+                            <Loader2Icon className="w-3 h-3 shrink-0 animate-spin text-amber-500" />
                         ) : (
                             <span
                                 className={cn(
@@ -1086,7 +1086,7 @@ function TabBar({
                                     t.pending
                                         ? "bg-amber-500"
                                         : t.unseen
-                                          ? "bg-sky-500"
+                                          ? "bg-amber-400"
                                           : "bg-slate-300",
                                 )}
                             />
@@ -1147,7 +1147,7 @@ function DockBar({
     if (focus?.running) {
         status = (
             <span className="inline-flex items-center gap-1.5 text-slate-500">
-                <Loader2Icon className="w-3 h-3 animate-spin text-sky-500" />
+                <Loader2Icon className="w-3 h-3 animate-spin text-amber-500" />
                 Working
                 {focus.iteration > 0 && (
                     <span className="font-mono tabular-nums text-slate-400">
@@ -1165,10 +1165,10 @@ function DockBar({
         );
     } else if (focus?.unseen) {
         status = (
-            <span className="inline-flex items-center gap-1.5 text-sky-700">
+            <span className="inline-flex items-center gap-1.5 text-slate-900">
                 <span className="relative flex size-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-60" />
-                    <span className="relative inline-flex size-1.5 rounded-full bg-sky-500" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
+                    <span className="relative inline-flex size-1.5 rounded-full bg-amber-400" />
                 </span>
                 Response ready
             </span>
@@ -1204,7 +1204,7 @@ function DockBar({
                 }}
                 className="h-10 pl-2.5 pr-1 rounded-lg border border-slate-200 bg-white shadow-lg shadow-slate-900/10 flex items-center gap-2 cursor-pointer hover:border-slate-300 transition-colors"
             >
-                <AgentMark className="w-4 h-4 text-sky-600 shrink-0" />
+                <AgentMark className="w-4 h-4 text-slate-900 shrink-0" />
                 <span className="max-w-[160px] truncate text-[12.5px] font-medium text-slate-800">
                     {focus?.title ?? "Assistant"}
                 </span>
@@ -1309,13 +1309,13 @@ function SessionSidebar({
             <div className="shrink-0 px-3 pt-3 pb-2 space-y-2 border-b border-slate-200">
                 <button
                     onClick={onNew}
-                    className="w-full h-8 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12.5px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
+                    className="w-full h-8 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12.5px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
                 >
                     <PlusIcon className="w-3.5 h-3.5" />
                     New chat
                     <Kbd combo="alt+n" variant="dark" />
                 </button>
-                <div className="flex items-center gap-1.5 px-2 h-7 rounded-md border border-slate-200 bg-white focus-within:border-sky-300 focus-within:ring-1 focus-within:ring-sky-100 transition-colors">
+                <div className="flex items-center gap-1.5 px-2 h-7 rounded-md border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-[#FFE600]/30 transition-colors">
                     <SearchIcon className="w-3 h-3 text-slate-400 shrink-0" />
                     <input
                         value={search}
@@ -1574,7 +1574,7 @@ const TurnView = React.memo(function TurnView({
                 transition={{ type: "spring", stiffness: 500, damping: 36 }}
                 className="flex justify-end"
             >
-                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-sky-600 text-white px-3 py-2 text-[13px] whitespace-pre-wrap break-words">
+                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-[#18181B] text-white px-3 py-2 text-[13px] whitespace-pre-wrap break-words">
                     {text}
                 </div>
             </motion.div>
@@ -1728,7 +1728,7 @@ function ToolStepRow({
                     step.entityType === "automation") && (
                     <button
                         onClick={() => onOpen(step.openURL!)}
-                        className="mt-1.5 h-7 px-2.5 rounded-md bg-white border border-slate-200 hover:border-sky-400 hover:text-sky-700 text-[12px] text-slate-700 inline-flex items-center gap-1.5 transition-colors"
+                        className="mt-1.5 h-7 px-2.5 rounded-md bg-white border border-slate-200 hover:border-slate-900 hover:text-black text-[12px] text-slate-700 inline-flex items-center gap-1.5 transition-colors"
                     >
                         <ExternalLinkIcon className="w-3 h-3" />
                         Open {step.entityType === "campaign" ? "campaign" : "automation"}{" "}
@@ -1796,7 +1796,7 @@ const STARTERS = [
 function EmptyState({ onPick }: { onPick: (q: string) => void }) {
     return (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-10">
-            <AgentMark className="w-6 h-6 text-sky-600 mb-3" />
+            <AgentMark className="w-6 h-6 text-slate-900 mb-3" />
             <div className="text-[13px] font-semibold text-slate-900">
                 How can I help?
             </div>
@@ -1809,7 +1809,7 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
                     <button
                         key={q}
                         onClick={() => onPick(q)}
-                        className="w-full text-left px-3 py-2 rounded-md border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 text-[12px] text-slate-600 hover:text-slate-900 transition-colors"
+                        className="w-full text-left px-3 py-2 rounded-md border border-slate-200 hover:border-amber-200 hover:bg-[#FFF9DB] text-[12px] text-slate-600 hover:text-slate-900 transition-colors"
                     >
                         {q}
                     </button>

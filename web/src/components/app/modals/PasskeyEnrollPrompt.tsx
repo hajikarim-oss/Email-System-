@@ -80,8 +80,8 @@ export default function PasskeyEnrollPrompt() {
         <Dialog open={open} onOpenChange={(o) => { if (!o) setOpen(false); }}>
             <DialogContent className="sm:max-w-md bg-white">
                 <DialogHeader>
-                    <div className="mx-auto sm:mx-0 w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center mb-1">
-                        <KeyRound className="w-6 h-6 text-sky-500" />
+                    <div className="mx-auto sm:mx-0 w-12 h-12 rounded-2xl bg-[#FFF9DB] flex items-center justify-center mb-1">
+                        <KeyRound className="w-6 h-6 text-amber-500" />
                     </div>
                     <DialogTitle>Sign in faster with a passkey</DialogTitle>
                     <DialogDescription>
@@ -101,7 +101,7 @@ export default function PasskeyEnrollPrompt() {
                         type="button"
                         onClick={handleCreate}
                         disabled={busy}
-                        className="h-9 px-4 rounded-md text-[13px] font-semibold text-white bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-500 hover:to-sky-700 shadow-sm inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
+                        className="h-9 px-4 rounded-md text-[13px] font-semibold text-white bg-gradient-to-b from-[#FFF9DB] to-[#FFF9DB] hover:from-[#FFF9DB] hover:to-[#FFF9DB] shadow-sm inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
                     >
                         {busy && <Loading className="!w-4 h-4 text-white" />}
                         Set up passkey

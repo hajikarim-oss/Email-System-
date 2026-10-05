@@ -204,7 +204,7 @@ export default function ConnectDrawer({
                         )}
 
                         {isAutomation && (
-                            <div className="rounded-md border border-sky-200 bg-sky-50/50 px-3 py-2.5 space-y-1.5">
+                            <div className="rounded-md border border-amber-200 bg-[#FFF9DB]/50 px-3 py-2.5 space-y-1.5">
                                 <p className="text-[12px] text-slate-700 leading-relaxed">
                                     No key needed to connect. After connecting, add an automation that
                                     sends TheBoredMonkey events to your {entry.name} webhook URL.
@@ -300,7 +300,7 @@ export default function ConnectDrawer({
                                 href={entry.docs_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] text-sky-700 hover:underline"
+                                className="inline-flex items-center gap-1 text-[11px] text-slate-900 hover:underline"
                             >
                                 <ExternalLinkIcon className="w-3 h-3" />
                                 {entry.name} docs
@@ -405,7 +405,7 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export const primaryBtn =
-    "h-7 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors";
+    "h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors";
 
 function errMessage(err: unknown): string | undefined {
     const e = err as { response?: { data?: { message?: string; error?: string } }; message?: string };

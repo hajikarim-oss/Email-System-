@@ -104,7 +104,7 @@ export default function FilterMenu({
                     <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
                 )}
                 <span className="flex-1 min-w-0 truncate text-[11.5px] text-slate-800">{label}</span>
-                {selected && <CheckIcon className="w-3 h-3 text-sky-600 shrink-0" />}
+                {selected && <CheckIcon className="w-3 h-3 text-slate-900 shrink-0" />}
             </button>
         );
     };
@@ -117,7 +117,7 @@ export default function FilterMenu({
                 className={cn(
                     "h-6 pl-1.5 pr-1 inline-flex items-center gap-1 rounded-md border text-[10.5px] font-medium transition-colors",
                     active && allowAll
-                        ? "border-sky-300 bg-sky-50 text-sky-700"
+                        ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                         : "border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300",
                 )}
             >

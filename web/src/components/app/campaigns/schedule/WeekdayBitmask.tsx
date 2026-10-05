@@ -27,14 +27,14 @@ export default function WeekdayBitmask({
                         onClick={() => setValue(value ^ mask)}
                         className={`h-12 rounded-md border flex flex-col items-center justify-center transition-colors ${
                             active
-                                ? "border-sky-500 bg-sky-50 text-sky-700"
+                                ? "border-slate-900 bg-[#FFF9DB] text-slate-900"
                                 : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
                         }`}
                     >
                         <span className="text-[11px] font-medium">{day.slice(0, 3)}</span>
                         <span
                             className={`mt-1 size-1.5 rounded-full ${
-                                active ? "bg-sky-500" : "bg-slate-300"
+                                active ? "bg-amber-400" : "bg-slate-300"
                             }`}
                         />
                     </button>

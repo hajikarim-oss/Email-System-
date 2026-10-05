@@ -155,12 +155,12 @@ export const PLAN_ACCENT_CLASSES: Record<PlanDef["accent"], {
         button: "bg-amber-600 hover:bg-amber-700 text-white",
     },
     sky: {
-        pill: "bg-sky-50 text-sky-700 border-sky-100",
-        dot: "bg-sky-500",
-        header: "bg-sky-50 text-sky-700 border-sky-100",
-        ring: "ring-sky-500 shadow-[0_24px_60px_-24px_rgba(14,165,233,0.4)]",
-        soft: "from-sky-50",
-        button: "bg-sky-600 hover:bg-sky-700 text-white",
+        pill: "bg-[#FFF9DB] text-slate-900 border-amber-200",
+        dot: "bg-amber-400",
+        header: "bg-[#FFF9DB] text-slate-900 border-amber-200",
+        ring: "ring-slate-900 shadow-[0_24px_60px_-24px_rgba(14,165,233,0.4)]",
+        soft: "from-[#FFF9DB]",
+        button: "bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer",
     },
     ink: {
         pill: "bg-slate-900 text-white border-slate-900",

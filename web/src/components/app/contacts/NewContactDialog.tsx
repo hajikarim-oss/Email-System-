@@ -147,7 +147,7 @@ export function NewContactDialog({ open, onClose, campaign, segment }: Props) {
                                 Contact
                             </span>
                             {segment && (
-                                <span className="hidden sm:inline-flex items-center h-5 px-1.5 rounded bg-sky-50 text-sky-700 text-[10px] font-medium max-w-[160px] truncate">
+                                <span className="hidden sm:inline-flex items-center h-5 px-1.5 rounded bg-[#FFF9DB] text-slate-900 text-[10px] font-medium max-w-[160px] truncate">
                                     {segment.name}
                                 </span>
                             )}

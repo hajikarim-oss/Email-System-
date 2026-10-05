@@ -481,7 +481,7 @@ function Hero({
                 </motion.h2>
                 <motion.p
                     {...rise(0.2)}
-                    className="mt-3 text-[14px] md:text-[15px] text-sky-50/90 leading-relaxed max-w-xl mx-auto"
+                    className="mt-3 text-[14px] md:text-[15px] text-slate-900/90 leading-relaxed max-w-xl mx-auto"
                 >
                     {request.blurb ??
                         `Pick a plan and ${request.feature.toLowerCase()} turns on for your whole workspace the moment checkout completes.`}

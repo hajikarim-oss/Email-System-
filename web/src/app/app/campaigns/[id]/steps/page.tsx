@@ -30,14 +30,14 @@ function StepsContent({ campaign }: { campaign: any }) {
         return (
             <div className="space-y-4">
                 <div className="flex items-center justify-between bg-white px-4 py-2.5 rounded-lg border border-slate-200">
-                    <div className="flex items-center gap-2 text-[12.5px] text-slate-600">
-                        <LayersIcon className="w-4 h-4 text-sky-600" />
+                    <div className="flex items-center gap-2 text-[12.5px] text-slate-700 font-medium">
+                        <LayersIcon className="w-4 h-4 text-amber-500" />
                         <span>Interactive Node Flow Canvas</span>
                     </div>
                     <button
                         type="button"
                         onClick={() => setViewMode("template")}
-                        className="h-7 px-3 rounded-md bg-sky-50 text-sky-700 hover:bg-sky-100 text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors border border-sky-200"
+                        className="h-7 px-3 rounded-md bg-[#18181B] text-white hover:bg-black text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                     >
                         <MailIcon className="w-3.5 h-3.5" />
                         Switch to Template Editor

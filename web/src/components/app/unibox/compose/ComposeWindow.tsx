@@ -443,9 +443,9 @@ function ComposeWindowInner({
                     )}
                     onClick={minimized ? () => setMinimized(false) : undefined}
                 >
-                    <MailPlusIcon className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                    <span className="min-w-0 flex-1 text-[11.5px] text-slate-500 truncate">
-                        <span className="font-semibold text-slate-800">New email</span>
+                    <MailPlusIcon className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                    <span className="min-w-0 flex-1 text-[12px] text-slate-500 truncate">
+                        <span className="font-editorial text-[14.5px] font-normal text-slate-950">New email</span>
                         {contact ? (
                             <>
                                 {" "}
@@ -693,7 +693,7 @@ function ComposeWindowInner({
                         onClick={() => void send()}
                         disabled={!canSend}
                         title="Send now (⌘Enter)"
-                        className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs cursor-pointer"
                     >
                         {isSending ? (
                             <Loader2Icon className="w-3 h-3 animate-spin" />
@@ -718,7 +718,7 @@ function ComposeWindowInner({
                                 type="button"
                                 disabled={!canSend}
                                 title="Send later, up to 29 days out"
-                                className="h-7 px-2 rounded-md border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-[12px] inline-flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="h-7 px-2 rounded-md border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-[12px] inline-flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 <ClockIcon className="w-3 h-3" />
                                 Schedule
@@ -737,7 +737,7 @@ function ComposeWindowInner({
                                             type="button"
                                             onClick={() => handleSchedule(new Date(customValue))}
                                             disabled={isSending}
-                                            className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                                            className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
                                         >
                                             <CheckIcon className="w-3 h-3" />
                                             Schedule
@@ -745,7 +745,7 @@ function ComposeWindowInner({
                                         <button
                                             type="button"
                                             onClick={() => setCustomMode(false)}
-                                            className="h-7 px-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 text-[12px] transition-colors"
+                                            className="h-7 px-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 text-[12px] transition-colors cursor-pointer"
                                         >
                                             Back
                                         </button>

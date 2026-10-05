@@ -43,7 +43,7 @@ export default function VerificationSettings() {
                                 transition={{ type: "spring", duration: 0.5, bounce: 0.4 }}
                                 className={cn(
                                     "w-8 h-8 rounded-md inline-flex items-center justify-center shrink-0",
-                                    paid ? "bg-emerald-50 text-emerald-600" : "bg-sky-50 text-sky-600",
+                                    paid ? "bg-emerald-50 text-emerald-600" : "bg-[#FFF9DB] text-slate-900",
                                 )}
                             >
                                 <ShieldCheckIcon className="w-4 h-4" />
@@ -73,7 +73,7 @@ export default function VerificationSettings() {
                             )}
                             <Link
                                 to="/app/integrations"
-                                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium transition-colors"
+                                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors"
                             >
                                 {paid ? "Manage connection" : "Connect MillionVerifier"}
                                 <ArrowRightIcon className="w-3.5 h-3.5" />
@@ -117,7 +117,7 @@ export default function VerificationSettings() {
                                     animate={{ opacity: 1 }}
                                     className="inline-flex items-center gap-1.5 text-[11.5px] text-slate-400"
                                 >
-                                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                                     <AnimatedNumber value={counts?.pending ?? 0} className="tabular-nums" /> in the queue
                                 </motion.span>
                             )}

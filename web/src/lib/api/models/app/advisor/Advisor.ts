@@ -171,14 +171,14 @@ export const SEVERITY_CHIP: Record<AdvisorSeverity, string> = {
     critical: "bg-rose-500/10 text-rose-700 border-rose-500/20",
     high: "bg-orange-500/10 text-orange-700 border-orange-500/20",
     medium: "bg-amber-500/10 text-amber-700 border-amber-500/25",
-    low: "bg-sky-500/10 text-sky-700 border-sky-500/20",
+    low: "bg-amber-400/10 text-slate-900 border-slate-900/20",
 };
 
 export const SEVERITY_DOT: Record<AdvisorSeverity, string> = {
     critical: "bg-rose-500",
     high: "bg-orange-500",
     medium: "bg-amber-500",
-    low: "bg-sky-500",
+    low: "bg-amber-400",
 };
 
 export const SEVERITY_RANK: Record<AdvisorSeverity, number> = {
@@ -195,7 +195,7 @@ export const SEVERITY_ROW: Record<AdvisorSeverity, string> = {
     critical: "bg-rose-500/10 text-rose-700 hover:bg-rose-500/20",
     high: "bg-orange-500/10 text-orange-700 hover:bg-orange-500/20",
     medium: "bg-amber-500/10 text-amber-700 hover:bg-amber-500/25",
-    low: "bg-sky-500/10 text-sky-700 hover:bg-sky-500/20",
+    low: "bg-amber-400/10 text-slate-900 hover:bg-amber-400/20",
 };
 
 // The one-word verdict the row indicator shows. Deliberately shorter than

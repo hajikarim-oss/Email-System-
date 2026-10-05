@@ -153,7 +153,7 @@ export default function CampaignSchedule() {
             <section className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                 <div className="px-4 py-3 sm:py-0 sm:h-14 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 border-b border-slate-200/70">
                     <div className="flex items-center gap-3 min-w-0">
-                        <span className="size-7 rounded-md bg-sky-50 text-sky-600 inline-flex items-center justify-center shrink-0">
+                        <span className="size-7 rounded-md bg-[#FFF9DB] text-slate-900 inline-flex items-center justify-center shrink-0">
                             <CalendarClockIcon className="w-4 h-4" />
                         </span>
                         <div className="min-w-0">
@@ -308,7 +308,7 @@ export default function CampaignSchedule() {
                 </button>
                 <PermissionButton
                     permission="MANAGE_CAMPAIGNS"
-                    className="h-7 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-md text-[12px] font-medium transition-colors min-w-[110px] inline-flex items-center justify-center"
+                    className="h-7 px-3 bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer rounded-md text-[12px] font-medium transition-colors min-w-[110px] inline-flex items-center justify-center"
                     onClick={submit}
                 >
                     {loading ? <Loading className="h-4" /> : "Save changes"}

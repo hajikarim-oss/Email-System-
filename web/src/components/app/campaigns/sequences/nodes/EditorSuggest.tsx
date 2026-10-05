@@ -285,10 +285,10 @@ export default function EditorSuggest({ editor, links = [] }: { editor: Editor; 
                                     }}
                                     onMouseEnter={() => setActive(i)}
                                     className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors ${
-                                        i === active ? "bg-sky-50" : "hover:bg-slate-50"
+                                        i === active ? "bg-[#FFF9DB]" : "hover:bg-slate-50"
                                     }`}
                                 >
-                                    <Icon className={`h-3 w-3 shrink-0 ${i === active ? "text-sky-500" : "text-slate-400"}`} />
+                                    <Icon className={`h-3 w-3 shrink-0 ${i === active ? "text-amber-500" : "text-slate-400"}`} />
                                     <span className="min-w-0 flex-1 truncate text-[12.5px] text-slate-700">{item.label}</span>
                                     <code className="shrink-0 font-mono text-[10px] text-slate-400">{item.hint}</code>
                                 </button>

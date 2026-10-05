@@ -40,7 +40,7 @@ export default function ContactsLayout() {
                             {active && (
                                 <motion.span
                                     layoutId="contacts-tab-underline"
-                                    className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-sky-600"
+                                    className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-[#18181B]"
                                     transition={{ type: "spring", duration: 0.3, bounce: 0.15 }}
                                 />
                             )}

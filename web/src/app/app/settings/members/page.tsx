@@ -208,7 +208,7 @@ export default function MembersSettingsPage() {
                                                         pending={updateRole.isPending}
                                                     />
                                                 ) : isOwner ? (
-                                                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-0.5 border bg-sky-50 text-sky-700 border-sky-100">
+                                                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-0.5 border bg-[#FFF9DB] text-slate-900 border-amber-200">
                                                         <ShieldCheckIcon className="w-2.5 h-2.5" />
                                                         Owner
                                                     </span>
@@ -456,7 +456,7 @@ function InviteFlow({
                 <div>
                     <Label>Emails</Label>
                     <div
-                        className="min-h-[36px] w-full px-2 py-1.5 rounded-md border border-slate-200 bg-white flex flex-wrap items-center gap-1.5 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 transition-colors"
+                        className="min-h-[36px] w-full px-2 py-1.5 rounded-md border border-slate-200 bg-white flex flex-wrap items-center gap-1.5 focus-within:border-slate-800 focus-within:ring-2 focus-within:ring-[#FFE600]/30 transition-colors"
                         onClick={(e) => {
                             const input = (e.currentTarget as HTMLDivElement).querySelector("input");
                             input?.focus();
@@ -518,7 +518,7 @@ function InviteFlow({
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="At least 8 characters"
                         autoComplete="new-password"
-                        className="w-full h-8 px-2 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors"
+                        className="w-full h-8 px-2 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 transition-colors"
                     />
                     <p className="text-[11px] text-slate-400 mt-1">
                         One password for every email above — give it to each person directly.

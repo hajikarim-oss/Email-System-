@@ -105,7 +105,7 @@ export default function BulkWarmupDialog({
                                     <FlameIcon className="w-4 h-4" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <div className="text-[13px] font-medium text-slate-900">Start warmup</div>
+                                    <div className="font-editorial text-[18px] font-normal text-slate-950">Start warmup</div>
                                     <div className="text-[11px] text-slate-400">
                                         {n} mailbox{n > 1 ? "es" : ""} selected
                                     </div>
@@ -114,7 +114,7 @@ export default function BulkWarmupDialog({
                                     onClick={onClose}
                                     disabled={busy}
                                     aria-label="Close"
-                                    className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                                    className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
                                 >
                                     <XIcon className="w-4 h-4" />
                                 </button>
@@ -175,16 +175,16 @@ export default function BulkWarmupDialog({
                                 <button
                                     onClick={onClose}
                                     disabled={busy}
-                                    className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-[12px] text-slate-700 hover:text-slate-900 transition-colors disabled:opacity-50"
+                                    className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-[12px] text-slate-700 hover:text-slate-900 transition-colors disabled:opacity-50 cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={start}
                                     disabled={busy || n === 0}
-                                    className="h-8 px-3.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                    className="h-8 px-3.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shadow-xs cursor-pointer"
                                 >
-                                    {busy && <Loading className="!w-3.5 h-3.5 text-white" />}
+                                    {busy && <Loading className="!w-3.5 h-3.5 text-slate-950" />}
                                     Start warmup
                                 </button>
                             </div>
@@ -203,7 +203,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
             role="switch"
             aria-checked={on}
             onClick={() => onChange(!on)}
-            className={`relative h-5 w-9 rounded-full transition-colors shrink-0 ${on ? "bg-sky-600" : "bg-slate-200"}`}
+            className={`relative h-5 w-9 rounded-full transition-colors shrink-0 cursor-pointer ${on ? "bg-[#18181B]" : "bg-slate-200"}`}
         >
             <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${on ? "translate-x-4" : ""}`} />
         </button>

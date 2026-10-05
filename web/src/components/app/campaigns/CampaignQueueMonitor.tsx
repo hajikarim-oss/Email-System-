@@ -153,7 +153,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                     </span>
                     <div className="flex items-center gap-1.5">
                         <span className="text-[12px] font-semibold tracking-tight text-slate-800 flex items-center gap-1.5">
-                            <ActivityIcon className="w-3.5 h-3.5 text-sky-600" />
+                            <ActivityIcon className="w-3.5 h-3.5 text-slate-900" />
                             Live Outreach Queue
                         </span>
                         <span
@@ -167,13 +167,13 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                     </div>
 
                     <div className="hidden sm:flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-200">
-                        <ZapIcon className="w-3 h-3 text-sky-600" />
+                        <ZapIcon className="w-3 h-3 text-slate-900" />
                         <span className="text-[11px] text-slate-500">Smartlead:</span>
                         <a
                             href="https://app.smartlead.ai/campaigns"
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-sky-700 hover:text-sky-800 bg-sky-50 hover:bg-sky-100/80 border border-sky-200/60 px-1.5 py-0.5 rounded transition-colors"
+                            className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-slate-900 hover:text-black cursor-pointer bg-[#FFF9DB] hover:bg-[#FFF3B0]/80 border border-amber-200/60 px-1.5 py-0.5 rounded transition-colors"
                         >
                             #{smartleadId} ({isActive ? "ACTIVE ROTATION" : (smartleadData?.status || "DRAFT")})
                             <ExternalLinkIcon className="w-2.5 h-2.5" />
@@ -196,14 +196,14 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                         className="inline-flex items-center gap-1.5 text-[11.5px] font-medium h-7 px-2.5 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50 shadow-2xs"
                         title="Force sync metrics with Smartlead.ai"
                     >
-                        <RefreshCwIcon className={`w-3 h-3 ${isSyncing ? "animate-spin text-sky-600" : "text-slate-500"}`} />
+                        <RefreshCwIcon className={`w-3 h-3 ${isSyncing ? "animate-spin text-slate-900" : "text-slate-500"}`} />
                         Sync
                     </button>
                     <button
                         type="button"
                         onClick={handleImmediateDispatch}
                         disabled={isDispatching}
-                        className="inline-flex items-center gap-1.5 text-[11.5px] font-medium h-7 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white transition-colors disabled:opacity-50 shadow-2xs"
+                        className="inline-flex items-center gap-1.5 text-[11.5px] font-medium h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer transition-colors disabled:opacity-50 shadow-2xs"
                         title="Trigger immediate sequence dispatch"
                     >
                         <SendIcon className={`w-3 h-3 ${isDispatching ? "animate-bounce" : ""}`} />
@@ -216,7 +216,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
             <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 divide-x divide-slate-100 bg-white">
                 <div className="p-3.5 flex flex-col justify-between">
                     <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
-                        <LayersIcon className="w-3.5 h-3.5 text-sky-600" />
+                        <LayersIcon className="w-3.5 h-3.5 text-slate-900" />
                         Queue In-Flight
                     </div>
                     <div className="mt-1.5 flex items-baseline gap-2">

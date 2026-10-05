@@ -130,7 +130,7 @@ function Stepper({ step, canReach, goTo }: { step: Step; canReach: (s: Step) => 
                         >
                             <span
                                 className={`relative size-5 rounded-full inline-flex items-center justify-center text-[10px] border transition-colors ${
-                                    done ? "bg-sky-600 border-sky-600 text-white" : active ? "border-sky-600 text-sky-700" : "border-slate-300 text-slate-400"
+                                    done ? "bg-[#18181B] border-slate-900 text-white" : active ? "border-slate-900 text-slate-900" : "border-slate-300 text-slate-400"
                                 }`}
                             >
                                 <AnimatePresence mode="wait" initial={false}>
@@ -150,7 +150,7 @@ function Stepper({ step, canReach, goTo }: { step: Step; canReach: (s: Step) => 
                         {idx < STEPS.length - 1 && (
                             <span className="relative flex-1 h-px bg-slate-200 overflow-hidden">
                                 <motion.span
-                                    className="absolute inset-0 bg-sky-500"
+                                    className="absolute inset-0 bg-amber-400"
                                     style={{ originX: 0 }}
                                     animate={{ scaleX: done ? 1 : 0 }}
                                     transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -191,7 +191,7 @@ function Footer({ step, issue, nudged, onBack, onNext }: { step: Step; issue: st
                 type="button"
                 onClick={onNext}
                 className={`h-7 px-2.5 rounded-md text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors ${
-                    issue ? "bg-slate-300 cursor-not-allowed" : "bg-sky-600 hover:bg-sky-700"
+                    issue ? "bg-slate-300 cursor-not-allowed" : "bg-[#18181B] hover:bg-black"
                 }`}
             >
                 {step === 2 ? "Finish" : "Continue"}
@@ -303,7 +303,7 @@ function DoneStep({ status, enrolledCount }: { status: CloudLinkStatus; enrolled
                 initial={{ scale: 0.6, rotate: -12 }}
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: "spring", stiffness: 380, damping: 20 }}
-                className="size-12 rounded-full bg-sky-50 text-sky-600 inline-flex items-center justify-center"
+                className="size-12 rounded-full bg-[#FFF9DB] text-slate-900 inline-flex items-center justify-center"
             >
                 <FlameIcon className="w-6 h-6" />
             </motion.span>

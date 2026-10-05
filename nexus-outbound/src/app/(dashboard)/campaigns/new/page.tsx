@@ -2223,7 +2223,7 @@ function CampaignBuilderContent() {
                     onClick={() => setAddLeadsStep(2)}
                     className="rounded-xl border border-slate-200 bg-white p-3 text-left hover:bg-slate-50"
                   >
-                    <div className="font-bold text-slate-900">Apollo / Lead Finder</div>
+                    <div className="font-bold text-slate-900">Lead Database Finder</div>
                     <div className="text-[10px] text-slate-500">Import from live database</div>
                   </button>
                   <button

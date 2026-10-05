@@ -40,7 +40,7 @@ export default function SubscriptionLockedScreen({ feature }: { feature: string 
                 className="relative z-10 w-full max-w-[920px] animate-card-float rounded-3xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_30px_70px_-32px_rgba(15,23,42,0.32)] overflow-hidden"
             >
                 <div className="px-7 pt-8 pb-6 md:px-10 md:pt-10 text-center">
-                    <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-sky-50 text-sky-700 text-[11px] font-medium">
+                    <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-[#FFF9DB] text-slate-900 text-[11px] font-medium">
                         <SparklesIcon className="w-3 h-3" /> Free workspace
                     </span>
                     <h1 className="mt-4 text-[26px] md:text-[34px] font-semibold tracking-[-0.03em] leading-[1.08] text-slate-900">
@@ -118,11 +118,11 @@ function Path({
     primary?: boolean;
 }) {
     const btn = primary
-        ? "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[13px] font-medium transition-colors"
+        ? "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[13px] font-medium transition-colors"
         : "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md border border-slate-200 hover:border-slate-300 bg-white text-[13px] font-medium text-slate-800 transition-colors";
     return (
-        <div className={`bg-white px-6 py-6 flex flex-col ${primary ? "bg-gradient-to-b from-sky-50/60 to-white" : ""}`}>
-            <span className={`size-9 rounded-lg inline-flex items-center justify-center ${primary ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-700"}`}>
+        <div className={`bg-white px-6 py-6 flex flex-col ${primary ? "bg-gradient-to-b from-[#FFF9DB]/60 to-white" : ""}`}>
+            <span className={`size-9 rounded-lg inline-flex items-center justify-center ${primary ? "bg-[#18181B] text-white" : "bg-slate-100 text-slate-700"}`}>
                 <Icon className="w-4 h-4" />
             </span>
             <span className="mt-4 text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">{eyebrow}</span>

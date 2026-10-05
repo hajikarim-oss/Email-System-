@@ -409,10 +409,10 @@ export function ReplyComposer({ threadId, replyTo, mode, seed, onClose }: ReplyC
                     aria-hidden
                 />
                 <span
-                    className="min-w-0 flex-1 text-[11.5px] text-slate-500 truncate"
+                    className="min-w-0 flex-1 text-[12px] text-slate-500 truncate"
                     title={replyToAddr ? `${replyToName} <${replyToAddr}>` : replyToName}
                 >
-                    <span className="font-semibold text-slate-800">
+                    <span className="font-editorial text-[14.5px] font-normal text-slate-950">
                         {mode === "forward" ? "Forward" : "Reply"}
                     </span>{" "}
                     to {replyToName}
@@ -423,7 +423,7 @@ export function ReplyComposer({ threadId, replyTo, mode, seed, onClose }: ReplyC
                     onClick={onClose}
                     aria-label="Close composer"
                     title="Close composer"
-                    className="size-6 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors shrink-0"
+                    className="size-6 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors shrink-0 cursor-pointer"
                 >
                     <XIcon className="w-3.5 h-3.5" />
                 </button>
@@ -619,7 +619,7 @@ export function ReplyComposer({ threadId, replyTo, mode, seed, onClose }: ReplyC
                     type="button"
                     onClick={handleInstant}
                     disabled={!canSend}
-                    className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs cursor-pointer"
                 >
                     {isSending ? (
                         <Loader2Icon className="w-3 h-3 animate-spin" />
@@ -646,7 +646,7 @@ export function ReplyComposer({ threadId, replyTo, mode, seed, onClose }: ReplyC
                             type="button"
                             disabled={!canSend || scheduleAtCap}
                             title={scheduleTooltip}
-                            className="h-7 px-2 rounded-md border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-[12px] inline-flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="h-7 px-2 rounded-md border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-[12px] inline-flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                             <ClockIcon className="w-3 h-3" />
                             Schedule
@@ -673,7 +673,7 @@ export function ReplyComposer({ threadId, replyTo, mode, seed, onClose }: ReplyC
                                             type="button"
                                             onClick={handleCustom}
                                             disabled={isSending}
-                                            className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                                            className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
                                         >
                                             <CheckIcon className="w-3 h-3" />
                                             Schedule
@@ -681,7 +681,7 @@ export function ReplyComposer({ threadId, replyTo, mode, seed, onClose }: ReplyC
                                         <button
                                             type="button"
                                             onClick={() => setCustomMode(false)}
-                                            className="h-7 px-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 text-[12px] transition-colors"
+                                            className="h-7 px-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 text-[12px] transition-colors cursor-pointer"
                                         >
                                             Back
                                         </button>

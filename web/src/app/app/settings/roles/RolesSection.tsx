@@ -280,14 +280,14 @@ function RoleEditor({ role, onClose }: { role: OrganizationRole | null; onClose:
                                                 onClick={() => toggle(p.bit)}
                                                 className={`px-2.5 py-1.5 rounded-md border text-left transition-colors ${
                                                     on
-                                                        ? "border-sky-200 bg-sky-50"
+                                                        ? "border-amber-200 bg-[#FFF9DB]"
                                                         : "border-slate-200 bg-white hover:bg-slate-50"
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2">
                                                     <span
                                                         className={`size-3.5 rounded-sm border inline-flex items-center justify-center shrink-0 ${
-                                                            on ? "bg-sky-600 border-sky-600" : "border-slate-300 bg-white"
+                                                            on ? "bg-[#18181B] border-slate-900" : "border-slate-300 bg-white"
                                                         }`}
                                                     >
                                                         {on && (
@@ -320,7 +320,7 @@ function RoleEditor({ role, onClose }: { role: OrganizationRole | null; onClose:
                         type="button"
                         onClick={save}
                         disabled={pending}
-                        className="h-7 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                        className="h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                     >
                         {pending && <Loader2Icon className="w-3 h-3 animate-spin" />}
                         {role ? "Save changes" : "Create role"}

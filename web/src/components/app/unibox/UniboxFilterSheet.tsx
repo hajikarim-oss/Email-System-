@@ -355,7 +355,7 @@ export function UniboxFilterSheet({
                           onClick={() => toggleAccount(e.id)}
                           className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors text-left ${
                             checked
-                              ? "bg-sky-50/80 hover:bg-sky-50"
+                              ? "bg-[#FFF9DB]/80 hover:bg-[#FFF9DB]"
                               : tagMatch
                                 ? "bg-slate-50 hover:bg-slate-100"
                                 : "hover:bg-slate-50"

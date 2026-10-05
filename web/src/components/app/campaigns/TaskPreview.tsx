@@ -23,9 +23,9 @@ interface TaskPreviewProps {
 const STATUS_TONE: Record<string, string> = {
     active: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
     paused: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-    completed: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
+    completed: "bg-[#FFF9DB] text-slate-900 ring-1 ring-[#FFE600]/40",
     draft: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
-    idle: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
+    idle: "bg-[#FFF9DB] text-slate-900 ring-1 ring-[#FFE600]/40",
 };
 
 // ── Activity-type icon + tone ───────────────────────────────────────
@@ -156,9 +156,9 @@ export default function TaskPreview({ campaignId, campaignStatus: initialStatus,
 
             {/* ── Now sending ────────────────────────────────────────── */}
             {showNowSending && (
-                <div className="shrink-0 px-4 py-3 border-b border-slate-200 bg-sky-50/40">
+                <div className="shrink-0 px-4 py-3 border-b border-slate-200 bg-[#FFF9DB]/40">
                     <div className="flex items-center gap-3">
-                        <div className="size-9 shrink-0 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center font-medium text-[12.5px]">
+                        <div className="size-9 shrink-0 rounded-full bg-[#FFF3B0] text-slate-900 flex items-center justify-center font-medium text-[12.5px]">
                             {initials(taskProgress.contact_name, taskProgress.contact_email)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -171,14 +171,14 @@ export default function TaskPreview({ campaignId, campaignStatus: initialStatus,
                                 </p>
                             )}
                             {taskProgress.step_name && (
-                                <p className="text-[11px] text-sky-700 truncate mt-0.5">
+                                <p className="text-[11px] text-slate-900 truncate mt-0.5">
                                     {taskProgress.step_name}
                                     {taskProgress.step_index > 0 && ` · Step ${taskProgress.step_index}`}
                                 </p>
                             )}
                         </div>
-                        <span className="shrink-0 inline-flex items-center gap-1.5 px-1.5 h-5 rounded-md bg-sky-50 text-sky-700 ring-1 ring-sky-200 text-[10.5px] font-medium">
-                            <span className="size-1.5 rounded-full bg-sky-500 animate-pulse" />
+                        <span className="shrink-0 inline-flex items-center gap-1.5 px-1.5 h-5 rounded-md bg-[#FFF9DB] text-slate-900 ring-1 ring-[#FFE600]/40 text-[10.5px] font-medium">
+                            <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
                             Sending…
                         </span>
                     </div>

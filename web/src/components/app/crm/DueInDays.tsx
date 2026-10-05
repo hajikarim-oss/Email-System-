@@ -64,7 +64,7 @@ export default function DueInDays({
                         onClick={() => onChange(p.days)}
                         className={`h-6 px-1.5 rounded text-[10.5px] transition-colors ${
                             value === p.days
-                                ? "bg-sky-50 text-sky-700 font-medium"
+                                ? "bg-[#FFF9DB] text-slate-900 font-medium"
                                 : "text-slate-500 hover:text-slate-900"
                         }`}
                     >

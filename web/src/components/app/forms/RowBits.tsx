@@ -21,7 +21,7 @@ export function MiniProgress({ done, total }: { done: number; total: number }) {
         <div className="flex items-center gap-2">
             <div className="w-24 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                 <div
-                    className="h-full rounded-full bg-sky-500"
+                    className="h-full rounded-full bg-amber-400"
                     style={{ width: `${total > 0 ? (clamped / total) * 100 : 0}%` }}
                 />
             </div>

@@ -187,7 +187,7 @@ function Row({
                         <div className="mt-1.5">
                             <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
                                 <div
-                                    className="h-full bg-sky-500 transition-[width] duration-500"
+                                    className="h-full bg-amber-400 transition-[width] duration-500"
                                     style={{ width: `${Math.max(2, job.progress_percent)}%` }}
                                 />
                             </div>
@@ -226,7 +226,7 @@ function StatusPill({ status }: { status: string }) {
                 ? "bg-red-50 text-red-700"
                 : status === "expired"
                     ? "bg-slate-100 text-slate-500"
-                    : "bg-sky-50 text-sky-700";
+                    : "bg-[#FFF9DB] text-slate-900";
     return (
         <span
             className={`text-[10px] uppercase tracking-[0.08em] font-medium rounded-sm px-1 ${tone}`}

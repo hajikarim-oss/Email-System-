@@ -237,7 +237,7 @@ function FormLinkChipEditor({
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => onChange(f.public_id)}
                                 className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-[12px] transition-colors ${
-                                    active ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-100"
+                                    active ? "bg-[#FFF9DB] text-slate-900" : "text-slate-700 hover:bg-slate-100"
                                 }`}
                             >
                                 <span className="flex min-w-0 items-center gap-1.5">

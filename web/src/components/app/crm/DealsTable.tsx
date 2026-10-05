@@ -326,7 +326,7 @@ function PipelineFacet({
                     type="button"
                     className={`h-7 px-2.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 transition-colors ${
                         selected.length
-                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                             : "border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300"
                     }`}
                 >
@@ -410,14 +410,14 @@ function FilterPopover({
                     type="button"
                     className={`h-7 px-2.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 transition-colors ${
                         activeCount
-                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                             : "border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300"
                     }`}
                 >
                     <FilterIcon className="w-3 h-3" />
                     Filters
                     {activeCount > 0 && (
-                        <span className="size-4 rounded-full bg-sky-600 text-white text-[9.5px] inline-flex items-center justify-center tabular-nums">
+                        <span className="size-4 rounded-full bg-[#18181B] text-white text-[9.5px] inline-flex items-center justify-center tabular-nums">
                             {activeCount}
                         </span>
                     )}

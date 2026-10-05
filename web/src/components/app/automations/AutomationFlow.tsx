@@ -231,22 +231,22 @@ function TriggerNode({ data, selected }: NodeProps) {
         <div
             className={cn(
                 "w-[248px] rounded-xl border bg-white shadow-sm transition-shadow duration-200 hover:shadow-md",
-                selected ? "border-sky-400 ring-2 ring-sky-100" : "border-slate-200",
+                selected ? "border-slate-800 ring-2 ring-[#FFE600]/40" : "border-slate-200",
             )}
         >
-            <div className="flex items-center gap-2 rounded-t-xl border-b border-slate-200/70 bg-gradient-to-r from-sky-50/80 to-white px-2.5 py-1.5">
-                <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-sky-100 text-sky-600 ring-1 ring-sky-200/70">
+            <div className="flex items-center gap-2 rounded-t-xl border-b border-slate-200/70 bg-gradient-to-r from-[#FFF9DB]/80 to-white px-2.5 py-1.5">
+                <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-[#FFF3B0] text-slate-900 ring-1 ring-[#FFE600]/40/70">
                     <ZapIcon className="w-3 h-3" />
                 </span>
-                <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-sky-500">When</span>
-                <span className="ml-auto shrink-0 rounded bg-sky-600 px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.12em] text-white">
+                <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-amber-500">When</span>
+                <span className="ml-auto shrink-0 rounded bg-[#18181B] px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.12em] text-white">
                     Trigger
                 </span>
             </div>
             <div className="px-2.5 py-2">
                 <div className="truncate text-[12.5px] font-semibold text-slate-800">{d.label}</div>
             </div>
-            <Handle type="source" id="s" position={Position.Bottom} className="!h-4 !w-4 md:!h-3 md:!w-3 !border-2 !border-white !bg-sky-500" />
+            <Handle type="source" id="s" position={Position.Bottom} className="!h-4 !w-4 md:!h-3 md:!w-3 !border-2 !border-white !bg-amber-400" />
         </div>
     );
 }
@@ -256,17 +256,17 @@ function ConditionNode({ data, selected }: NodeProps) {
     return (
         <div
             className={cn(
-                "rounded-lg border bg-gradient-to-b from-sky-50 to-white px-2 py-1 shadow-sm transition-shadow duration-200 hover:shadow-md",
-                selected ? "border-sky-400 ring-2 ring-sky-100" : "border-sky-200",
+                "rounded-lg border bg-gradient-to-b from-[#FFF9DB] to-white px-2 py-1 shadow-sm transition-shadow duration-200 hover:shadow-md",
+                selected ? "border-slate-800 ring-2 ring-[#FFE600]/40" : "border-amber-200",
             )}
         >
             <Handle type="target" position={Position.Top} className="!h-3 !w-3 md:!h-2 md:!w-2 !border-2 !border-white !bg-slate-300" />
             {/* Right dot = the YES (true) path */}
-            <Handle type="source" id="out" position={Position.Right} className="!h-4 !w-4 md:!h-3 md:!w-3 !border-2 !border-white !bg-sky-500" />
+            <Handle type="source" id="out" position={Position.Right} className="!h-4 !w-4 md:!h-3 md:!w-3 !border-2 !border-white !bg-amber-400" />
             <div className="flex items-center gap-1.5">
-                <GitBranchIcon className="w-3 h-3 shrink-0 text-sky-600" />
-                <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-sky-500">if</span>
-                <span className="max-w-[150px] truncate text-[11px] font-medium text-sky-800">{d.label}</span>
+                <GitBranchIcon className="w-3 h-3 shrink-0 text-slate-900" />
+                <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-amber-500">if</span>
+                <span className="max-w-[150px] truncate text-[11px] font-medium text-slate-900">{d.label}</span>
                 <button
                     type="button"
                     onClick={(e) => {
@@ -274,7 +274,7 @@ function ConditionNode({ data, selected }: NodeProps) {
                         d.onDelete();
                     }}
                     title="Delete this condition"
-                    className="nodrag inline-flex size-4 items-center justify-center rounded text-sky-400 hover:bg-rose-50 hover:text-rose-600"
+                    className="nodrag inline-flex size-4 items-center justify-center rounded text-amber-500 hover:bg-rose-50 hover:text-rose-600"
                 >
                     <Trash2Icon className="w-3 h-3" />
                 </button>
@@ -430,7 +430,7 @@ function ActionNode({ id, data, selected }: NodeProps) {
         <div
             className={cn(
                 "w-[248px] rounded-xl border bg-white shadow-sm transition-shadow duration-200 hover:shadow-md",
-                selected ? "border-sky-400 ring-2 ring-sky-100" : "border-slate-200",
+                selected ? "border-slate-800 ring-2 ring-[#FFE600]/40" : "border-slate-200",
             )}
         >
             <Handle type="target" position={Position.Top} className="!h-3 !w-3 md:!h-2 md:!w-2 !border-2 !border-white !bg-slate-300" />
@@ -439,7 +439,7 @@ function ActionNode({ id, data, selected }: NodeProps) {
                 <div className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-slate-300">Then</div>
                 <div className="mt-0.5 truncate text-[11.5px] text-slate-500">{d.sub || "Pick an integration…"}</div>
             </div>
-            <Handle type="source" id="s" position={Position.Bottom} className="!h-4 !w-4 md:!h-3 md:!w-3 !border-2 !border-white !bg-sky-500" />
+            <Handle type="source" id="s" position={Position.Bottom} className="!h-4 !w-4 md:!h-3 md:!w-3 !border-2 !border-white !bg-amber-400" />
             {/* "On error" branch: drag from here to route a failed action down a recovery path. */}
             <Handle type="source" id="err" position={Position.Right} title="On error" className="!h-3.5 !w-3.5 md:!h-2.5 md:!w-2.5 !border-2 !border-white !bg-rose-500" />
         </div>
@@ -1315,7 +1315,7 @@ export default function AutomationFlow({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Automation name"
-                    className="h-7 px-2 w-56 max-w-[30vw] md:max-w-[36vw] rounded-md text-[13px] font-medium text-slate-900 outline-none hover:bg-slate-50 focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-100 border border-transparent"
+                    className="h-7 px-2 w-56 max-w-[30vw] md:max-w-[36vw] rounded-md text-[13px] font-medium text-slate-900 outline-none hover:bg-slate-50 focus:bg-white focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 border border-transparent"
                 />
                 <ResourceViewers resource={`automation:${automation.id}`} className="shrink-0" />
                 <button
@@ -1325,12 +1325,12 @@ export default function AutomationFlow({
                     aria-label="Enable automation"
                     onClick={() => setEnabled((v) => !v)}
                     title={enabled ? "Automation is live" : "Automation is paused"}
-                    className="inline-flex h-7 cursor-pointer select-none items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+                    className="inline-flex h-7 cursor-pointer select-none items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[#FFE600]/40"
                 >
                     <span
                         className={cn(
                             "relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors",
-                            enabled ? "bg-sky-600" : "bg-slate-300",
+                            enabled ? "bg-[#18181B]" : "bg-slate-300",
                         )}
                     >
                         <span
@@ -1354,7 +1354,7 @@ export default function AutomationFlow({
                         aria-label="History"
                         className={cn(
                             "h-7 px-2.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 transition-colors",
-                            panel === "history" ? "border-sky-300 bg-sky-50 text-sky-700" : "border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900",
+                            panel === "history" ? "border-amber-200 bg-[#FFF9DB] text-slate-900" : "border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900",
                         )}
                     >
                         <HistoryIcon className="w-3.5 h-3.5" />
@@ -1370,7 +1370,7 @@ export default function AutomationFlow({
                         className={cn(
                             "h-7 px-2.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 transition-colors",
                             panel === "test"
-                                ? "border-sky-300 bg-sky-50 text-sky-700"
+                                ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                                 : "border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900",
                         )}
                     >
@@ -1399,7 +1399,7 @@ export default function AutomationFlow({
                         className={cn(
                             "h-7 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors",
                             dirty
-                                ? "bg-sky-600 hover:bg-sky-700 text-white shadow-sm"
+                                ? "bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer shadow-sm"
                                 : "bg-slate-100 text-slate-400 cursor-default",
                         )}
                     >
@@ -1780,7 +1780,7 @@ function InsightsPanel({
                                 <button
                                     type="button"
                                     onClick={resetSample}
-                                    className="text-[11px] text-sky-600 hover:text-sky-700"
+                                    className="text-[11px] text-slate-900 hover:text-black"
                                 >
                                     Reset to sample
                                 </button>
@@ -1794,7 +1794,7 @@ function InsightsPanel({
                                     "w-full rounded-md border bg-white px-2 py-1.5 text-[11.5px] font-mono text-slate-800 outline-none resize-y focus:ring-2",
                                     sampleErr
                                         ? "border-rose-300 focus:border-rose-400 focus:ring-rose-100"
-                                        : "border-slate-200 focus:border-sky-400 focus:ring-sky-100",
+                                        : "border-slate-200 focus:border-slate-800 focus:ring-[#FFE600]/30",
                                 )}
                             />
                             {sampleErr ? (
@@ -1823,7 +1823,7 @@ function InsightsPanel({
                                                 <span
                                                     className={cn(
                                                         "flex h-4 w-4 shrink-0 items-center justify-center rounded",
-                                                        on ? "bg-sky-600 text-white" : "border border-slate-300",
+                                                        on ? "bg-[#18181B] text-white" : "border border-slate-300",
                                                     )}
                                                 >
                                                     {on && <CheckIcon className="w-3 h-3" />}
@@ -1844,7 +1844,7 @@ function InsightsPanel({
                             type="button"
                             onClick={runWithSample}
                             disabled={testing}
-                            className="h-8 w-full rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+                            className="h-8 w-full rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
                         >
                             {testing ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <PlayIcon className="w-3.5 h-3.5" />}
                             {testing ? "Running…" : "Run test"}
@@ -1945,7 +1945,7 @@ function InboundUrlField({ inboundUrl }: { inboundUrl?: string }) {
                     readOnly
                     value={full}
                     onFocus={(e) => e.currentTarget.select()}
-                    className="flex-1 h-7 rounded-md border border-slate-200 bg-slate-50 px-2 text-[11.5px] font-mono text-slate-700 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none"
+                    className="flex-1 h-7 rounded-md border border-slate-200 bg-slate-50 px-2 text-[11.5px] font-mono text-slate-700 focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 focus:outline-none"
                 />
                 <button
                     type="button"
@@ -2170,7 +2170,7 @@ function ConditionEditor({
                         rows={3}
                         maxLength={2000}
                         placeholder="Is this reply asking about pricing?"
-                        className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 resize-y leading-relaxed"
+                        className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 resize-y leading-relaxed"
                     />
                     {vars.length > 0 && (
                         <div className="flex flex-wrap gap-1">
@@ -2179,7 +2179,7 @@ function ConditionEditor({
                                     key={v}
                                     type="button"
                                     onClick={() => set({ prompt: `${condition.prompt ?? ""}{{.${v}}}` })}
-                                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 font-mono text-[10.5px] text-slate-600 hover:border-sky-300 hover:text-sky-700"
+                                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 font-mono text-[10.5px] text-slate-600 hover:border-amber-200 hover:text-black"
                                 >
                                     {`{{.${v}}}`}
                                 </button>
@@ -2202,7 +2202,7 @@ function ConditionEditor({
                         onChange={(e) => set({ expression: e.target.value })}
                         rows={3}
                         placeholder={`and (gtf .confidence 0.8) (eq .intent "positive")`}
-                        className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white font-mono text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 resize-y leading-relaxed"
+                        className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white font-mono text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 resize-y leading-relaxed"
                     />
                     {vars.length > 0 && (
                         <div className="flex flex-wrap gap-1">
@@ -2211,7 +2211,7 @@ function ConditionEditor({
                                     key={v}
                                     type="button"
                                     onClick={() => set({ expression: `${condition.expression ?? ""} .${v}`.replace(/^\s+/, "") })}
-                                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 font-mono text-[10.5px] text-slate-600 hover:border-sky-300 hover:text-sky-700"
+                                    className="px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 font-mono text-[10.5px] text-slate-600 hover:border-amber-200 hover:text-black"
                                 >
                                     .{v}
                                 </button>
@@ -2289,23 +2289,23 @@ const ACTION_VISUAL: Record<string, { Icon: typeof TagIcon; tint: string; bg: st
     "warmbly.add_tag": { Icon: TagIcon, tint: "text-emerald-600", bg: "bg-emerald-50", desc: "Add a tag to the contact." },
     "warmbly.remove_tag": { Icon: TagIcon, tint: "text-amber-600", bg: "bg-amber-50", desc: "Remove a tag from the contact." },
     "warmbly.create_task": { Icon: CheckSquareIcon, tint: "text-violet-600", bg: "bg-violet-50", desc: "Open a CRM task for the contact." },
-    "warmbly.create_deal": { Icon: BriefcaseIcon, tint: "text-sky-600", bg: "bg-sky-50", desc: "Create a CRM deal for the contact." },
-    "warmbly.move_deal_stage": { Icon: BriefcaseIcon, tint: "text-sky-600", bg: "bg-sky-50", desc: "Move the contact's open deal to another stage." },
+    "warmbly.create_deal": { Icon: BriefcaseIcon, tint: "text-slate-900", bg: "bg-[#FFF9DB]", desc: "Create a CRM deal for the contact." },
+    "warmbly.move_deal_stage": { Icon: BriefcaseIcon, tint: "text-slate-900", bg: "bg-[#FFF9DB]", desc: "Move the contact's open deal to another stage." },
     "warmbly.unsubscribe": { Icon: UserMinusIcon, tint: "text-rose-600", bg: "bg-rose-50", desc: "Unsubscribe the contact from the campaign." },
     "warmbly.run_automation": { Icon: ZapIcon, tint: "text-indigo-600", bg: "bg-indigo-50", desc: "Launch another automation with this event's data." },
     "warmbly.label_email": { Icon: TagsIcon, tint: "text-fuchsia-600", bg: "bg-fuchsia-50", desc: "Label the conversation the contact replied on." },
     "warmbly.set_variables": { Icon: WandSparklesIcon, tint: "text-amber-600", bg: "bg-amber-50", desc: "Compute named values from templates for later steps to reuse." },
-    "warmbly.fire_event": { Icon: SendIcon, tint: "text-sky-600", bg: "bg-sky-50", desc: "Publish a custom event to the realtime gateway — your app receives it over the API websocket, no public URL." },
+    "warmbly.fire_event": { Icon: SendIcon, tint: "text-slate-900", bg: "bg-[#FFF9DB]", desc: "Publish a custom event to the realtime gateway — your app receives it over the API websocket, no public URL." },
     "warmbly.upsert_contact": { Icon: UserPlusIcon, tint: "text-emerald-600", bg: "bg-emerald-50", desc: "Create a contact from the event's fields, or enrich the one with that email, then tag it and enrol it in a campaign." },
-    "warmbly.add_to_campaign": { Icon: MegaphoneIcon, tint: "text-sky-600", bg: "bg-sky-50", desc: "Enrol the event's contact in a campaign. Sending still follows the campaign's mailboxes, caps and spacing." },
+    "warmbly.add_to_campaign": { Icon: MegaphoneIcon, tint: "text-slate-900", bg: "bg-[#FFF9DB]", desc: "Enrol the event's contact in a campaign. Sending still follows the campaign's mailboxes, caps and spacing." },
     "warmbly.ai_step": { Icon: SparklesIcon, tint: "text-purple-600", bg: "bg-purple-50", desc: "One AI step: an agent that takes reversible actions (tag, task, deal, label…), or a single-shot classify, extract, or generate over the event. Billed in credits." },
     "warmbly.ai_switch": { Icon: GitBranchIcon, tint: "text-purple-600", bg: "bg-purple-50", desc: "Route the event: AI picks one of your cases, or match a value template. AI mode costs 1 credit; value mode is free." },
     "slack.notify": { Icon: MessageSquareIcon, tint: "text-violet-600", bg: "bg-violet-50" },
     "discord.notify": { Icon: MessageSquareIcon, tint: "text-indigo-600", bg: "bg-indigo-50" },
-    "webhook.ping": { Icon: SendIcon, tint: "text-sky-600", bg: "bg-sky-50" },
+    "webhook.ping": { Icon: SendIcon, tint: "text-slate-900", bg: "bg-[#FFF9DB]" },
     "hubspot.upsert_contact": { Icon: BriefcaseIcon, tint: "text-orange-600", bg: "bg-orange-50" },
     "pipedrive.upsert_person": { Icon: BriefcaseIcon, tint: "text-slate-700", bg: "bg-slate-100" },
-    "salesforce.upsert_contact": { Icon: BriefcaseIcon, tint: "text-sky-600", bg: "bg-sky-50" },
+    "salesforce.upsert_contact": { Icon: BriefcaseIcon, tint: "text-slate-900", bg: "bg-[#FFF9DB]" },
     "close.upsert_lead": { Icon: BriefcaseIcon, tint: "text-emerald-600", bg: "bg-emerald-50" },
 };
 
@@ -2374,7 +2374,7 @@ function DragCreateMenu({
                         <CreateRow icon={<GitBranchIcon className="w-3.5 h-3.5 text-amber-600" />} label="Condition (branch)" onClick={() => pick("condition")} />
                         <div className="my-1 h-px bg-slate-100" />
                         <div className="px-2 pt-0.5 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Actions</div>
-                        <CreateRow icon={<ZapIcon className="w-3.5 h-3.5 text-sky-600" />} label="Integration action" onClick={() => pick("action")} />
+                        <CreateRow icon={<ZapIcon className="w-3.5 h-3.5 text-slate-900" />} label="Integration action" onClick={() => pick("action")} />
                         {NATIVE_ACTIONS.filter((a) => !isAIAction(a)).map((a) => (
                             <CreateRow key={a} icon={actionGlyph(a)} label={actionLabel(a)} onClick={() => pick(a)} />
                         ))}
@@ -2415,7 +2415,7 @@ function AddStepMenu({ onAdd, onAddCondition }: { onAdd: (choice: string) => voi
             <button
                 type="button"
                 onClick={() => onAdd("action")}
-                className="inline-flex h-8 items-center gap-1.5 rounded-l-md bg-sky-600 px-2.5 text-[12px] font-medium text-white shadow-sm transition-colors hover:bg-sky-700"
+                className="inline-flex h-8 items-center gap-1.5 rounded-l-md bg-[#18181B] px-2.5 text-[12px] font-medium text-white shadow-sm transition-colors hover:bg-black"
             >
                 <PlusIcon className="w-3.5 h-3.5" />
                 Add action
@@ -2424,7 +2424,7 @@ function AddStepMenu({ onAdd, onAddCondition }: { onAdd: (choice: string) => voi
                 type="button"
                 aria-label="More step types"
                 onClick={() => setOpen((o) => !o)}
-                className="inline-flex h-8 items-center rounded-r-md border-l border-sky-500/60 bg-sky-600 px-1.5 text-white shadow-sm transition-colors hover:bg-sky-700"
+                className="inline-flex h-8 items-center rounded-r-md border-l border-slate-900/60 bg-[#18181B] px-1.5 text-white shadow-sm transition-colors hover:bg-black"
             >
                 <ChevronDownIcon className="w-3.5 h-3.5" />
             </button>
@@ -2597,7 +2597,7 @@ function PrioritySegment({ value, onChange }: { value: string; onChange: (p: str
                     onClick={() => onChange(p)}
                     className={cn(
                         "h-7 px-2.5 rounded text-[11px] font-medium capitalize transition-colors",
-                        current === p ? "bg-sky-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+                        current === p ? "bg-[#18181B] text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
                     )}
                 >
                     {p}
@@ -2909,7 +2909,7 @@ function UpsertContactFields({
                 <button
                     type="button"
                     onClick={addRow}
-                    className="mt-2 inline-flex items-center gap-1 text-[12px] text-sky-600 hover:text-sky-700"
+                    className="mt-2 inline-flex items-center gap-1 text-[12px] text-slate-900 hover:text-black"
                 >
                     <PlusIcon className="w-3.5 h-3.5" /> Add custom field
                 </button>
@@ -3000,7 +3000,7 @@ function SetVariablesFields({
             <button
                 type="button"
                 onClick={addRow}
-                className="inline-flex items-center gap-1 text-[12px] text-sky-600 hover:text-sky-700"
+                className="inline-flex items-center gap-1 text-[12px] text-slate-900 hover:text-black"
             >
                 <PlusIcon className="w-3.5 h-3.5" /> Add variable
             </button>
@@ -3075,7 +3075,7 @@ function FireEventFields({
                 <button
                     type="button"
                     onClick={addRow}
-                    className="mt-2 inline-flex items-center gap-1 text-[12px] text-sky-600 hover:text-sky-700"
+                    className="mt-2 inline-flex items-center gap-1 text-[12px] text-slate-900 hover:text-black"
                 >
                     <PlusIcon className="w-3.5 h-3.5" /> Add field
                 </button>
@@ -3106,7 +3106,7 @@ function AIInstruction({
                 onChange={(e) => onChange(e.target.value)}
                 rows={3}
                 placeholder={placeholder}
-                className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 resize-y leading-relaxed"
+                className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 resize-y leading-relaxed"
             />
             <p className="mt-1 text-[11px] text-slate-400 leading-relaxed">
                 Reference event fields with <code>{`{{.field}}`}</code>. The model also sees the rest of the event data.
@@ -3161,7 +3161,7 @@ function AIStringList({
             <button
                 type="button"
                 onClick={addRow}
-                className="mt-2 inline-flex items-center gap-1 text-[12px] text-sky-600 hover:text-sky-700"
+                className="mt-2 inline-flex items-center gap-1 text-[12px] text-slate-900 hover:text-black"
             >
                 <PlusIcon className="w-3.5 h-3.5" /> {addLabel}
             </button>
@@ -3483,7 +3483,7 @@ function AIAgentFields({
                                     <span
                                         className={cn(
                                             "inline-flex size-4 shrink-0 items-center justify-center rounded border",
-                                            on ? "border-sky-500 bg-sky-500 text-white" : "border-slate-300 bg-white",
+                                            on ? "border-slate-900 bg-amber-400 text-white" : "border-slate-300 bg-white",
                                         )}
                                     >
                                         {on && <CheckIcon className="w-3 h-3" />}
@@ -3518,7 +3518,7 @@ function AIAgentFields({
                         <span
                             className={cn(
                                 "inline-flex size-4 shrink-0 items-center justify-center rounded border",
-                                config.ai_allow_create_tags ? "border-sky-500 bg-sky-500 text-white" : "border-slate-300 bg-white",
+                                config.ai_allow_create_tags ? "border-slate-900 bg-amber-400 text-white" : "border-slate-300 bg-white",
                             )}
                         >
                             {!!config.ai_allow_create_tags && <CheckIcon className="w-3 h-3" />}
@@ -3672,7 +3672,7 @@ function RunAnotherAutomationFields({
                 </p>
             )}
             {selected && selected.enabled && selected.trigger_event !== "campaign.action" && (
-                <p className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-[11px] leading-relaxed text-sky-700">
+                <p className="rounded-md border border-amber-200 bg-[#FFF9DB] px-2 py-1.5 text-[11px] leading-relaxed text-slate-900">
                     Built for the &quot;{triggerLabel(selected.trigger_event)}&quot; trigger. It still runs here, but only the variables present in this event are passed through.
                 </p>
             )}
@@ -3694,7 +3694,7 @@ function VarChips({ vars, onPick }: { vars: string[]; onPick: (v: string) => voi
                     type="button"
                     onClick={() => onPick(v)}
                     title={`Insert {{.${v}}}`}
-                    className="h-5 rounded border border-slate-200 bg-slate-50 px-1.5 font-mono text-[10.5px] text-slate-500 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                    className="h-5 rounded border border-slate-200 bg-slate-50 px-1.5 font-mono text-[10.5px] text-slate-500 transition-colors hover:border-amber-200 hover:bg-[#FFF9DB] hover:text-black"
                 >
                     {`{{.${v}}}`}
                 </button>

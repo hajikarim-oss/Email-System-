@@ -82,7 +82,7 @@ export default function EntryDelayPicker({
     const chip = (active: boolean) =>
         `h-7 px-2.5 rounded-md border text-[11.5px] transition-colors disabled:opacity-50 ${
             active
-                ? "border-sky-300 bg-sky-50 text-sky-700 font-medium"
+                ? "border-amber-200 bg-[#FFF9DB] text-slate-900 font-medium"
                 : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
         }`;
 

@@ -372,7 +372,7 @@ function ConditionalBuilder({
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => (rawMode ? setRawMode(false) : enterRaw())}
-                    className="rounded px-1.5 py-0.5 font-mono text-[10px] text-slate-400 transition-colors hover:text-sky-600"
+                    className="rounded px-1.5 py-0.5 font-mono text-[10px] text-slate-400 transition-colors hover:text-slate-900"
                     title={rawMode ? "Back to the builder" : "Edit the raw template freely"}
                 >
                     {rawMode ? "builder" : "{ } raw"}
@@ -399,7 +399,7 @@ function ConditionalBuilder({
                             onChange={(e) => setRawFull(e.target.value)}
                             rows={5}
                             spellCheck={false}
-                            className="mt-1 w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 font-mono text-[11.5px] leading-relaxed text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                            className="mt-1 w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 font-mono text-[11.5px] leading-relaxed text-slate-800 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                         />
                         <p className="mt-1 text-[10px] leading-snug text-slate-400">
                             The full {"{{if …}}…{{end}}"} construct. Any valid Go-template conditional works; press Apply.
@@ -440,7 +440,7 @@ function ConditionalBuilder({
                                 value={raw}
                                 onChange={(e) => setRaw(e.target.value)}
                                 placeholder='eq .Industry "SaaS"'
-                                className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 px-2 font-mono text-[11.5px] text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 px-2 font-mono text-[11.5px] text-slate-800 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                             />
                             <span className="font-mono text-[11px] text-slate-400">{"}}"}</span>
                             <button
@@ -458,7 +458,7 @@ function ConditionalBuilder({
                             value={value}
                             onChange={(e) => setValue(e.target.value)}
                             placeholder="value to match"
-                            className="h-7 w-full rounded-md border border-slate-200 px-2 text-[12px] text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                            className="h-7 w-full rounded-md border border-slate-200 px-2 text-[12px] text-slate-800 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                         />
                     )}
                 </div>
@@ -471,7 +471,7 @@ function ConditionalBuilder({
                         onChange={(e) => setThenText(e.target.value)}
                         rows={2}
                         placeholder="Text shown when the condition is true"
-                        className="w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] leading-relaxed text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                        className="w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] leading-relaxed text-slate-800 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                     />
                     <VarRow fields={fields} onPick={insertVarInto(setThenText)} />
                 </div>
@@ -497,7 +497,7 @@ function ConditionalBuilder({
                             onChange={(e) => setElseText(e.target.value)}
                             rows={2}
                             placeholder="Text shown otherwise"
-                            className="w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] leading-relaxed text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                            className="w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] leading-relaxed text-slate-800 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                         />
                         <VarRow fields={fields} onPick={insertVarInto(setElseText)} />
                     </div>
@@ -546,7 +546,7 @@ function VarRow({ fields, onPick }: { fields: string[]; onPick: (token: string) 
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => onPick(buildToken(f))}
                     title={`Insert ${buildToken(f)}`}
-                    className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                    className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 transition-colors hover:border-amber-200 hover:bg-[#FFF9DB] hover:text-black"
                 >
                     {f}
                 </button>
@@ -570,7 +570,7 @@ function Select<T extends string>({
             <select
                 value={value}
                 onChange={(e) => onChange(e.target.value as T)}
-                className="h-7 w-full appearance-none rounded-md border border-slate-200 bg-white pl-2 pr-6 text-[12px] text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                className="h-7 w-full appearance-none rounded-md border border-slate-200 bg-white pl-2 pr-6 text-[12px] text-slate-800 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
             >
                 {options.map((o) => (
                     <option key={o.value} value={o.value}>

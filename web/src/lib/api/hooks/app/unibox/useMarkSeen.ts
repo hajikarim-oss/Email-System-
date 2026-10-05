@@ -86,6 +86,7 @@ export default function useMarkSeen() {
                 queryClient.invalidateQueries({ queryKey: ["unibox", "overview"] });
                 queryClient.invalidateQueries({ queryKey: ["unibox", "unseen-count"] });
             }
+            queryClient.invalidateQueries({ queryKey: ["notifications", "feed"] });
         },
     });
 }

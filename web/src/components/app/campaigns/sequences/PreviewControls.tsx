@@ -210,7 +210,7 @@ export function SendTestButton({
                         type="button"
                         onClick={submit}
                         disabled={!!blocked || !valid || send.isPending}
-                        className="h-7 px-3 rounded-md bg-sky-600 text-[12px] font-medium text-white hover:bg-sky-700 inline-flex items-center gap-1.5 disabled:opacity-50"
+                        className="h-7 px-3 rounded-md bg-[#18181B] text-[12px] font-medium text-white hover:bg-black inline-flex items-center gap-1.5 disabled:opacity-50"
                     >
                         {send.isPending ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <SendIcon className="w-3.5 h-3.5" />}
                         Send

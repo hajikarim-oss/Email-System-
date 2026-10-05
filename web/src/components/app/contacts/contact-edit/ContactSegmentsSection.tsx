@@ -51,7 +51,7 @@ export function ContactSegmentsSection({ contactId }: { contactId: string }) {
                 ) : list.length === 0 ? (
                     <div className="px-3 py-2.5 text-[11.5px] text-slate-400">
                         No segments yet.{" "}
-                        <Link to="/app/contacts/segments" className="text-sky-700 hover:underline">
+                        <Link to="/app/contacts/segments" className="text-slate-900 hover:underline">
                             Create one
                         </Link>
                         .

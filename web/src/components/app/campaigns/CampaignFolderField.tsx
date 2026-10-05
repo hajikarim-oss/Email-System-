@@ -28,7 +28,7 @@ export default function CampaignFolderField({
                 <button
                     type="button"
                     onClick={() => p.setFoldersEdit(true)}
-                    className="mt-3 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium transition-colors"
+                    className="mt-3 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors"
                 >
                     <PlusIcon className="w-3 h-3" />
                     New folder
@@ -60,7 +60,7 @@ export default function CampaignFolderField({
                             style={{ backgroundColor: f.color }}
                         />
                         <span className="truncate max-w-[160px]">{f.title}</span>
-                        {on && <CheckIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" strokeWidth={2.5} />}
+                        {on && <CheckIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" strokeWidth={2.5} />}
                     </button>
                 );
             })}

@@ -437,7 +437,7 @@ function NextActionFact({
                 : ClockIcon;
     const tone =
         next.state === "due"
-            ? "bg-sky-50 text-sky-700"
+            ? "bg-[#FFF9DB] text-slate-900"
             : next.state === "blocked"
               ? "bg-red-50 text-red-700"
               : next.state === "paused"
@@ -496,7 +496,7 @@ function StepRail({ steps }: { steps: ContactCampaignStep[] }) {
                 const st = stepState(s);
                 const dot =
                     st === "sent"
-                        ? "bg-sky-600 border-sky-600"
+                        ? "bg-[#18181B] border-slate-900"
                         : st === "in_flight"
                           ? "bg-amber-400 border-amber-400"
                           : st === "failed"
@@ -506,7 +506,7 @@ function StepRail({ steps }: { steps: ContactCampaignStep[] }) {
                     <React.Fragment key={s.id}>
                         {i > 0 && (
                             <span
-                                className={`h-px flex-1 min-w-2 ${st === "sent" || st === "in_flight" ? "bg-sky-300" : "bg-slate-200"}`}
+                                className={`h-px flex-1 min-w-2 ${st === "sent" || st === "in_flight" ? "bg-[#FFE600]/60" : "bg-slate-200"}`}
                             />
                         )}
                         <span
@@ -547,7 +547,7 @@ function StepRow({ step, isNext }: { step: ContactCampaignStep; isNext: boolean 
             <span
                 className={`w-4 h-4 rounded-full inline-flex items-center justify-center shrink-0 ${
                     st === "sent"
-                        ? "bg-sky-600 text-white"
+                        ? "bg-[#18181B] text-white"
                         : st === "failed"
                           ? "bg-red-500 text-white"
                           : st === "in_flight"
@@ -575,7 +575,7 @@ function StepRow({ step, isNext }: { step: ContactCampaignStep; isNext: boolean 
 function LeadStatusPill({ status }: { status: LeadStatus }) {
     const map: Record<LeadStatus, { label: string; cls: string }> = {
         pending: { label: "Queued", cls: "bg-slate-100 text-slate-600" },
-        active: { label: "Processing", cls: "bg-sky-50 text-sky-700" },
+        active: { label: "Processing", cls: "bg-[#FFF9DB] text-slate-900" },
         completed: { label: "Done", cls: "bg-emerald-50 text-emerald-700" },
         replied: { label: "Replied", cls: "bg-emerald-50 text-emerald-700" },
         bounced: { label: "Bounced", cls: "bg-red-50 text-red-700" },
@@ -1070,7 +1070,7 @@ function detailsFor(e: ContactTimelineEvent): [string, React.ReactNode][] {
                     href={joinUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sky-600 hover:text-sky-700 font-medium"
+                    className="text-slate-900 hover:text-black font-medium"
                 >
                     {joinUrl}
                 </a>,
@@ -1084,7 +1084,7 @@ function detailsFor(e: ContactTimelineEvent): [string, React.ReactNode][] {
                 href={u}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sky-600 hover:text-sky-700 break-all"
+                className="text-slate-900 hover:text-black break-all"
             >
                 {u}
             </a>
@@ -1117,7 +1117,7 @@ function detailsFor(e: ContactTimelineEvent): [string, React.ReactNode][] {
                     href={l.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sky-600 hover:text-sky-700 break-all"
+                    className="text-slate-900 hover:text-black break-all"
                 >
                     {l.url}
                 </a>
@@ -1275,7 +1275,7 @@ function EventMeta({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-sky-600 hover:text-sky-700 font-medium"
+                            className="text-slate-900 hover:text-black font-medium"
                         >
                             Join
                         </a>

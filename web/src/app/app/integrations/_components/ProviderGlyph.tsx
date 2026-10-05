@@ -113,7 +113,7 @@ export default function ProviderGlyph({
     }
 
     const textDim = size === 7 ? "text-[12px]" : size === 10 ? "text-[15px]" : "text-[13px]";
-    const tint = BRAND_TINT[provider] ?? { bg: "bg-sky-50", ring: "ring-sky-100", text: "text-sky-700" };
+    const tint = BRAND_TINT[provider] ?? { bg: "bg-[#FFF9DB]", ring: "ring-[#FFE600]/40", text: "text-slate-900" };
     return (
         <div
             className={cn(

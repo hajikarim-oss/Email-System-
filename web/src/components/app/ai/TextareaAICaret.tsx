@@ -375,7 +375,7 @@ export default function TextareaAICaret({
                                 zIndex: 115,
                             }}
                             aria-label="Write with AI"
-                            className="size-[22px] rounded-md inline-flex items-center justify-center text-slate-300 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                            className="size-[22px] rounded-md inline-flex items-center justify-center text-slate-300 hover:text-slate-900 hover:bg-[#FFF9DB] transition-colors"
                             onMouseDown={(e) => {
                                 // Keep the textarea focused and the caret in place.
                                 e.preventDefault();
@@ -405,7 +405,7 @@ export default function TextareaAICaret({
                     >
                         {phase === "busy" ? (
                             <div className="px-3 py-2.5 flex items-center gap-2">
-                                <SparklesIcon className="w-3.5 h-3.5 text-sky-500 animate-pulse shrink-0" />
+                                <SparklesIcon className="w-3.5 h-3.5 text-amber-500 animate-pulse shrink-0" />
                                 <span className="ai-shimmer-text text-[12px] font-medium">Writing…</span>
                                 <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-slate-400">
                                     <Kbd combo="esc" variant="light" /> cancel
@@ -449,7 +449,7 @@ export default function TextareaAICaret({
                         ) : (
                             <div>
                                 <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-2">
-                                    <SparklesIcon className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                                    <SparklesIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                                     <input
                                         ref={inputRef}
                                         value={instruction}
@@ -469,7 +469,7 @@ export default function TextareaAICaret({
                                         onClick={submit}
                                         disabled={!instruction.trim()}
                                         aria-label="Write at the cursor"
-                                        className="size-6 rounded-md bg-sky-600 text-white inline-flex items-center justify-center hover:bg-sky-700 transition-colors disabled:opacity-40"
+                                        className="size-6 rounded-md bg-[#18181B] text-white inline-flex items-center justify-center hover:bg-black transition-colors disabled:opacity-40"
                                     >
                                         <ArrowUpIcon className="w-3.5 h-3.5" />
                                     </button>

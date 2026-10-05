@@ -108,7 +108,7 @@ export default function CreditsCard({ isPaid }: { isPaid: boolean }) {
                                 type="button"
                                 onClick={() => buyPack(p.key)}
                                 disabled={buying !== null}
-                                className="h-8 px-3 rounded-md border border-slate-200 hover:border-sky-400 hover:bg-sky-50 text-[12px] font-medium text-slate-700 hover:text-sky-700 inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                                className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-900 hover:bg-[#FFF9DB] text-[12px] font-medium text-slate-700 hover:text-black inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
                             >
                                 {buying === p.key ? (
                                     <Loader2Icon className="w-3 h-3 animate-spin" />
@@ -144,7 +144,7 @@ function BalanceRing({ monthly, allowance }: { monthly: number; allowance: numbe
     const low = pct <= 0.15;
     return (
         <DitherRing frac={pct} size={72} thickness={7} tone={low ? "rose" : "sky"} className="shrink-0">
-            <SparklesIcon className={`w-3.5 h-3.5 ${low ? "text-rose-500" : "text-sky-600"}`} />
+            <SparklesIcon className={`w-3.5 h-3.5 ${low ? "text-rose-500" : "text-slate-900"}`} />
         </DitherRing>
     );
 }

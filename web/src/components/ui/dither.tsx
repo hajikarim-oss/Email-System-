@@ -1365,7 +1365,7 @@ export function DitherSlider({
                         onChange(max);
                     }
                 }}
-                className="absolute size-3.5 -translate-x-1/2 rounded-full border-2 bg-white shadow-sm transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-100"
+                className="absolute size-3.5 -translate-x-1/2 rounded-full border-2 bg-white shadow-sm transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFE600]/40"
                 style={{ left: `${frac * 100}%`, borderColor: `rgb(${cr}, ${cg}, ${cb})` }}
             />
         </div>

@@ -209,7 +209,7 @@ export default function AddFromContactsDialog({ open, onClose, campaign: campaig
                             </span>
                             <div className="h-4 w-px bg-slate-200" />
                             <span className="text-[12.5px] text-slate-900 font-medium">From contacts</span>
-                            <span className="hidden sm:inline-flex items-center h-5 px-1.5 rounded bg-sky-50 text-sky-700 text-[10px] font-medium max-w-[200px] truncate">
+                            <span className="hidden sm:inline-flex items-center h-5 px-1.5 rounded bg-[#FFF9DB] text-slate-900 text-[10px] font-medium max-w-[200px] truncate">
                                 → {targetName}
                             </span>
                             <button
@@ -311,7 +311,7 @@ export default function AddFromContactsDialog({ open, onClose, campaign: campaig
                                                         already
                                                             ? "cursor-default"
                                                             : on
-                                                              ? "bg-sky-50/60 hover:bg-sky-50"
+                                                              ? "bg-[#FFF9DB]/60 hover:bg-[#FFF9DB]"
                                                               : "hover:bg-slate-50",
                                                     )}
                                                 >
@@ -396,7 +396,7 @@ export default function AddFromContactsDialog({ open, onClose, campaign: campaig
                                 type="button"
                                 onClick={submit}
                                 disabled={busy || count === 0}
-                                className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 shrink-0"
+                                className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 shrink-0"
                             >
                                 {busy ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <UsersIcon className="w-3 h-3" />}
                                 Add {count > 0 ? count.toLocaleString() : ""} {target.kind === "campaign" ? "lead" : "contact"}{count === 1 ? "" : "s"}
@@ -418,7 +418,7 @@ function CheckSquare({ checked, muted }: { checked: boolean; muted?: boolean }) 
                 muted
                     ? "border-slate-200 bg-slate-100"
                     : checked
-                      ? "border-sky-600 bg-sky-600"
+                      ? "border-slate-900 bg-[#18181B]"
                       : "border-slate-300 bg-white",
             )}
         >

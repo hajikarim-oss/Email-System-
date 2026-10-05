@@ -46,7 +46,7 @@ const STATUS_PILL: Record<string, string> = {
     paused_undeliverable: "bg-amber-50 text-amber-700 border-amber-200",
     draft: "bg-slate-100 text-slate-600 border-slate-200",
     completed: "bg-slate-100 text-slate-600 border-slate-200",
-    idle: "bg-sky-50 text-sky-700 border-sky-200",
+    idle: "bg-[#FFF9DB] text-slate-900 border-amber-200",
 };
 
 export default function CampaignLayout() {
@@ -102,7 +102,7 @@ export default function CampaignLayout() {
                 </p>
                 <Link
                     to="/app/campaigns"
-                    className="mt-4 inline-flex items-center h-8 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium transition-colors"
+                    className="mt-4 inline-flex items-center h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors"
                 >
                     Back to campaigns
                 </Link>
@@ -141,12 +141,12 @@ export default function CampaignLayout() {
 
     return (
         <CampaignContext.Provider value={campaign}>
-            <div className="flex flex-col min-h-full bg-white">
-                <div className="px-3 sm:px-5 pt-3 sm:pt-4 pb-3 flex items-start gap-3">
+            <div className="flex flex-col min-h-full bg-[#FAF9F5]">
+                <div className="px-3 sm:px-5 pt-3 sm:pt-4 pb-3 flex items-start gap-3 bg-white border-b border-slate-200/80">
                     <div className="min-w-0">
                         <Link
                             to="/app/campaigns"
-                            className="inline-flex items-center gap-1 h-6 -ml-1.5 px-1.5 mb-1 rounded-md text-[11.5px] text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                            className="inline-flex items-center gap-1 h-6 -ml-1.5 px-1.5 mb-1 rounded-md text-[11.5px] text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
                             <ArrowLeftIcon className="w-3 h-3" />
                             Campaigns
@@ -154,16 +154,16 @@ export default function CampaignLayout() {
                         {/* min-w-0 lets the name truncate instead of pushing the
                             pills off a narrow screen; the pills wrap under it. */}
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <h1 className="min-w-0 max-w-full text-[18px] font-semibold text-slate-900 truncate">{campaign.name}</h1>
+                            <h1 className="min-w-0 max-w-full font-editorial text-[22px] sm:text-[24px] font-normal text-slate-950 tracking-tight truncate">{campaign.name}</h1>
                             <span
-                                className={`shrink-0 inline-flex items-center h-5 px-2 rounded-md border text-[10px] uppercase tracking-[0.12em] font-medium ${pill}`}
+                                className={`shrink-0 inline-flex items-center h-5 px-2 rounded-full border text-[10px] uppercase tracking-[0.12em] font-semibold ${pill}`}
                             >
                                 {campaignDisplayLabel(campaign)}
                             </span>
                             {isOneTimeCampaign(campaign) && (
                                 <span
                                     title="One-time email: a single message, no follow-ups"
-                                    className="shrink-0 inline-flex items-center gap-1 h-5 px-2 rounded-md bg-sky-50 text-sky-700 text-[10px] uppercase tracking-[0.12em] font-medium"
+                                    className="shrink-0 inline-flex items-center gap-1 h-5 px-2 rounded-full bg-slate-100 text-slate-700 border border-slate-200/60 text-[10px] uppercase tracking-[0.12em] font-medium"
                                 >
                                     <SendIcon className="w-2.5 h-2.5" />
                                     One-time
@@ -181,10 +181,10 @@ export default function CampaignLayout() {
                                 type="button"
                                 onClick={onToggle}
                                 disabled={pending}
-                                className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                className="h-8 px-3.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shadow-xs cursor-pointer"
                             >
                                 {pending ? (
-                                    <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                                    <Loader2Icon className="w-3.5 h-3.5 animate-spin text-slate-950" />
                                 ) : isActive ? (
                                     <PauseIcon className="w-3.5 h-3.5" />
                                 ) : (
@@ -204,7 +204,7 @@ export default function CampaignLayout() {
 
                 <UndeliverableBanner campaignId={campaign.id} status={status} />
 
-                <div className="shrink-0 px-3 flex items-center gap-1 border-b border-slate-200 overflow-x-auto no-scrollbar">
+                <div className="shrink-0 px-3 flex items-center gap-1 border-b border-slate-200 bg-white overflow-x-auto no-scrollbar">
                     {TABS.map(({ label, path, Icon }) => {
                         const fullPath = `/app/campaigns/${id}${path}`;
                         const isTabActive = pathname.replace(/\/$/, "") === fullPath.replace(/\/$/, "");
@@ -212,10 +212,10 @@ export default function CampaignLayout() {
                             <Link
                                 key={path || "overview"}
                                 to={fullPath}
-                                className={`relative h-10 px-2.5 inline-flex items-center gap-1.5 text-[12.5px] transition-colors ${
+                                className={`relative h-10 px-2.5 inline-flex items-center gap-1.5 text-[12.5px] transition-colors cursor-pointer ${
                                     isTabActive
-                                        ? "text-slate-900 font-medium"
-                                        : "text-slate-500 hover:text-slate-800"
+                                        ? "text-slate-950 font-semibold"
+                                        : "text-slate-500 hover:text-slate-900"
                                 }`}
                             >
                                 <Icon className="w-3.5 h-3.5" />
@@ -223,7 +223,7 @@ export default function CampaignLayout() {
                                 {isTabActive && (
                                     <motion.span
                                         layoutId="campaign-tab-underline"
-                                        className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-sky-600"
+                                        className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-[#18181B]"
                                         transition={{ type: "spring", duration: 0.3, bounce: 0.15 }}
                                     />
                                 )}

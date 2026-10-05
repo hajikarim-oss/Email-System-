@@ -300,7 +300,7 @@ export function OutreachPerformanceReview() {
                                 setSelectedCategory(e.target.value);
                                 setCurrentPage(0);
                             }}
-                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-slate-900 cursor-pointer"
                         >
                             <option value="all">All Categories</option>
                             {categories.map((c) => (
@@ -318,7 +318,7 @@ export function OutreachPerformanceReview() {
                                 setSelectedPoc(e.target.value);
                                 setCurrentPage(0);
                             }}
-                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-slate-900 cursor-pointer"
                         >
                             <option value="all">All Teammates</option>
                             {pocs.map((p) => (
@@ -336,7 +336,7 @@ export function OutreachPerformanceReview() {
                                 setSelectedDesignation(e.target.value);
                                 setCurrentPage(0);
                             }}
-                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-slate-900 cursor-pointer"
                         >
                             <option value="all">All Designations</option>
                             {designations.map((d) => (
@@ -354,7 +354,7 @@ export function OutreachPerformanceReview() {
                                 setSelectedChannel(e.target.value);
                                 setCurrentPage(0);
                             }}
-                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-slate-900 cursor-pointer"
                         >
                             <option value="all">All Channels</option>
                             {channels.map((ch) => (
@@ -372,7 +372,7 @@ export function OutreachPerformanceReview() {
                                 setSelectedStep(e.target.value);
                                 setCurrentPage(0);
                             }}
-                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-slate-900 cursor-pointer"
                         >
                             <option value="all">All Steps</option>
                             {steps.map((s) => (
@@ -390,7 +390,7 @@ export function OutreachPerformanceReview() {
                                 setSelectedStatus(e.target.value);
                                 setCurrentPage(0);
                             }}
-                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                            className="w-full h-8 px-2.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-slate-900 cursor-pointer"
                         >
                             <option value="all">All Statuses</option>
                             <option value="Working">Working</option>
@@ -442,7 +442,7 @@ export function OutreachPerformanceReview() {
                 {/* 4. Meetings Booked */}
                 <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs hover:border-slate-300 transition-all space-y-1">
                     <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Meetings Booked</div>
-                    <div className="text-[22px] font-bold text-sky-700 font-mono tracking-tight">
+                    <div className="text-[22px] font-bold text-slate-900 font-mono tracking-tight">
                         {metrics.totalMeetings}
                     </div>
                     <div className={cn("flex items-center gap-1 text-[11px] font-semibold", metrics.meetingsDelta >= 0 ? "text-emerald-700" : "text-rose-600")}>
@@ -482,7 +482,7 @@ export function OutreachPerformanceReview() {
                 <div className="lg:col-span-6 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs space-y-4">
                     <div className="border-b border-slate-100 pb-3">
                         <h3 className="text-[14px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                            <LayersIcon className="w-4 h-4 text-sky-600" />
+                            <LayersIcon className="w-4 h-4 text-slate-900" />
                             <span>Outreach Conversion Funnel</span>
                         </h3>
                         <p className="text-[12px] text-slate-500">
@@ -492,7 +492,7 @@ export function OutreachPerformanceReview() {
 
                     <div className="space-y-3 pt-1">
                         {[
-                            { label: "1. Outreach Sent", count: metrics.totalSent, pct: 100, color: "bg-sky-500", text: "text-sky-700" },
+                            { label: "1. Outreach Sent", count: metrics.totalSent, pct: 100, color: "bg-amber-400", text: "text-slate-900" },
                             {
                                 label: "2. Opened",
                                 count: metrics.totalOpened,
@@ -599,7 +599,7 @@ export function OutreachPerformanceReview() {
                                         <span className="font-mono font-bold text-slate-900">{rate.toFixed(1)}%</span>
                                     </div>
                                     <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                        <div className="h-full rounded-full bg-sky-500" style={{ width: `${Math.min(100, rate * 3)}%` }} />
+                                        <div className="h-full rounded-full bg-amber-400" style={{ width: `${Math.min(100, rate * 3)}%` }} />
                                     </div>
                                 </div>
                             );
@@ -679,7 +679,7 @@ export function OutreachPerformanceReview() {
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div>
                         <h3 className="text-[14px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                            <ActivityIcon className="w-4 h-4 text-sky-600" />
+                            <ActivityIcon className="w-4 h-4 text-slate-900" />
                             <span>Daily Outreach vs Replies (Past 7 Days)</span>
                         </h3>
                         <p className="text-[12px] text-slate-500">
@@ -688,7 +688,7 @@ export function OutreachPerformanceReview() {
                     </div>
                     <div className="flex items-center gap-4 text-[11.5px] font-medium">
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
                             <span className="text-slate-600">Sent Volume</span>
                         </span>
                         <span className="flex items-center gap-1.5">
@@ -711,7 +711,7 @@ export function OutreachPerformanceReview() {
                                 <div className="h-24 w-full flex items-end justify-center gap-1.5 pb-1 border-b border-slate-200/80">
                                     {/* Sent Bar */}
                                     <div
-                                        className="w-3.5 bg-sky-400 hover:bg-sky-500 rounded-t transition-all"
+                                        className="w-3.5 bg-amber-400 hover:bg-amber-400 rounded-t transition-all"
                                         style={{ height: `${Math.max(12, sentHeightPct)}%` }}
                                         title={`Sent: ${sent}`}
                                     />
@@ -723,7 +723,7 @@ export function OutreachPerformanceReview() {
                                     />
                                 </div>
                                 <div className="flex items-center justify-between w-full font-mono text-[10.5px]">
-                                    <span className="text-sky-700 font-semibold">{sent}s</span>
+                                    <span className="text-slate-900 font-semibold">{sent}s</span>
                                     <span className="text-emerald-700 font-bold">{replied}r</span>
                                 </div>
                             </div>
@@ -869,7 +869,7 @@ export function OutreachPerformanceReview() {
                                     setCurrentPage(0);
                                 }}
                                 placeholder="Search POC, category, note..."
-                                className="pl-8 pr-3 h-8 rounded-md border border-slate-200 bg-slate-50/50 text-[12px] text-slate-700 placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-sky-500 focus:bg-white w-[220px]"
+                                className="pl-8 pr-3 h-8 rounded-md border border-slate-200 bg-slate-50/50 text-[12px] text-slate-700 placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-slate-900 focus:bg-white w-[220px]"
                             />
                         </div>
                         <span className="text-[11.5px] font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">
@@ -962,14 +962,14 @@ export function OutreachPerformanceReview() {
                                         <td className="py-2.5 px-2.5 text-right font-mono text-slate-600">{row.opened}</td>
                                         <td className="py-2.5 px-2.5 text-right font-mono font-semibold text-emerald-700">{row.replied}</td>
                                         <td className="py-2.5 px-2.5 text-right font-mono font-bold text-slate-900">{rate.toFixed(1)}%</td>
-                                        <td className="py-2.5 px-2.5 text-right font-mono font-bold text-sky-700">{row.meetings}</td>
+                                        <td className="py-2.5 px-2.5 text-right font-mono font-bold text-slate-900">{row.meetings}</td>
                                         <td className="py-2.5 px-2.5 text-center">
                                             <span
                                                 className={cn(
                                                     "px-2 py-0.5 rounded-full text-[10px] font-semibold border",
                                                     row.dealStage === "Deal Won" && "bg-purple-50 text-purple-700 border-purple-200",
                                                     row.dealStage === "In Negotiation" && "bg-indigo-50 text-indigo-700 border-indigo-200",
-                                                    row.dealStage === "Meeting Scheduled" && "bg-sky-50 text-sky-700 border-sky-200",
+                                                    row.dealStage === "Meeting Scheduled" && "bg-[#FFF9DB] text-slate-900 border-amber-200",
                                                     row.dealStage === "No Deal Yet" && "bg-slate-100 text-slate-600 border-slate-200"
                                                 )}
                                             >

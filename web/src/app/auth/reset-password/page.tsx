@@ -4,7 +4,7 @@ import AuthButton from "@/components/auth/button";
 import { useResetPasswordForm } from "../hooks/useResetPasswordForm";
 import { Mail } from "lucide-react";
 
-const INPUT = "w-full h-11 rounded-lg border border-slate-200 bg-white px-4 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors duration-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-400/15";
+const INPUT = "w-full h-11 rounded-lg border border-slate-200 bg-white px-4 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors duration-200 focus:border-slate-800 focus:ring-4 focus:ring-slate-800/15";
 
 export default function ResetPasswordPage() {
     const { mail, setMail, captcha, pending, sent, onSubmit, onToken } = useResetPasswordForm();
@@ -12,8 +12,8 @@ export default function ResetPasswordPage() {
     if (sent) {
         return (
             <div className="space-y-5 text-center py-4">
-                <div className="mx-auto w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center">
-                    <Mail className="w-7 h-7 text-sky-500" />
+                <div className="mx-auto w-14 h-14 rounded-2xl bg-[#FFF9DB] flex items-center justify-center">
+                    <Mail className="w-7 h-7 text-amber-500" />
                 </div>
                 <div>
                     <h2 className="text-[24px] font-bold text-slate-900 tracking-tight">Check your inbox</h2>
@@ -24,7 +24,7 @@ export default function ResetPasswordPage() {
                 </div>
                 <Link
                     to="/auth/login"
-                    className="inline-block text-sm text-sky-500 font-medium hover:text-sky-600 transition-colors pt-2"
+                    className="inline-block text-sm text-amber-500 font-medium hover:text-slate-900 transition-colors pt-2"
                 >
                     Back to sign in
                 </Link>
@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
 
             <p className="text-center text-sm text-slate-400 pt-1">
                 Remember your password?{" "}
-                <Link to="/auth/login" className="text-sky-500 font-medium hover:text-sky-600 transition-colors">Sign in</Link>
+                <Link to="/auth/login" className="text-amber-500 font-medium hover:text-slate-900 transition-colors">Sign in</Link>
             </p>
         </div>
     );

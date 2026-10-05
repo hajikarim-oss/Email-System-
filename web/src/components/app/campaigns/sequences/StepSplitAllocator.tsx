@@ -20,7 +20,7 @@ export interface SplitArm {
 }
 
 // Distinct accent per arm position. Original is always first (sky).
-const ARM = ["bg-sky-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
+const ARM = ["bg-amber-400", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
 const colorOf = (i: number) => ARM[i % ARM.length];
 
 const MIN = 1; // a sending arm must keep at least 1% (DB CHECK weight > 0)
@@ -174,7 +174,7 @@ export default function StepSplitAllocator({
                     onClick={onAdd}
                     disabled={!canAdd || adding}
                     title="Add an A/B variant"
-                    className="h-8 shrink-0 px-2 inline-flex items-center gap-1 rounded-md bg-sky-600 text-[12px] font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                    className="h-8 shrink-0 px-2 inline-flex items-center gap-1 rounded-md bg-[#18181B] text-[12px] font-medium text-white hover:bg-black disabled:opacity-50"
                 >
                     {adding ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <PlusIcon className="w-3.5 h-3.5" />}
                     Variant

@@ -256,7 +256,7 @@ export default function AIDraftBar({
                         transition={{ type: "spring", stiffness: 480, damping: 34 }}
                         className="pointer-events-auto h-8 pl-3 pr-1.5 rounded-full border border-slate-200 bg-white/95 backdrop-blur shadow-[0_8px_24px_-8px_rgba(15,23,42,0.25)] flex items-center gap-2"
                     >
-                        <SparklesIcon className="w-3.5 h-3.5 text-sky-500 animate-pulse shrink-0" />
+                        <SparklesIcon className="w-3.5 h-3.5 text-amber-500 animate-pulse shrink-0" />
                         <AnimatePresence mode="wait" initial={false}>
                             <motion.span
                                 key={stage}
@@ -289,7 +289,7 @@ export default function AIDraftBar({
                         className="pointer-events-auto w-[400px] max-w-[92vw] rounded-lg border border-slate-200 bg-white/95 backdrop-blur shadow-[0_8px_24px_-8px_rgba(15,23,42,0.25)] overflow-hidden"
                     >
                         <div className="px-3 pt-2.5 flex items-start gap-2">
-                            <MessageCircleQuestionIcon className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-0.5" />
+                            <MessageCircleQuestionIcon className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                             <p className="text-[12px] text-slate-800 leading-snug">
                                 {ctrl.question}
                             </p>
@@ -316,7 +316,7 @@ export default function AIDraftBar({
                     >
                         <div className="px-3 pt-2 flex items-center gap-1.5">
                             <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-slate-900">
-                                <SparklesIcon className="w-3.5 h-3.5 text-sky-500" />
+                                <SparklesIcon className="w-3.5 h-3.5 text-amber-500" />
                                 Draft ready
                             </span>
                             {usageText && (
@@ -345,7 +345,7 @@ export default function AIDraftBar({
                                 onClick={() => setAdjustOpen((o) => !o)}
                                 className={`h-[26px] px-2 rounded-md inline-flex items-center gap-1 text-[11.5px] transition-colors ${
                                     adjustOpen
-                                        ? "text-sky-700 bg-sky-50"
+                                        ? "text-slate-900 bg-[#FFF9DB]"
                                         : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                                 }`}
                             >
@@ -400,14 +400,14 @@ export default function AIDraftBar({
                                             }}
                                             placeholder="e.g. shorter, mention the pricing page, ask for Tuesday"
                                             maxLength={1000}
-                                            className="flex-1 min-w-0 h-7 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                            className="flex-1 min-w-0 h-7 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                                         />
                                         <button
                                             type="button"
                                             onClick={submitAdjust}
                                             disabled={!instruction.trim()}
                                             aria-label="Redraft with this instruction"
-                                            className="size-7 rounded-md bg-sky-600 text-white inline-flex items-center justify-center hover:bg-sky-700 transition-colors disabled:opacity-40"
+                                            className="size-7 rounded-md bg-[#18181B] text-white inline-flex items-center justify-center hover:bg-black transition-colors disabled:opacity-40"
                                         >
                                             <ArrowUpIcon className="w-3.5 h-3.5" />
                                         </button>
@@ -445,14 +445,14 @@ function QuestionAnswerRow({ onAnswer }: { onAnswer: (text: string) => void }) {
                 }}
                 placeholder="Answer, then it writes the email"
                 maxLength={1000}
-                className="flex-1 min-w-0 h-7 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                className="flex-1 min-w-0 h-7 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
             />
             <button
                 type="button"
                 onClick={submit}
                 disabled={!text.trim()}
                 aria-label="Answer and draft"
-                className="size-7 rounded-md bg-sky-600 text-white inline-flex items-center justify-center hover:bg-sky-700 transition-colors disabled:opacity-40"
+                className="size-7 rounded-md bg-[#18181B] text-white inline-flex items-center justify-center hover:bg-black transition-colors disabled:opacity-40"
             >
                 <ArrowUpIcon className="w-3.5 h-3.5" />
             </button>

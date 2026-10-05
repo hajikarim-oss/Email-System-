@@ -64,11 +64,11 @@ const ENTITY_TYPES: AuditEntityType[] = [
 
 const ACTION_TONE: Record<string, { dot: string; text: string }> = {
     create:     { dot: "bg-emerald-500", text: "text-emerald-700" },
-    update:     { dot: "bg-sky-500",     text: "text-sky-700" },
+    update:     { dot: "bg-amber-400",     text: "text-slate-900" },
     delete:     { dot: "bg-red-500",     text: "text-red-700" },
     api_call:   { dot: "bg-amber-500",   text: "text-amber-700" },
-    export:     { dot: "bg-sky-500",     text: "text-sky-700" },
-    import:     { dot: "bg-sky-500",     text: "text-sky-700" },
+    export:     { dot: "bg-amber-400",     text: "text-slate-900" },
+    import:     { dot: "bg-amber-400",     text: "text-slate-900" },
     revoke:     { dot: "bg-red-500",     text: "text-red-700" },
     connect:    { dot: "bg-emerald-500", text: "text-emerald-700" },
     disconnect: { dot: "bg-red-500",     text: "text-red-700" },
@@ -79,8 +79,8 @@ const ACTION_TONE: Record<string, { dot: string; text: string }> = {
     stop:       { dot: "bg-red-500",     text: "text-red-700" },
     pause:      { dot: "bg-amber-500",   text: "text-amber-700" },
     resume:     { dot: "bg-emerald-500", text: "text-emerald-700" },
-    send:       { dot: "bg-sky-500",     text: "text-sky-700" },
-    duplicate:  { dot: "bg-sky-500",     text: "text-sky-700" },
+    send:       { dot: "bg-amber-400",     text: "text-slate-900" },
+    duplicate:  { dot: "bg-amber-400",     text: "text-slate-900" },
     rotate:     { dot: "bg-amber-500",   text: "text-amber-700" },
 };
 
@@ -433,7 +433,7 @@ function fmt(d: string) {
 
 function SearchPill({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     return (
-        <div className="h-7 px-2 rounded-md border border-slate-200 bg-white flex items-center gap-1.5 focus-within:border-sky-400 transition-colors">
+        <div className="h-7 px-2 rounded-md border border-slate-200 bg-white flex items-center gap-1.5 focus-within:border-slate-800 transition-colors">
             <SearchIcon className="w-3 h-3 text-slate-400" />
             <input
                 value={value}

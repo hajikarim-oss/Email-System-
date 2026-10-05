@@ -348,12 +348,12 @@ function Banner({
     const tones = {
         red: "bg-red-50 border-red-200 text-red-900",
         amber: "bg-amber-50 border-amber-200 text-amber-900",
-        sky: "bg-sky-50 border-sky-200 text-sky-900",
+        sky: "bg-[#FFF9DB] border-amber-200 text-slate-900",
     } as const;
     const btn = {
         red: "bg-red-600 hover:bg-red-700 text-white",
         amber: "bg-amber-600 hover:bg-amber-700 text-white",
-        sky: "bg-sky-600 hover:bg-sky-700 text-white",
+        sky: "bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer",
     } as const;
     return (
         <motion.div

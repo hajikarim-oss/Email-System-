@@ -65,7 +65,7 @@ export function DatePicker({
                 onClick={() => setOpen((o) => !o)}
                 className={cn(
                     "h-7 w-full px-2 rounded-md border bg-white inline-flex items-center gap-1.5 text-[12px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
-                    open ? "border-sky-400 ring-2 ring-sky-100" : "border-slate-200 hover:border-slate-300",
+                    open ? "border-slate-800 ring-2 ring-[#FFE600]/40" : "border-slate-200 hover:border-slate-300",
                 )}
             >
                 <CalendarIcon className="w-3 h-3 text-slate-400 shrink-0" />

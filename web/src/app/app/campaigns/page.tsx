@@ -193,7 +193,7 @@ function CampaignFolderMenu({ campaign, folders }: { campaign: Campaign; folders
                     className={cn(
                         "size-6 rounded flex items-center justify-center transition-opacity shrink-0",
                         inCount > 0
-                            ? "text-sky-600 hover:bg-sky-50 opacity-100"
+                            ? "text-slate-900 hover:bg-[#FFF9DB] opacity-100"
                             : "text-slate-400 hover:text-slate-900 hover:bg-slate-100 opacity-100 md:opacity-0 md:group-hover:opacity-100",
                     )}
                 >
@@ -232,7 +232,7 @@ function CampaignFolderMenu({ campaign, folders }: { campaign: Campaign; folders
                                 }
                                 trailing={
                                     isIn ? (
-                                        <CheckIcon className="w-3.5 h-3.5 text-sky-600" strokeWidth={2.5} />
+                                        <CheckIcon className="w-3.5 h-3.5 text-slate-900" strokeWidth={2.5} />
                                     ) : null
                                 }
                             >
@@ -679,7 +679,7 @@ export default function CampaignsPage() {
                                     {isOneTimeCampaign(c) && (
                                         <span
                                             title="One-time email: a single message, no follow-ups"
-                                            className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full bg-sky-50 text-sky-700 text-[10px] font-medium uppercase tracking-[0.1em] shrink-0"
+                                            className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200/60 text-[10px] font-medium uppercase tracking-[0.1em] shrink-0"
                                         >
                                             <SendIcon className="w-2.5 h-2.5" />
                                             One-time
@@ -716,7 +716,7 @@ export default function CampaignsPage() {
                                             (cstatus === "active" && stopCampaign.isPending) ||
                                             (cstatus !== "active" && startCampaign.isPending)
                                         }
-                                        className="size-6 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30"
+                                        className="size-6 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30 cursor-pointer"
                                         aria-label={
                                             cstatus === "active" ? "Pause campaign" : "Start campaign"
                                         }
@@ -731,7 +731,7 @@ export default function CampaignsPage() {
                                             actions.requestDelete(c);
                                         }}
                                         disabled={actions.deleting}
-                                        className="size-6 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30"
+                                        className="size-6 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30 cursor-pointer"
                                         title="Delete campaign"
                                         aria-label="Delete campaign"
                                     >

@@ -329,7 +329,7 @@ function BookingLinkBlock({ connection, onSaved }: { connection: IntegrationConn
                         onClick={save}
                         disabled={update.isPending}
                         className={cn(
-                            "h-6 px-2.5 rounded text-[11.5px] font-medium text-white bg-sky-600 hover:bg-sky-700 inline-flex items-center gap-1.5 transition-colors",
+                            "h-6 px-2.5 rounded text-[11.5px] font-medium text-white bg-[#18181B] hover:bg-black inline-flex items-center gap-1.5 transition-colors",
                             update.isPending && "opacity-60",
                         )}
                     >

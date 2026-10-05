@@ -355,7 +355,7 @@ export default function FormBuilder({ form }: { form: Form }) {
                     <button
                         type="button"
                         onClick={guarded(() => void save("published"))}
-                        className="h-7 px-3 rounded-md bg-sky-600 text-white text-[12px] font-medium hover:bg-sky-700 inline-flex items-center gap-1.5 shrink-0"
+                        className="h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] inline-flex items-center gap-1.5 shrink-0"
                     >
                         <GlobeIcon className="w-3.5 h-3.5" /> Publish
                     </button>
@@ -378,14 +378,14 @@ export default function FormBuilder({ form }: { form: Form }) {
                             <Icon className="w-3.5 h-3.5" />
                             {label}
                             {key === "submissions" && form.submissions_count > 0 && (
-                                <span className="inline-flex items-center h-4 px-1 rounded bg-sky-50 text-sky-700 text-[10px] font-medium tabular-nums">
+                                <span className="inline-flex items-center h-4 px-1 rounded bg-[#FFF9DB] text-slate-900 text-[10px] font-medium tabular-nums">
                                     {form.submissions_count.toLocaleString()}
                                 </span>
                             )}
                             {active && (
                                 <motion.span
                                     layoutId="form-builder-tab-underline"
-                                    className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-sky-600"
+                                    className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-[#18181B]"
                                     transition={{ type: "spring", duration: 0.3, bounce: 0.15 }}
                                 />
                             )}
@@ -436,8 +436,8 @@ export default function FormBuilder({ form }: { form: Form }) {
                         </aside>
                         <DragOverlay>
                             {dragging && (
-                                <div className="h-8 px-2 inline-flex items-center gap-2 rounded-md border border-sky-200 bg-white shadow-md text-[12px] text-slate-700">
-                                    <dragging.icon className="w-3.5 h-3.5 text-sky-600" />
+                                <div className="h-8 px-2 inline-flex items-center gap-2 rounded-md border border-amber-200 bg-white shadow-md text-[12px] text-slate-700">
+                                    <dragging.icon className="w-3.5 h-3.5 text-slate-900" />
                                     {dragging.label}
                                 </div>
                             )}
@@ -517,7 +517,7 @@ export default function FormBuilder({ form }: { form: Form }) {
                             type="button"
                             disabled={update.isPending}
                             onClick={() => void save()}
-                            className="h-7 px-3 rounded-md bg-sky-600 text-white text-[12px] font-medium hover:bg-sky-700 disabled:opacity-60"
+                            className="h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] disabled:opacity-60"
                         >
                             {update.isPending ? "Saving…" : "Save"}
                         </button>

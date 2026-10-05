@@ -62,7 +62,7 @@ export default function SettingsPanel({
                         value={draft.success_message}
                         onChange={(e) => onChange({ success_message: e.target.value })}
                         rows={3}
-                        className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[16px] md:text-[12.5px] text-slate-900 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[16px] md:text-[12.5px] text-slate-900 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                     />
                 </div>
                 <div>
@@ -167,7 +167,7 @@ export default function SettingsPanel({
                             {draft.allowed_domains.map((d) => (
                                 <span
                                     key={d}
-                                    className="inline-flex items-center gap-1 h-5 pl-2 pr-1 rounded bg-sky-50 text-sky-700 text-[11px]"
+                                    className="inline-flex items-center gap-1 h-5 pl-2 pr-1 rounded bg-[#FFF9DB] text-slate-900 text-[11px]"
                                 >
                                     {d}
                                     <button
@@ -178,7 +178,7 @@ export default function SettingsPanel({
                                                 allowed_domains: draft.allowed_domains.filter((x) => x !== d),
                                             })
                                         }
-                                        className="size-4 inline-flex items-center justify-center rounded hover:bg-sky-100"
+                                        className="size-4 inline-flex items-center justify-center rounded hover:bg-[#FFF3B0]"
                                     >
                                         <XIcon className="w-2.5 h-2.5" />
                                     </button>

@@ -298,18 +298,18 @@ function StepNode({ data, selected }: NodeProps) {
     return (
         <div
             className={`w-[248px] rounded-xl border bg-white shadow-sm transition-shadow duration-200 hover:shadow-md ${d.orphan ? "border-dashed border-amber-300" : "border-slate-200"
-                } ${selected ? "border-sky-400 ring-2 ring-sky-100" : ""}`}
+                } ${selected ? "border-slate-800 ring-2 ring-[#FFE600]/40" : ""}`}
         >
             <Handle type="target" position={Position.Top} className="!h-2 !w-2 !border-2 !border-white !bg-slate-300" />
-            <div className="flex items-center gap-2 rounded-t-xl border-b border-slate-200/70 bg-gradient-to-r from-sky-50/80 to-white px-2.5 py-1.5">
-                <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-sky-100 text-sky-600 ring-1 ring-sky-200/70">
+            <div className="flex items-center gap-2 rounded-t-xl border-b border-slate-200/70 bg-gradient-to-r from-[#FFF9DB]/80 to-white px-2.5 py-1.5">
+                <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-[#FFF3B0] text-slate-900 ring-1 ring-[#FFE600]/40/70">
                     <MailIcon className="w-3 h-3" />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-slate-800">
                     {d.label || "Untitled step"}
                 </span>
                 {d.isStart && (
-                    <span className="shrink-0 rounded bg-sky-600 px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.12em] text-white">
+                    <span className="shrink-0 rounded bg-[#18181B] px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.12em] text-white">
                         Start
                     </span>
                 )}
@@ -365,7 +365,7 @@ function StepNode({ data, selected }: NodeProps) {
                 id="s"
                 position={Position.Bottom}
                 title="What happens next: drag onto a node to connect, or onto empty space to add a step, action, condition, or Stop"
-                className="!h-3 !w-3 pointer-coarse:!h-5 pointer-coarse:!w-5 !border-2 !border-white !bg-sky-500"
+                className="!h-3 !w-3 pointer-coarse:!h-5 pointer-coarse:!w-5 !border-2 !border-white !bg-amber-400"
             />
         </div>
     );
@@ -387,7 +387,7 @@ function IfNode({ data, selected }: NodeProps) {
                     ? "Runs the moment it happens (reply / open / click), not at the next scheduled step."
                     : undefined
             }
-            className={`rounded-lg border bg-gradient-to-b from-sky-50 to-white px-2 py-1 shadow-sm transition-shadow duration-200 hover:shadow-md ${selected ? "border-sky-400 ring-2 ring-sky-100" : d.instant ? "border-violet-200" : "border-sky-200"
+            className={`rounded-lg border bg-gradient-to-b from-[#FFF9DB] to-white px-2 py-1 shadow-sm transition-shadow duration-200 hover:shadow-md ${selected ? "border-slate-800 ring-2 ring-[#FFE600]/40" : d.instant ? "border-violet-200" : "border-amber-200"
                 }`}
         >
             <Handle type="target" position={Position.Top} className="!h-2 !w-2 !border-2 !border-white !bg-slate-300" />
@@ -397,12 +397,12 @@ function IfNode({ data, selected }: NodeProps) {
                 id="out"
                 position={Position.Right}
                 title="Then: where contacts matching this condition go"
-                className="!h-3 !w-3 pointer-coarse:!h-5 pointer-coarse:!w-5 !border-2 !border-white !bg-sky-500"
+                className="!h-3 !w-3 pointer-coarse:!h-5 pointer-coarse:!w-5 !border-2 !border-white !bg-amber-400"
             />
             <div className="flex items-center gap-1.5">
-                <GitBranchIcon className="w-3 h-3 shrink-0 text-sky-600" />
-                <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-sky-500">if</span>
-                <span className="max-w-[150px] truncate text-[11px] font-medium text-sky-800">{d.label}</span>
+                <GitBranchIcon className="w-3 h-3 shrink-0 text-slate-900" />
+                <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-amber-500">if</span>
+                <span className="max-w-[150px] truncate text-[11px] font-medium text-slate-900">{d.label}</span>
                 {d.instant && (
                     <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-violet-50 px-1 py-px text-[8.5px] font-semibold uppercase tracking-[0.1em] text-violet-600 ring-1 ring-violet-200/70">
                         <ZapIcon className="w-2.5 h-2.5" />
@@ -416,7 +416,7 @@ function IfNode({ data, selected }: NodeProps) {
                         d.onDelete();
                     }}
                     title="Delete this branch"
-                    className="nodrag inline-flex size-4 items-center justify-center rounded text-sky-400 hover:bg-rose-50 hover:text-rose-600"
+                    className="nodrag inline-flex size-4 items-center justify-center rounded text-amber-500 hover:bg-rose-50 hover:text-rose-600"
                 >
                     <Trash2Icon className="w-3 h-3" />
                 </button>
@@ -547,10 +547,10 @@ const ACTION_META: Record<string, { label: string; Icon: typeof ClockIcon; tint:
     label_email: { label: "Label email", Icon: TagsIcon, tint: "text-fuchsia-600" },
     create_task: { label: "Create task", Icon: CheckSquareIcon, tint: "text-violet-600" },
     create_deal: { label: "Create deal", Icon: HandshakeIcon, tint: "text-emerald-600" },
-    move_deal_stage: { label: "Move deal stage", Icon: ArrowRightLeftIcon, tint: "text-sky-600" },
+    move_deal_stage: { label: "Move deal stage", Icon: ArrowRightLeftIcon, tint: "text-slate-900" },
     unsubscribe: { label: "Unsubscribe", Icon: BellOffIcon, tint: "text-rose-600" },
     run_automation: { label: "Run automation", Icon: ZapIcon, tint: "text-indigo-600" },
-    fire_event: { label: "Fire event", Icon: SendIcon, tint: "text-sky-600" },
+    fire_event: { label: "Fire event", Icon: SendIcon, tint: "text-slate-900" },
     switch: { label: "Switch", Icon: SplitIcon, tint: "text-purple-600" },
     ai_step: { label: "AI step", Icon: SparklesIcon, tint: "text-purple-600" },
 };
@@ -615,7 +615,7 @@ function ActionNode({ data, selected }: NodeProps) {
     return (
         <div
             className={`w-[248px] rounded-xl border bg-white shadow-sm transition-shadow duration-200 hover:shadow-md ${d.orphan ? "border-dashed border-amber-300" : "border-slate-200"
-                } ${selected ? "border-sky-400 ring-2 ring-sky-100" : ""}`}
+                } ${selected ? "border-slate-800 ring-2 ring-[#FFE600]/40" : ""}`}
         >
             <Handle type="target" position={Position.Top} className="!h-2 !w-2 !border-2 !border-white !bg-slate-300" />
             <div className="flex items-center gap-2 rounded-t-xl border-b border-slate-200/70 bg-gradient-to-r from-slate-50 to-white px-2.5 py-1.5">
@@ -659,7 +659,7 @@ function ActionNode({ data, selected }: NodeProps) {
                 id="s"
                 position={Position.Bottom}
                 title="What happens next: drag onto a node to connect, or onto empty space to add a step, action, condition, or Stop"
-                className="!h-3 !w-3 pointer-coarse:!h-5 pointer-coarse:!w-5 !border-2 !border-white !bg-sky-500"
+                className="!h-3 !w-3 pointer-coarse:!h-5 pointer-coarse:!w-5 !border-2 !border-white !bg-amber-400"
             />
         </div>
     );
@@ -675,7 +675,7 @@ function ConditionNode({ data, selected }: NodeProps) {
     return (
         <div
             className={`w-[200px] rounded-xl border bg-white shadow-sm transition-shadow duration-200 hover:shadow-md ${d.orphan ? "border-dashed border-amber-300" : "border-amber-200"
-                } ${selected ? "border-sky-400 ring-2 ring-sky-100" : ""}`}
+                } ${selected ? "border-slate-800 ring-2 ring-[#FFE600]/40" : ""}`}
         >
             <Handle type="target" position={Position.Top} className="!h-2 !w-2 !border-2 !border-white !bg-slate-300" />
             <div className="flex items-center gap-2 rounded-t-xl border-b border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-white px-2.5 py-1.5">
@@ -706,7 +706,7 @@ function ConditionNode({ data, selected }: NodeProps) {
                 id="s"
                 position={Position.Bottom}
                 title="Drag out once per path: each line from here is an if branch"
-                className="!h-3 !w-3 pointer-coarse:!h-5 pointer-coarse:!w-5 !border-2 !border-white !bg-sky-500"
+                className="!h-3 !w-3 pointer-coarse:!h-5 pointer-coarse:!w-5 !border-2 !border-white !bg-amber-400"
             />
         </div>
     );
@@ -2244,7 +2244,7 @@ function StopOnReplyToggle({ on, onToggle }: { on: boolean; onToggle: (next: boo
                 aria-checked={on}
                 aria-label="Stop on reply"
                 onClick={() => onToggle(!on)}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${on ? "bg-sky-600" : "bg-slate-200"
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${on ? "bg-[#18181B]" : "bg-slate-200"
                     }`}
             >
                 <span
@@ -2553,7 +2553,7 @@ function ConnectionEditor({
                 <button
                     type="button"
                     onClick={() => save(branch.target_step_id)}
-                    className="ml-auto h-7 rounded-md bg-sky-600 px-3 text-[12px] font-medium text-white hover:bg-sky-700"
+                    className="ml-auto h-7 rounded-md bg-[#18181B] px-3 text-[12px] font-medium text-white hover:bg-black"
                 >
                     Save
                 </button>
@@ -2642,7 +2642,7 @@ function DragCreateMenu({
                         }}
                     >
                         <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Add</div>
-                        <CreateRow icon={<MailIcon className="w-3.5 h-3.5 text-sky-600" />} label="Email step" onClick={() => pick("email")} />
+                        <CreateRow icon={<MailIcon className="w-3.5 h-3.5 text-slate-900" />} label="Email step" onClick={() => pick("email")} />
                         <CreateRow icon={<GitBranchIcon className="w-3.5 h-3.5 text-amber-600" />} label="Condition (branch)" onClick={() => pick("condition")} />
                         <CreateRow icon={<SplitIcon className="w-3.5 h-3.5 text-purple-600" />} label={SWITCH_OPTION.label} onClick={() => pick("switch")} />
                         <CreateRow icon={<SparklesIcon className="w-3.5 h-3.5 text-purple-600" />} label={AI_STEP_OPTION.label} onClick={() => pick("ai_step")} />
@@ -2706,7 +2706,7 @@ function AddNodeMenu({
                 type="button"
                 disabled={locked ? false : disabled}
                 onClick={onAddEmail}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-l-md bg-sky-600 px-3 text-[12px] font-medium text-white shadow-sm transition-colors hover:bg-sky-700 disabled:opacity-60 ${locked ? "opacity-60" : ""}`}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-l-md bg-[#18181B] px-3 text-[12px] font-medium text-white shadow-sm transition-colors hover:bg-black disabled:opacity-60 ${locked ? "opacity-60" : ""}`}
             >
                 {locked ? (
                     <LockIcon className="w-3.5 h-3.5" />
@@ -2723,7 +2723,7 @@ function AddNodeMenu({
                 disabled={disabled}
                 onClick={() => setOpen((o) => !o)}
                 aria-label="More step types"
-                className="inline-flex h-8 items-center rounded-r-md border-l border-sky-500/60 bg-sky-600 px-1.5 text-white shadow-sm transition-colors hover:bg-sky-700 disabled:opacity-60"
+                className="inline-flex h-8 items-center rounded-r-md border-l border-slate-900/60 bg-[#18181B] px-1.5 text-white shadow-sm transition-colors hover:bg-black disabled:opacity-60"
             >
                 <ChevronDownIcon className="w-3.5 h-3.5" />
             </button>
@@ -2750,7 +2750,7 @@ function AddNodeMenu({
                             }}
                             className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-800 transition-colors hover:bg-slate-100"
                         >
-                            <MailIcon className="w-3.5 h-3.5 text-sky-600" />
+                            <MailIcon className="w-3.5 h-3.5 text-slate-900" />
                             Send email
                             <span className="ml-auto rounded bg-slate-100 px-1 py-px text-[9px] uppercase tracking-[0.1em] text-slate-400">
                                 default
@@ -2853,7 +2853,7 @@ function NodeTypeSwitcher({
         sequence.kind === "email" ? "email" : sequence.action?.type ?? "add_tag";
 
     const items: { value: "email" | SequenceActionType; label: string; Icon: typeof MailIcon; tint: string }[] = [
-        { value: "email", label: "Send email", Icon: MailIcon, tint: "text-sky-600" },
+        { value: "email", label: "Send email", Icon: MailIcon, tint: "text-slate-900" },
         { value: "switch", label: SWITCH_OPTION.label, Icon: SplitIcon, tint: "text-purple-600" },
         { value: "ai_step", label: AI_STEP_OPTION.label, Icon: SparklesIcon, tint: "text-purple-600" },
         ...ADD_ACTION_OPTIONS.map((o) => ({
@@ -2898,11 +2898,11 @@ function NodeTypeSwitcher({
                             disabled={busy}
                             onClick={() => pick(it.value)}
                             className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-left text-[11.5px] transition-colors disabled:opacity-60 ${active
-                                ? "border-sky-300 bg-sky-50 text-sky-700"
+                                ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                                 : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                                 }`}
                         >
-                            <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? "text-sky-600" : it.tint}`} />
+                            <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? "text-slate-900" : it.tint}`} />
                             <span className="truncate">{it.label}</span>
                         </button>
                     );
@@ -2983,7 +2983,7 @@ function ActionEditor({
                     type="button"
                     onClick={save}
                     disabled={saving}
-                    className="h-7 rounded-md bg-sky-600 px-3 text-[12px] font-medium text-white transition-colors hover:bg-sky-700 disabled:opacity-60"
+                    className="h-7 rounded-md bg-[#18181B] px-3 text-[12px] font-medium text-white transition-colors hover:bg-black disabled:opacity-60"
                 >
                     {saving ? "Saving…" : "Save action"}
                 </button>
@@ -3090,7 +3090,7 @@ function ActionConfigFields({
                                         type="button"
                                         onClick={() => setAction((a) => ({ ...a, task_priority: p }))}
                                         className={`h-7 px-2.5 rounded text-[11px] font-medium capitalize transition-colors ${(action.task_priority ?? "medium") === p
-                                            ? "bg-sky-600 text-white shadow-sm"
+                                            ? "bg-[#18181B] text-white shadow-sm"
                                             : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                                             }`}
                                     >
@@ -3247,7 +3247,7 @@ function RunAutomationFields({
                     </p>
                 )}
                 {selected && selected.enabled && selected.trigger_event !== "campaign.action" && (
-                    <p className="mt-1.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-[11px] leading-relaxed text-sky-700">
+                    <p className="mt-1.5 rounded-md border border-amber-200 bg-[#FFF9DB] px-2 py-1.5 text-[11px] leading-relaxed text-slate-900">
                         Built for the "{triggerLabel(selected.trigger_event)}" trigger. It still runs here, but only contact and
                         campaign variables are filled in. Its trigger-specific variables (like{" "}
                         <span className="font-mono">{"{{.invitee_name}}"}</span>) will be empty.
@@ -3466,7 +3466,7 @@ function AIStepFields({
                     onChange={(e) => setAction((a) => ({ ...a, ai_instruction: e.target.value }))}
                     rows={3}
                     placeholder="Read the reply. If they ask about pricing, tag them 'pricing' and create a follow-up task."
-                    className="w-full resize-y rounded-md border border-slate-200 px-2.5 py-1.5 text-[12.5px] text-slate-700 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                    className="w-full resize-y rounded-md border border-slate-200 px-2.5 py-1.5 text-[12.5px] text-slate-700 focus:border-slate-800 focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30"
                 />
             </div>
             <div>
@@ -3486,7 +3486,7 @@ function AIStepFields({
                                     className="flex w-full items-center gap-2 rounded px-1.5 py-1.5 text-left text-[12.5px] text-slate-700 transition-colors hover:bg-slate-50"
                                 >
                                     <span
-                                        className={`inline-flex size-4 shrink-0 items-center justify-center rounded border ${on ? "border-sky-500 bg-sky-500 text-white" : "border-slate-300 bg-white"
+                                        className={`inline-flex size-4 shrink-0 items-center justify-center rounded border ${on ? "border-slate-900 bg-amber-400 text-white" : "border-slate-300 bg-white"
                                             }`}
                                     >
                                         {on && <CheckIcon className="w-3 h-3" />}
@@ -3524,7 +3524,7 @@ function AIStepFields({
                         className="mt-2 flex w-full items-center gap-2 rounded px-1.5 py-1.5 text-left text-[12px] text-slate-600 transition-colors hover:bg-slate-50"
                     >
                         <span
-                            className={`inline-flex size-4 shrink-0 items-center justify-center rounded border ${action.ai_allow_create_tags ? "border-sky-500 bg-sky-500 text-white" : "border-slate-300 bg-white"
+                            className={`inline-flex size-4 shrink-0 items-center justify-center rounded border ${action.ai_allow_create_tags ? "border-slate-900 bg-amber-400 text-white" : "border-slate-300 bg-white"
                                 }`}
                         >
                             {action.ai_allow_create_tags && <CheckIcon className="w-3 h-3" />}

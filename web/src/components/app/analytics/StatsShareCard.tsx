@@ -197,7 +197,7 @@ const StatsShareCard = React.forwardRef<HTMLDivElement, { data: ShareCardData; a
                         <div className="flex flex-col h-full" style={{ padding: landscape ? 44 : 40 }}>
                             {/* title */}
                             {data.subtitle && (
-                                <div className="text-[14px] font-semibold uppercase tracking-[0.16em] text-sky-600">
+                                <div className="text-[14px] font-semibold uppercase tracking-[0.16em] text-slate-900">
                                     {data.subtitle}
                                 </div>
                             )}

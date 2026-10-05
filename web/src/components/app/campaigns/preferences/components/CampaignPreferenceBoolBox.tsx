@@ -88,8 +88,8 @@ export function Toggle({
             aria-checked={value}
             disabled={disabled}
             onClick={() => onChange(!value)}
-            className={`relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sky-100 disabled:opacity-50 ${
-                value ? "bg-sky-600" : "bg-slate-200"
+            className={`relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FFE600]/40 disabled:opacity-50 ${
+                value ? "bg-[#18181B]" : "bg-slate-200"
             }`}
         >
             <span
@@ -102,7 +102,7 @@ export function Toggle({
 }
 
 /**
- * Segmented — a small on-theme pill group. Active option = bg-sky-600 white;
+ * Segmented — a small on-theme pill group. Active option = bg-[#18181B] white;
  * the rest are muted slate. Generic over the option value.
  */
 export function Segmented<T extends string>({
@@ -130,7 +130,7 @@ export function Segmented<T extends string>({
                         type="button"
                         onClick={() => onChange(o.value)}
                         className={`h-6 px-2.5 rounded text-[11.5px] font-medium transition-colors ${
-                            active ? "bg-sky-600 text-white" : "text-slate-500 hover:text-slate-900"
+                            active ? "bg-[#18181B] text-white" : "text-slate-500 hover:text-slate-900"
                         }`}
                     >
                         {o.label}
@@ -187,9 +187,9 @@ export function OptionSelect<T extends string>({
                         aria-checked={active}
                         onClick={() => onChange(o.value)}
                         className={cn(
-                            "group flex w-full items-start gap-2.5 rounded-md border px-3 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sky-100",
+                            "group flex w-full items-start gap-2.5 rounded-md border px-3 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FFE600]/40",
                             active
-                                ? "border-sky-300 bg-sky-50"
+                                ? "border-amber-200 bg-[#FFF9DB]"
                                 : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
                         )}
                     >
@@ -197,7 +197,7 @@ export function OptionSelect<T extends string>({
                             <span
                                 className={cn(
                                     "block text-[12px] font-medium leading-snug",
-                                    active ? "text-sky-700" : "text-slate-700 group-hover:text-slate-900",
+                                    active ? "text-slate-900" : "text-slate-700 group-hover:text-slate-900",
                                 )}
                             >
                                 {o.label}
@@ -206,7 +206,7 @@ export function OptionSelect<T extends string>({
                                 <span
                                     className={cn(
                                         "mt-0.5 block text-[11px] leading-snug",
-                                        active ? "text-sky-600/80" : "text-slate-400",
+                                        active ? "text-slate-900/80" : "text-slate-400",
                                     )}
                                 >
                                     {o.hint}
@@ -217,7 +217,7 @@ export function OptionSelect<T extends string>({
                             className={cn(
                                 "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
                                 active
-                                    ? "border-sky-600 bg-sky-600 text-white"
+                                    ? "border-slate-900 bg-[#18181B] text-white"
                                     : "border-slate-300 bg-white text-transparent group-hover:border-slate-400",
                             )}
                             aria-hidden="true"
@@ -269,7 +269,7 @@ export function EmailListInput({
     };
 
     return (
-        <div className="rounded-md border border-slate-200 bg-white min-h-[34px] px-2 py-1.5 flex flex-wrap items-center gap-1 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 transition-colors">
+        <div className="rounded-md border border-slate-200 bg-white min-h-[34px] px-2 py-1.5 flex flex-wrap items-center gap-1 focus-within:border-slate-800 focus-within:ring-2 focus-within:ring-[#FFE600]/30 transition-colors">
             {values.map((v, i) => {
                 const invalid = !EMAIL_RE.test(v);
                 return (
@@ -277,7 +277,7 @@ export function EmailListInput({
                         key={`${v}-${i}`}
                         title={invalid ? "This doesn't look like a valid email address" : undefined}
                         className={`inline-flex items-center gap-1 h-5 pl-1.5 pr-1 rounded text-[11px] font-medium max-w-[calc(100%-4rem)] ${
-                            invalid ? "bg-rose-50 text-rose-600" : "bg-sky-50 text-sky-700"
+                            invalid ? "bg-rose-50 text-rose-600" : "bg-[#FFF9DB] text-slate-900"
                         }`}
                     >
                         <span className="truncate">{v}</span>

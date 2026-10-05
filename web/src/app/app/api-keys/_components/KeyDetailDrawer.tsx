@@ -191,21 +191,21 @@ function Inner({ apiKey, onClose }: { apiKey: APIKey; onClose: () => void }) {
                                 autoFocus
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full h-8 px-2.5 rounded-md border border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-200 outline-none text-[12.5px]"
+                                className="w-full h-8 px-2.5 rounded-md border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-[#FFE600]/30 outline-none text-[12.5px]"
                             />
                             <textarea
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={2}
                                 placeholder="Description"
-                                className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-200 outline-none text-[12px] resize-none"
+                                className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-[#FFE600]/30 outline-none text-[12px] resize-none"
                             />
                             <div className="flex items-center gap-1.5">
                                 <button
                                     type="button"
                                     onClick={saveEdit}
                                     disabled={update.isPending}
-                                    className="h-7 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] inline-flex items-center gap-1.5 disabled:opacity-60"
+                                    className="h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] inline-flex items-center gap-1.5 disabled:opacity-60"
                                 >
                                     {update.isPending ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <CheckIcon className="w-3 h-3" />}
                                     Save
@@ -227,7 +227,7 @@ function Inner({ apiKey, onClose }: { apiKey: APIKey; onClose: () => void }) {
                                     <button
                                         type="button"
                                         onClick={() => setEditing(true)}
-                                        className="text-[11px] text-sky-700 hover:text-sky-900 underline-offset-2 hover:underline"
+                                        className="text-[11px] text-slate-900 hover:text-black underline underline-offset-2 cursor-pointer underline-offset-2 hover:underline"
                                     >
                                         Edit
                                     </button>
@@ -336,7 +336,7 @@ function Inner({ apiKey, onClose }: { apiKey: APIKey; onClose: () => void }) {
                                     <span
                                         className={`size-1.5 rounded-full ${
                                             p.category === "read"
-                                                ? "bg-sky-400"
+                                                ? "bg-amber-400"
                                                 : p.category === "write"
                                                   ? "bg-violet-400"
                                                   : p.category === "bulk"

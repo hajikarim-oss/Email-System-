@@ -49,7 +49,7 @@ export default function TwoFactorManager() {
                     <button
                         type="button"
                         onClick={() => setEnrolling(true)}
-                        className="h-7 px-2.5 rounded-md bg-sky-600 text-white text-[12px] font-medium hover:bg-sky-700 transition-colors"
+                        className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] transition-colors"
                     >
                         Enable 2FA
                     </button>
@@ -137,7 +137,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
                             type="button"
                             disabled={!info}
                             onClick={() => setStep("confirm")}
-                            className="h-8 w-full rounded-md bg-sky-600 text-white text-[12.5px] font-medium hover:bg-sky-700 disabled:opacity-50"
+                            className="h-8 w-full rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12.5px] disabled:opacity-50"
                         >
                             I&apos;ve added it
                         </button>
@@ -186,7 +186,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
                         <button
                             type="button"
                             onClick={() => navigator.clipboard?.writeText(codes.join("\n"))}
-                            className="inline-flex items-center gap-1.5 text-[11.5px] text-sky-600 hover:text-sky-700"
+                            className="inline-flex items-center gap-1.5 text-[11.5px] text-slate-900 hover:text-black"
                         >
                             <CopyIcon className="w-3 h-3" /> Copy all
                         </button>
@@ -241,7 +241,7 @@ function DisableDialog({ onClose }: { onClose: () => void }) {
                     onChange={(e) => setCode(e.target.value)}
                     placeholder="123456 or recovery code"
                     autoFocus
-                    className="w-full h-9 px-3 rounded-md border border-slate-200 text-[13px] outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    className="w-full h-9 px-3 rounded-md border border-slate-200 text-[13px] outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                 />
                 <button
                     type="button"

@@ -257,7 +257,7 @@ function Header({ state, pane, onClose }: { state?: InstanceUpdate; pane: Pane; 
                   : "Reading the running version";
     return (
         <div className="flex items-center gap-3 px-5 h-14 border-b border-slate-200 shrink-0">
-            <span className="size-8 rounded-md bg-sky-50 text-sky-700 flex items-center justify-center shrink-0">
+            <span className="size-8 rounded-md bg-[#FFF9DB] text-slate-900 flex items-center justify-center shrink-0">
                 <ArrowUpCircleIcon className="w-4 h-4" />
             </span>
             <div className="min-w-0 flex-1">
@@ -344,7 +344,7 @@ function OverviewPane({ state, loading }: { state?: InstanceUpdate; loading: boo
                                     href={latest.html_url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-sky-700 hover:underline"
+                                    className="inline-flex items-center gap-1 text-slate-900 hover:underline"
                                 >
                                     Release notes
                                     <ExternalLinkIcon className="w-3 h-3" />
@@ -417,7 +417,7 @@ function OverviewPane({ state, loading }: { state?: InstanceUpdate; loading: boo
                         href={DOCS_UPDATES}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-1.5 inline-flex items-center gap-1 text-sky-700 hover:underline"
+                        className="mt-1.5 inline-flex items-center gap-1 text-slate-900 hover:underline"
                     >
                         How to enable the updater
                         <ExternalLinkIcon className="w-3 h-3" />
@@ -511,14 +511,14 @@ function ProgressPane({
             <div>
                 <div className="flex items-center justify-between text-[12px] mb-1.5">
                     <span className="font-medium text-slate-900 inline-flex items-center gap-2">
-                        <Loader2Icon className="w-3.5 h-3.5 animate-spin text-sky-600" />
+                        <Loader2Icon className="w-3.5 h-3.5 animate-spin text-slate-900" />
                         {backendDown ? "Reconnecting to the backend" : (steps[idx]?.label ?? "Starting")}
                     </span>
                     <span className="text-slate-500 tabular-nums">{percent}%</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
                     <motion.div
-                        className="h-full rounded-full bg-sky-500"
+                        className="h-full rounded-full bg-amber-400"
                         initial={{ width: 0 }}
                         animate={{ width: `${percent}%` }}
                         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -540,14 +540,14 @@ function ProgressPane({
                             key={s.id}
                             className={cn(
                                 "flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors",
-                                active && "bg-sky-50/70",
+                                active && "bg-[#FFF9DB]/70",
                             )}
                         >
                             <span
                                 className={cn(
                                     "size-6 rounded-full flex items-center justify-center shrink-0 border transition-colors",
                                     done && "bg-emerald-500 border-emerald-500 text-white",
-                                    active && "bg-white border-sky-400 text-sky-600",
+                                    active && "bg-white border-slate-800 text-slate-900",
                                     !done && !active && "bg-white border-slate-200 text-slate-300",
                                 )}
                             >
@@ -814,7 +814,7 @@ function Notice({ tone, children }: { tone: "info" | "warning"; children: React.
         <div
             className={cn(
                 "flex items-start gap-3 rounded-md border p-3 text-[12.5px] leading-relaxed",
-                tone === "warning" ? "border-amber-200 bg-amber-50/60 text-amber-900" : "border-sky-200 bg-sky-50/60 text-sky-900",
+                tone === "warning" ? "border-amber-200 bg-amber-50/60 text-amber-900" : "border-amber-200 bg-[#FFF9DB]/60 text-slate-900",
             )}
         >
             <AlertTriangleIcon className="mt-0.5 w-4 h-4 shrink-0" />

@@ -192,7 +192,7 @@ export default function FieldMapEditor({
                 <button
                     type="button"
                     onClick={addRow}
-                    className="h-6 px-2 rounded text-[11px] text-sky-700 hover:bg-sky-50 inline-flex items-center gap-1 transition-colors"
+                    className="h-6 px-2 rounded text-[11px] text-slate-900 hover:bg-[#FFF9DB] inline-flex items-center gap-1 transition-colors"
                 >
                     <PlusIcon className="w-3 h-3" />
                     Add field
@@ -211,7 +211,7 @@ export default function FieldMapEditor({
                             onClick={save}
                             disabled={replace.isPending}
                             className={cn(
-                                "h-6 px-2.5 rounded text-[11.5px] font-medium text-white bg-sky-600 hover:bg-sky-700 inline-flex items-center gap-1.5 transition-colors",
+                                "h-6 px-2.5 rounded text-[11.5px] font-medium text-white bg-[#18181B] hover:bg-black inline-flex items-center gap-1.5 transition-colors",
                                 replace.isPending && "opacity-60",
                             )}
                         >

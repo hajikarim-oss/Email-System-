@@ -93,7 +93,7 @@ export default function CampaignImportContactsModal({ open, onClose, campaign }:
                         {/* Header */}
                         <div className="h-13 px-5 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shrink-0">
                             <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="size-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100 shrink-0">
+                                <div className="size-7 rounded-lg bg-[#FFF9DB] text-slate-900 flex items-center justify-center border border-amber-200 shrink-0">
                                     <UsersIcon className="w-4 h-4" />
                                 </div>
                                 <div className="min-w-0">
@@ -101,7 +101,7 @@ export default function CampaignImportContactsModal({ open, onClose, campaign }:
                                         <span className="text-[13px] font-bold text-slate-900 truncate">
                                             Import Contacts
                                         </span>
-                                        <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 truncate">
+                                        <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-[#FFF9DB] text-slate-900 border border-amber-200 truncate">
                                             → {campaign.name}
                                         </span>
                                     </div>
@@ -152,7 +152,7 @@ export default function CampaignImportContactsModal({ open, onClose, campaign }:
                                     type="button"
                                     onClick={handleEnroll}
                                     disabled={submitting || selectedContacts.length === 0}
-                                    className="h-8 px-4 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="h-8 px-4 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {submitting ? (
                                         <>

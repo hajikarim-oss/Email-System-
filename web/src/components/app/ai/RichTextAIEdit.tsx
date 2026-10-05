@@ -241,7 +241,7 @@ export default function RichTextAIEdit({ editor }: { editor: Editor }) {
                         exit={{ opacity: 0, y: 2, scale: 0.95, x: "-50%" }}
                         transition={{ type: "spring", stiffness: 500, damping: 32 }}
                         style={{ position: "fixed", top: anchor.top - 34, left: anchor.centerX, zIndex: 60 }}
-                        className="h-7 pl-2 pr-2.5 rounded-full border border-slate-200 bg-white shadow-[0_6px_20px_-6px_rgba(15,23,42,0.25)] inline-flex items-center gap-1.5 text-[11.5px] font-medium text-slate-700 hover:text-sky-700 hover:border-sky-300 transition-colors"
+                        className="h-7 pl-2 pr-2.5 rounded-full border border-slate-200 bg-white shadow-[0_6px_20px_-6px_rgba(15,23,42,0.25)] inline-flex items-center gap-1.5 text-[11.5px] font-medium text-slate-700 hover:text-black hover:border-amber-200 transition-colors"
                         onMouseDown={(e) => {
                             e.preventDefault();
                             if (!range) return;
@@ -251,7 +251,7 @@ export default function RichTextAIEdit({ editor }: { editor: Editor }) {
                             setOpen(true);
                         }}
                     >
-                        <SparklesIcon className="w-3 h-3 text-sky-500" />
+                        <SparklesIcon className="w-3 h-3 text-amber-500" />
                         Edit with AI
                     </motion.button>
                 )}

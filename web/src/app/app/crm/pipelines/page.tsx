@@ -55,7 +55,7 @@ import buildError from "@/lib/helper/buildError";
 
 const STAGE_COLORS = [
     { id: "slate",   bg: "bg-slate-400",   hex: "#94a3b8" },
-    { id: "sky",     bg: "bg-sky-500",     hex: "#0ea5e9" },
+    { id: "sky",     bg: "bg-amber-400",     hex: "#0ea5e9" },
     { id: "violet",  bg: "bg-violet-500",  hex: "#8b5cf6" },
     { id: "amber",   bg: "bg-amber-500",   hex: "#f59e0b" },
     { id: "emerald", bg: "bg-emerald-500", hex: "#10b981" },

@@ -218,7 +218,7 @@ function AutomationCard({
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
-                    <span className="size-7 rounded-md bg-sky-50 text-sky-600 inline-flex items-center justify-center shrink-0">
+                    <span className="size-7 rounded-md bg-[#FFF9DB] text-slate-900 inline-flex items-center justify-center shrink-0">
                         <ZapIcon className="w-3.5 h-3.5" />
                     </span>
                     <div className="text-[13px] font-semibold text-slate-900 truncate">{a.name}</div>

@@ -209,12 +209,12 @@ export function ThreadLabelMenu({ threadId, open, onOpenChange }: Props) {
                 type="button"
                 onClick={createAndAdd}
                 disabled={createCategory.isPending}
-                className="w-full px-2.5 h-7 flex items-center gap-2 text-[12px] text-slate-900 font-medium hover:bg-sky-50 border-t border-slate-100 transition-colors"
+                className="w-full px-2.5 h-7 flex items-center gap-2 text-[12px] text-slate-900 font-medium hover:bg-[#FFF9DB] border-t border-slate-100 transition-colors"
               >
                 {createCategory.isPending ? (
                   <Loader2Icon className="w-3 h-3 animate-spin text-slate-400" />
                 ) : (
-                  <PlusIcon className="w-3 h-3 text-sky-600" />
+                  <PlusIcon className="w-3 h-3 text-slate-900" />
                 )}
                 Create "{query.trim()}"
               </button>

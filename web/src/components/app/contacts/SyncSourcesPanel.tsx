@@ -325,7 +325,7 @@ function SourceRow({
 function StatusBadge({ status, hasError }: { status: string; hasError: boolean }) {
     if (status === "syncing") {
         return (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-700 uppercase tracking-[0.08em]">
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-900 uppercase tracking-[0.08em]">
                 <Loader2Icon className="w-2.5 h-2.5 animate-spin" />
                 syncing
             </span>
@@ -358,7 +358,7 @@ function Count({
 }) {
     const cls = {
         emerald: "bg-emerald-50 text-emerald-700",
-        sky: "bg-sky-50 text-sky-700",
+        sky: "bg-[#FFF9DB] text-slate-900",
         slate: "bg-slate-100 text-slate-600",
         red: "bg-red-50 text-red-700",
     }[tone];

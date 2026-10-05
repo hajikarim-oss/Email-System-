@@ -200,12 +200,12 @@ export default function BulkTagPopover({ ids }: { ids: string[] }) {
                                         type="button"
                                         onClick={createAndPick}
                                         disabled={creating}
-                                        className="w-full px-2.5 h-7 flex items-center gap-2 text-[12px] text-slate-900 font-medium hover:bg-sky-50 border-t border-slate-100 transition-colors"
+                                        className="w-full px-2.5 h-7 flex items-center gap-2 text-[12px] text-slate-900 font-medium hover:bg-[#FFF9DB] border-t border-slate-100 transition-colors"
                                     >
                                         {creating ? (
                                             <Loader2Icon className="w-3 h-3 animate-spin text-slate-400" />
                                         ) : (
-                                            <PlusIcon className="w-3 h-3 text-sky-600" />
+                                            <PlusIcon className="w-3 h-3 text-slate-900" />
                                         )}
                                         Create "{query.trim()}"
                                     </button>
@@ -216,7 +216,7 @@ export default function BulkTagPopover({ ids }: { ids: string[] }) {
                                     type="button"
                                     onClick={apply}
                                     disabled={picked.length === 0 || bulk.isPending}
-                                    className="w-full h-7 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                                    className="w-full h-7 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
                                 >
                                     {bulk.isPending && <Loader2Icon className="w-3 h-3 animate-spin" />}
                                     {mode === "add"

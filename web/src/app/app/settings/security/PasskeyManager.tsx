@@ -89,8 +89,8 @@ export default function PasskeyManager() {
                         <div className="rounded-md border border-slate-200 divide-y divide-slate-200 bg-white">
                             {passkeys.map((p) => (
                                 <div key={p.id} className="flex items-center gap-3 px-3 py-2.5">
-                                    <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center shrink-0">
-                                        <KeyRound className="w-4 h-4 text-sky-500" />
+                                    <div className="w-8 h-8 rounded-lg bg-[#FFF9DB] flex items-center justify-center shrink-0">
+                                        <KeyRound className="w-4 h-4 text-amber-500" />
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         {editingId === p.id ? (
@@ -104,7 +104,7 @@ export default function PasskeyManager() {
                                                     if (e.key === "Enter") submitRename(p.id);
                                                     if (e.key === "Escape") setEditingId(null);
                                                 }}
-                                                className="w-full h-7 rounded-md border border-slate-200 px-2 text-[12.5px] text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                                className="w-full h-7 rounded-md border border-slate-200 px-2 text-[12.5px] text-slate-900 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                                             />
                                         ) : (
                                             <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ export default function PasskeyManager() {
                                         <button
                                             type="button"
                                             onClick={() => submitRename(p.id)}
-                                            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-sky-600 hover:bg-sky-50"
+                                            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-900 hover:bg-[#FFF9DB]"
                                             aria-label="Save name"
                                         >
                                             <Check className="w-4 h-4" />
@@ -169,7 +169,7 @@ export default function PasskeyManager() {
                         type="button"
                         onClick={handleAdd}
                         disabled={adding}
-                        className="h-8 px-3 rounded-md border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 text-[12.5px] font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                        className="h-8 px-3 rounded-md border border-slate-200 hover:border-amber-200 hover:bg-[#FFF9DB] text-[12.5px] font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:pointer-events-none"
                     >
                         {adding ? (
                             <Loading className="!w-3.5 h-3.5 text-slate-500" />

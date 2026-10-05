@@ -125,7 +125,7 @@ export default function OverviewTab({
                                 {contact.last_message_context.body_hook && (
                                     <>
                                         <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider pt-1">Last Conversation Message</div>
-                                        <div className="text-[12px] text-slate-700 bg-white border border-slate-200 rounded p-2.5 italic leading-relaxed border-l-2 border-l-sky-500 shadow-2xs">
+                                        <div className="text-[12px] text-slate-700 bg-white border border-slate-200 rounded p-2.5 italic leading-relaxed border-l-2 border-l-[#18181B] shadow-2xs">
                                             "{contact.last_message_context.body_hook}"
                                         </div>
                                     </>

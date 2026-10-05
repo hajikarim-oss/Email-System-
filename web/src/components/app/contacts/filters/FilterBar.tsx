@@ -390,7 +390,7 @@ export default function FilterBar({
                     <button
                         type="button"
                         onClick={() => onSaveAsSegment(filters)}
-                        className="h-7 px-2 rounded-md text-[12px] text-sky-700 hover:text-sky-800 hover:bg-sky-50 inline-flex items-center gap-1 transition-colors"
+                        className="h-7 px-2 rounded-md text-[12px] text-slate-900 hover:text-black cursor-pointer hover:bg-[#FFF9DB] inline-flex items-center gap-1 transition-colors"
                     >
                         <LayersIcon className="w-3 h-3" />
                         Save as segment
@@ -446,8 +446,8 @@ function Pill({
             <div
                 className={cn(
                     "h-7 rounded-md border text-[12px] inline-flex items-center transition-colors",
-                    active ? "border-sky-200 bg-sky-50 text-sky-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
-                    open && "ring-2 ring-sky-100",
+                    active ? "border-amber-200 bg-[#FFF9DB] text-slate-900" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
+                    open && "ring-2 ring-[#FFE600]/40",
                 )}
             >
                 <button
@@ -457,14 +457,14 @@ function Pill({
                     aria-expanded={open}
                     className="h-full pl-2 pr-1.5 inline-flex items-center gap-1 max-w-[280px]"
                 >
-                    <span className={cn(active ? "text-sky-600" : "text-slate-500")}>{label}</span>
+                    <span className={cn(active ? "text-slate-900" : "text-slate-500")}>{label}</span>
                     {active && summary && (
                         <>
-                            <span className="text-sky-400">:</span>
+                            <span className="text-amber-500">:</span>
                             <span className="font-medium truncate">{summary}</span>
                         </>
                     )}
-                    <ChevronDownIcon className={cn("w-3 h-3 shrink-0 transition-transform", open && "rotate-180", active ? "text-sky-500" : "text-slate-400")} />
+                    <ChevronDownIcon className={cn("w-3 h-3 shrink-0 transition-transform", open && "rotate-180", active ? "text-amber-500" : "text-slate-400")} />
                 </button>
                 {onRemove && (
                     <button
@@ -679,7 +679,7 @@ function ChoicePill<T extends string | boolean | undefined>({
                                 on ? "text-slate-900 font-medium" : "text-slate-700",
                             )}
                         >
-                            <span className={cn("size-3.5 rounded-full border flex items-center justify-center shrink-0", on ? "border-sky-600 bg-sky-600" : "border-slate-300 bg-white")}>
+                            <span className={cn("size-3.5 rounded-full border flex items-center justify-center shrink-0", on ? "border-slate-900 bg-[#18181B]" : "border-slate-300 bg-white")}>
                                 {on && <span className="size-1.5 rounded-full bg-white" />}
                             </span>
                             {o.label}
@@ -738,7 +738,7 @@ function CompanyPill({
                         }
                     }}
                     placeholder="e.g. google.com, atomberg, fabindia..."
-                    className="w-full px-2.5 py-1 text-[12px] rounded border border-slate-300 focus:outline-none focus:border-sky-500"
+                    className="w-full px-2.5 py-1 text-[12px] rounded border border-slate-300 focus:outline-none focus:border-slate-800"
                     autoFocus
                 />
                 <div className="flex justify-between items-center pt-1 border-t border-slate-100">
@@ -759,7 +759,7 @@ function CompanyPill({
                             onChange(text.trim() || undefined);
                             setOpenKey(null);
                         }}
-                        className="px-2.5 py-1 bg-sky-600 text-white text-[11.5px] rounded font-medium hover:bg-sky-700"
+                        className="px-2.5 py-1 bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[11.5px] rounded font-medium"
                     >
                         Apply
                     </button>

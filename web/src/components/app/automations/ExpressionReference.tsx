@@ -113,10 +113,10 @@ function Code({ code }: { code: string }) {
                 navigator.clipboard?.writeText(code);
                 toast.success("Copied");
             }}
-            className="group inline-flex max-w-full items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-left font-mono text-[11px] text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50/40"
+            className="group inline-flex max-w-full items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-left font-mono text-[11px] text-slate-700 transition-colors hover:border-amber-200 hover:bg-[#FFF9DB]"
         >
             <span className="truncate">{code}</span>
-            <CopyIcon className="w-2.5 h-2.5 shrink-0 text-slate-300 group-hover:text-sky-500" />
+            <CopyIcon className="w-2.5 h-2.5 shrink-0 text-slate-300 group-hover:text-amber-500" />
         </button>
     );
 }
@@ -127,7 +127,7 @@ export function ExpressionReference({ label = "Reference" }: { label?: string })
             <PopoverMenuTrigger asChild>
                 <button
                     type="button"
-                    className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] text-slate-400 transition-colors hover:bg-sky-50 hover:text-sky-600"
+                    className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] text-slate-400 transition-colors hover:bg-[#FFF9DB] hover:text-slate-900"
                 >
                     <CircleHelpIcon className="w-3.5 h-3.5" /> {label}
                 </button>
@@ -169,7 +169,7 @@ export function ExpressionReference({ label = "Reference" }: { label?: string })
                     href="https://docs.theboredmonkey.com/learn/personalization/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1 border-t border-slate-100 pt-2.5 text-[11px] font-medium text-sky-600 hover:text-sky-700"
+                    className="mt-3 inline-flex items-center gap-1 border-t border-slate-100 pt-2.5 text-[11px] font-medium text-slate-900 hover:text-black"
                 >
                     Full guide &amp; examples <ExternalLinkIcon className="w-3 h-3" />
                 </a>

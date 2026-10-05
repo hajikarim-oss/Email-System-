@@ -151,7 +151,7 @@ export default function ExportPanel({
                     type="button"
                     onClick={start}
                     disabled={!canSubmit}
-                    className="h-7 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {createExport.isPending && <Loader2Icon className="w-3 h-3 animate-spin" />}
                     Start export

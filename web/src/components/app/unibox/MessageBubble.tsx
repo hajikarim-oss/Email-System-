@@ -112,7 +112,7 @@ export function MessageBubble({
                                 }}
                                 aria-label="Reply to this message"
                                 title="Reply to this message"
-                                className="size-6 rounded text-slate-500 hover:text-sky-700 hover:bg-sky-50 inline-flex items-center justify-center transition-colors"
+                                className="size-6 rounded text-slate-500 hover:text-slate-950 hover:bg-slate-100 inline-flex items-center justify-center transition-colors"
                             >
                                 <CornerUpLeftIcon className="w-3 h-3" />
                             </button>

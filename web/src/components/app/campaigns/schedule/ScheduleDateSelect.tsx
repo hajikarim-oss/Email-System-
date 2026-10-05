@@ -53,7 +53,7 @@ export default function DateSelect({
                     onClick={() => setOpen(!open)}
                     className={`flex gap-2 items-center h-7 px-2.5 w-full rounded-md border text-[12.5px] transition-colors ${
                         open
-                            ? "border-sky-400 ring-2 ring-sky-100 text-slate-900"
+                            ? "border-slate-800 ring-2 ring-[#FFE600]/40 text-slate-900"
                             : "border-slate-200 text-slate-700 hover:border-slate-300"
                     }`}
                 >

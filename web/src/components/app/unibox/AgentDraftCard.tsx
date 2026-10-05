@@ -79,7 +79,7 @@ export default function AgentDraftCard({ threadId }: { threadId: string }) {
                 onChange={(e) => setBody(e.target.value)}
                 rows={5}
                 disabled={busy}
-                className="mt-2 w-full resize-y rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12.5px] leading-relaxed text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:opacity-60"
+                className="mt-2 w-full resize-y rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12.5px] leading-relaxed text-slate-900 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 disabled:opacity-60"
             />
 
             <div className="mt-2 flex items-center gap-1.5">
@@ -87,7 +87,7 @@ export default function AgentDraftCard({ threadId }: { threadId: string }) {
                     type="button"
                     onClick={() => approve.mutate()}
                     disabled={busy || body.trim() === ""}
-                    className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
+                    className="h-7 px-2.5 rounded-md bg-[#18181B] hover:bg-black disabled:opacity-50 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
                 >
                     {approve.isPending ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <SendIcon className="w-3 h-3" />}
                     Approve &amp; send

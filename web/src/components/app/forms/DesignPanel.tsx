@@ -68,7 +68,7 @@ function ColorField({
                             type="button"
                             aria-label={`Use ${c}`}
                             onClick={() => onChange(c)}
-                            className={`size-5 rounded-full border ${current === c ? "ring-2 ring-sky-400 ring-offset-1 border-transparent" : "border-slate-200"}`}
+                            className={`size-5 rounded-full border ${current === c ? "ring-2 ring-slate-800 ring-offset-1 border-transparent" : "border-slate-200"}`}
                             style={{ backgroundColor: c }}
                         />
                     ))}
@@ -87,7 +87,7 @@ function ThemeSwatch({ preset, active, onApply }: { preset: ThemePreset; active:
             type="button"
             onClick={onApply}
             className={`rounded-md border p-1.5 text-left transition-shadow ${
-                active ? "border-sky-400 ring-2 ring-sky-100" : "border-slate-200 hover:border-slate-300"
+                active ? "border-slate-800 ring-2 ring-[#FFE600]/40" : "border-slate-200 hover:border-slate-300"
             }`}
         >
             <span className="block h-12 rounded" style={{ background: r.pageBgCss }} aria-hidden>
@@ -99,7 +99,7 @@ function ThemeSwatch({ preset, active, onApply }: { preset: ThemePreset; active:
                     <span className="mt-1 block h-2 w-5 rounded-sm" style={{ background: r.btnBg }} />
                 </span>
             </span>
-            <span className={`mt-1 block text-[11px] ${active ? "text-sky-700 font-medium" : "text-slate-600"}`}>{preset.label}</span>
+            <span className={`mt-1 block text-[11px] ${active ? "text-slate-900 font-medium" : "text-slate-600"}`}>{preset.label}</span>
         </button>
     );
 }
@@ -123,13 +123,13 @@ function LayoutOption({
             type="button"
             onClick={() => onPick(value)}
             className={`flex-1 rounded-md border p-1.5 transition-shadow ${
-                active ? "border-sky-400 ring-2 ring-sky-100" : "border-slate-200 hover:border-slate-300"
+                active ? "border-slate-800 ring-2 ring-[#FFE600]/40" : "border-slate-200 hover:border-slate-300"
             }`}
         >
             <span className="block h-9 rounded bg-slate-100 overflow-hidden" aria-hidden>
                 {children}
             </span>
-            <span className={`mt-1 block text-center text-[11px] ${active ? "text-sky-700 font-medium" : "text-slate-600"}`}>
+            <span className={`mt-1 block text-center text-[11px] ${active ? "text-slate-900 font-medium" : "text-slate-600"}`}>
                 {label}
             </span>
         </button>
@@ -495,7 +495,7 @@ export default function DesignPanel({
                             onChange={(e) => onChange({ cover_subtitle: e.target.value })}
                             rows={3}
                             placeholder="Twenty minutes, no slides."
-                            className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[16px] md:text-[12.5px] text-slate-900 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                            className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[16px] md:text-[12.5px] text-slate-900 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                         />
                     </div>
                     <p className="text-[10.5px] text-slate-400">

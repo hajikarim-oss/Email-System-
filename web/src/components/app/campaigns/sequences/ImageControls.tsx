@@ -107,7 +107,7 @@ export function ImageMenu({ editor }: { editor: Editor }) {
                 title="Insert an image"
                 aria-pressed={open}
                 className={`size-7 inline-flex items-center justify-center rounded transition-colors ${
-                    open ? "bg-sky-50 text-sky-700" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                    open ? "bg-[#FFF9DB] text-slate-900" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
                 }`}
             >
                 <ImageIcon className="w-3.5 h-3.5" />
@@ -152,12 +152,12 @@ export function ImageMenu({ editor }: { editor: Editor }) {
                                         disabled={isUploading}
                                         className={`flex w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed px-3 py-4 transition-colors ${
                                             dragging
-                                                ? "border-sky-400 bg-sky-50/60"
-                                                : "border-slate-200 hover:border-sky-300 hover:bg-sky-50/40"
+                                                ? "border-slate-800 bg-[#FFF9DB]/60"
+                                                : "border-slate-200 hover:border-amber-200 hover:bg-[#FFF9DB]"
                                         } disabled:opacity-60`}
                                     >
                                         {isUploading ? (
-                                            <Loader2Icon className="w-4 h-4 animate-spin text-sky-600" />
+                                            <Loader2Icon className="w-4 h-4 animate-spin text-slate-900" />
                                         ) : (
                                             <UploadCloudIcon className="w-4 h-4 text-slate-400" />
                                         )}
@@ -193,14 +193,14 @@ export function ImageMenu({ editor }: { editor: Editor }) {
                                                 }
                                             }}
                                             placeholder="https://…/logo.png"
-                                            className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                            className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                                         />
                                         <button
                                             type="button"
                                             onMouseDown={(e) => e.preventDefault()}
                                             onClick={applyUrl}
                                             disabled={!url.trim()}
-                                            className="h-7 shrink-0 rounded-md bg-sky-600 px-2.5 text-[11.5px] font-medium text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
+                                            className="h-7 shrink-0 rounded-md bg-[#18181B] px-2.5 text-[11.5px] font-medium text-white transition-colors hover:bg-black disabled:opacity-50"
                                         >
                                             Insert
                                         </button>
@@ -229,7 +229,7 @@ export function ImageMenu({ editor }: { editor: Editor }) {
                                                             insertImage(editor, { url: img.url, alt: img.filename });
                                                             setOpen(false);
                                                         }}
-                                                        className="block aspect-square w-full overflow-hidden rounded-md border border-slate-200 bg-slate-50 transition-colors hover:border-sky-300"
+                                                        className="block aspect-square w-full overflow-hidden rounded-md border border-slate-200 bg-slate-50 transition-colors hover:border-amber-200"
                                                     >
                                                         <img
                                                             src={img.url}
@@ -331,7 +331,7 @@ export function ImageBubble({ editor }: { editor: Editor }) {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => set({ align: value })}
             className={`size-6 inline-flex items-center justify-center rounded transition-colors ${
-                align === value ? "bg-sky-50 text-sky-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                align === value ? "bg-[#FFF9DB] text-slate-900" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             }`}
         >
             <Icon className="w-3 h-3" />
@@ -363,7 +363,7 @@ export function ImageBubble({ editor }: { editor: Editor }) {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => set({ width: p.width })}
                     className={`h-6 px-1.5 rounded text-[11px] font-medium transition-colors ${
-                        width === p.width ? "bg-sky-50 text-sky-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                        width === p.width ? "bg-[#FFF9DB] text-slate-900" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                 >
                     {p.label}
@@ -379,7 +379,7 @@ export function ImageBubble({ editor }: { editor: Editor }) {
                 onChange={(e) => set({ alt: e.target.value })}
                 placeholder="Alt text"
                 title="Shown when the recipient's client blocks images, and read aloud by screen readers"
-                className="h-6 w-32 rounded border border-slate-200 px-1.5 text-[11px] text-slate-800 outline-none focus:border-sky-400"
+                className="h-6 w-32 rounded border border-slate-200 px-1.5 text-[11px] text-slate-800 outline-none focus:border-slate-800"
             />
             <button
                 type="button"

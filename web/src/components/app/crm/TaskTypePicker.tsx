@@ -164,7 +164,7 @@ export default function TaskTypePicker({
                                 <span className="size-2.5 rounded-full shrink-0 bg-slate-300" />
                                 <span className="truncate flex-1 text-left">No type</span>
                                 {value === "" && (
-                                    <CheckIcon className="w-3 h-3 text-sky-600 shrink-0" />
+                                    <CheckIcon className="w-3 h-3 text-slate-900 shrink-0" />
                                 )}
                             </button>
 
@@ -191,12 +191,12 @@ export default function TaskTypePicker({
                                     type="button"
                                     onClick={createAndPick}
                                     disabled={createType.isPending}
-                                    className="w-full px-2.5 h-7 flex items-center gap-2 text-[12px] text-slate-900 font-medium hover:bg-sky-50 border-t border-slate-100 transition-colors disabled:opacity-60"
+                                    className="w-full px-2.5 h-7 flex items-center gap-2 text-[12px] text-slate-900 font-medium hover:bg-[#FFF9DB] border-t border-slate-100 transition-colors disabled:opacity-60"
                                 >
                                     {createType.isPending ? (
                                         <Loader2Icon className="w-3 h-3 animate-spin text-slate-400" />
                                     ) : (
-                                        <PlusIcon className="w-3 h-3 text-sky-600" />
+                                        <PlusIcon className="w-3 h-3 text-slate-900" />
                                     )}
                                     Create "{query.trim()}"
                                 </button>
@@ -361,7 +361,7 @@ function TypeRow({
             />
             <span className="truncate flex-1">{type.name}</span>
 
-            {selected && <CheckIcon className="w-3 h-3 text-sky-600 shrink-0" />}
+            {selected && <CheckIcon className="w-3 h-3 text-slate-900 shrink-0" />}
 
             <button
                 type="button"

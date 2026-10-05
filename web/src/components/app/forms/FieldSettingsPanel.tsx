@@ -32,7 +32,7 @@ export default function FieldSettingsPanel({
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
-                {meta && <meta.icon className="w-3.5 h-3.5 text-sky-600" />}
+                {meta && <meta.icon className="w-3.5 h-3.5 text-slate-900" />}
                 <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">
                     {meta?.label ?? field.type}
                 </span>
@@ -45,7 +45,7 @@ export default function FieldSettingsPanel({
                         value={field.value ?? ""}
                         onChange={(e) => onChange({ value: e.target.value })}
                         rows={5}
-                        className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[16px] md:text-[12.5px] text-slate-900 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[16px] md:text-[12.5px] text-slate-900 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                     />
                 </div>
             ) : field.type === "page_break" ? (
@@ -123,7 +123,7 @@ export default function FieldSettingsPanel({
                         <button
                             type="button"
                             onClick={() => onChange({ options: [...(field.options ?? []), `Option ${(field.options?.length ?? 0) + 1}`] })}
-                            className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[12px] text-sky-700 hover:bg-sky-50 self-start"
+                            className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[12px] text-slate-900 hover:bg-[#FFF9DB] self-start"
                         >
                             <PlusIcon className="w-3 h-3" /> Add option
                         </button>

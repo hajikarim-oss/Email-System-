@@ -149,7 +149,7 @@ export default function ComposeHistoryPanel({
                             <span
                                 className={cn(
                                     "size-5 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5",
-                                    ours ? "bg-sky-50 text-sky-600" : "bg-slate-100 text-slate-400",
+                                    ours ? "bg-[#FFF9DB] text-slate-900" : "bg-slate-100 text-slate-400",
                                 )}
                                 title={ours ? "Latest message from you" : "Latest message from them"}
                             >

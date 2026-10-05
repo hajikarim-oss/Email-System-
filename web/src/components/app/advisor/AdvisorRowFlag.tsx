@@ -140,7 +140,7 @@ export default function AdvisorRowFlag({ findings, subject, className = "" }: Pr
                                                 setOpen(false);
                                                 setReviewing(f);
                                             }}
-                                            className="inline-flex h-6 items-center gap-1 rounded-md border border-slate-200 px-1.5 text-[11px] font-medium text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                                            className="inline-flex h-6 items-center gap-1 rounded-md border border-slate-200 px-1.5 text-[11px] font-medium text-slate-700 transition hover:border-amber-200 hover:bg-[#FFF9DB] hover:text-black"
                                         >
                                             {f.action ? "Review the fix" : f.agent_fixable ? "Fix with agent" : "How to fix it"}
                                             <ArrowRightIcon className="h-2.5 w-2.5" />

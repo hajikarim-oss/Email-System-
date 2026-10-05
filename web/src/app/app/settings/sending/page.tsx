@@ -204,7 +204,7 @@ function SendingSettings() {
                                                         aria-pressed={on}
                                                         className={`h-7 rounded-md border text-[11.5px] transition-colors ${
                                                             on
-                                                                ? "bg-sky-50 text-sky-700 border-sky-200"
+                                                                ? "bg-[#FFF9DB] text-slate-900 border-amber-200"
                                                                 : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
                                                         }`}
                                                     >
@@ -371,7 +371,7 @@ function UnsubscribeRows({
                 label="Suppression list"
                 description="Everyone who opted out, bounced or complained, plus anything added by hand. No campaign emails an entry on it."
             >
-                <Link to="/app/contacts/suppressions" className="text-[12px] text-sky-700 hover:text-sky-800 font-medium">
+                <Link to="/app/contacts/suppressions" className="text-[12px] text-slate-900 hover:text-black cursor-pointer font-medium">
                     Open the list
                 </Link>
             </Row>

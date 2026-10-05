@@ -13,7 +13,7 @@
 // component owns only its own search box + focused row.
 
 import React from "react";
-import { Loader2Icon, SearchIcon, Settings2Icon } from "lucide-react";
+import { CalendarIcon, Loader2Icon, SearchIcon, Settings2Icon, XIcon } from "lucide-react";
 import { ConversationItem } from "./ConversationItem";
 import useUniboxSearch from "@/lib/api/hooks/app/unibox/useUniboxSearch";
 import useDebouncedValue from "@/hooks/useDebouncedValue";
@@ -53,6 +53,8 @@ interface ConversationListProps {
   scopeLabel: string;
   params: UniboxSearchParams;
   setParams: React.Dispatch<React.SetStateAction<UniboxSearchParams>>;
+  activeDateLabel?: string;
+  onClearDateFilter?: () => void;
 }
 
 export function ConversationList({
@@ -60,6 +62,8 @@ export function ConversationList({
   scopeLabel,
   params,
   setParams,
+  activeDateLabel,
+  onClearDateFilter,
 }: ConversationListProps) {
   const [search, setSearch] = React.useState("");
   const [sheetOpen, setSheetOpen] = React.useState(false);
@@ -250,6 +254,25 @@ export function ConversationList({
           <Settings2Icon className="w-3.5 h-3.5" />
         </button>
       </div>
+
+      {activeDateLabel && (
+        <div className="px-3 py-1.5 bg-[#FFF9DB]/70 border-b border-amber-200 flex items-center justify-between text-[11px] shrink-0">
+          <div className="flex items-center gap-1.5 text-slate-900 font-medium truncate">
+            <CalendarIcon className="w-3 h-3 text-slate-900 shrink-0" />
+            <span className="truncate">Date: {activeDateLabel}</span>
+          </div>
+          {onClearDateFilter && (
+            <button
+              type="button"
+              onClick={onClearDateFilter}
+              className="inline-flex items-center gap-0.5 text-slate-900 hover:text-slate-900 font-semibold shrink-0 ml-1.5 cursor-pointer"
+            >
+              Clear
+              <XIcon className="w-2.5 h-2.5" />
+            </button>
+          )}
+        </div>
+      )}
 
       <div ref={listRef} className="flex-1 overflow-y-auto">
         {q.isPending && emails.length === 0 ? (

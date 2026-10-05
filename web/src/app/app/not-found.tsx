@@ -44,7 +44,7 @@ export default function DashboardNotFound() {
           <div className="flex size-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80">
             <MailX className="w-5 h-5 text-slate-400" strokeWidth={1.6} />
           </div>
-          <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-sky-500 ring-2 ring-white" />
+          <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-amber-400 ring-2 ring-white" />
         </div>
 
         {/* Eyebrow */}
@@ -86,23 +86,23 @@ export default function DashboardNotFound() {
           <button
             type="button"
             onClick={goBack}
-            className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium border border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:text-slate-900 transition-colors focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium border border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:text-slate-900 transition-colors focus:outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
           >
             <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.6} /> Go back
           </button>
           <Link
             to="/app"
-            className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium bg-sky-600 hover:bg-sky-700 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-sky-100"
+            className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30"
           >
             <LayoutDashboard className="w-3.5 h-3.5" strokeWidth={1.6} /> Dashboard
           </Link>
           <button
             type="button"
             onClick={() => setCommandPaletteOpen(true)}
-            className="h-8 px-3 rounded-md inline-flex items-center gap-2 text-[12px] font-medium bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-100"
+            className="h-8 px-3 rounded-md inline-flex items-center gap-2 text-[12px] font-medium bg-[#FFF9DB] text-slate-900 hover:bg-[#FFF3B0] transition-colors focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30"
           >
             <Search className="w-3.5 h-3.5" strokeWidth={1.6} /> Search
-            <kbd className="hidden md:inline-flex h-4 items-center px-1 rounded border border-sky-200 bg-white/70 font-mono text-[10px] text-sky-600 ml-0.5">
+            <kbd className="hidden md:inline-flex h-4 items-center px-1 rounded border border-amber-200 bg-white/70 font-mono text-[10px] text-slate-900 ml-0.5">
               ⌘K
             </kbd>
           </button>
@@ -123,7 +123,7 @@ export default function DashboardNotFound() {
                   i !== dests.length - 1 && "border-b border-slate-200/60 rounded-none",
                 )}
               >
-                <span className="size-7 shrink-0 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 group-hover:text-sky-600 group-hover:border-sky-200 transition-colors">
+                <span className="size-7 shrink-0 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 group-hover:text-slate-900 group-hover:border-amber-200 transition-colors">
                   <d.icon className="w-4 h-4" strokeWidth={1.6} />
                 </span>
                 <span className="text-[12.5px] font-medium text-slate-700 group-hover:text-slate-900 shrink-0">

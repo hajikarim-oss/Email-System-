@@ -29,8 +29,8 @@ export function Sidebar() {
           data-testid="link-brand"
         >
           <Image
-            src="/tbm-logo-black.png"
-            alt="TheBoredMonkey"
+            src="/tbm-studios-logo.png"
+            alt="TheBoredMonkey Studios"
             width={160}
             height={44}
             className="object-contain"

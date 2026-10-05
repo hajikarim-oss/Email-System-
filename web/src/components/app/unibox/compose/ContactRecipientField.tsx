@@ -240,7 +240,7 @@ export default function ContactRecipientField({
                     className={cn(
                         "inline-flex items-center gap-1 h-5 pl-1.5 pr-0.5 rounded-md text-[11px] font-medium max-w-full min-w-0 border",
                         looksLikeEmail(v)
-                            ? "bg-sky-50 text-sky-800 border-sky-200"
+                            ? "bg-[#FFF9DB] text-slate-900 border-amber-200"
                             : "bg-rose-50 text-rose-800 border-rose-200",
                     )}
                     title={v}
@@ -389,7 +389,7 @@ export default function ContactRecipientField({
                                 onMouseEnter={() => setHighlight(i)}
                                 className={cn(
                                     "w-full px-2.5 h-7 flex items-center gap-2 text-left transition-colors",
-                                    i === highlight ? "bg-sky-50" : "bg-white",
+                                    i === highlight ? "bg-[#FFF9DB]" : "bg-white",
                                 )}
                             >
                                 <TagIcon className="w-3 h-3 text-slate-400 shrink-0" />
@@ -417,7 +417,7 @@ export default function ContactRecipientField({
                                     onMouseEnter={() => setHighlight(idx)}
                                     className={cn(
                                         "w-full px-2.5 h-9 flex items-center gap-2 text-left transition-colors",
-                                        idx === highlight ? "bg-sky-50" : "bg-white",
+                                        idx === highlight ? "bg-[#FFF9DB]" : "bg-white",
                                     )}
                                 >
                                     <span className="size-5 rounded-full bg-slate-100 text-slate-500 inline-flex items-center justify-center shrink-0">
@@ -479,9 +479,9 @@ export default function ContactRecipientField({
                         >
                         {/* One compact header row: search + category + sort. */}
                         <div className="shrink-0 px-1.5 pt-1.5 pb-1 border-b border-slate-100 flex items-center gap-1">
-                            <div className="flex-1 min-w-0 flex items-center gap-1.5 px-1.5 h-6 rounded-md border border-slate-200 bg-white focus-within:border-sky-300 focus-within:ring-1 focus-within:ring-sky-100 transition-colors">
+                            <div className="flex-1 min-w-0 flex items-center gap-1.5 px-1.5 h-6 rounded-md border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-[#FFE600]/30 transition-colors">
                                 {browseSearch.isFetching ? (
-                                    <Loader2Icon className="w-3 h-3 animate-spin text-sky-500 shrink-0" />
+                                    <Loader2Icon className="w-3 h-3 animate-spin text-amber-500 shrink-0" />
                                 ) : (
                                     <SearchIcon className="w-3 h-3 text-slate-400 shrink-0" />
                                 )}
@@ -599,7 +599,7 @@ export default function ContactRecipientField({
                                 <button
                                     type="button"
                                     onClick={addBrowsePicked}
-                                    className="ml-auto h-6 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[11.5px] font-medium transition-colors"
+                                    className="ml-auto h-6 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[11.5px] font-medium transition-colors"
                                 >
                                     Add {browsePicked.length}
                                 </button>

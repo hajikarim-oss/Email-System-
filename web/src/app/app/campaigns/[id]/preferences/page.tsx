@@ -403,14 +403,14 @@ export default function CampaignPreferences() {
                                     onClick={() => scrollTo(id)}
                                     className={`relative h-8 px-2.5 md:w-full inline-flex items-center text-left text-[12.5px] rounded-md select-none transition-colors shrink-0 ${
                                         active
-                                            ? "text-sky-700 font-medium"
+                                            ? "text-slate-900 font-medium"
                                             : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                                     }`}
                                 >
                                     {active && (
                                         <motion.span
                                             layoutId="settings-nav-active"
-                                            className="absolute inset-0 rounded-md bg-sky-50"
+                                            className="absolute inset-0 rounded-md bg-[#FFF9DB]"
                                             transition={{ type: "spring", duration: 0.35, bounce: 0.15 }}
                                         />
                                     )}
@@ -462,7 +462,7 @@ export default function CampaignPreferences() {
                             </button>
                             <PermissionButton
                                 permission="MANAGE_CAMPAIGNS"
-                                className="h-7 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-md text-[12px] font-medium transition-colors min-w-[110px] inline-flex items-center justify-center disabled:opacity-60"
+                                className="h-7 px-3 bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer rounded-md text-[12px] font-medium transition-colors min-w-[110px] inline-flex items-center justify-center disabled:opacity-60"
                                 onClick={submit}
                                 disabled={blocked}
                             >

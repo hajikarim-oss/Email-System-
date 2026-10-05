@@ -245,16 +245,16 @@ function Body({
             )}
 
             {!a.paid ? (
-                <div className="rounded-md border border-sky-200 bg-sky-50 p-3">
-                    <p className="text-[12.5px] font-medium text-sky-900">A paid plan holds one mailbox for every send a day it includes</p>
+                <div className="rounded-md border border-amber-200 bg-[#FFF9DB] p-3">
+                    <p className="text-[12.5px] font-medium text-slate-900">A paid plan holds one mailbox for every send a day it includes</p>
                     <ul className="mt-1.5 space-y-0.5">
                         {PAID_PLANS.filter((id) => id !== "enterprise").map((id) => {
                             const n = planMailboxes(id, a.sends_per_mailbox);
                             return (
-                                <li key={id} className="text-[12px] text-sky-800 flex items-center gap-1.5">
-                                    <CheckIcon className="w-3 h-3 text-sky-600 shrink-0" />
+                                <li key={id} className="text-[12px] text-slate-900 flex items-center gap-1.5">
+                                    <CheckIcon className="w-3 h-3 text-slate-900 shrink-0" />
                                     <span className="font-medium">{PLAN_CATALOG[id].label}</span>
-                                    <span className="text-sky-700/80">
+                                    <span className="text-slate-900/80">
                                         {PLAN_CATALOG[id].sendsPerDay.toLocaleString()} sends a day, {n == null ? "unlimited" : n.toLocaleString()} mailboxes
                                     </span>
                                 </li>
@@ -461,7 +461,7 @@ function RequestSection({ a, cap }: { a: MailboxAllowance; cap: number }) {
                     onChange={(e) => setReason(e.target.value)}
                     rows={2}
                     placeholder="Onboarding 40 client domains, 25 mailboxes each, at 5 to 10 sends a day per mailbox."
-                    className="flex-1 min-w-0 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors resize-none"
+                    className="flex-1 min-w-0 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 transition-colors resize-none"
                 />
             </div>
             <div className="flex items-center justify-between gap-2">

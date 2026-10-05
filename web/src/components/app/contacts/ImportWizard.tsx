@@ -218,12 +218,12 @@ export default function ImportWizard({ open, onClose, lockedCampaign, lockedSegm
                                 Contacts
                             </span>
                             {lockedCampaign && (
-                                <span className="hidden sm:inline-flex items-center h-5 px-1.5 rounded bg-sky-50 text-sky-700 text-[10px] font-medium max-w-[180px] truncate">
+                                <span className="hidden sm:inline-flex items-center h-5 px-1.5 rounded bg-[#FFF9DB] text-slate-900 text-[10px] font-medium max-w-[180px] truncate">
                                     → {lockedCampaign.name}
                                 </span>
                             )}
                             {lockedSegment && (
-                                <span className="hidden sm:inline-flex items-center gap-1 h-5 px-1.5 rounded bg-sky-50 text-sky-700 text-[10px] font-medium max-w-[180px]">
+                                <span className="hidden sm:inline-flex items-center gap-1 h-5 px-1.5 rounded bg-[#FFF9DB] text-slate-900 text-[10px] font-medium max-w-[180px]">
                                     <span className="shrink-0">→</span>
                                     {lockedSegment.color && (
                                         <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: lockedSegment.color }} />
@@ -804,13 +804,13 @@ function OptionsStep({
                         : "Every imported contact is pinned into these segments. A segment linked to a campaign enrols them there automatically."}
                 </p>
                 {lockedSegment && (
-                    <div className="mb-2 flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50/60 px-2 h-7">
+                    <div className="mb-2 flex items-center gap-1.5 rounded-md border border-amber-200 bg-[#FFF9DB]/60 px-2 h-7">
                         <span
                             className="size-2 rounded-full shrink-0"
                             style={{ backgroundColor: lockedSegment.color ?? "#0284c7" }}
                         />
-                        <span className="text-[12px] font-medium text-sky-900 truncate">{lockedSegment.name}</span>
-                        <span className="ml-auto text-[10px] uppercase tracking-[0.14em] text-sky-700 shrink-0">
+                        <span className="text-[12px] font-medium text-slate-900 truncate">{lockedSegment.name}</span>
+                        <span className="ml-auto text-[10px] uppercase tracking-[0.14em] text-slate-900 shrink-0">
                             Always
                         </span>
                     </div>
@@ -1013,7 +1013,7 @@ function StatCard({
 }) {
     const ring = {
         emerald: "ring-emerald-200 bg-emerald-50 text-emerald-700",
-        sky:     "ring-sky-200 bg-sky-50 text-sky-700",
+        sky:     "ring-[#FFE600]/40 bg-[#FFF9DB] text-slate-900",
         slate:   "ring-slate-200 bg-slate-50 text-slate-700",
         red:     "ring-red-200 bg-red-50 text-red-700",
     }[accent];

@@ -77,7 +77,7 @@ export default function CloudConnectDialog({ open, onClose, cloudUrl }: { open: 
                         </div>
                         {linked && (
                             <div className="px-5 py-3 border-t border-slate-200/70 flex justify-end">
-                                <button type="button" onClick={onClose} className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium transition-colors">
+                                <button type="button" onClick={onClose} className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors">
                                     Pick mailboxes
                                 </button>
                             </div>

@@ -204,7 +204,7 @@ export default function ContactsEditBulk({
                                 {plural(count, "contact", "contacts")}
                             </span>
                             {scope && (
-                                <span className="inline-flex items-center h-5 px-1.5 rounded bg-sky-50 text-sky-700 text-[10px] font-medium min-w-0">
+                                <span className="inline-flex items-center h-5 px-1.5 rounded bg-[#FFF9DB] text-slate-900 text-[10px] font-medium min-w-0">
                                     <span className="truncate">
                                         in {scope.name}
                                     </span>

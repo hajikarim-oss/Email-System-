@@ -51,11 +51,11 @@ function LoginForm() {
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 overflow-hidden rounded-xl">
             <Image
-              src="/tbm-logo-black.png"
-              alt="TheBoredMonkey"
+              src="/tbm-studios-logo.png"
+              alt="TheBoredMonkey Studios"
               width={200}
-              height={60}
-              className="object-contain"
+              height={50}
+              className="h-10 w-auto object-contain"
               priority
             />
           </div>

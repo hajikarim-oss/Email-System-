@@ -89,7 +89,7 @@ import { taskTypeColor } from "@/components/app/crm/taskTypes";
 const PRIORITIES: { id: CRMTaskPriority; label: string; dot: string; text: string }[] = [
     { id: "urgent", label: "Urgent", dot: "bg-red-500", text: "text-red-700" },
     { id: "high", label: "High", dot: "bg-amber-500", text: "text-amber-700" },
-    { id: "medium", label: "Medium", dot: "bg-sky-500", text: "text-sky-700" },
+    { id: "medium", label: "Medium", dot: "bg-amber-400", text: "text-slate-900" },
     { id: "low", label: "Low", dot: "bg-slate-400", text: "text-slate-600" },
 ];
 
@@ -123,7 +123,7 @@ const BUCKETS: { id: Bucket; label: string; tone: "red" | "sky" | "slate" | "mut
 
 const TONE = {
     red: { dot: "bg-red-500", label: "text-red-600" },
-    sky: { dot: "bg-sky-500", label: "text-sky-600" },
+    sky: { dot: "bg-amber-400", label: "text-slate-900" },
     slate: { dot: "bg-slate-400", label: "text-slate-700" },
     muted: { dot: "bg-slate-300", label: "text-slate-500" },
 } as const;
@@ -749,7 +749,7 @@ function AssigneeCell({
                     className="inline-flex items-center gap-1.5 min-w-0"
                     title={member?.name || member?.email || assignedTo}
                 >
-                    <span className="size-5 shrink-0 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[9px] font-semibold inline-flex items-center justify-center uppercase tracking-tight">
+                    <span className="size-5 shrink-0 rounded-full bg-[#FFF9DB] border border-amber-200 text-slate-900 text-[9px] font-semibold inline-flex items-center justify-center uppercase tracking-tight">
                         {initials}
                     </span>
                     {!compact && <span className="text-[11.5px] text-slate-600 truncate">{label}</span>}
@@ -785,7 +785,7 @@ function TeamChip({ team, teamId, compact = false }: { team?: Team; teamId?: str
 function StatusTag({ status }: { status: CRMTaskStatus }) {
     const map: Record<CRMTaskStatus, { label: string; cls: string; dot: string }> = {
         pending: { label: "Pending", cls: "text-slate-600", dot: "bg-slate-400" },
-        in_progress: { label: "Active", cls: "text-sky-700", dot: "bg-sky-500" },
+        in_progress: { label: "Active", cls: "text-slate-900", dot: "bg-amber-400" },
         completed: { label: "Done", cls: "text-emerald-700", dot: "bg-emerald-500" },
         cancelled: { label: "Cancelled", cls: "text-slate-400", dot: "bg-slate-300" },
     };
@@ -916,7 +916,7 @@ function AssigneeFacet({
                     type="button"
                     className={`h-7 px-2.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 transition-colors ${
                         selected.length
-                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                             : "border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300"
                     }`}
                 >
@@ -936,7 +936,7 @@ function AssigneeFacet({
                             selected={selected.includes(m.user_id)}
                             closeOnSelect={false}
                             icon={
-                                <span className="size-5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[9px] font-semibold inline-flex items-center justify-center uppercase">
+                                <span className="size-5 rounded-full bg-[#FFF9DB] border border-amber-200 text-slate-900 text-[9px] font-semibold inline-flex items-center justify-center uppercase">
                                     {memberInitials(m)}
                                 </span>
                             }
@@ -978,7 +978,7 @@ function TeamFacet({
                     type="button"
                     className={`h-7 px-2.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 transition-colors ${
                         selected.length
-                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                             : "border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300"
                     }`}
                 >
@@ -992,7 +992,7 @@ function TeamFacet({
                     <Link
                         to="/app/settings/teams"
                         onClick={() => setOpen(false)}
-                        className="flex items-center gap-2 px-3 h-8 text-[11.5px] text-slate-500 hover:text-sky-700 hover:bg-slate-50 transition-colors"
+                        className="flex items-center gap-2 px-3 h-8 text-[11.5px] text-slate-500 hover:text-black hover:bg-slate-50 transition-colors"
                     >
                         <UsersRoundIcon className="w-3.5 h-3.5 shrink-0" />
                         No teams yet, create one in Settings
@@ -1043,7 +1043,7 @@ function TypeFacet({
                     type="button"
                     className={`h-7 px-2.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 transition-colors ${
                         selected.length
-                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                             : "border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300"
                     }`}
                 >
@@ -1142,14 +1142,14 @@ function FilterPopover({
                     type="button"
                     className={`h-7 px-2.5 rounded-md border text-[12px] inline-flex items-center gap-1.5 transition-colors ${
                         activeCount
-                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                             : "border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300"
                     }`}
                 >
                     <AlertTriangleIcon className="w-3 h-3" />
                     Filters
                     {activeCount > 0 && (
-                        <span className="size-4 rounded-full bg-sky-600 text-white text-[9.5px] inline-flex items-center justify-center tabular-nums">
+                        <span className="size-4 rounded-full bg-[#18181B] text-white text-[9.5px] inline-flex items-center justify-center tabular-nums">
                             {activeCount}
                         </span>
                     )}
@@ -1169,7 +1169,7 @@ function FilterPopover({
                                         onClick={() => togglePriority(p.id)}
                                         className={`h-7 px-2 rounded-md border text-[11.5px] inline-flex items-center gap-1.5 transition-colors ${
                                             on
-                                                ? "border-sky-300 bg-sky-50 text-sky-700"
+                                                ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                                                 : "border-slate-200 text-slate-600 hover:border-slate-300"
                                         }`}
                                     >
@@ -1204,7 +1204,7 @@ function FilterPopover({
                             onClick={() => onChange((f) => ({ ...f, overdue: f.overdue ? undefined : true }))}
                             className={`size-4 rounded border inline-flex items-center justify-center transition-colors ${
                                 filters.overdue
-                                    ? "bg-sky-600 border-sky-600 text-white"
+                                    ? "bg-[#18181B] border-slate-900 text-white"
                                     : "border-slate-300 bg-white"
                             }`}
                         >
@@ -1565,7 +1565,7 @@ function TaskDialog({
                                     onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Optional notes…"
                                     rows={3}
-                                    className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100 resize-y"
+                                    className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 resize-y"
                                 />
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1689,7 +1689,7 @@ function AssigneePicker({
                     className="h-7 w-full px-2.5 rounded-md border border-slate-200 hover:border-slate-300 bg-white text-[12px] text-slate-700 hover:text-slate-900 inline-flex items-center gap-1.5 transition-colors"
                 >
                     {cur ? (
-                        <span className="size-4 shrink-0 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[8px] font-semibold inline-flex items-center justify-center uppercase">
+                        <span className="size-4 shrink-0 rounded-full bg-[#FFF9DB] border border-amber-200 text-slate-900 text-[8px] font-semibold inline-flex items-center justify-center uppercase">
                             {memberInitials(cur)}
                         </span>
                     ) : curTeam ? (
@@ -1723,7 +1723,7 @@ function AssigneePicker({
                         selected={m.user_id === value}
                         closeOnSelect={false}
                         icon={
-                            <span className="size-5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[9px] font-semibold inline-flex items-center justify-center uppercase">
+                            <span className="size-5 rounded-full bg-[#FFF9DB] border border-amber-200 text-slate-900 text-[9px] font-semibold inline-flex items-center justify-center uppercase">
                                 {memberInitials(m)}
                             </span>
                         }
@@ -1739,7 +1739,7 @@ function AssigneePicker({
                     <Link
                         to="/app/settings/teams"
                         onClick={() => setOpen(false)}
-                        className="flex items-center gap-2 px-3 h-8 text-[12px] text-slate-500 hover:text-sky-700 hover:bg-slate-50 transition-colors"
+                        className="flex items-center gap-2 px-3 h-8 text-[12px] text-slate-500 hover:text-black hover:bg-slate-50 transition-colors"
                     >
                         <UsersRoundIcon className="w-3.5 h-3.5 shrink-0" />
                         No teams yet, create one in Settings

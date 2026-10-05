@@ -400,7 +400,7 @@ export function ThreadView({ threadId, emailId }: ThreadViewProps) {
             className={
               "inline-flex size-7 rounded-md items-center justify-center transition-colors " +
               (crmOpen
-                ? "text-sky-700 bg-sky-50"
+                ? "text-slate-900 bg-[#FFF9DB]"
                 : "text-slate-500 hover:text-slate-900 hover:bg-slate-100")
             }
           >
@@ -455,7 +455,7 @@ export function ThreadView({ threadId, emailId }: ThreadViewProps) {
                       <button
                         type="button"
                         onClick={submitCustomSnooze}
-                        className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1 transition-colors"
+                        className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1 transition-colors"
                       >
                         <CheckIcon className="w-3 h-3" />
                         Snooze
@@ -612,7 +612,7 @@ export function ThreadView({ threadId, emailId }: ThreadViewProps) {
                 if (!last) return;
                 openReply(last.id, "reply");
               }}
-              className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
+              className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
             >
               <CornerUpLeftIcon className="w-3 h-3" />
               Reply
@@ -743,14 +743,14 @@ function ScheduledMessageBubble({
 
   return (
     <article className="px-3 sm:px-5 py-3">
-      <div className="rounded-lg border border-dashed border-sky-300 bg-sky-50/40 px-3 sm:px-4 py-3">
+      <div className="rounded-lg border border-dashed border-amber-200 bg-[#FFF9DB]/40 px-3 sm:px-4 py-3">
         <header className="flex items-start gap-3">
-          <div className="size-7 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+          <div className="size-7 rounded-full bg-[#FFF3B0] text-slate-900 flex items-center justify-center shrink-0">
             <ClockIcon className="w-3.5 h-3.5" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline gap-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-[0.14em] text-sky-700 font-semibold">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-slate-900 font-semibold">
                 Scheduled
               </span>
               <span className="text-[12.5px] font-semibold text-slate-900">
@@ -772,7 +772,7 @@ function ScheduledMessageBubble({
             onClick={onCancel}
             disabled={cancelling}
             title="Cancel this scheduled send"
-            className="shrink-0 inline-flex items-center gap-1 h-6 px-1.5 rounded-md border border-sky-200 bg-white text-sky-700 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50 text-[11px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="shrink-0 inline-flex items-center gap-1 h-6 px-1.5 rounded-md border border-amber-200 bg-white text-slate-900 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50 text-[11px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelling ? (
               <Loader2Icon className="w-3 h-3 animate-spin" />
@@ -793,7 +793,7 @@ function ScheduledMessageBubble({
               {item.snippet}
             </p>
           )}
-          <div className="mt-2 inline-flex items-center gap-1 h-5 px-1.5 rounded bg-white border border-sky-200 text-[10px] text-sky-700 font-medium">
+          <div className="mt-2 inline-flex items-center gap-1 h-5 px-1.5 rounded bg-white border border-amber-200 text-[10px] text-slate-900 font-medium">
             <SendIcon className="w-2.5 h-2.5" />
             Will send {when}
           </div>

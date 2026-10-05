@@ -101,7 +101,7 @@ export default function FormsDomainCard() {
                         type="button"
                         disabled={!write.allowed || busy || (!dirty && !!status?.forms_domain === false)}
                         onClick={() => write.guard(() => void onSave())({})}
-                        className="h-7 px-2.5 rounded-md bg-sky-600 text-white text-[12px] font-medium hover:bg-sky-700 disabled:opacity-50 shrink-0"
+                        className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] disabled:opacity-50 shrink-0"
                     >
                         {save.isPending ? <Loader2Icon className="w-3 h-3 animate-spin" /> : dirty ? "Save and verify" : "Save"}
                     </button>

@@ -207,17 +207,17 @@ function NavRow({ item }: { item: NavItem }) {
             className={cn(
                 "group mx-2 flex items-center gap-2.5 px-2.5 h-7 rounded-md text-[12.5px] transition-colors duration-100",
                 active
-                    ? "bg-slate-200/70 text-slate-900 font-medium"
+                    ? "bg-[#18181B] text-white font-medium shadow-xs"
                     : locked
-                        ? "text-slate-400 hover:text-slate-700 hover:bg-slate-200/40"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/40",
+                        ? "text-slate-400 hover:text-slate-700 hover:bg-stone-200/50"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-stone-200/60",
             )}
         >
             <item.icon
                 className={cn(
                     "w-[14px] h-[14px] shrink-0 transition-colors",
                     active
-                        ? "text-slate-700"
+                        ? "text-[#FFE600]"
                         : locked
                             ? "text-slate-300 group-hover:text-slate-500"
                             : "text-slate-400 group-hover:text-slate-600",
@@ -363,7 +363,7 @@ function CampaignActivity() {
         <TabDualStat
             total={campaigns.length}
             active={active}
-            activeClass="text-sky-600"
+            activeClass="text-slate-900"
             activeGlyph={<span className="campaign-grid" aria-hidden />}
             title={`${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"}${active > 0 ? `, ${active} sending now` : ""}`}
         />
@@ -431,11 +431,11 @@ function MeetingsActivity() {
         <TabDualStat
             total={upcoming}
             active={today}
-            activeClass="text-sky-600"
+            activeClass="text-slate-900"
             activeGlyph={
                 <span className="relative inline-flex shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                    <span className="absolute inset-0 rounded-full bg-sky-500/40 animate-ping" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span className="absolute inset-0 rounded-full bg-amber-400/40 animate-ping" />
                 </span>
             }
             title={`${upcoming} upcoming meeting${upcoming === 1 ? "" : "s"}${today > 0 ? `, ${today} today` : ""}`}
@@ -663,9 +663,9 @@ function LivePanel() {
                         : "Connect a mailbox to start sending"
                 }
             >
-                <div className="h-1 rounded-full bg-sky-100 overflow-hidden">
+                <div className="h-1 rounded-full bg-[#FFF3B0] overflow-hidden">
                     <div
-                        className="h-full rounded-full bg-sky-500 transition-[width] duration-700 ease-out"
+                        className="h-full rounded-full bg-amber-400 transition-[width] duration-700 ease-out"
                         style={{ width: `${pct}%` }}
                     />
                 </div>
@@ -696,7 +696,7 @@ function LivePanel() {
                 <span
                     className={cn(
                         "ml-auto inline-flex items-center gap-1",
-                        unseenCount > 0 ? "text-sky-600" : "text-slate-400",
+                        unseenCount > 0 ? "text-slate-900" : "text-slate-400",
                     )}
                     title={`${unseenCount} unread in inbox`}
                 >
@@ -798,7 +798,7 @@ function Sparkline({
             aria-hidden
             className={cn(
                 "mt-1 block w-full h-[34px]",
-                hasVolume ? "text-sky-500" : "text-slate-300",
+                hasVolume ? "text-amber-500" : "text-slate-300",
             )}
             onMouseLeave={() => onHover(null)}
         >
@@ -911,14 +911,13 @@ export function AppNav({ open = false, onClose }: { open?: boolean; onClose?: ()
                 {/* Mobile drawer header: brand + close. (The desktop sidebar
                     has no chrome of its own — the brand lives in AppHeader.) */}
                 <div className="md:hidden flex items-center justify-between px-3 h-14 border-b border-slate-200/70">
-                    <Link to="/app/emails" onClick={onClose} className="flex items-center gap-2.5">
-                        <Logo className="w-6 text-slate-900" />
-                        <span
-                            style={{ fontFamily: "var(--font-display)" }}
-                            className="font-extrabold text-[15px] tracking-tight text-slate-900"
-                        >
-                            TheBoredMonkey Outreach
-                        </span>
+                    <Link to="/app/dashboard" onClick={onClose} className="flex items-center gap-2.5">
+                        <Logo className="w-6 text-slate-900 shrink-0" />
+                        <img
+                            src="/tbm-studios-logo.png"
+                            alt="TheBoredMonkey Studios"
+                            className="h-6 w-auto max-w-[155px] object-contain shrink-0"
+                        />
                     </Link>
                     <button
                         type="button"

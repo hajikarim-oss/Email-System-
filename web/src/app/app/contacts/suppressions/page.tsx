@@ -125,7 +125,7 @@ function AddForm({ onClose }: { onClose: () => void }) {
                 e.preventDefault();
                 void submit();
             }}
-            className="px-5 py-3 border-b border-slate-200/60 bg-sky-50/40 space-y-2.5"
+            className="px-5 py-3 border-b border-slate-200/60 bg-[#FFF9DB]/40 space-y-2.5"
         >
             <div>
                 <Label>Addresses or domains</Label>
@@ -149,7 +149,7 @@ function AddForm({ onClose }: { onClose: () => void }) {
                 <button
                     type="submit"
                     disabled={values.length === 0 || add.isPending}
-                    className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium transition-colors disabled:opacity-50"
+                    className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors disabled:opacity-50"
                 >
                     {add.isPending ? "Adding…" : values.length > 1 ? `Add ${values.length}` : "Add"}
                 </button>

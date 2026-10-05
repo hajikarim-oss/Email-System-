@@ -85,7 +85,7 @@ export default function StepAttachments({
                     href={a.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="block truncate text-[12.5px] font-medium text-slate-800 hover:text-sky-700"
+                    className="block truncate text-[12.5px] font-medium text-slate-800 hover:text-black"
                     title={a.filename}
                 >
                     {a.filename}
@@ -147,14 +147,14 @@ export default function StepAttachments({
                     disabled={upload.isPending}
                     className={`flex w-full flex-col items-center justify-center gap-1.5 rounded-md border border-dashed px-3 py-6 text-center transition-colors ${
                         dragging
-                            ? "border-sky-400 bg-sky-50"
+                            ? "border-slate-800 bg-[#FFF9DB]"
                             : "border-slate-300 bg-slate-50/60 hover:border-slate-400 hover:bg-slate-50"
                     } disabled:opacity-60`}
                 >
                     {upload.isPending ? (
                         <Loader2Icon className="w-5 h-5 text-slate-400 animate-spin" />
                     ) : (
-                        <UploadCloudIcon className={`w-5 h-5 ${dragging ? "text-sky-500" : "text-slate-400"}`} />
+                        <UploadCloudIcon className={`w-5 h-5 ${dragging ? "text-amber-500" : "text-slate-400"}`} />
                     )}
                     <span className="text-[12.5px] font-medium text-slate-700">
                         {upload.isPending ? "Uploading…" : "Drag files here or click to upload"}

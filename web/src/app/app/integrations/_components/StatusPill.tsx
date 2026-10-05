@@ -3,8 +3,8 @@ import type { IntegrationHealth, IntegrationStatus } from "@/lib/api/models/app/
 
 const TONES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
     connected: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "connected" },
-    authorizing: { bg: "bg-sky-50", text: "text-sky-700", dot: "bg-sky-500", label: "authorizing" },
-    pending: { bg: "bg-sky-50", text: "text-sky-700", dot: "bg-sky-500", label: "pending" },
+    authorizing: { bg: "bg-[#FFF9DB]", text: "text-slate-900", dot: "bg-amber-400", label: "authorizing" },
+    pending: { bg: "bg-[#FFF9DB]", text: "text-slate-900", dot: "bg-amber-400", label: "pending" },
     degraded: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", label: "degraded" },
     reauth_required: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", label: "reconnect" },
     disconnected: { bg: "bg-slate-100", text: "text-slate-500", dot: "bg-slate-400", label: "not connected" },

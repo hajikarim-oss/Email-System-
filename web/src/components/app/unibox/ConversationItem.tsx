@@ -85,13 +85,13 @@ export function ConversationItem({ email }: ConversationItemProps) {
       }}
       className={cn(
         "group w-full text-left px-3 py-2 transition-colors flex items-start gap-2.5 relative",
-        isSelected ? "bg-sky-50/80" : "hover:bg-slate-50/80",
+        isSelected ? "bg-[#FFF9DB]/80" : "hover:bg-slate-50/80",
       )}
     >
       {unread && (
         <span
           aria-hidden
-          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-sky-500"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-amber-400"
         />
       )}
       <div

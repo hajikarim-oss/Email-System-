@@ -155,7 +155,7 @@ export default function ColorPicker({
                 aria-label={ariaLabel ?? "Pick a color"}
                 onClick={() => setOpen((o) => !o)}
                 className={`size-7 rounded-md border border-slate-200 shrink-0 transition-shadow disabled:opacity-50 ${
-                    open ? "ring-2 ring-sky-200" : "hover:border-slate-300"
+                    open ? "ring-2 ring-[#FFE600]/40" : "hover:border-slate-300"
                 }`}
                 style={{ backgroundColor: current }}
             />
@@ -193,7 +193,7 @@ export default function ColorPicker({
                                         onBlur={() => setText(current)}
                                         spellCheck={false}
                                         aria-label="Hex value"
-                                        className={`h-7 flex-1 min-w-0 rounded-md border px-2 font-mono text-[12px] text-slate-900 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100 ${
+                                        className={`h-7 flex-1 min-w-0 rounded-md border px-2 font-mono text-[12px] text-slate-900 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 ${
                                             HEX_RE.test(text.trim()) ? "border-slate-200" : "border-rose-300"
                                         }`}
                                     />
@@ -219,7 +219,7 @@ export default function ColorPicker({
                                             onClick={() => onChange(c)}
                                             className={`h-5 rounded border transition-shadow ${
                                                 current === c.toLowerCase()
-                                                    ? "border-transparent ring-2 ring-sky-400"
+                                                    ? "border-transparent ring-2 ring-slate-800"
                                                     : "border-slate-200 hover:ring-2 hover:ring-slate-200"
                                             }`}
                                             style={{ backgroundColor: c }}

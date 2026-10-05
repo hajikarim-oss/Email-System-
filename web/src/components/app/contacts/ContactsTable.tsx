@@ -1300,7 +1300,7 @@ function ContactsTableBody({
                         <th className="pl-5 pr-2 py-2 w-9">
                             <input
                                 type="checkbox"
-                                className="w-3.5 h-3.5 rounded accent-sky-600"
+                                className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer"
                                 checked={isSelectedAll}
                                 onChange={onToggleAll}
                             />
@@ -1379,9 +1379,9 @@ function ContactsTableBody({
                                 onClick={() => onRowClick(c.id)}
                                 className={`group h-11 transition-colors cursor-pointer border-b border-slate-200/60 ${
                                     isSel
-                                        ? "bg-sky-50/60"
+                                        ? "bg-[#FFF9DB]/50"
                                         : isActiveLead
-                                            ? "bg-sky-50/40 hover:bg-sky-50/70"
+                                            ? "bg-[#FFF9DB]/20 hover:bg-[#FFF9DB]/40"
                                             : processed
                                                 ? "bg-slate-50/40 hover:bg-slate-50/80"
                                                 : "hover:bg-slate-50/80"
@@ -1393,7 +1393,7 @@ function ContactsTableBody({
                                 >
                                     <input
                                         type="checkbox"
-                                        className="w-3.5 h-3.5 rounded accent-sky-600"
+                                        className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer"
                                         checked={isSel}
                                         onChange={() => onToggle(c.id, !isSel)}
                                     />
@@ -1549,7 +1549,7 @@ function ContactsTableBody({
                                                                     isLatest
                                                                         ? processed
                                                                             ? "bg-slate-100 text-slate-500 border border-slate-200"
-                                                                            : "bg-sky-100 text-sky-700 border border-sky-200"
+                                                                            : "bg-[#FFF3B0] text-slate-900 border border-amber-200"
                                                                         : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                                                 }`}
                                                             >
@@ -1565,7 +1565,7 @@ function ContactsTableBody({
                                                 className={`inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium max-w-[160px] ${
                                                     processed
                                                         ? "bg-slate-100 text-slate-400"
-                                                        : "bg-sky-100 text-sky-700"
+                                                        : "bg-[#FFF3B0] text-slate-900"
                                                 }`}
                                             >
                                                 <span className="truncate">{lead.current_step}</span>
@@ -1652,7 +1652,7 @@ function ContactsTableBody({
 function Th({ children, className }: { children: React.ReactNode; className?: string }) {
     return (
         <th
-            className={`px-3 py-2 text-[10px] font-medium text-slate-400 uppercase tracking-[0.14em] ${className ?? ""}`}
+            className={`px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-[0.14em] ${className ?? ""}`}
         >
             {children}
         </th>
@@ -1727,7 +1727,7 @@ const LEAD_META: Record<
     { label: string; dot: string; text: string; Icon: typeof ClockIcon }
 > = {
     pending: { label: "Queued", dot: "bg-slate-300", text: "text-slate-500", Icon: ClockIcon },
-    active: { label: "Processing", dot: "bg-sky-500", text: "text-sky-700", Icon: ClockIcon },
+    active: { label: "Processing", dot: "bg-amber-400", text: "text-slate-900", Icon: ClockIcon },
     completed: { label: "Done", dot: "bg-indigo-500", text: "text-indigo-700", Icon: CheckIcon },
     replied: { label: "Replied", dot: "bg-emerald-500", text: "text-emerald-700", Icon: CornerUpLeftIcon },
     bounced: { label: "Bounced", dot: "bg-rose-500", text: "text-rose-600", Icon: AlertTriangleIcon },
@@ -1760,7 +1760,7 @@ function LeadStatusPill({ lead }: { lead?: ContactCampaignProgress | null }) {
             title={title}
         >
             {status === "active" ? (
-                <span className="campaign-grid text-sky-600 shrink-0" aria-hidden />
+                <span className="campaign-grid text-slate-900 shrink-0" aria-hidden />
             ) : (
                 <Icon className="w-3 h-3 shrink-0" />
             )}
@@ -1860,7 +1860,7 @@ function LeadProgressStrip({
         : undefined;
 
     const segs: { key: LeadStatus; color: string }[] = [
-        { key: "active", color: "bg-sky-500" },
+        { key: "active", color: "bg-amber-400" },
         { key: "completed", color: "bg-indigo-500" },
         { key: "replied", color: "bg-emerald-500" },
         { key: "pending", color: "bg-slate-300" },
@@ -1886,7 +1886,7 @@ function LeadProgressStrip({
                 </div>
             </div>
             <div className="flex items-center gap-2 text-[11px] flex-wrap">
-                <StripChip dot="bg-sky-500" label="Processing" n={counts.active} loader={counts.active > 0} {...status("active")} />
+                <StripChip dot="bg-amber-400" label="Processing" n={counts.active} loader={counts.active > 0} {...status("active")} />
                 <StripChip dot="bg-indigo-500" label="Done" n={counts.completed} {...status("completed")} />
                 <StripChip dot="bg-emerald-500" label="Replied" n={counts.replied} {...status("replied")} />
                 <StripChip dot="bg-slate-300" label="Queued" n={counts.pending} {...status("pending")} />
@@ -1951,20 +1951,20 @@ function StripChip({
             onClick={onClick}
             className={`inline-flex items-center gap-1.5 h-6 px-1.5 -mx-0.5 rounded-md border transition-colors ${
                 active
-                    ? "border-sky-200 bg-sky-50 text-sky-700"
+                    ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                     : "border-transparent hover:bg-slate-100 text-slate-500"
             }`}
         >
             {loader ? (
-                <span className="campaign-grid text-sky-600" aria-hidden />
+                <span className="campaign-grid text-slate-900" aria-hidden />
             ) : Icon ? (
-                <Icon className={`w-3 h-3 ${active ? "text-sky-600" : "text-slate-400"}`} />
+                <Icon className={`w-3 h-3 ${active ? "text-slate-900" : "text-slate-400"}`} />
             ) : (
                 <span className={`size-1.5 rounded-full ${dot}`} />
             )}
-            <span className={active ? "text-sky-700" : "text-slate-500"}>{label}</span>
+            <span className={active ? "text-slate-900" : "text-slate-500"}>{label}</span>
             {n !== undefined && (
-                <span className={`font-mono tabular-nums ${active ? "text-sky-800" : "text-slate-900"}`}>{n}</span>
+                <span className={`font-mono tabular-nums ${active ? "text-slate-900" : "text-slate-900"}`}>{n}</span>
             )}
         </button>
     );
@@ -2003,7 +2003,7 @@ function SelectAllBanner({
     if (!selectAll && !canSelectAllMatching) return null;
     const plural = (n: number) => (n === 1 ? noun : `${noun}s`);
     return (
-        <div className="px-5 py-2 bg-sky-50/70 border-b border-sky-100 text-[12px] text-sky-900 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center">
+        <div className="px-5 py-2 bg-[#FFF9DB]/70 border-b border-amber-200 text-[12px] text-slate-900 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center">
             {selectAll ? (
                 <>
                     <span>
@@ -2013,7 +2013,7 @@ function SelectAllBanner({
                     <button
                         type="button"
                         onClick={onClear}
-                        className="font-medium underline underline-offset-2 hover:text-sky-700"
+                        className="font-medium underline underline-offset-2 hover:text-black"
                     >
                         Clear selection
                     </button>
@@ -2027,7 +2027,7 @@ function SelectAllBanner({
                     <button
                         type="button"
                         onClick={onSelectAllMatching}
-                        className="font-medium underline underline-offset-2 hover:text-sky-700"
+                        className="font-medium underline underline-offset-2 hover:text-black"
                     >
                         Select all {total.toLocaleString()} matching
                     </button>
@@ -2090,9 +2090,9 @@ function SelectionBar({
         // wrapper that grows with the table, so an absolutely positioned bar
         // parked itself at the bottom of the whole list: selecting rows
         // appeared to do nothing until you scrolled past every lead.
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center max-w-[calc(100vw-16px)] flex-wrap justify-center md:max-w-none md:flex-nowrap gap-1.5 rounded-md border border-slate-200 bg-white shadow-[0_6px_20px_-4px_rgba(15,23,42,0.12),0_2px_4px_rgba(15,23,42,0.04)] px-2 py-1.5">
-            <div className="inline-flex items-center gap-1.5 px-2 h-7 rounded bg-sky-50 text-sky-700 text-[12px] font-medium">
-                <CheckIcon className="w-3 h-3" />
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center max-w-[calc(100vw-16px)] flex-wrap justify-center md:max-w-none md:flex-nowrap gap-1.5 rounded-full border border-slate-900/10 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] px-2.5 py-1.5">
+            <div className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full bg-[#18181B] text-white text-[12px] font-medium shadow-xs">
+                <CheckIcon className="w-3 h-3 text-[#FFE600]" />
                 <span>{count.toLocaleString()} selected</span>
             </div>
             {pushTargets.length > 0 && (
@@ -2101,7 +2101,7 @@ function SelectionBar({
                         <button
                             type="button"
                             disabled={pushing}
-                            className="h-7 px-2.5 rounded text-[12px] text-slate-700 hover:text-slate-900 hover:bg-slate-100 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                            className="h-7 px-2.5 rounded-full text-[12px] text-slate-700 hover:text-slate-900 hover:bg-slate-100 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer"
                         >
                             {pushing ? (
                                 <Loader2Icon className="w-3 h-3 animate-spin" />
@@ -2129,7 +2129,7 @@ function SelectionBar({
             <button
                 type="button"
                 onClick={onBulkEdit}
-                className="h-7 px-2.5 rounded text-[12px] text-slate-700 hover:text-slate-900 hover:bg-slate-100 font-medium transition-colors"
+                className="h-7 px-2.5 rounded-full text-[12px] text-slate-700 hover:text-slate-900 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
             >
                 Edit
             </button>
@@ -2139,7 +2139,7 @@ function SelectionBar({
                     type="button"
                     onClick={onExclude}
                     disabled={excluding}
-                    className="h-7 px-2.5 rounded text-[12px] text-amber-700 hover:text-white hover:bg-amber-600 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                    className="h-7 px-2.5 rounded-full text-[12px] text-amber-700 hover:text-white hover:bg-amber-600 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer"
                 >
                     {excluding ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3" />}
                     <span className="hidden sm:inline">Remove from segment</span>
@@ -2150,7 +2150,7 @@ function SelectionBar({
                     type="button"
                     onClick={onRemoveFromCampaign}
                     disabled={removing}
-                    className="h-7 px-2.5 rounded text-[12px] text-amber-700 hover:text-white hover:bg-amber-600 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                    className="h-7 px-2.5 rounded-full text-[12px] text-amber-700 hover:text-white hover:bg-amber-600 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer"
                 >
                     {removing ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <UserMinusIcon className="w-3 h-3" />}
                     <span className="hidden sm:inline">Remove from campaign</span>
@@ -2160,7 +2160,7 @@ function SelectionBar({
                 type="button"
                 onClick={onResearch}
                 disabled={researching}
-                className="h-7 px-2.5 rounded text-[12px] text-slate-700 hover:text-sky-700 hover:bg-sky-50 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                className="h-7 px-2.5 rounded-full text-[12px] text-slate-700 hover:text-slate-950 hover:bg-slate-100 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer"
             >
                 {researching ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
                 <span className="hidden sm:inline">Research</span>
@@ -2170,7 +2170,7 @@ function SelectionBar({
                     <button
                         type="button"
                         disabled={verifying}
-                        className="h-7 px-2.5 rounded text-[12px] text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                        className="h-7 px-2.5 rounded-full text-[12px] text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer"
                     >
                         {verifying ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <ShieldCheckIcon className="w-3 h-3" />}
                         <span className="hidden sm:inline">Verify</span>

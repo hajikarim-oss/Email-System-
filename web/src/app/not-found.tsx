@@ -28,7 +28,7 @@ export default function NotFound() {
           <div className="flex size-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80">
             <MailX className="w-5 h-5 text-slate-400" strokeWidth={1.6} />
           </div>
-          <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-sky-500 ring-2 ring-white" />
+          <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-amber-400 ring-2 ring-white" />
         </div>
 
         {/* Eyebrow */}
@@ -54,13 +54,13 @@ export default function NotFound() {
         <div className="mt-6 flex flex-wrap items-center justify-center gap-1.5">
           <Link
             to="/app"
-            className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium bg-sky-600 hover:bg-sky-700 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-sky-100"
+            className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30"
           >
             <LayoutDashboard className="w-3.5 h-3.5" strokeWidth={1.6} /> Back to dashboard
           </Link>
           <Link
             to="/auth/login"
-            className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium border border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:text-slate-900 transition-colors focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium border border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:text-slate-900 transition-colors focus:outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
           >
             <LogIn className="w-3.5 h-3.5" strokeWidth={1.6} /> Sign in
           </Link>

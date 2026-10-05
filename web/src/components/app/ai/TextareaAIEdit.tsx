@@ -34,9 +34,9 @@ interface Selection {
 // Highlight tint per phase: steady while targeting, pulsing while the model
 // rewrites, green-tinged once applied.
 function cnHighlight(phase: AIEditPhase): string {
-    if (phase === "busy") return "rounded-[3px] bg-sky-300/50 animate-pulse pointer-events-none";
+    if (phase === "busy") return "rounded-[3px] bg-[#FFE600]/60/50 animate-pulse pointer-events-none";
     if (phase === "applied") return "rounded-[3px] bg-emerald-200/50 pointer-events-none";
-    return "rounded-[3px] bg-sky-200/45 pointer-events-none";
+    return "rounded-[3px] bg-[#FFE600]/60/45 pointer-events-none";
 }
 
 interface TextareaAIEditProps {
@@ -370,14 +370,14 @@ export default function TextareaAIEdit({
                         exit={{ opacity: 0, y: 2, scale: 0.95, x: "-50%" }}
                         transition={{ type: "spring", stiffness: 500, damping: 32 }}
                         style={{ position: "fixed", top: rect.top - 34, left: rect.centerX, zIndex: 120 }}
-                        className="h-7 pl-2 pr-2.5 rounded-full border border-slate-200 bg-white shadow-[0_6px_20px_-6px_rgba(15,23,42,0.25)] inline-flex items-center gap-1.5 text-[11.5px] font-medium text-slate-700 hover:text-sky-700 hover:border-sky-300 transition-colors"
+                        className="h-7 pl-2 pr-2.5 rounded-full border border-slate-200 bg-white shadow-[0_6px_20px_-6px_rgba(15,23,42,0.25)] inline-flex items-center gap-1.5 text-[11.5px] font-medium text-slate-700 hover:text-black hover:border-amber-200 transition-colors"
                         onMouseDown={(e) => {
                             // Keep the textarea focused so the selection survives.
                             e.preventDefault();
                             openEditor();
                         }}
                     >
-                        <SparklesIcon className="w-3 h-3 text-sky-500" />
+                        <SparklesIcon className="w-3 h-3 text-amber-500" />
                         Edit with AI
                         <Kbd combo="mod+J" variant="light" />
                     </motion.button>

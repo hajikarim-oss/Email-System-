@@ -104,7 +104,7 @@ export default function AIEditPopover({
     if (phase === "busy") {
         return (
             <div className="w-[300px] px-3 py-2.5 flex items-center gap-2">
-                <SparklesIcon className="w-3.5 h-3.5 text-sky-500 animate-pulse shrink-0" />
+                <SparklesIcon className="w-3.5 h-3.5 text-amber-500 animate-pulse shrink-0" />
                 <span className="ai-shimmer-text text-[12px] font-medium">Rewriting…</span>
                 <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-slate-400">
                     <Kbd combo="esc" variant="light" /> cancel
@@ -156,7 +156,7 @@ export default function AIEditPopover({
     return (
         <div className="w-[300px]">
             <div className="flex items-center gap-1.5 px-2.5 pt-2.5">
-                <SparklesIcon className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                <SparklesIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 <input
                     ref={inputRef}
                     value={instruction}
@@ -176,7 +176,7 @@ export default function AIEditPopover({
                     onClick={run}
                     disabled={!instruction.trim()}
                     aria-label="Rewrite selection"
-                    className="size-6 rounded-md bg-sky-600 text-white inline-flex items-center justify-center hover:bg-sky-700 transition-colors disabled:opacity-40"
+                    className="size-6 rounded-md bg-[#18181B] text-white inline-flex items-center justify-center hover:bg-black transition-colors disabled:opacity-40"
                 >
                     <ArrowUpIcon className="w-3.5 h-3.5" />
                 </button>
@@ -187,7 +187,7 @@ export default function AIEditPopover({
                         key={a.key}
                         type="button"
                         onClick={() => onRun(a.instruction)}
-                        className="h-6 px-2 rounded-full border border-slate-200 inline-flex items-center gap-1 text-[11px] text-slate-600 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50 transition-colors"
+                        className="h-6 px-2 rounded-full border border-slate-200 inline-flex items-center gap-1 text-[11px] text-slate-600 hover:border-amber-200 hover:text-slate-950 hover:bg-slate-100 transition-colors"
                     >
                         {a.icon}
                         {a.label}

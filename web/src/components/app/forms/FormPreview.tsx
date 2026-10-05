@@ -184,7 +184,7 @@ function SortableField({
                 onSelect(field.id);
             }}
             className={`relative rounded-md cursor-pointer group/field ${
-                selected ? "ring-2 ring-sky-400 ring-offset-2" : "hover:ring-1 hover:ring-sky-200 hover:ring-offset-2"
+                selected ? "ring-2 ring-slate-800 ring-offset-2" : "hover:ring-1 hover:ring-[#FFE600]/40 hover:ring-offset-2"
             }`}
             data-field-id={field.id}
         >

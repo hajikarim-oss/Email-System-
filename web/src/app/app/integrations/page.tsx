@@ -294,7 +294,7 @@ function CatalogCard({
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="text-[11px] text-slate-400 hover:text-sky-700 inline-flex items-center gap-1 underline decoration-dotted underline-offset-2"
+                        className="text-[11px] text-slate-400 hover:text-black inline-flex items-center gap-1 underline decoration-dotted underline-offset-2"
                     >
                         <ExternalLinkIcon className="w-3 h-3" />
                         Docs
@@ -309,7 +309,7 @@ function CatalogCard({
                             ? "text-slate-600 group-hover:text-slate-900 group-hover:bg-slate-100"
                             : comingSoon
                               ? "text-slate-300"
-                              : "bg-sky-600 text-white group-hover:bg-sky-700",
+                              : "bg-[#18181B] text-white group-hover:bg-black",
                     )}
                 >
                     {connected ? (

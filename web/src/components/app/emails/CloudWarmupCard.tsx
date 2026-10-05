@@ -35,9 +35,9 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
     if (!pool.connected) {
         return (
             <div className="px-5 py-3 flex items-center gap-2.5 text-[12px] text-slate-500">
-                <CloudIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <CloudIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
                 <span className="min-w-0 flex-1">Warm this mailbox in the TheBoredMonkey pool instead, free for up to 10 mailboxes.</span>
-                <Link to="/app/settings/warmbly-cloud" className="shrink-0 font-medium text-sky-700 hover:text-sky-900">
+                <Link to="/app/settings/warmbly-cloud" className="shrink-0 font-medium text-slate-900 hover:text-black underline underline-offset-2 cursor-pointer">
                     Connect TheBoredMonkey Cloud
                 </Link>
             </div>
@@ -51,7 +51,7 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
     if (!row?.enrolled) {
         return (
             <div className="px-5 py-3 flex items-center gap-2.5 text-[12px] text-slate-600">
-                <CloudIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <CloudIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
                 <span className="min-w-0 flex-1">
                     {supported ? "Not in the TheBoredMonkey pool. Enrolling stops local warmup and lets the cloud warm it." : "This mailbox was signed in with this instance's own OAuth app, which the cloud cannot refresh. Remove it and add it again through TheBoredMonkey Cloud to warm it there."}
                 </span>
@@ -60,7 +60,7 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
                         type="button"
                         disabled={busy}
                         onClick={() => void run(() => enroll.mutateAsync(mailboxId), `${email} is now warming in the pool`)}
-                        className="shrink-0 h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                        className="shrink-0 h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                     >
                         {busy ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <CloudIcon className="w-3 h-3" />}
                         Warm in TheBoredMonkey Cloud
@@ -74,9 +74,9 @@ export default function CloudWarmupCard({ mailboxId, email, provider }: { mailbo
     const health = cloud?.health?.state;
     return (
         <div className="px-5 py-4">
-            <div className="rounded-md border border-sky-200/70 bg-sky-50/50 px-3 py-3">
+            <div className="rounded-md border border-amber-200/70 bg-[#FFF9DB]/50 px-3 py-3">
                 <div className="flex items-center gap-2.5">
-                    <span className="size-8 rounded-lg bg-sky-600 text-white inline-flex items-center justify-center shrink-0">
+                    <span className="size-8 rounded-lg bg-[#18181B] text-white inline-flex items-center justify-center shrink-0">
                         <CloudIcon className="w-4 h-4" />
                     </span>
                     <div className="min-w-0 flex-1">

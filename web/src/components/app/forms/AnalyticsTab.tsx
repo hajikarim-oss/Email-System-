@@ -133,7 +133,7 @@ export default function AnalyticsTab({ form }: { form: Form }) {
                                 </span>
                                 <div className="flex-1 h-5 rounded bg-slate-100 overflow-hidden">
                                     <div
-                                        className="h-full rounded bg-sky-500/80"
+                                        className="h-full rounded bg-amber-400/80"
                                         style={{ width: `${Math.min(100, (p.reached / funnelBase) * 100)}%` }}
                                     />
                                 </div>
@@ -211,7 +211,7 @@ export default function AnalyticsTab({ form }: { form: Form }) {
                                         </td>
                                         <td className="px-3 hidden md:table-cell">
                                             {v.campaign ? (
-                                                <span className="inline-flex items-center h-4 px-1.5 rounded bg-sky-50 text-sky-700 text-[10px] font-medium max-w-36">
+                                                <span className="inline-flex items-center h-4 px-1.5 rounded bg-[#FFF9DB] text-slate-900 text-[10px] font-medium max-w-36">
                                                     <span className="truncate">{v.campaign}</span>
                                                 </span>
                                             ) : (
@@ -289,7 +289,7 @@ function CountList({
                                 </span>
                             </div>
                             <div className="mt-0.5 h-px bg-slate-100">
-                                <div className="h-px bg-sky-400/70" style={{ width: `${(i.count / max) * 100}%` }} />
+                                <div className="h-px bg-amber-400/70" style={{ width: `${(i.count / max) * 100}%` }} />
                             </div>
                         </div>
                     ))}

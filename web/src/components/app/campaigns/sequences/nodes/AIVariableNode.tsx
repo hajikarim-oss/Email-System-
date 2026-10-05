@@ -268,7 +268,7 @@ function AIVariableConfigBody({
                     <div>
                         {/* opening clause — bare sparkle, no badge */}
                         <div className="mb-2 flex items-center gap-1.5 leading-none">
-                            <SparklesIcon className="h-3.5 w-3.5 shrink-0 text-sky-500" />
+                            <SparklesIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
                             <span className="text-[13px] text-slate-500">For each recipient, write…</span>
                         </div>
                         <RichTextEditor
@@ -292,7 +292,7 @@ function AIVariableConfigBody({
                                     onClick={() => patch({ tone: t.value })}
                                     className={`inline-flex h-6 items-center rounded-full border px-2.5 text-[11.5px] transition-colors ${
                                         active
-                                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                                            ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                                             : "border-slate-200 text-slate-500 hover:bg-slate-50"
                                     }`}
                                 >
@@ -319,7 +319,7 @@ function AIVariableConfigBody({
                         </span>
                         <span
                             className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
-                                draft.web_search ? "bg-sky-500" : "bg-slate-200"
+                                draft.web_search ? "bg-[#18181B]" : "bg-slate-200"
                             }`}
                         >
                             <motion.span
@@ -376,7 +376,7 @@ function AIVariableConfigBody({
                                 exit={{ opacity: 0 }}
                                 className="flex items-center gap-2"
                             >
-                                <SparklesIcon className="h-3.5 w-3.5 shrink-0 animate-pulse text-sky-500" />
+                                <SparklesIcon className="h-3.5 w-3.5 shrink-0 animate-pulse text-amber-500" />
                                 <span className="ai-shimmer-text text-[12px] font-medium">Writing a sample…</span>
                             </motion.div>
                         ) : preview ? (
@@ -393,7 +393,7 @@ function AIVariableConfigBody({
                                     <>
                                         {renderPreview(ctx.before, SAMPLE)}
                                         {ctx.before ? " " : ""}
-                                        <mark className="rounded bg-sky-100 px-0.5 text-slate-900">{preview}</mark>
+                                        <mark className="rounded bg-[#FFF3B0] px-0.5 text-slate-900">{preview}</mark>
                                         {ctx.after ? " " : ""}
                                         {renderPreview(ctx.after, SAMPLE)}
                                     </>
@@ -414,7 +414,7 @@ function AIVariableConfigBody({
                     type="button"
                     onClick={runPreview}
                     disabled={!draft.prompt.trim() || gen.isPending}
-                    className="mt-3 inline-flex h-7 items-center gap-1.5 self-start rounded-md bg-sky-600 px-3 text-[12px] font-medium text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
+                    className="mt-3 inline-flex h-7 items-center gap-1.5 self-start rounded-md bg-[#18181B] px-3 text-[12px] font-medium text-white transition-colors hover:bg-black disabled:opacity-50"
                 >
                     <SparklesIcon className="h-3 w-3" />
                     {gen.isPending ? "Writing…" : preview ? "Try again" : "Preview"}

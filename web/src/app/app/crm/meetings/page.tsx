@@ -64,7 +64,7 @@ const TABS: { id: Timeframe; label: string }[] = [
 ];
 
 const STATUS_STYLE: Record<MeetingStatus, { label: string; cls: string }> = {
-    booked: { label: "Booked", cls: "bg-sky-50 text-sky-700 border-sky-200" },
+    booked: { label: "Booked", cls: "bg-[#FFF9DB] text-slate-900 border-amber-200" },
     rescheduled: { label: "Rescheduled", cls: "bg-amber-50 text-amber-700 border-amber-200" },
     canceled: { label: "Canceled", cls: "bg-slate-100 text-slate-500 border-slate-200" },
     completed: { label: "Completed", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -184,7 +184,7 @@ export default function MeetingsPage() {
                                 className={cn(
                                     "h-6 px-2.5 rounded text-[11.5px] font-medium transition-colors",
                                     timeframe === tab.id
-                                        ? "bg-sky-600 text-white"
+                                        ? "bg-[#18181B] text-white"
                                         : "text-slate-500 hover:text-slate-900 hover:bg-slate-100",
                                 )}
                             >
@@ -311,7 +311,7 @@ function MeetingRow({ m }: { m: MeetingBooking }) {
                             <button
                                 type="button"
                                 title="Add to your calendar"
-                                className="h-6 w-6 rounded inline-flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-sky-50"
+                                className="h-6 w-6 rounded inline-flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-[#FFF9DB]"
                             >
                                 <CalendarPlusIcon className="w-3.5 h-3.5" />
                             </button>
@@ -332,7 +332,7 @@ function MeetingRow({ m }: { m: MeetingBooking }) {
                         target="_blank"
                         rel="noopener noreferrer"
                         title="Join call"
-                        className="h-6 w-6 rounded inline-flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-sky-50"
+                        className="h-6 w-6 rounded inline-flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-[#FFF9DB]"
                     >
                         <VideoIcon className="w-3.5 h-3.5" />
                     </a>

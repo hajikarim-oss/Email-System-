@@ -193,7 +193,7 @@ export default function EnterpriseInquiryDialog({
                                     onChange={(e) => setNotes(e.target.value)}
                                     rows={3}
                                     placeholder="Mailbox count, providers, compliance needs…"
-                                    className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[12.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 resize-y"
+                                    className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[12.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 resize-y"
                                 />
                             </div>
                         </div>

@@ -50,7 +50,7 @@ export default function CampaignFormsPanel({ campaignId }: { campaignId: string 
                         <span className="flex items-center gap-2 flex-1 min-w-0">
                             <Link
                                 to={`/app/forms/${f.form_id}`}
-                                className="text-[12.5px] text-slate-900 truncate hover:text-sky-700 transition-colors"
+                                className="text-[12.5px] text-slate-900 truncate hover:text-black transition-colors"
                             >
                                 {f.form_name}
                             </Link>
@@ -71,7 +71,7 @@ export default function CampaignFormsPanel({ campaignId }: { campaignId: string 
                         <span className="w-16 text-right font-mono text-[11.5px] text-violet-600 tabular-nums hidden md:block">
                             <AnimatedNumber value={f.starters} />
                         </span>
-                        <span className="w-16 text-right font-mono text-[11.5px] text-sky-600 tabular-nums">
+                        <span className="w-16 text-right font-mono text-[11.5px] text-slate-900 tabular-nums">
                             <AnimatedNumber value={f.submissions} />
                         </span>
                         <span className="w-16 text-right font-mono text-[11.5px] text-slate-500 tabular-nums hidden md:block">

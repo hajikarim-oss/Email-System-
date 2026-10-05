@@ -54,7 +54,7 @@ export default function ResearchTab({ contactId }: { contactId: string }) {
             {/* Run control */}
             <div className="rounded-md border border-slate-200 p-3">
                 <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-slate-900">
-                    <SparklesIcon className="w-3.5 h-3.5 text-sky-600" />
+                    <SparklesIcon className="w-3.5 h-3.5 text-slate-900" />
                     Research this contact
                 </div>
                 <p className="text-[11.5px] text-slate-500 mt-1 leading-relaxed">
@@ -173,7 +173,7 @@ function SignalRow({ signal }: { signal: ResearchSignal }) {
                     href={signal.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 truncate"
+                    className="inline-flex items-center gap-1 text-slate-900 hover:text-black truncate"
                 >
                     <ExternalLinkIcon className="w-3 h-3 shrink-0" />
                     source
@@ -243,7 +243,7 @@ function Chip({ children }: { children: React.ReactNode }) {
 function EmptyResearch() {
     return (
         <div className="text-center py-8 px-6">
-            <div className="size-9 rounded-lg bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-2">
+            <div className="size-9 rounded-lg bg-[#FFF9DB] border border-amber-200 text-slate-900 flex items-center justify-center mx-auto mb-2">
                 <SparklesIcon className="w-4 h-4" />
             </div>
             <p className="text-[12px] text-slate-500 leading-relaxed max-w-[260px] mx-auto">

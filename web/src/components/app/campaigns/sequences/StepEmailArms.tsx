@@ -200,7 +200,7 @@ export default function StepEmailArms({
                                 type="button"
                                 onClick={addVariant}
                                 disabled={create.isPending}
-                                className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-600 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 disabled:opacity-50"
+                                className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-600 transition-colors hover:border-amber-200 hover:bg-[#FFF9DB] hover:text-black disabled:opacity-50"
                             >
                                 {create.isPending ? (
                                     <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
@@ -279,7 +279,7 @@ function VariantEditor({
                 </div>
                 <span
                     className={`mt-4 h-7 shrink-0 inline-flex items-center rounded-md px-2 text-[11px] font-medium tabular-nums ${
-                        variant.is_active ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-400"
+                        variant.is_active ? "bg-[#FFF9DB] text-slate-900" : "bg-slate-100 text-slate-400"
                     }`}
                 >
                     {variant.is_active ? `${sharePct}% of contacts` : "Paused"}
@@ -304,7 +304,7 @@ function VariantEditor({
                     type="button"
                     onClick={save}
                     disabled={!dirty || update.isPending}
-                    className="mt-4 h-7 shrink-0 px-3 rounded-md bg-sky-600 text-[12px] font-medium text-white hover:bg-sky-700 inline-flex items-center gap-1.5 disabled:opacity-40"
+                    className="mt-4 h-7 shrink-0 px-3 rounded-md bg-[#18181B] text-[12px] font-medium text-white hover:bg-black inline-flex items-center gap-1.5 disabled:opacity-40"
                 >
                     {update.isPending && <Loader2Icon className="w-3 h-3 animate-spin" />}
                     Save
@@ -320,7 +320,7 @@ function VariantEditor({
                     )}
                     <Metric label="Sent" value={stats.total_sent.toLocaleString()} />
                     <Metric label="Open" value={`${stats.open_rate.toFixed(1)}%`} tone="text-emerald-600" />
-                    <Metric label="Reply" value={`${stats.reply_rate.toFixed(1)}%`} tone="text-sky-600" />
+                    <Metric label="Reply" value={`${stats.reply_rate.toFixed(1)}%`} tone="text-slate-900" />
                     <Metric label="Bounce" value={`${stats.bounce_rate.toFixed(1)}%`} tone="text-rose-600" />
                 </div>
             )}

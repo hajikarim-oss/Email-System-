@@ -211,18 +211,18 @@ export default function WeekScheduleGrid({
                             <div
                                 key={d}
                                 className={`group/h relative flex-1 h-9 flex items-center justify-center rounded-t-md text-[11px] ${
-                                    active ? "text-sky-700 font-semibold bg-sky-50/60" : "text-slate-400"
+                                    active ? "text-slate-900 font-semibold bg-[#FFF9DB]/60" : "text-slate-400"
                                 }`}
                             >
                                 {d}
                                 {i === todayIdx && (
-                                    <span className="absolute bottom-1 size-1 rounded-full bg-sky-500" title="Today" />
+                                    <span className="absolute bottom-1 size-1 rounded-full bg-amber-400" title="Today" />
                                 )}
                                 <button
                                     type="button"
                                     title="Add a window"
                                     onClick={() => addDefault(i)}
-                                    className="absolute left-1 top-1/2 -translate-y-1/2 md:top-1.5 md:translate-y-0 inline-flex size-6 md:size-4 items-center justify-center rounded text-slate-400 transition-opacity hover:bg-white hover:text-sky-600 opacity-100 md:opacity-0 md:group-hover/h:opacity-100"
+                                    className="absolute left-1 top-1/2 -translate-y-1/2 md:top-1.5 md:translate-y-0 inline-flex size-6 md:size-4 items-center justify-center rounded text-slate-400 transition-opacity hover:bg-white hover:text-slate-900 opacity-100 md:opacity-0 md:group-hover/h:opacity-100"
                                 >
                                     <PlusIcon className="w-2.5 h-2.5" />
                                 </button>
@@ -231,7 +231,7 @@ export default function WeekScheduleGrid({
                                         type="button"
                                         title="Copy this day to every day"
                                         onClick={() => copyToAll(i)}
-                                        className="absolute right-1 top-1/2 -translate-y-1/2 md:top-1.5 md:translate-y-0 size-6 md:size-4 rounded text-slate-400 hover:text-sky-600 hover:bg-white inline-flex items-center justify-center opacity-100 md:opacity-0 md:group-hover/h:opacity-100 transition-opacity"
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 md:top-1.5 md:translate-y-0 size-6 md:size-4 rounded text-slate-400 hover:text-slate-900 hover:bg-white inline-flex items-center justify-center opacity-100 md:opacity-0 md:group-hover/h:opacity-100 transition-opacity"
                                     >
                                         <CopyIcon className="w-2.5 h-2.5" />
                                     </button>
@@ -271,8 +271,8 @@ export default function WeekScheduleGrid({
                                 data-col-body
                                 onPointerDown={(e) => beginDraw(e, i)}
                                 className={`relative flex-1 cursor-crosshair touch-pan-y ${
-                                    active ? "bg-sky-50/30" : "bg-slate-50/40 hover:bg-slate-100/50"
-                                } ${isToday ? "ring-1 ring-inset ring-sky-100" : ""}`}
+                                    active ? "bg-[#FFF9DB]/30" : "bg-slate-50/40 hover:bg-slate-100/50"
+                                } ${isToday ? "ring-1 ring-inset ring-[#FFE600]/40" : ""}`}
                             >
                                 {windows[i].length === 0 && (
                                     <span className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[9.5px] text-slate-300 leading-tight px-1">
@@ -318,7 +318,7 @@ function Block({
     return (
         <div
             onPointerDown={onBody}
-            className={`group absolute inset-x-[3px] rounded-md border border-sky-400/60 bg-sky-500/15 overflow-hidden touch-pan-x ${
+            className={`group absolute inset-x-[3px] rounded-md border border-slate-800/60 bg-amber-400/15 overflow-hidden touch-pan-x ${
                 dragging ? "cursor-grabbing" : "cursor-grab"
             }`}
             style={{ top: pct(iv.start), height: pct(iv.end - iv.start) }}
@@ -330,7 +330,7 @@ function Block({
                 }}
                 className="absolute -top-1 inset-x-0 h-3 cursor-ns-resize touch-pan-x"
             >
-                <div className="absolute top-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-sky-400/70 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
+                <div className="absolute top-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-amber-400/70 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
             </div>
             <div
                 onPointerDown={(e) => {
@@ -339,7 +339,7 @@ function Block({
                 }}
                 className="absolute -bottom-1 inset-x-0 h-3 cursor-ns-resize touch-pan-x"
             >
-                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-sky-400/70 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
+                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-amber-400/70 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
             </div>
             <button
                 type="button"
@@ -349,12 +349,12 @@ function Block({
                     e.stopPropagation();
                     onRemove();
                 }}
-                className="absolute right-0.5 top-0.5 size-6 md:size-4 rounded text-sky-700/70 hover:text-rose-600 hover:bg-white/80 inline-flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                className="absolute right-0.5 top-0.5 size-6 md:size-4 rounded text-slate-900/70 hover:text-rose-600 hover:bg-white/80 inline-flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
             >
                 <XIcon className="w-2.5 h-2.5" />
             </button>
             <span
-                className={`pointer-events-none absolute left-1.5 ${tall ? "top-1" : "top-1/2 -translate-y-1/2"} text-[9.5px] font-medium text-sky-700 tabular-nums leading-tight`}
+                className={`pointer-events-none absolute left-1.5 ${tall ? "top-1" : "top-1/2 -translate-y-1/2"} text-[9.5px] font-medium text-slate-900 tabular-nums leading-tight`}
             >
                 {fmt(iv.start)}
                 {tall ? <br /> : "–"}

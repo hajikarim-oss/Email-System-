@@ -92,7 +92,7 @@ export default function InviteAcceptPage() {
                     ) : (
                         <div>
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="size-10 rounded-lg bg-sky-50 border border-sky-100 text-sky-700 flex items-center justify-center text-[14px] font-semibold overflow-hidden shrink-0">
+                                <div className="size-10 rounded-lg bg-[#FFF9DB] border border-amber-200 text-slate-900 flex items-center justify-center text-[14px] font-semibold overflow-hidden shrink-0">
                                     {preview.data.organization_avatar ? (
                                         <img src={preview.data.organization_avatar} alt="" className="w-full h-full object-cover" />
                                     ) : (
@@ -137,7 +137,7 @@ export default function InviteAcceptPage() {
                                     type="button"
                                     onClick={onAccept}
                                     disabled={accept.isPending}
-                                    className="w-full h-9 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[13px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60"
+                                    className="w-full h-9 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[13px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60"
                                 >
                                     {accept.isPending && <Loader2Icon className="w-3.5 h-3.5 animate-spin" />}
                                     Accept invitation
@@ -150,7 +150,7 @@ export default function InviteAcceptPage() {
                                     </p>
                                     <Link
                                         to={`/auth/login?next=${encodeURIComponent(nextPath)}`}
-                                        className="w-full h-9 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[13px] font-medium inline-flex items-center justify-center transition-colors"
+                                        className="w-full h-9 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[13px] font-medium inline-flex items-center justify-center transition-colors"
                                     >
                                         Sign in to accept
                                     </Link>

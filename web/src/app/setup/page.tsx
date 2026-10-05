@@ -185,7 +185,7 @@ export default function SetupPage() {
         <Shell>
             <PanelHead
                 tone="sky"
-                icon={<ShieldCheckIcon className="w-6 h-6 text-sky-500" />}
+                icon={<ShieldCheckIcon className="w-6 h-6 text-amber-500" />}
                 title="Claim this instance"
                 body="This creates the owner account and makes it a platform admin. It can only be done once."
             />
@@ -286,7 +286,7 @@ function PanelHead({
     title: string;
     body: string;
 }) {
-    const bg = tone === "sky" ? "bg-sky-50" : tone === "amber" ? "bg-amber-50" : "bg-slate-100";
+    const bg = tone === "sky" ? "bg-[#FFF9DB]" : tone === "amber" ? "bg-amber-50" : "bg-slate-100";
     return (
         <>
             <div className={`mx-auto w-12 h-12 rounded-xl ${bg} grid place-items-center mb-4`}>{icon}</div>

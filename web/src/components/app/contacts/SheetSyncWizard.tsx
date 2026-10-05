@@ -665,8 +665,8 @@ function OptionsStep({
                     Enroll in campaign
                 </h2>
                 {lockedCampaign ? (
-                    <div className="rounded-md border border-sky-200 bg-sky-50/60 px-3 py-2 flex items-center gap-2">
-                        <CheckIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                    <div className="rounded-md border border-amber-200 bg-[#FFF9DB]/60 px-3 py-2 flex items-center gap-2">
+                        <CheckIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
                         <span className="text-[12px] text-slate-800">
                             New & updated leads join{" "}
                             <span className="font-medium">{lockedCampaign.name}</span>.
@@ -706,13 +706,13 @@ function OptionsStep({
                         : "Every synced contact is pinned into these segments on each run. A segment linked to a campaign enrols them there automatically."}
                 </p>
                 {lockedSegment && (
-                    <div className="mb-2 flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50/60 px-2 h-7">
+                    <div className="mb-2 flex items-center gap-1.5 rounded-md border border-amber-200 bg-[#FFF9DB]/60 px-2 h-7">
                         <span
                             className="size-2 rounded-full shrink-0"
                             style={{ backgroundColor: lockedSegment.color ?? "#0284c7" }}
                         />
-                        <span className="text-[12px] font-medium text-sky-900 truncate">{lockedSegment.name}</span>
-                        <span className="ml-auto text-[10px] uppercase tracking-[0.14em] text-sky-700 shrink-0">
+                        <span className="text-[12px] font-medium text-slate-900 truncate">{lockedSegment.name}</span>
+                        <span className="ml-auto text-[10px] uppercase tracking-[0.14em] text-slate-900 shrink-0">
                             Always
                         </span>
                     </div>

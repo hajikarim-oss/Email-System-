@@ -93,13 +93,13 @@ export default function CategoriesPage() {
                             e.preventDefault();
                             void submitCreate();
                         }}
-                        className="h-11 px-5 flex items-center gap-2 border-b border-slate-200/60 bg-sky-50/40"
+                        className="h-11 px-5 flex items-center gap-2 border-b border-slate-200/60 bg-[#FFF9DB]/40"
                     >
                         <TextInput value={newTitle} onChange={setNewTitle} placeholder="Category name" autoFocus className="w-64" />
                         <button
                             type="submit"
                             disabled={!newTitle.trim() || create.isPending}
-                            className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium transition-colors disabled:opacity-50"
+                            className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors disabled:opacity-50"
                         >
                             Create
                         </button>

@@ -89,7 +89,7 @@ export function VersionPill() {
     if (isAdmin && (updating || restarting)) {
         label = restarting ? "Reconnecting" : "Updating";
         icon = <Loader2Icon className="w-3 h-3 animate-spin" />;
-        tone = "bg-sky-50 text-sky-700 border-sky-200";
+        tone = "bg-[#FFF9DB] text-slate-900 border-amber-200";
         title = restarting ? "The backend is restarting after an update" : `Update in progress: ${admin?.updater.job?.step ?? ""}`;
     }
 

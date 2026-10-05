@@ -92,7 +92,7 @@ function SelfHostedCloud() {
                             <Row
                                 label={
                                     <span className="inline-flex items-center gap-2">
-                                        <span className="size-6 rounded-md bg-sky-600 text-white inline-flex items-center justify-center">
+                                        <span className="size-6 rounded-md bg-[#18181B] text-white inline-flex items-center justify-center">
                                             <CloudIcon className="w-3.5 h-3.5" />
                                         </span>
                                         {st.link?.organization_name || "TheBoredMonkey Cloud"}
@@ -117,7 +117,7 @@ function SelfHostedCloud() {
                                             href={plan.upgrade_url}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
+                                            className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
                                         >
                                             Unlimited for ${plan.price_usd}/mo
                                             <ExternalLinkIcon className="w-3 h-3" />
@@ -126,7 +126,7 @@ function SelfHostedCloud() {
                                     {plan && (
                                         <span
                                             className={`inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium ${
-                                                plan.tier === "paid" ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"
+                                                plan.tier === "paid" ? "bg-[#FFF9DB] text-slate-900" : "bg-slate-100 text-slate-600"
                                             }`}
                                         >
                                             {plan.tier === "paid" ? "Unlimited" : "Free"}

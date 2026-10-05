@@ -166,7 +166,7 @@ export default function NewMeetingDialog({
                                 type="button"
                                 onClick={submit}
                                 disabled={!canSubmit}
-                                className="h-7 px-3 rounded-md text-[12px] font-medium bg-sky-600 hover:bg-sky-700 text-white inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="h-7 px-3 rounded-md text-[12px] font-medium bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {create.isPending && <Loader2Icon className="w-3.5 h-3.5 animate-spin" />}
                                 Create meeting

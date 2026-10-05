@@ -252,7 +252,7 @@ export function RichEmailEditor({
                         className={cn(
                             "px-3 py-1 rounded-md inline-flex items-center gap-1.5 transition-all",
                             viewTab === "preview"
-                                ? "bg-white text-sky-700 shadow-xs font-semibold"
+                                ? "bg-white text-slate-900 shadow-xs font-semibold"
                                 : "text-slate-600 hover:text-slate-900"
                         )}
                     >
@@ -279,7 +279,7 @@ export function RichEmailEditor({
                     <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200">
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
-                                <div className="size-9 rounded-full bg-linear-to-tr from-sky-600 to-indigo-600 text-white font-semibold flex items-center justify-center text-[13px] shadow-xs">
+                                <div className="size-9 rounded-full bg-linear-to-tr from-[#FFF9DB] to-indigo-600 text-white font-semibold flex items-center justify-center text-[13px] shadow-xs">
                                     HK
                                 </div>
                                 <div>
@@ -312,7 +312,7 @@ export function RichEmailEditor({
                                 dangerouslySetInnerHTML={{
                                     __html: renderEvaluatedContent(bodyHtml),
                                 }}
-                                className="space-y-3 [&_img]:max-w-full [&_img]:rounded-md [&_a]:text-sky-600 [&_a]:underline"
+                                className="space-y-3 [&_img]:max-w-full [&_img]:rounded-md [&_a]:text-slate-900 [&_a]:underline"
                             />
                         ) : bodyPlain ? (
                             <div className="whitespace-pre-wrap font-sans">
@@ -330,11 +330,11 @@ export function RichEmailEditor({
                 <>
                     {/* Subject line with dedicated smart variable buttons */}
                     {isFollowUp ? (
-                        <div className="flex items-center gap-2.5 px-3 py-2 bg-sky-50/70 border border-sky-200/80 rounded-md text-[12px] text-sky-900">
-                            <CornerDownRightIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <div className="flex items-center gap-2.5 px-3 py-2 bg-[#FFF9DB]/70 border border-amber-200/80 rounded-md text-[12px] text-slate-900">
+                            <CornerDownRightIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
                             <div>
-                                <span className="font-semibold text-sky-800">Same Thread Reply:</span>{" "}
-                                <span className="text-sky-700">
+                                <span className="font-semibold text-slate-900">Same Thread Reply:</span>{" "}
+                                <span className="text-slate-900">
                                     This follow-up lands in the same email conversation thread as Step 1 (no new subject line).
                                 </span>
                             </div>
@@ -352,7 +352,7 @@ export function RichEmailEditor({
                                     <button
                                         type="button"
                                         onClick={() => handleInsertSubjectVariable("{{firstName}}")}
-                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-amber-200 hover:bg-[#FFF9DB] transition-colors shadow-xs"
                                         title="Insert contact's first name into subject"
                                     >
                                         + {"{{firstName}}"}
@@ -360,7 +360,7 @@ export function RichEmailEditor({
                                     <button
                                         type="button"
                                         onClick={() => handleInsertSubjectVariable("{{lastName}}")}
-                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-amber-200 hover:bg-[#FFF9DB] transition-colors shadow-xs"
                                         title="Insert contact's last name/surname into subject"
                                     >
                                         + {"{{lastName}}"}
@@ -368,7 +368,7 @@ export function RichEmailEditor({
                                     <button
                                         type="button"
                                         onClick={() => handleInsertSubjectVariable("{{company}}")}
-                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-amber-200 hover:bg-[#FFF9DB] transition-colors shadow-xs"
                                         title="Insert contact's company/brand into subject"
                                     >
                                         + {"{{company}}"}
@@ -376,7 +376,7 @@ export function RichEmailEditor({
                                     <button
                                         type="button"
                                         onClick={() => handleInsertSubjectVariable("{{title}}")}
-                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-colors shadow-xs"
+                                        className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-amber-200 hover:bg-[#FFF9DB] transition-colors shadow-xs"
                                         title="Insert job title/role into subject"
                                     >
                                         + {"{{title}}"}
@@ -403,7 +403,7 @@ export function RichEmailEditor({
                                 <button
                                     type="button"
                                     onClick={() => handleInsertVariable("{{firstName}}")}
-                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-amber-200 hover:bg-[#FFF9DB] transition-colors shadow-xs"
                                     title="Insert contact's first name"
                                 >
                                     + {"{{firstName}}"}
@@ -411,7 +411,7 @@ export function RichEmailEditor({
                                 <button
                                     type="button"
                                     onClick={() => handleInsertVariable("{{lastName}}")}
-                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-amber-200 hover:bg-[#FFF9DB] transition-colors shadow-xs"
                                     title="Insert contact's last name / surname"
                                 >
                                     + {"{{lastName}}"}
@@ -419,7 +419,7 @@ export function RichEmailEditor({
                                 <button
                                     type="button"
                                     onClick={() => handleInsertVariable("{{company}}")}
-                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-amber-200 hover:bg-[#FFF9DB] transition-colors shadow-xs"
                                     title="Insert contact's company or brand"
                                 >
                                     + {"{{company}}"}
@@ -427,7 +427,7 @@ export function RichEmailEditor({
                                 <button
                                     type="button"
                                     onClick={() => handleInsertVariable("{{title}}")}
-                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50/50 transition-colors shadow-xs"
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-amber-200 hover:bg-[#FFF9DB] transition-colors shadow-xs"
                                     title="Insert contact's role or job title"
                                 >
                                     + {"{{title}}"}
@@ -503,7 +503,7 @@ export function RichEmailEditor({
                         onInput={handleInput}
                         onPaste={handlePaste}
                         data-placeholder={placeholder}
-                        className="min-h-[160px] max-h-[360px] overflow-y-auto px-3 py-2.5 bg-white text-[12.5px] text-slate-900 outline-none leading-relaxed focus:ring-0 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none selection:bg-sky-100"
+                        className="min-h-[160px] max-h-[360px] overflow-y-auto px-3 py-2.5 bg-white text-[12.5px] text-slate-900 outline-none leading-relaxed focus:ring-0 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none selection:bg-[#FFF3B0]"
                         style={{
                             minHeight: stepIndex === 0 ? "180px" : "120px",
                         }}

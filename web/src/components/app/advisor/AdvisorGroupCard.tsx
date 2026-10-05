@@ -102,7 +102,7 @@ export default function AdvisorGroupCard({ group, onFix }: Props) {
                                 fixAll();
                             }}
                             disabled={busy}
-                            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-sky-600 px-2 text-[12px] font-medium text-white transition hover:bg-sky-700 disabled:opacity-60"
+                            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-[#18181B] px-2 text-[12px] font-medium text-white transition hover:bg-black disabled:opacity-60"
                         >
                             {busy ? <Loader2Icon className="h-3 w-3 animate-spin" /> : null}
                             {busy ? `${progress?.done}/${progress?.total}` : `Fix all ${fixable.length}`}

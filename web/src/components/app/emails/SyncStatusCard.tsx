@@ -73,11 +73,11 @@ export default function SyncStatusCard({ mailboxId }: { mailboxId: string }) {
         headline = state?.last_synced_at ? `Up to date, last checked ${relative(state.last_synced_at)}` : "Up to date";
     } else if (status === "running") {
         Icon = DownloadIcon;
-        tone = "text-sky-600";
+        tone = "text-slate-900";
         headline = `Importing recent mail: ${synced.toLocaleString()} message${synced === 1 ? "" : "s"} so far`;
     } else {
         Icon = RefreshCwIcon;
-        tone = "text-sky-600";
+        tone = "text-slate-900";
         headline = "Import starts on the next pass";
     }
 
@@ -92,7 +92,7 @@ export default function SyncStatusCard({ mailboxId }: { mailboxId: string }) {
             {status === "running" && !throttled && (
                 <div className="mt-2.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
                     <motion.div
-                        className="h-full rounded-full bg-sky-500"
+                        className="h-full rounded-full bg-amber-400"
                         initial={false}
                         animate={{ width: `${Math.max(pct, 3)}%` }}
                         transition={{ type: "spring", stiffness: 120, damping: 20 }}

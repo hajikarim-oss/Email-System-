@@ -116,7 +116,7 @@ export default function SessionManager() {
                                                 {deviceLabel(s)}
                                             </span>
                                             {s.current && (
-                                                <span className="text-[10px] uppercase tracking-[0.08em] font-medium rounded-sm px-1 bg-sky-50 text-sky-700">
+                                                <span className="text-[10px] uppercase tracking-[0.08em] font-medium rounded-sm px-1 bg-[#FFF9DB] text-slate-900">
                                                     This device
                                                 </span>
                                             )}

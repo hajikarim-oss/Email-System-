@@ -344,7 +344,7 @@ export function RolePill({ role, color }: { role: string; color?: string }) {
     // owner keeps its fixed sky accent, anything else falls back to slate.
     const cls =
         role === "owner"
-            ? "bg-sky-50 text-sky-700 border-sky-100"
+            ? "bg-[#FFF9DB] text-slate-900 border-amber-200"
             : color
                 ? ""
                 : "bg-slate-50 text-slate-600 border-slate-200";

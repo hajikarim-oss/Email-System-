@@ -135,7 +135,7 @@ const slides: Slide[] = [
                 <div className="space-y-2.5">
                     {[["Intro email", "Sent"], ["Follow-up", "Scheduled"], ["Break-up", "Queued"]].map(([s, st], idx) => (
                         <div key={s} className="flex items-center gap-3">
-                            <span className={`size-5 shrink-0 rounded-full text-[10px] font-semibold flex items-center justify-center ${idx === 0 ? "bg-sky-500 text-white" : "bg-slate-100 text-slate-400"}`}>{idx + 1}</span>
+                            <span className={`size-5 shrink-0 rounded-full text-[10px] font-semibold flex items-center justify-center ${idx === 0 ? "bg-amber-400 text-white" : "bg-slate-100 text-slate-400"}`}>{idx + 1}</span>
                             <span className="text-[12.5px] font-medium text-slate-700">{s}</span>
                             <span className="ml-auto text-[11px] text-slate-400">{st}</span>
                         </div>
@@ -159,7 +159,7 @@ function SlideView({ slide }: { slide: Slide }) {
             </div>
             <div className="pt-4 lg:pt-6">
                 <div className="mb-1 flex items-center gap-2">
-                    <Icon className="size-4 text-sky-200" />
+                    <Icon className="size-4 text-slate-900" />
                     <h3 className="text-[15px] font-bold tracking-tight text-white">{slide.title}</h3>
                 </div>
                 <p className="text-[12.5px] leading-relaxed text-white/65 max-w-[280px]">{slide.desc}</p>

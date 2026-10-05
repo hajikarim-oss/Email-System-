@@ -30,7 +30,7 @@ import type { AppNotification } from "@/lib/api/models/app/notifications/Notific
 
 // Per-category icon + tone so the list scans by kind before reading titles.
 const CATEGORY_META: Record<string, { icon: LucideIcon; tone: string }> = {
-    inbound_reply: { icon: ReplyIcon, tone: "bg-sky-50 text-sky-600" },
+    inbound_reply: { icon: ReplyIcon, tone: "bg-amber-50 text-amber-700" },
     inbound_out_of_office: { icon: ClockIcon, tone: "bg-slate-100 text-slate-500" },
     health_bounce: { icon: TriangleAlertIcon, tone: "bg-amber-50 text-amber-600" },
     health_complaint: { icon: ShieldAlertIcon, tone: "bg-rose-50 text-rose-600" },
@@ -130,15 +130,15 @@ export function NotificationBell() {
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
                     <span className="text-[10px] text-slate-400">{relTime(n.created_at)}</span>
-                    {!n.read_at && <span className="size-1.5 rounded-full bg-sky-500" />}
+                    {!n.read_at && <span className="size-1.5 rounded-full bg-[#FFE600]" />}
                 </div>
             </div>
         );
     };
 
     const rowClass = (n: AppNotification) =>
-        `block w-full text-left px-3 py-2 border-l-2 transition-colors hover:bg-slate-50 ${
-            n.read_at ? "border-l-transparent" : "border-l-sky-500 bg-sky-50/40"
+        `block w-full text-left px-3 py-2 border-l-2 transition-colors hover:bg-slate-50 cursor-pointer ${
+            n.read_at ? "border-l-transparent" : "border-l-[#18181B] bg-slate-50/70"
         }`;
 
     const emptyState = (
@@ -211,7 +211,7 @@ export function NotificationBell() {
                                 <button
                                     type="button"
                                     onClick={() => markAll.mutate()}
-                                    className="text-[11px] text-sky-600 hover:text-sky-700 shrink-0"
+                                    className="text-[11px] text-slate-900 hover:text-black shrink-0"
                                 >
                                     Mark all read
                                 </button>

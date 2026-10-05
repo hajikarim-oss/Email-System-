@@ -180,7 +180,7 @@ export default function APIKeysPage() {
                                     <button
                                         type="button"
                                         onClick={() => setCreateOpen(true)}
-                                        className="h-7 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
+                                        className="h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
                                     >
                                         <PlusIcon className="w-3 h-3" />
                                         Create key
@@ -301,7 +301,7 @@ function CodeSnippet({ prefix }: { prefix: string }) {
 
 function SearchPill({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     return (
-        <div className="h-7 px-2 rounded-md border border-slate-200 bg-white flex items-center gap-1.5 focus-within:border-sky-400 transition-colors">
+        <div className="h-7 px-2 rounded-md border border-slate-200 bg-white flex items-center gap-1.5 focus-within:border-slate-800 transition-colors">
             <SearchIcon className="w-3 h-3 text-slate-400" />
             <input
                 value={value}

@@ -233,7 +233,7 @@ function SelectOrgPageInner() {
                                                     disabled={switchOrg.isPending}
                                                     className={`w-full px-3 py-2.5 flex items-center gap-2.5 transition-colors text-left disabled:opacity-50 ${
                                                         isCurrent
-                                                            ? "bg-sky-50/60 hover:bg-sky-50"
+                                                            ? "bg-[#FFF9DB]/60 hover:bg-[#FFF9DB]"
                                                             : "hover:bg-slate-50/80"
                                                     }`}
                                                 >
@@ -246,7 +246,7 @@ function SelectOrgPageInner() {
                                                                 {o.name}
                                                             </span>
                                                             {isCurrent && (
-                                                                <span className="text-[9.5px] uppercase tracking-[0.1em] text-sky-700 bg-sky-100 px-1 rounded-sm font-semibold">
+                                                                <span className="text-[9.5px] uppercase tracking-[0.1em] text-slate-900 bg-[#FFF3B0] px-1 rounded-sm font-semibold">
                                                                     Current
                                                                 </span>
                                                             )}

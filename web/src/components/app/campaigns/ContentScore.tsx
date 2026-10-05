@@ -131,7 +131,7 @@ function IssueRow({ issue }: { issue: TemplateScoreIssue }) {
 const FINDING_ICON = {
     high: { Icon: AlertCircleIcon, className: "text-rose-500" },
     warn: { Icon: AlertTriangleIcon, className: "text-amber-500" },
-    info: { Icon: InfoIcon, className: "text-sky-500" },
+    info: { Icon: InfoIcon, className: "text-amber-500" },
 } as const;
 
 function FindingRow({ finding }: { finding: SpamFinding }) {
@@ -329,7 +329,7 @@ export default function ContentScore({
                             "h-7 px-2 inline-flex items-center gap-1.5 rounded-md border text-[11.5px] font-medium transition-colors",
                             "disabled:opacity-40 disabled:cursor-not-allowed",
                             stale
-                                ? "border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100"
+                                ? "border-amber-200 bg-[#FFF9DB] text-slate-900 hover:bg-[#FFF3B0]"
                                 : "border-slate-200 text-slate-600 hover:bg-slate-50",
                         )}
                     >
@@ -376,7 +376,7 @@ export default function ContentScore({
                         disabled={empty || analyzeMut.isPending}
                         className="w-full h-7 inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-200 text-[11.5px] font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                        <SparklesIcon className="w-3.5 h-3.5 text-sky-500" />
+                        <SparklesIcon className="w-3.5 h-3.5 text-amber-500" />
                         Analyze with AI
                         {metered && <span className="text-slate-400">2 credits</span>}
                     </button>
@@ -396,7 +396,7 @@ export default function ContentScore({
             {analysis && aiTone && (
                 <div className="border-t border-slate-200/60 px-3 py-3">
                     <div className="flex items-center gap-1.5">
-                        <SparklesIcon className="w-3.5 h-3.5 text-sky-500" />
+                        <SparklesIcon className="w-3.5 h-3.5 text-amber-500" />
                         <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">AI analysis</span>
                         <span className="ml-auto truncate text-[10px] font-mono text-slate-300">{analysis.model}</span>
                     </div>
@@ -421,7 +421,7 @@ export default function ContentScore({
                     )}
 
                     {stale && (
-                        <p className="mt-2 text-[11.5px] text-sky-700">
+                        <p className="mt-2 text-[11.5px] text-slate-900">
                             You&apos;ve edited the copy since this analysis. Re-check to score the new version.
                         </p>
                     )}
@@ -454,7 +454,7 @@ export default function ContentScore({
                                     onClick={() => onApplySubject(suggestedSubject)}
                                     className="mt-1.5 h-7 px-2 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white text-[11.5px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
                                 >
-                                    <WandSparklesIcon className="w-3.5 h-3.5 text-sky-500" />
+                                    <WandSparklesIcon className="w-3.5 h-3.5 text-amber-500" />
                                     Use this subject
                                 </button>
                             )}

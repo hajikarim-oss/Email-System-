@@ -171,7 +171,7 @@ function LifecycleNotice({
                             type="button"
                             onClick={resume}
                             disabled={hold.isPending}
-                            className="mt-2 h-7 px-2.5 inline-flex items-center rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-sky-400 hover:text-sky-700 disabled:opacity-50 transition-colors"
+                            className="mt-2 h-7 px-2.5 inline-flex items-center rounded-md border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-900 hover:text-black disabled:opacity-50 transition-colors"
                         >
                             {hold.isPending ? "Putting back…" : "Put back into campaigns"}
                         </button>
@@ -217,13 +217,13 @@ function SendHoldControl({ mailboxId, state }: { mailboxId: string; state?: impo
 function ColdRampNotice({ ramp }: { ramp: import("@/lib/api/models/app/analytics/AccountStatus").ColdRampInfo }) {
     return (
         <div className="px-5 py-4">
-            <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2.5 flex items-start gap-2">
-                <GaugeIcon className="w-3.5 h-3.5 mt-px shrink-0 text-sky-600" />
+            <div className="rounded-md border border-amber-200 bg-[#FFF9DB] px-3 py-2.5 flex items-start gap-2">
+                <GaugeIcon className="w-3.5 h-3.5 mt-px shrink-0 text-slate-900" />
                 <div className="min-w-0">
-                    <p className="text-[12.5px] font-medium text-sky-900">
+                    <p className="text-[12.5px] font-medium text-slate-900">
                         Easing into cold sending: {ramp.ceiling} of {ramp.mailbox_cap} a day
                     </p>
-                    <p className="text-[11.5px] text-sky-800/90 leading-relaxed mt-0.5">
+                    <p className="text-[11.5px] text-slate-900/90 leading-relaxed mt-0.5">
                         {ramp.held ? (
                             <>
                                 The climb is paused after a recent spam placement. It resumes on its own, then adds 5 a
@@ -247,7 +247,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: React.R
     return (
         <div className="px-4 py-3.5">
             <Eyebrow>{label}</Eyebrow>
-            <div className={cn("mt-1 text-[24px] font-light leading-none tabular-nums", accent ? "text-sky-600" : "text-slate-900")}>{value}</div>
+            <div className={cn("mt-1 text-[24px] font-light leading-none tabular-nums", accent ? "text-slate-900" : "text-slate-900")}>{value}</div>
             {sub && <div className="mt-1.5 text-[10.5px] text-slate-400 font-mono truncate">{sub}</div>}
         </div>
     );
@@ -414,25 +414,25 @@ function Detail({ mailbox, onClose, initialTab = "overview", canWarmup = true }:
     return (
         <>
             {/* Header */}
-            <div className="shrink-0 px-5 h-14 flex items-center gap-3 border-b border-slate-200">
-                <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center text-[11px] font-semibold shrink-0">
+            <div className="shrink-0 px-5 h-14 flex items-center gap-3 border-b border-slate-200 bg-white">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-900 border border-amber-200/60 flex items-center justify-center text-[11px] font-semibold shrink-0">
                     {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-medium text-slate-900 truncate">{mailbox.email}</div>
-                    <div className="text-[10.5px] text-slate-400 capitalize">{mailbox.provider?.replace("_", "/")}</div>
+                    <div className="font-editorial text-[17px] font-normal text-slate-950 truncate tracking-tight">{mailbox.email}</div>
+                    <div className="text-[10px] uppercase tracking-[0.14em] font-medium text-slate-400 capitalize">{mailbox.provider?.replace("_", "/")}</div>
                 </div>
                 <span className={cn("h-5 px-2 rounded-full border text-[10px] font-semibold uppercase tracking-wide inline-flex items-center shrink-0", statusTone(mailbox.status))}>
                     {mailbox.status}
                 </span>
                 <ResourceViewers resource={mailbox.id ? `mailbox:${mailbox.id}` : null} className="shrink-0" />
-                <button onClick={onClose} aria-label="Close" className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0">
+                <button onClick={onClose} aria-label="Close" className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer">
                     <XIcon className="w-4 h-4" />
                 </button>
             </div>
 
             {/* Tabs */}
-            <div className="shrink-0 px-3 flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
+            <div className="shrink-0 px-3 flex items-center gap-1 border-b border-slate-200 bg-white overflow-x-auto">
                 {TABS.map((t) => {
                     const active = tab === t.key;
                     return (
@@ -440,8 +440,8 @@ function Detail({ mailbox, onClose, initialTab = "overview", canWarmup = true }:
                             key={t.key}
                             onClick={() => setTab(t.key)}
                             className={cn(
-                                "relative h-10 px-2.5 inline-flex shrink-0 items-center gap-1.5 text-[12.5px] transition-colors",
-                                active ? "text-slate-900 font-medium" : "text-slate-500 hover:text-slate-800",
+                                "relative h-10 px-2.5 inline-flex shrink-0 items-center gap-1.5 text-[12.5px] transition-colors cursor-pointer",
+                                active ? "text-slate-950 font-semibold" : "text-slate-500 hover:text-slate-900",
                             )}
                         >
                             <t.icon className="w-3.5 h-3.5" />
@@ -449,7 +449,7 @@ function Detail({ mailbox, onClose, initialTab = "overview", canWarmup = true }:
                             {active && (
                                 <motion.span
                                     layoutId="inbox-tab-underline"
-                                    className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-sky-600"
+                                    className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-[#18181B]"
                                     transition={{ type: "spring", duration: 0.3, bounce: 0.15 }}
                                 />
                             )}
@@ -477,13 +477,13 @@ function Detail({ mailbox, onClose, initialTab = "overview", canWarmup = true }:
                         transition={{ duration: 0.2 }}
                         className="shrink-0 h-14 px-5 flex items-center gap-2 border-t border-slate-200 bg-slate-50/60"
                     >
-                        <span className="text-[11.5px] text-slate-500">Unsaved changes</span>
+                        <span className="text-[11.5px] text-slate-500 font-medium">Unsaved changes</span>
                         <div className="ml-auto flex items-center gap-2">
-                            <button onClick={() => setForm(mailbox)} className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-[12px] text-slate-700 hover:text-slate-900 transition-colors">
+                            <button onClick={() => setForm(mailbox)} className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-[12px] text-slate-700 hover:text-slate-900 transition-colors cursor-pointer">
                                 Discard
                             </button>
-                            <button onClick={save} disabled={mutation.isPending} className="h-8 px-3.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60">
-                                {mutation.isPending && <Loading className="!w-3.5 h-3.5 text-white" />}
+                            <button onClick={save} disabled={mutation.isPending} className="h-8 px-3.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shadow-xs cursor-pointer">
+                                {mutation.isPending && <Loading className="!w-3.5 h-3.5 text-slate-950" />}
                                 Save changes
                             </button>
                         </div>
@@ -723,7 +723,7 @@ function AnalyticsTab({ warmup, loading }: { warmup?: import("@/lib/api/models/a
     // Tap affordance for touch devices, where the native title tooltip never fires.
     const [selectedDay, setSelectedDay] = useState<string | null>(null);
     if (loading) {
-        return <div className="py-20 flex items-center justify-center"><Loading className="w-5 h-5 text-sky-500" /></div>;
+        return <div className="py-20 flex items-center justify-center"><Loading className="w-5 h-5 text-amber-500" /></div>;
     }
     if (!warmup || warmup.daily_stats.length === 0) {
         return (
@@ -756,7 +756,7 @@ function AnalyticsTab({ warmup, loading }: { warmup?: import("@/lib/api/models/a
                 <div className="flex items-center justify-between mb-3">
                     <Eyebrow>Daily volume</Eyebrow>
                     <div className="flex items-center gap-3 text-[10px] text-slate-400">
-                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-sky-500" /> Sent</span>
+                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400" /> Sent</span>
                         <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-slate-200" /> Target</span>
                     </div>
                 </div>
@@ -878,15 +878,15 @@ function WarmupBanBanner({ emailId }: { emailId: string }) {
                                         rows={3}
                                         autoFocus
                                         placeholder="Tell us what changed or why this block is a mistake…"
-                                        className="w-full px-2.5 py-2 rounded-md border border-rose-200 bg-white text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 resize-none transition-colors"
+                                        className="w-full px-2.5 py-2 rounded-md border border-rose-200 bg-white text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 resize-none transition-colors"
                                     />
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={submit}
                                             disabled={appeal.isPending || !reason.trim()}
-                                            className="h-8 px-3.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                            className="h-8 px-3.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shadow-xs cursor-pointer"
                                         >
-                                            {appeal.isPending && <Loading className="!w-3.5 h-3.5 text-white" />}
+                                            {appeal.isPending && <Loading className="!w-3.5 h-3.5 text-slate-950" />}
                                             Submit appeal
                                         </button>
                                         <button
@@ -1100,9 +1100,9 @@ function WarmupTab({ form, update, status, mailbox, canWarmup = true }: { form: 
                         <button
                             onClick={() => run(off ? "start" : "resume", off ? "started" : "resumed")}
                             disabled={life.isPending}
-                            className="h-8 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                            className="h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shadow-xs cursor-pointer"
                         >
-                            {life.isPending ? <Loading className="!w-3.5 h-3.5 text-white" /> : <PlayIcon className="w-3.5 h-3.5" />}
+                            {life.isPending ? <Loading className="!w-3.5 h-3.5 text-slate-950" /> : <PlayIcon className="w-3.5 h-3.5" />}
                             {off ? "Start" : "Resume"}
                         </button>
                     )}
@@ -1111,7 +1111,7 @@ function WarmupTab({ form, update, status, mailbox, canWarmup = true }: { form: 
                             <button
                                 onClick={() => run("pause", "paused")}
                                 disabled={life.isPending}
-                                className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-[12px] font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-[12px] font-medium text-slate-700 hover:text-slate-900 inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer"
                             >
                                 {life.isPending ? <Loading className="!w-3.5 h-3.5" /> : <PauseIcon className="w-3.5 h-3.5" />}
                                 Pause
@@ -1143,7 +1143,7 @@ function WarmupTab({ form, update, status, mailbox, canWarmup = true }: { form: 
             {/* Upsell when warmup isn't available on the plan */}
             {!inCloud && off && !canWarmup && (
                 <div className="px-5 py-4">
-                    <div className="rounded-md border border-sky-100 bg-sky-50/70 px-3 py-2.5 text-[11.5px] text-sky-900/90 leading-relaxed">
+                    <div className="rounded-md border border-amber-200 bg-[#FFF9DB]/70 px-3 py-2.5 text-[11.5px] text-slate-900/90 leading-relaxed">
                         Warmup is available on paid plans. Upgrade to build and protect sender reputation automatically.
                     </div>
                 </div>
@@ -1184,9 +1184,9 @@ function WarmupTab({ form, update, status, mailbox, canWarmup = true }: { form: 
             {/* In-campaign health-check explainer */}
             {inCampaign && (
                 <div className="px-5 py-4">
-                    <div className="rounded-md border border-sky-100 bg-sky-50/70 px-3 py-2.5 flex gap-2.5">
-                        <ShieldCheckIcon className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
-                        <p className="text-[11.5px] text-sky-900/90 leading-relaxed">
+                    <div className="rounded-md border border-amber-200 bg-[#FFF9DB]/70 px-3 py-2.5 flex gap-2.5">
+                        <ShieldCheckIcon className="w-4 h-4 text-slate-900 shrink-0 mt-0.5" />
+                        <p className="text-[11.5px] text-slate-900/90 leading-relaxed">
                             This mailbox is active in a campaign. TheBoredMonkey keeps a low volume of
                             {" "}<b>health-check warmup (~5/day)</b> flowing{active ? "" : " even while warmup is off"} so we can
                             continuously watch deliverability while it sends cold outreach.
@@ -1444,15 +1444,15 @@ function TrackingDomainCard({ mailbox }: { mailbox: Inbox }) {
                     <button
                         onClick={save}
                         disabled={busy || !!problem || (!dirty && !saved)}
-                        className="h-8 px-3.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                        className="h-8 px-3.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shadow-xs cursor-pointer"
                     >
-                        {mutation.isPending && <Loading className="!w-3.5 h-3.5 text-white" />}
+                        {mutation.isPending && <Loading className="!w-3.5 h-3.5 text-slate-950" />}
                         Save &amp; verify
                     </button>
                 ) : verified ? (
                     <button
                         disabled
-                        className="h-8 px-3.5 rounded-md bg-sky-600 text-white text-[12px] font-medium inline-flex items-center gap-1.5 disabled:opacity-60"
+                        className="h-8 px-3.5 rounded-md bg-emerald-600 text-white text-[12px] font-medium inline-flex items-center gap-1.5 disabled:opacity-80"
                     >
                         <CheckCircle2Icon className="w-3.5 h-3.5" /> Verified
                     </button>
@@ -1460,7 +1460,7 @@ function TrackingDomainCard({ mailbox }: { mailbox: Inbox }) {
                     <button
                         onClick={recheck}
                         disabled={busy}
-                        className="h-8 px-3.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                        className="h-8 px-3.5 rounded-md bg-[#18181B] hover:bg-black text-white text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shadow-xs cursor-pointer"
                     >
                         {verify.isPending ? <Loading className="!w-3.5 h-3.5 text-white" /> : <RefreshCwIcon className="w-3.5 h-3.5" />}
                         Check again
@@ -1470,7 +1470,7 @@ function TrackingDomainCard({ mailbox }: { mailbox: Inbox }) {
                     <button
                         onClick={clear}
                         disabled={busy}
-                        className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-[12px] text-slate-600 hover:text-slate-900 transition-colors disabled:opacity-60"
+                        className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-[12px] text-slate-600 hover:text-slate-900 transition-colors disabled:opacity-60 cursor-pointer"
                     >
                         Clear
                     </button>

@@ -256,7 +256,7 @@ function VariableChipEditor({
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setShowRaw((v) => !v)}
-                    className="rounded px-1 font-mono text-[10px] text-slate-400 transition-colors hover:text-sky-600"
+                    className="rounded px-1 font-mono text-[10px] text-slate-400 transition-colors hover:text-slate-900"
                     title={showRaw ? "Use the field picker" : "Edit the raw token freely"}
                 >
                     {showRaw ? "field picker" : "{ } edit raw"}
@@ -275,7 +275,7 @@ function VariableChipEditor({
                         }}
                         rows={2}
                         spellCheck={false}
-                        className="w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 font-mono text-[11.5px] text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                        className="w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 font-mono text-[11.5px] text-slate-800 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                     />
                     <div className="mt-1 flex items-center justify-between">
                         <span className="text-[10px] text-slate-400">Any {"{{…}}"} expression</span>
@@ -302,7 +302,7 @@ function VariableChipEditor({
                                     onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => onChange(buildToken(o.key, fb))}
                                     className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-[12px] transition-colors ${
-                                        active ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-100"
+                                        active ? "bg-[#FFF9DB] text-slate-900" : "text-slate-700 hover:bg-slate-100"
                                     }`}
                                 >
                                     <span className="truncate">{o.label}</span>
@@ -326,7 +326,7 @@ function VariableChipEditor({
                                     }
                                 }}
                                 placeholder='e.g. "there"'
-                                className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                             />
                             <button
                                 type="button"

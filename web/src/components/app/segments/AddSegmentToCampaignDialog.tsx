@@ -99,7 +99,7 @@ export default function AddSegmentToCampaignDialog({
                             <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">Add to campaign</span>
                             <div className="h-4 w-px bg-slate-200" />
                             <span className="text-[12.5px] text-slate-900 font-medium truncate">{segment.name}</span>
-                            <span className="hidden sm:inline-flex items-center h-5 px-1.5 rounded bg-sky-50 text-sky-700 text-[10px] font-medium">
+                            <span className="hidden sm:inline-flex items-center h-5 px-1.5 rounded bg-[#FFF9DB] text-slate-900 text-[10px] font-medium">
                                 {segment.contact_count.toLocaleString()} contact{segment.contact_count === 1 ? "" : "s"}
                             </span>
                             <button
@@ -138,13 +138,13 @@ export default function AddSegmentToCampaignDialog({
                                                     aria-pressed={on}
                                                     className={cn(
                                                         "w-full px-4 h-10 flex items-center gap-3 text-left transition-colors",
-                                                        on ? "bg-sky-50/60 hover:bg-sky-50" : "hover:bg-slate-50",
+                                                        on ? "bg-[#FFF9DB]/60 hover:bg-[#FFF9DB]" : "hover:bg-slate-50",
                                                     )}
                                                 >
                                                     <span
                                                         className={cn(
                                                             "size-3.5 rounded-full border flex items-center justify-center shrink-0",
-                                                            on ? "border-sky-600 bg-sky-600" : "border-slate-300 bg-white",
+                                                            on ? "border-slate-900 bg-[#18181B]" : "border-slate-300 bg-white",
                                                         )}
                                                     >
                                                         {on && <span className="size-1.5 rounded-full bg-white" />}
@@ -196,7 +196,7 @@ export default function AddSegmentToCampaignDialog({
                                 type="button"
                                 onClick={submit}
                                 disabled={busy || !picked}
-                                className="shrink-0 whitespace-nowrap h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                                className="shrink-0 whitespace-nowrap h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
                             >
                                 {busy ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <MegaphoneIcon className="w-3 h-3" />}
                                 Add leads

@@ -63,7 +63,7 @@ function activityOf(user: PresenceUser): {
 
 const TONE_TEXT: Record<Tone, string> = {
     hot: "text-amber-600",
-    cool: "text-sky-600",
+    cool: "text-slate-900",
     idle: "text-slate-400",
 };
 
@@ -89,7 +89,7 @@ export default function PresenceAvatars() {
             <button
                 type="button"
                 aria-label={`${members.length} teammate${members.length === 1 ? "" : "s"} online`}
-                className="flex items-center -space-x-1.5 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+                className="flex items-center -space-x-1.5 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFE600]/40"
                 onClick={() => setOpen((v) => !v)}
             >
                 {visible.map((m) => {
@@ -169,7 +169,7 @@ export default function PresenceAvatars() {
                                 >
                                     <Avatar size="sm">
                                         {m.avatar ? <AvatarImage src={m.avatar} alt={m.name ?? ""} /> : null}
-                                        <AvatarFallback className="bg-sky-50 text-sky-700 text-[9.5px] font-semibold">
+                                        <AvatarFallback className="bg-[#FFF9DB] text-slate-900 text-[9.5px] font-semibold">
                                             {initialsOf(m.name)}
                                         </AvatarFallback>
                                     </Avatar>

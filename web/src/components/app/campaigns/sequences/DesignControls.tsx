@@ -160,7 +160,7 @@ export function AlignMenu({ editor }: { editor: Editor }) {
                     onClick={() => apply(value)}
                     className={`size-7 hidden items-center justify-center rounded transition-colors sm:inline-flex ${
                         current === value
-                            ? "bg-sky-50 text-sky-700"
+                            ? "bg-[#FFF9DB] text-slate-900"
                             : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                 >
@@ -257,7 +257,7 @@ export function TypeMenu({ editor }: { editor: Editor }) {
                             style={f.value ? { fontFamily: f.value } : undefined}
                             className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-[12.5px] transition-colors hover:bg-slate-50 ${
                                 (f.value ? family?.value === f.value : !attrs.fontFamily)
-                                    ? "bg-sky-50 text-sky-700"
+                                    ? "bg-[#FFF9DB] text-slate-900"
                                     : "text-slate-700"
                             }`}
                         >
@@ -275,8 +275,8 @@ export function TypeMenu({ editor }: { editor: Editor }) {
                         onClick={() => applySize(null)}
                         className={`h-7 rounded border px-2 text-[11.5px] transition-colors ${
                             size === null
-                                ? "border-sky-300 bg-sky-50 text-sky-700"
-                                : "border-slate-200 text-slate-600 hover:border-sky-300 hover:bg-sky-50/50"
+                                ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
+                                : "border-slate-200 text-slate-600 hover:border-amber-200 hover:bg-[#FFF9DB]"
                         }`}
                     >
                         Default
@@ -289,8 +289,8 @@ export function TypeMenu({ editor }: { editor: Editor }) {
                             onClick={() => applySize(px)}
                             className={`size-7 rounded border text-[11.5px] tabular-nums transition-colors ${
                                 size === px
-                                    ? "border-sky-300 bg-sky-50 text-sky-700"
-                                    : "border-slate-200 text-slate-600 hover:border-sky-300 hover:bg-sky-50/50"
+                                    ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
+                                    : "border-slate-200 text-slate-600 hover:border-amber-200 hover:bg-[#FFF9DB]"
                             }`}
                         >
                             {px}
@@ -418,7 +418,7 @@ export function TableMenu({ editor }: { editor: Editor }) {
             setOpen={setOpen}
             title={inTable ? "Table" : "Insert table"}
             width={210}
-            trigger={<Table2Icon className={`w-3.5 h-3.5 ${inTable ? "text-sky-600" : ""}`} />}
+            trigger={<Table2Icon className={`w-3.5 h-3.5 ${inTable ? "text-slate-900" : ""}`} />}
         >
             {!inTable ? (
                 <div className="p-2">
@@ -433,7 +433,7 @@ export function TableMenu({ editor }: { editor: Editor }) {
                                 .run();
                             setOpen(false);
                         }}
-                        className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50/50"
+                        className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-700 transition-colors hover:border-amber-200 hover:bg-[#FFF9DB]"
                     >
                         Insert a 2 × 2 table
                     </button>

@@ -163,7 +163,7 @@ export default function BulkConnectPanel({
                     onClick={() => fileInput.current?.click()}
                     className={cn(
                         "rounded-md border border-dashed p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
-                        dragging ? "border-sky-400 bg-sky-50" : "border-slate-300 hover:border-slate-400 hover:bg-slate-50/60",
+                        dragging ? "border-slate-800 bg-[#FFF9DB]" : "border-slate-300 hover:border-slate-400 hover:bg-slate-50/60",
                     )}
                 >
                     <input
@@ -303,7 +303,7 @@ export default function BulkConnectPanel({
         return (
             <div className="p-4 space-y-3">
                 <div className="flex items-center gap-3">
-                    <Loader2Icon className="w-5 h-5 text-sky-600 animate-spin shrink-0" />
+                    <Loader2Icon className="w-5 h-5 text-slate-900 animate-spin shrink-0" />
                     <div className="min-w-0 flex-1">
                         <p className="text-[13.5px] text-slate-900 font-semibold">
                             Connecting {total.toLocaleString()} {total === 1 ? "mailbox" : "mailboxes"}

@@ -164,7 +164,7 @@ export default function AnalyticsShareButton({
                                                 aria-pressed={active}
                                                 className={`h-7 px-3 rounded text-[12px] font-medium transition-colors ${
                                                     active
-                                                        ? "bg-sky-600 text-white shadow-sm"
+                                                        ? "bg-[#18181B] text-white shadow-sm"
                                                         : "text-slate-600 hover:text-slate-900"
                                                 }`}
                                             >
@@ -218,7 +218,7 @@ export default function AnalyticsShareButton({
                                         url && downloadPng(url, withPresetSuffix(filename, current.suffix))
                                     }
                                     disabled={!url}
-                                    className="h-8 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                                    className="h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
                                 >
                                     <DownloadIcon className="w-3.5 h-3.5" />
                                     Download PNG

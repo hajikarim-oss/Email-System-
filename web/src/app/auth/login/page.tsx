@@ -83,7 +83,7 @@ const slideTrans = {
 
 /* ── Shared input class ─────────────────────── */
 
-const INPUT = "w-full h-11 rounded-lg border border-slate-200 bg-white px-4 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors duration-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-400/15";
+const INPUT = "w-full h-11 rounded-lg border border-slate-200 bg-white px-4 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors duration-200 focus:border-slate-800 focus:ring-4 focus:ring-slate-800/15";
 
 /* ── Password strength ─────────────────────── */
 
@@ -91,7 +91,7 @@ const strengthConfig = [
     { label: "Weak", color: "bg-red-400", width: "25%" },
     { label: "Weak", color: "bg-red-400", width: "25%" },
     { label: "Fair", color: "bg-amber-400", width: "50%" },
-    { label: "Good", color: "bg-sky-400", width: "75%" },
+    { label: "Good", color: "bg-amber-400", width: "75%" },
     { label: "Strong", color: "bg-emerald-400", width: "100%" },
 ] as const;
 
@@ -1143,7 +1143,7 @@ function SignInStep({
                 <div>
                     <div className="flex items-center justify-between mb-1">
                         <label className="text-sm font-medium text-slate-600 pl-0.5">Password</label>
-                        <Link to="/auth/reset-password" className="text-xs text-sky-500 hover:text-sky-600 font-medium transition-colors">
+                        <Link to="/auth/reset-password" className="text-xs text-amber-500 hover:text-slate-900 font-medium transition-colors">
                             Forgot password?
                         </Link>
                     </div>
@@ -1174,7 +1174,7 @@ function SignInStep({
                         type="button"
                         onClick={onSSO}
                         disabled={pending}
-                        className="w-full h-10 rounded-md border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors disabled:opacity-50"
+                        className="w-full h-10 rounded-md border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50 focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 transition-colors disabled:opacity-50"
                     >
                         Continue with {ssoLabel || "single sign-on"}
                     </button>
@@ -1254,7 +1254,7 @@ function SignUpStep({
                 <label className="flex items-start gap-3 pt-0.5 cursor-pointer">
                     <div className="relative mt-0.5 shrink-0">
                         <input type="checkbox" className="peer sr-only" {...register("acceptTerms")} />
-                        <div className={`size-[18px] rounded-md border-2 transition-all duration-200 flex items-center justify-center ${termsChecked ? "bg-sky-500 border-sky-500" : "border-slate-300 bg-white"}`}>
+                        <div className={`size-[18px] rounded-md border-2 transition-all duration-200 flex items-center justify-center ${termsChecked ? "bg-amber-400 border-slate-900" : "border-slate-300 bg-white"}`}>
                             {termsChecked && (
                                 <svg className="size-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1265,7 +1265,7 @@ function SignUpStep({
                     <span className="text-[13px] text-slate-400 leading-relaxed">
                         I agree to the{" "}
                         {brand.terms_url ? (
-                            <a href={brand.terms_url} target="_blank" rel="noopener noreferrer" className="text-sky-500 hover:text-sky-600 font-medium transition-colors">
+                            <a href={brand.terms_url} target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-slate-900 font-medium transition-colors">
                                 Terms of Service
                             </a>
                         ) : (
@@ -1273,7 +1273,7 @@ function SignUpStep({
                         )}
                         {" "}and{" "}
                         {brand.privacy_url ? (
-                            <a href={brand.privacy_url} target="_blank" rel="noopener noreferrer" className="text-sky-500 hover:text-sky-600 font-medium transition-colors">
+                            <a href={brand.privacy_url} target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-slate-900 font-medium transition-colors">
                                 Privacy Policy
                             </a>
                         ) : (
@@ -1320,8 +1320,8 @@ function VerifyStep({
         <div>
             <BackButton onClick={onBack} />
             <div className="text-center mb-6">
-                <div className="mx-auto w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center mb-4">
-                    <svg className="w-7 h-7 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="mx-auto w-14 h-14 rounded-2xl bg-[#FFF9DB] flex items-center justify-center mb-4">
+                    <svg className="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                     </svg>
                 </div>
@@ -1350,7 +1350,7 @@ function VerifyStep({
                                 <InputOTPSlot
                                     key={i}
                                     index={i}
-                                    className="!w-10 !h-12 lg:!w-12 lg:!h-14 !rounded-lg !border-slate-200 text-lg font-semibold data-[active=true]:!border-sky-400 data-[active=true]:!ring-sky-400/15 !shadow-none first:!rounded-lg last:!rounded-lg !border"
+                                    className="!w-10 !h-12 lg:!w-12 lg:!h-14 !rounded-lg !border-slate-200 text-lg font-semibold data-[active=true]:!border-slate-800 data-[active=true]:!ring-slate-800/15 !shadow-none first:!rounded-lg last:!rounded-lg !border"
                                 />
                             ))}
                         </InputOTPGroup>
@@ -1363,7 +1363,7 @@ function VerifyStep({
                         <button
                             type="button"
                             onClick={handleResend}
-                            className="text-sm text-sky-500 hover:text-sky-600 font-medium transition-colors cursor-pointer"
+                            className="text-sm text-amber-500 hover:text-slate-900 font-medium transition-colors cursor-pointer"
                         >
                             Resend code
                         </button>
@@ -1407,8 +1407,8 @@ function TwoFactorStep({
         <div>
             <BackButton onClick={onBack} />
             <div className="text-center mb-6">
-                <div className="mx-auto w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center mb-4">
-                    <svg className="w-7 h-7 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="mx-auto w-14 h-14 rounded-2xl bg-[#FFF9DB] flex items-center justify-center mb-4">
+                    <svg className="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                     </svg>
                 </div>
@@ -1433,7 +1433,7 @@ function TwoFactorStep({
                             placeholder="xxxxx-xxxxx"
                             autoFocus
                             autoComplete="off"
-                            className="w-full h-12 px-3 rounded-lg border border-slate-200 text-center font-mono tracking-wider text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/15"
+                            className="w-full h-12 px-3 rounded-lg border border-slate-200 text-center font-mono tracking-wider text-slate-900 outline-none focus:border-slate-800 focus:ring-2 focus:ring-slate-800/15"
                         />
                         <AuthButton loading={pending}>Verify</AuthButton>
                     </form>
@@ -1445,7 +1445,7 @@ function TwoFactorStep({
                                     <InputOTPSlot
                                         key={i}
                                         index={i}
-                                        className="!w-10 !h-12 lg:!w-12 lg:!h-14 !rounded-lg !border-slate-200 text-lg font-semibold data-[active=true]:!border-sky-400 data-[active=true]:!ring-sky-400/15 !shadow-none first:!rounded-lg last:!rounded-lg !border"
+                                        className="!w-10 !h-12 lg:!w-12 lg:!h-14 !rounded-lg !border-slate-200 text-lg font-semibold data-[active=true]:!border-slate-800 data-[active=true]:!ring-slate-800/15 !shadow-none first:!rounded-lg last:!rounded-lg !border"
                                     />
                                 ))}
                             </InputOTPGroup>
@@ -1461,7 +1461,7 @@ function TwoFactorStep({
                             setOtp("");
                             setRecovery("");
                         }}
-                        className="text-sm text-sky-500 hover:text-sky-600 font-medium transition-colors"
+                        className="text-sm text-amber-500 hover:text-slate-900 font-medium transition-colors"
                     >
                         {useRecovery ? "Use your authenticator app" : "Use a recovery code"}
                     </button>

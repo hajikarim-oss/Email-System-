@@ -223,7 +223,7 @@ export default function AdvisorFixDrawer({ finding, onClose }: Props) {
                                 <div className="h-0.5 overflow-hidden rounded-full bg-slate-100">
                                     <motion.div
                                         className={`h-full rounded-full ${
-                                            i <= railIndex ? "bg-sky-500" : "bg-transparent"
+                                            i <= railIndex ? "bg-amber-400" : "bg-transparent"
                                         }`}
                                         initial={false}
                                         animate={{ width: i <= railIndex ? "100%" : "0%" }}
@@ -314,7 +314,7 @@ export default function AdvisorFixDrawer({ finding, onClose }: Props) {
                             <button
                                 type="button"
                                 onClick={() => go("change", 1)}
-                                className="inline-flex h-7 items-center gap-1.5 rounded-md bg-sky-600 px-2.5 text-[12.5px] font-medium text-white transition hover:bg-sky-700"
+                                className="inline-flex h-7 items-center gap-1.5 rounded-md bg-[#18181B] px-2.5 text-[12.5px] font-medium text-white transition hover:bg-black"
                             >
                                 {action ? "See what changes" : "How to fix it"}
                                 <ArrowRightIcon className="h-3 w-3" />
@@ -324,7 +324,7 @@ export default function AdvisorFixDrawer({ finding, onClose }: Props) {
                                 type="button"
                                 onClick={runFix}
                                 disabled={applying}
-                                className="inline-flex h-7 items-center gap-1.5 rounded-md bg-sky-600 px-2.5 text-[12.5px] font-medium text-white transition hover:bg-sky-700 disabled:opacity-60"
+                                className="inline-flex h-7 items-center gap-1.5 rounded-md bg-[#18181B] px-2.5 text-[12.5px] font-medium text-white transition hover:bg-black disabled:opacity-60"
                             >
                                 {applying ? (
                                     <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
@@ -479,7 +479,7 @@ function ChangeStep({
             {link ? (
                 <Link
                     to={link.href}
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 text-[12px] font-medium text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 text-[12px] font-medium text-slate-700 transition hover:border-amber-200 hover:bg-[#FFF9DB] hover:text-black"
                 >
                     {link.label}
                     <ArrowRightIcon className="h-3 w-3" />

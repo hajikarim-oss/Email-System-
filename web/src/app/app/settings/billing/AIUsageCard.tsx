@@ -275,7 +275,7 @@ export default function AIUsageCard() {
                                 aria-label="Auto top-up"
                                 onClick={() => setForm({ ...form, autoEnabled: !form.autoEnabled })}
                                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                                    form.autoEnabled ? "bg-sky-600" : "bg-slate-200"
+                                    form.autoEnabled ? "bg-[#18181B]" : "bg-slate-200"
                                 }`}
                             >
                                 <span
@@ -358,7 +358,7 @@ export default function AIUsageCard() {
                                         type="button"
                                         onClick={submit}
                                         disabled={save.isPending}
-                                        className="h-7 px-3 rounded-md bg-sky-600 text-[12px] font-medium text-white hover:bg-sky-700 inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                        className="h-7 px-3 rounded-md bg-[#18181B] text-[12px] font-medium text-white hover:bg-black inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                                     >
                                         {save.isPending && <Loader2Icon className="w-3 h-3 animate-spin" />}
                                         Save
@@ -486,7 +486,7 @@ function InlineNumber({
                 if (e.key === "Enter") e.currentTarget.blur();
             }}
             style={{ width: `${Math.max(2, text.length)}ch` }}
-            className={`border-0 border-b border-dashed border-slate-300 bg-transparent p-0 outline-none transition-colors hover:border-slate-400 focus:border-solid focus:border-sky-500 ${className ?? ""}`}
+            className={`border-0 border-b border-dashed border-slate-300 bg-transparent p-0 outline-none transition-colors hover:border-slate-400 focus:border-solid focus:border-slate-800 ${className ?? ""}`}
         />
     );
 }
@@ -524,7 +524,7 @@ function LimitCell({
                     aria-label={`${label} limit`}
                     onClick={() => onChange(on ? null : presets[1])}
                     className={`relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${
-                        on ? "bg-sky-600" : "bg-slate-200"
+                        on ? "bg-[#18181B]" : "bg-slate-200"
                     }`}
                 >
                     <span
@@ -569,8 +569,8 @@ function LimitCell({
                                         onClick={() => onChange(p)}
                                         className={`text-[10.5px] tabular-nums transition-colors ${
                                             value === p
-                                                ? "font-semibold text-sky-700"
-                                                : "text-slate-400 hover:text-sky-700"
+                                                ? "font-semibold text-slate-900"
+                                                : "text-slate-400 hover:text-black"
                                         }`}
                                     >
                                         {fmtCompact(p)}

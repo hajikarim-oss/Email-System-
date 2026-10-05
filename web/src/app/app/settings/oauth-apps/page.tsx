@@ -128,10 +128,10 @@ function ScopePicker({ value, onChange }: { value: number; onChange: (v: number)
                                     key={p.name}
                                     type="button"
                                     onClick={() => toggle(p.value)}
-                                    className={`flex items-start gap-2 rounded-md border px-2 py-1.5 text-left ${on ? "border-sky-400 bg-sky-50" : "border-slate-200 hover:bg-slate-50"}`}
+                                    className={`flex items-start gap-2 rounded-md border px-2 py-1.5 text-left ${on ? "border-slate-800 bg-[#FFF9DB]" : "border-slate-200 hover:bg-slate-50"}`}
                                 >
                                     <span
-                                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded ${on ? "bg-sky-600 text-white" : "border border-slate-300"}`}
+                                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded ${on ? "bg-[#18181B] text-white" : "border border-slate-300"}`}
                                     >
                                         {on && <CheckIcon className="w-3 h-3" />}
                                     </span>
@@ -208,7 +208,7 @@ function EventPicker({
                 className={cn(
                     "rounded-md border px-2.5 py-2 text-[11.5px] leading-relaxed",
                     value.length === 0
-                        ? "border-sky-200 bg-sky-50 text-sky-700"
+                        ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                         : "border-slate-200 bg-slate-50 text-slate-500",
                 )}
             >
@@ -240,13 +240,13 @@ function EventPicker({
                                             onClick={() => toggle(d.type)}
                                             className={cn(
                                                 "w-full flex items-start gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors",
-                                                on ? "bg-sky-50" : "hover:bg-slate-50",
+                                                on ? "bg-[#FFF9DB]" : "hover:bg-slate-50",
                                             )}
                                         >
                                             <span
                                                 className={cn(
                                                     "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded",
-                                                    on ? "bg-sky-600 text-white" : "border border-slate-300",
+                                                    on ? "bg-[#18181B] text-white" : "border border-slate-300",
                                                 )}
                                             >
                                                 {on && <CheckIcon className="w-3 h-3" />}
@@ -284,7 +284,7 @@ function EventPicker({
 const DELIVERY_TONE: Record<WebhookDeliveryStatus, string> = {
     delivered: "bg-emerald-50 text-emerald-700 border-emerald-100",
     pending: "bg-slate-100 text-slate-600 border-slate-200",
-    in_flight: "bg-sky-50 text-sky-700 border-sky-100",
+    in_flight: "bg-[#FFF9DB] text-slate-900 border-amber-200",
     failed: "bg-amber-50 text-amber-700 border-amber-100",
     abandoned: "bg-rose-50 text-rose-700 border-rose-100",
 };
@@ -302,7 +302,7 @@ function DeliveryStatusBadge({ status }: { status: WebhookDeliveryStatus }) {
     );
 }
 
-const TILE_COLORS = ["bg-sky-600", "bg-indigo-600", "bg-emerald-600", "bg-rose-600", "bg-amber-600", "bg-fuchsia-600"];
+const TILE_COLORS = ["bg-[#18181B]", "bg-indigo-600", "bg-emerald-600", "bg-rose-600", "bg-amber-600", "bg-fuchsia-600"];
 
 // AppLogo renders an app's uploaded logo, or a colored letter tile as a fallback.
 function AppLogo({ name, url, size = "md" }: { name: string; url?: string | null; size?: "sm" | "md" | "lg" }) {
@@ -334,7 +334,7 @@ function Stepper({ step }: { step: number }) {
                                 <span
                                     className={cn(
                                         "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold transition-colors",
-                                        active ? "bg-sky-600 text-white" : done ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-400",
+                                        active ? "bg-[#18181B] text-white" : done ? "bg-[#FFF3B0] text-slate-900" : "bg-slate-100 text-slate-400",
                                     )}
                                 >
                                     {done ? <CheckIcon className="w-3 h-3" /> : i + 1}
@@ -349,7 +349,7 @@ function Stepper({ step }: { step: number }) {
                                 </span>
                             </div>
                             {i < WIZARD_STEPS.length - 1 && (
-                                <span className={cn("mx-2 h-px flex-1 transition-colors", i < step ? "bg-sky-200" : "bg-slate-200")} />
+                                <span className={cn("mx-2 h-px flex-1 transition-colors", i < step ? "bg-[#FFE600]/60" : "bg-slate-200")} />
                             )}
                         </React.Fragment>
                     );
@@ -544,7 +544,7 @@ function RegisterModal({ onClose }: { onClose: () => void }) {
                                                 onChange={(e) => setRedirects(e.target.value)}
                                                 placeholder={"https://acme.com/oauth/callback"}
                                                 rows={3}
-                                                className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-mono text-slate-900 placeholder:text-slate-400 outline-none resize-y focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                                className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-mono text-slate-900 placeholder:text-slate-400 outline-none resize-y focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                                             />
                                             <p className="mt-1 text-[11px] text-slate-400">One per line. Must be HTTPS (or a loopback URL), matched exactly.</p>
                                         </div>
@@ -557,7 +557,7 @@ function RegisterModal({ onClose }: { onClose: () => void }) {
                                                 onChange={(e) => setWebhookDomains(e.target.value)}
                                                 placeholder={".acme.com\nhooks.partner.com"}
                                                 rows={3}
-                                                className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-mono text-slate-900 placeholder:text-slate-400 outline-none resize-y focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                                className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-mono text-slate-900 placeholder:text-slate-400 outline-none resize-y focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                                             />
                                             <p className="mt-1 text-[11px] text-slate-400 leading-relaxed">
                                                 Webhooks this app registers must point at these domains. Use a leading dot for subdomains
@@ -628,14 +628,14 @@ function RegisterModal({ onClose }: { onClose: () => void }) {
                                 Step {step + 1} of {WIZARD_STEPS.length}
                             </span>
                             {step < WIZARD_STEPS.length - 1 ? (
-                                <button onClick={goNext} className="h-8 px-3 rounded-md bg-sky-600 text-white text-[12.5px] font-medium hover:bg-sky-700 inline-flex items-center gap-1.5">
+                                <button onClick={goNext} className="h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12.5px] inline-flex items-center gap-1.5">
                                     Next <ArrowRightIcon className="w-3.5 h-3.5" />
                                 </button>
                             ) : (
                                 <button
                                     onClick={submit}
                                     disabled={create.isPending}
-                                    className="h-8 px-3 rounded-md bg-sky-600 text-white text-[12.5px] font-medium hover:bg-sky-700 disabled:opacity-60 inline-flex items-center gap-1.5"
+                                    className="h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12.5px] disabled:opacity-60 inline-flex items-center gap-1.5"
                                 >
                                     {create.isPending ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <CheckIcon className="w-3.5 h-3.5" />}
                                     Create app
@@ -680,7 +680,7 @@ function RevealStep({ app, onDone }: { app: OAuthApplicationWithSecret; onDone: 
                 </div>
             </div>
             <div className="pt-1">
-                <button onClick={onDone} className="h-8 px-3 rounded-md bg-sky-600 text-white text-[12.5px] font-medium hover:bg-sky-700">
+                <button onClick={onDone} className="h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12.5px]">
                     Done
                 </button>
             </div>
@@ -696,7 +696,7 @@ function AppWebhookChip({ app }: { app: OAuthApplication }) {
     return (
         <span
             title={app.webhook_url}
-            className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10.5px] font-medium text-sky-700"
+            className="inline-flex items-center gap-1 rounded border border-amber-200 bg-[#FFF9DB] px-1.5 py-0.5 text-[10.5px] font-medium text-slate-900"
         >
             <WebhookIcon className="w-3 h-3" />
             {endpoints.isPending
@@ -971,7 +971,7 @@ function AppWebhookDeliveries({ app, catalog }: { app: OAuthApplication; catalog
                 <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as WebhookDeliveryStatus | "")}
-                    className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-700 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                 >
                     <option value="">All statuses</option>
                     {APP_DELIVERY_STATUSES.map((s) => (
@@ -981,7 +981,7 @@ function AppWebhookDeliveries({ app, catalog }: { app: OAuthApplication; catalog
                 <select
                     value={eventType}
                     onChange={(e) => setEventType(e.target.value)}
-                    className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 max-w-[180px]"
+                    className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-700 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 max-w-[180px]"
                 >
                     <option value="">All events</option>
                     {catalog.map((d) => (
@@ -1200,7 +1200,7 @@ function EditModal({ app, onClose }: { app: OAuthApplication; onClose: () => voi
                             onChange={(e) => setRedirects(e.target.value)}
                             placeholder={"https://acme.com/oauth/callback"}
                             rows={3}
-                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-mono text-slate-900 placeholder:text-slate-400 outline-none resize-y focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-mono text-slate-900 placeholder:text-slate-400 outline-none resize-y focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                         />
                         <p className="mt-1 text-[11px] text-slate-400">One per line. Must be HTTPS (or a loopback URL), matched exactly.</p>
                     </div>
@@ -1211,7 +1211,7 @@ function EditModal({ app, onClose }: { app: OAuthApplication; onClose: () => voi
                             onChange={(e) => setWebhookDomains(e.target.value)}
                             placeholder={".acme.com\nhooks.partner.com"}
                             rows={3}
-                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-mono text-slate-900 placeholder:text-slate-400 outline-none resize-y focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-mono text-slate-900 placeholder:text-slate-400 outline-none resize-y focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                         />
                         <p className="mt-1 text-[11px] text-slate-400 leading-relaxed">
                             Webhooks this app registers must point at these domains. Use a leading dot for subdomains (.acme.com
@@ -1263,7 +1263,7 @@ function EditModal({ app, onClose }: { app: OAuthApplication; onClose: () => voi
                     <button
                         onClick={save}
                         disabled={update.isPending}
-                        className="ml-auto h-8 px-3 rounded-md bg-sky-600 text-white text-[12.5px] font-medium hover:bg-sky-700 disabled:opacity-60 inline-flex items-center gap-1.5"
+                        className="ml-auto h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12.5px] disabled:opacity-60 inline-flex items-center gap-1.5"
                     >
                         {update.isPending ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <CheckIcon className="w-3.5 h-3.5" />}
                         Save changes
@@ -1329,7 +1329,7 @@ export default function OAuthAppsPage() {
                 tab === "apps" ? (
                     <button
                         onClick={() => setCreateOpen(true)}
-                        className="h-7 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5"
+                        className="h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5"
                     >
                         <PlusIcon className="w-3.5 h-3.5" /> Register app
                     </button>
@@ -1353,7 +1353,7 @@ export default function OAuthAppsPage() {
                             {tab === k && (
                                 <motion.span
                                     layoutId="oauth-apps-tab"
-                                    className="absolute inset-x-1 -bottom-px h-0.5 rounded bg-sky-600"
+                                    className="absolute inset-x-1 -bottom-px h-0.5 rounded bg-[#18181B]"
                                     transition={{ type: "spring", stiffness: 520, damping: 40 }}
                                 />
                             )}

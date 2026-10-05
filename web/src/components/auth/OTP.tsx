@@ -57,7 +57,7 @@ export default function OTPInput({ value, setValue, cellClassName }: OTPInputPro
         setSelections(next);
     };
 
-    const defaultCell = "flex-1 min-w-0 h-14 sm:h-16 rounded-lg border border-sky-200 bg-white text-slate-800 text-center text-2xl sm:text-3xl font-semibold outline-none transition-all duration-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-400/15 placeholder:text-slate-200";
+    const defaultCell = "flex-1 min-w-0 h-14 sm:h-16 rounded-lg border border-amber-200 bg-white text-slate-800 text-center text-2xl sm:text-3xl font-semibold outline-none transition-all duration-200 focus:border-slate-800 focus:ring-4 focus:ring-slate-800/15 placeholder:text-slate-200";
 
     return (
         <div className="flex gap-2 sm:gap-3">

@@ -70,9 +70,9 @@ export default function ReferralSettingsPage() {
                 eyebrow="How it works"
                 description="Share your link, they save, you earn."
             >
-                <div className="rounded-md border border-sky-100 bg-sky-50/60 p-4">
+                <div className="rounded-md border border-amber-200 bg-[#FFF9DB]/60 p-4">
                     <div className="flex items-start gap-3">
-                        <div className="size-9 rounded-md bg-white border border-sky-200 text-sky-700 flex items-center justify-center shrink-0">
+                        <div className="size-9 rounded-md bg-white border border-amber-200 text-slate-900 flex items-center justify-center shrink-0">
                             <GiftIcon className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
@@ -237,7 +237,7 @@ function StatCard({
     return (
         <div
             className={`rounded-md border p-3 ${
-                accent ? "border-sky-200 bg-sky-50/60" : "border-slate-200 bg-white"
+                accent ? "border-amber-200 bg-[#FFF9DB]/60" : "border-slate-200 bg-white"
             }`}
         >
             <div className="text-[10px] uppercase tracking-[0.1em] font-medium text-slate-400">
@@ -248,7 +248,7 @@ function StatCard({
             ) : (
                 <div
                     className={`text-[16px] font-semibold tabular-nums mt-0.5 ${
-                        accent ? "text-sky-700" : "text-slate-900"
+                        accent ? "text-slate-900" : "text-slate-900"
                     }`}
                 >
                     {value}
@@ -271,7 +271,7 @@ function CountPill({
         tone === "emerald"
             ? "bg-emerald-500"
             : tone === "sky"
-              ? "bg-sky-500"
+              ? "bg-amber-400"
               : "bg-slate-300";
     return (
         <span className="inline-flex items-center gap-1.5">
@@ -356,7 +356,7 @@ function AttributionRow({
 function AttributionStatusBadge({ status }: { status: ReferralAttributionStatus }) {
     const map: Record<ReferralAttributionStatus, { label: string; cls: string }> = {
         pending: { label: "Pending", cls: "bg-slate-100 text-slate-500 border-slate-200" },
-        qualified: { label: "Qualified", cls: "bg-sky-50 text-sky-700 border-sky-100" },
+        qualified: { label: "Qualified", cls: "bg-[#FFF9DB] text-slate-900 border-amber-200" },
         rewarded: { label: "Rewarded", cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
         void: { label: "Void", cls: "bg-slate-100 text-slate-400 border-slate-200" },
     };

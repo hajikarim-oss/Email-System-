@@ -2,6 +2,8 @@ import React from "react";
 import { CheckIcon, ClockIcon, DatabaseIcon, FileSpreadsheetIcon, Loader2Icon, MessageSquareIcon, PlusIcon, SearchIcon, ShieldAlertIcon, SkipForwardIcon, UploadCloudIcon, UserPlusIcon, UsersIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { authHeaders } from "@/lib/api/standaloneMock";
+import Request from "@/lib/api/client/Request";
 
 export interface ContactDraftItem {
     id?: string; email: string; first_name?: string; last_name?: string; company?: string; role?: string;
@@ -49,20 +51,49 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
             const p = new URLSearchParams({ limit: "50", page: String(page) });
             if (search.trim()) p.set("query", search.trim());
             if (state && state !== "all") p.set("outreach_state", state);
-            const r = await fetch(`/api/intelligence/contacts?${p.toString()}`);
-            if (!r.ok) throw new Error();
-            const j = await r.json();
-            const mapped: NormalizedContact[] = (j.data || []).map((c: any) => ({
-                id: c.id, email: c.email, first_name: c.first_name || "", last_name: c.last_name || "",
-                company: c.company || "", role: (c.custom_fields as any)?.role || (c.custom_fields as any)?.title || "",
-                is_email_handler: c.is_email_handler, outreach_state: c.temporal_state?.outreach_state,
-                days_since_last_contact: c.temporal_state?.days_since_last_contact,
-                last_subject: c.last_message_context?.subject, last_body_hook: c.last_message_context?.body_hook,
-                last_campaign: c.last_message_context?.campaign,
+            
+            let j: any = null;
+            try {
+                const r = await fetch(`/api/intelligence/contacts?${p.toString()}`, { headers: authHeaders() });
+                if (r.ok) {
+                    j = await r.json();
+                }
+            } catch {
+                // Ignore, will fallback to Request
+            }
+
+            if (!j || !j.data || j.data.length === 0) {
+                j = await Request<any>({
+                    method: "GET",
+                    url: `/contacts?limit=50&page=${page}${search.trim() ? `&query=${encodeURIComponent(search.trim())}` : ""}${state && state !== "all" ? `&outreach_state=${encodeURIComponent(state)}` : ""}`,
+                    authorization: true,
+                });
+            }
+
+            const rawData = j?.data || [];
+            const mapped: NormalizedContact[] = rawData.map((c: any) => ({
+                id: c.id, 
+                email: c.email, 
+                first_name: c.first_name || (c.name ? c.name.split(" ")[0] : "") || "", 
+                last_name: c.last_name || (c.name ? c.name.split(" ").slice(1).join(" ") : "") || "",
+                company: c.company || c.company_name || "", 
+                role: c.role || c.title || (c.custom_fields as any)?.role || (c.custom_fields as any)?.title || "",
+                is_email_handler: c.is_email_handler, 
+                outreach_state: c.temporal_state?.outreach_state || c.outreach_state || "COLD_REENGAGEMENT",
+                days_since_last_contact: c.temporal_state?.days_since_last_contact ?? c.days_since_last_contact,
+                last_subject: c.last_message_context?.subject || c.last_subject, 
+                last_body_hook: c.last_message_context?.body_hook,
+                last_campaign: c.last_message_context?.campaign || c.campaign,
             }));
             setDbContacts(prev => append ? [...prev, ...mapped] : mapped);
-            setDbTotal(j.total || 0); setDbHasMore(j.pagination?.has_more || false);
-        } catch { toast.error("Could not load contacts"); } finally { setDbLoading(false); }
+            setDbTotal(j?.total || mapped.length || 0); 
+            setDbHasMore(j?.pagination?.has_more ?? (mapped.length === 50));
+        } catch (err) { 
+            console.warn("Could not load contacts:", err);
+            toast.error("Could not load contacts"); 
+        } finally { 
+            setDbLoading(false); 
+        }
     }, []);
 
     React.useEffect(() => { fetchDb("", "all", 1, false); }, [fetchDb]);
@@ -85,7 +116,11 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
         if (!toAdd.length) return;
         setChecking(true);
         try {
-            const r = await fetch("/api/intelligence/check-batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emails: toAdd.map(c => c.email) }) });
+            const r = await fetch("/api/intelligence/check-batch", { 
+                method: "POST", 
+                headers: { "Content-Type": "application/json", ...authHeaders() }, 
+                body: JSON.stringify({ emails: toAdd.map(c => c.email) }) 
+            });
             if (!r.ok) throw new Error();
             const j = await r.json();
             const dupes: HistoryWarning[] = (j.duplicates || []).map((d: any) => ({
@@ -265,7 +300,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                     const cnt = tab==="database"?dbCnt:tab==="csv"?csvCnt:manCnt;
                     const icon = tab==="database"?<DatabaseIcon className="w-3.5 h-3.5"/>:tab==="csv"?<FileSpreadsheetIcon className="w-3.5 h-3.5"/>:<UserPlusIcon className="w-3.5 h-3.5"/>;
                     const lbl = tab==="database"?"From Database":tab==="csv"?"Upload CSV":"Add Manually";
-                    return <button key={tab} type="button" onClick={()=>setSubTab(tab)} className={cn("h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-2 transition-colors",subTab===tab?"bg-sky-50 text-sky-700 font-semibold":"text-slate-600 hover:bg-slate-100")}>{icon}{lbl}{cnt>0&&<span className="px-1.5 rounded-full text-[10px] bg-sky-600 text-white font-semibold">{cnt}</span>}</button>;
+                    return <button key={tab} type="button" onClick={()=>setSubTab(tab)} className={cn("h-8 px-3 rounded-md text-[12px] font-medium inline-flex items-center gap-2 transition-colors",subTab===tab?"bg-[#FFF9DB] text-slate-900 font-semibold":"text-slate-600 hover:bg-slate-100")}>{icon}{lbl}{cnt>0&&<span className="px-1.5 rounded-full text-[10px] bg-[#18181B] text-white font-semibold">{cnt}</span>}</button>;
                 })}
             </div>
 
@@ -360,7 +395,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                                                     )}
                                                     {w.lastSubject && (
                                                         <div className="flex items-start gap-1.5 text-[10.5px] text-slate-700">
-                                                            <MessageSquareIcon className="w-3 h-3 mt-0.5 shrink-0 text-sky-600"/>
+                                                            <MessageSquareIcon className="w-3 h-3 mt-0.5 shrink-0 text-slate-900"/>
                                                             <span><strong>Subject:</strong> {w.lastSubject}</span>
                                                         </div>
                                                     )}
@@ -444,7 +479,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                             <button
                                 type="button"
                                 onClick={confirmWarn}
-                                className="h-8 px-4 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[11.5px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                                className="h-8 px-4 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[11.5px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
                             >
                                 <CheckIcon className="w-3.5 h-3.5"/>
                                 Confirm and Add
@@ -457,7 +492,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 {subTab==="database"&&(
                     <div className="space-y-3">
                         <div className="flex items-center gap-2">
-                            <div className="relative flex-1"><SearchIcon className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400"/><input type="text" value={dbSearch} onChange={e=>setDbSearch(e.target.value)} placeholder="Search name, email, company..." className="w-full h-8 pl-8 pr-3 text-[12px] rounded-md border border-slate-200 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400"/></div>
+                            <div className="relative flex-1"><SearchIcon className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400"/><input type="text" value={dbSearch} onChange={e=>setDbSearch(e.target.value)} placeholder="Search name, email, company..." className="w-full h-8 pl-8 pr-3 text-[12px] rounded-md border border-slate-200 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30 focus:border-slate-800"/></div>
                             <select value={dbOutreachFilter} onChange={e=>setDbOutreachFilter(e.target.value)} className="h-8 px-2 text-[11.5px] rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none"><option value="all">All States</option><option value="NEVER_REACHED">Never Reached</option><option value="DORMANT_REPLIED">Replied (Dormant)</option><option value="WARM_STALE">Warm - Stale</option><option value="COLD_REENGAGEMENT">Cold - Re-engage</option><option value="BURNED">Burned</option></select>
                             <button type="button" onClick={toggleAll} className="h-8 px-2.5 rounded-md border border-slate-200 hover:bg-slate-50 text-[11.5px] text-slate-700 font-medium shrink-0">{dbContacts.every(c=>isSel(c.email))&&dbContacts.length>0?"Deselect All":`Select All (${dbContacts.length}${dbHasMore?"+":""})`}</button>
                         </div>
@@ -468,9 +503,9 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                             :(<>{dbContacts.map(c=>{
                                 const sel=isSel(c.email);
                                 const hist=c.outreach_state&&c.outreach_state!=="NEVER_REACHED"&&c.outreach_state!=="NEVER_CONTACTED";
-                                return(<div key={c.id} onClick={()=>toggleDb(c)} className={cn("px-3 py-2 flex items-start justify-between gap-3 cursor-pointer select-none transition-colors",sel?"bg-sky-50/50 hover:bg-sky-50":"hover:bg-slate-50")}>
+                                return(<div key={c.id} onClick={()=>toggleDb(c)} className={cn("px-3 py-2 flex items-start justify-between gap-3 cursor-pointer select-none transition-colors",sel?"bg-[#FFF9DB]/50 hover:bg-[#FFF9DB]":"hover:bg-slate-50")}>
                                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                        <input type="checkbox" checked={sel} onChange={()=>{}} className="mt-0.5 rounded border-slate-300 text-sky-600 cursor-pointer"/>
+                                        <input type="checkbox" checked={sel} onChange={()=>{}} className="mt-0.5 rounded border-slate-300 text-slate-900 cursor-pointer"/>
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 flex-wrap"><p className="text-[12px] font-medium text-slate-900 truncate">{c.first_name||c.last_name?`${c.first_name} ${c.last_name}`.trim():c.email}</p>{hist&&<OBadge state={c.outreach_state!}/>}</div>
                                             <p className="text-[11px] text-slate-400 truncate">{c.email}{c.company&&!c.is_email_handler&&` · ${c.company}`}</p>
@@ -479,16 +514,16 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                                     </div>
                                     {c.role&&<span className="shrink-0 mt-0.5 px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-medium">{c.role}</span>}
                                 </div>);
-                            })}{dbHasMore&&(<div className="px-3 py-2 bg-slate-50 border-t border-slate-100"><button type="button" onClick={e=>{e.stopPropagation();loadMore();}} disabled={dbLoading} className="w-full text-[11.5px] text-sky-600 hover:text-sky-700 font-medium flex items-center justify-center gap-1.5 py-0.5 disabled:opacity-50">{dbLoading&&<Loader2Icon className="w-3.5 h-3.5 animate-spin"/>}Load more</button></div>)}</> )}
+                            })}{dbHasMore&&(<div className="px-3 py-2 bg-slate-50 border-t border-slate-100"><button type="button" onClick={e=>{e.stopPropagation();loadMore();}} disabled={dbLoading} className="w-full text-[11.5px] text-slate-900 hover:text-black font-medium flex items-center justify-center gap-1.5 py-0.5 disabled:opacity-50">{dbLoading&&<Loader2Icon className="w-3.5 h-3.5 animate-spin"/>}Load more</button></div>)}</> )}
                         </div>
                     </div>
                 )}
 
                 {subTab==="csv"&&(
                     <div className="space-y-3">
-                        <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-sky-400 transition-colors bg-slate-50/50">
+                        <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-slate-900 transition-colors bg-slate-50/50">
                             <UploadCloudIcon className="w-8 h-8 text-slate-400 mx-auto mb-2"/>
-                            <label className="cursor-pointer"><span className="text-[12.5px] font-semibold text-sky-600 hover:text-sky-700">Click to select CSV file</span><span className="text-[12px] text-slate-500"> or drag and drop</span><input type="file" accept=".csv" onChange={handleFile} className="hidden"/></label>
+                            <label className="cursor-pointer"><span className="text-[12.5px] font-semibold text-slate-900 hover:text-black">Click to select CSV file</span><span className="text-[12px] text-slate-500"> or drag and drop</span><input type="file" accept=".csv" onChange={handleFile} className="hidden"/></label>
                             <p className="text-[11px] text-slate-400 mt-1">Columns auto-detected: email, first_name, last_name, company, role</p>
                         </div>
                         {csvError&&<p className="text-[11.5px] text-rose-600 font-medium">{csvError}</p>}
@@ -496,7 +531,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between text-[11.5px] text-slate-600">
                                     <span>Ready to import <strong>{csvRows.length} contacts</strong> from <code className="font-mono text-slate-800">{csvFile?.name}</code></span>
-                                    <button type="button" onClick={importCsv} disabled={checking} className="h-7 px-3 rounded bg-sky-600 hover:bg-sky-700 text-white font-medium inline-flex items-center gap-1 disabled:opacity-60">{checking?<Loader2Icon className="w-3.5 h-3.5 animate-spin"/>:<CheckIcon className="w-3.5 h-3.5"/>}Import Contacts</button>
+                                    <button type="button" onClick={importCsv} disabled={checking} className="h-7 px-3 rounded bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer font-medium inline-flex items-center gap-1 disabled:opacity-60">{checking?<Loader2Icon className="w-3.5 h-3.5 animate-spin"/>:<CheckIcon className="w-3.5 h-3.5"/>}Import Contacts</button>
                                 </div>
                                 <div className="border border-slate-200 rounded-md overflow-hidden bg-white text-[11.5px]">
                                     <table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200"><tr><th className="px-2.5 py-1.5">Email</th><th className="px-2.5 py-1.5">First Name</th><th className="px-2.5 py-1.5">Company</th><th className="px-2.5 py-1.5">Role</th></tr></thead>
@@ -511,11 +546,11 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 {subTab==="manual"&&(
                     <form onSubmit={addManual} className="space-y-3">
                         <div className="grid grid-cols-2 gap-2">
-                            <div><label className="text-[11px] font-medium text-slate-700">Email Address *</label><input type="email" value={mEmail} onChange={e=>setMEmail(e.target.value)} placeholder="name@company.com" required className="w-full h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400"/></div>
-                            <div><label className="text-[11px] font-medium text-slate-700">First Name</label><input type="text" value={mFirst} onChange={e=>setMFirst(e.target.value)} placeholder="e.g. Haji" className="w-full h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400"/></div>
-                            <div><label className="text-[11px] font-medium text-slate-700">Last Name</label><input type="text" value={mLast} onChange={e=>setMLast(e.target.value)} placeholder="e.g. Karim" className="w-full h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400"/></div>
-                            <div><label className="text-[11px] font-medium text-slate-700">Company</label><input type="text" value={mCo} onChange={e=>setMCo(e.target.value)} placeholder="e.g. TheBoredMonkey" className="w-full h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400"/></div>
-                            <div className="col-span-2"><label className="text-[11px] font-medium text-slate-700">Role / Job Title</label><div className="flex items-center gap-2"><input type="text" value={mRole} onChange={e=>setMRole(e.target.value)} placeholder="e.g. Head of Growth" className="flex-1 h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400"/><button type="submit" disabled={checking} className="h-8 px-4 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 shrink-0 disabled:opacity-60">{checking?<Loader2Icon className="w-3.5 h-3.5 animate-spin"/>:<PlusIcon className="w-3.5 h-3.5"/>}Add Contact</button></div></div>
+                            <div><label className="text-[11px] font-medium text-slate-700">Email Address *</label><input type="email" value={mEmail} onChange={e=>setMEmail(e.target.value)} placeholder="name@company.com" required className="w-full h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30 focus:border-slate-800"/></div>
+                            <div><label className="text-[11px] font-medium text-slate-700">First Name</label><input type="text" value={mFirst} onChange={e=>setMFirst(e.target.value)} placeholder="e.g. Haji" className="w-full h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30 focus:border-slate-800"/></div>
+                            <div><label className="text-[11px] font-medium text-slate-700">Last Name</label><input type="text" value={mLast} onChange={e=>setMLast(e.target.value)} placeholder="e.g. Karim" className="w-full h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30 focus:border-slate-800"/></div>
+                            <div><label className="text-[11px] font-medium text-slate-700">Company</label><input type="text" value={mCo} onChange={e=>setMCo(e.target.value)} placeholder="e.g. TheBoredMonkey" className="w-full h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30 focus:border-slate-800"/></div>
+                            <div className="col-span-2"><label className="text-[11px] font-medium text-slate-700">Role / Job Title</label><div className="flex items-center gap-2"><input type="text" value={mRole} onChange={e=>setMRole(e.target.value)} placeholder="e.g. Head of Growth" className="flex-1 h-8 px-2.5 text-[12px] rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30 focus:border-slate-800"/><button type="submit" disabled={checking} className="h-8 px-4 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 shrink-0 disabled:opacity-60">{checking?<Loader2Icon className="w-3.5 h-3.5 animate-spin"/>:<PlusIcon className="w-3.5 h-3.5"/>}Add Contact</button></div></div>
                         </div>
                     </form>
                 )}
@@ -524,7 +559,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
 
             <div className="px-3 py-2.5 rounded-md bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-[12px]">
-                    <UsersIcon className="w-4 h-4 text-sky-600"/>
+                    <UsersIcon className="w-4 h-4 text-slate-900"/>
                     <span className="font-semibold text-slate-900">{selectedContacts.length} Contact{selectedContacts.length===1?"":"s"} Queued:</span>
                     <span className="text-slate-500 text-[11px]">{dbCnt} from DB · {csvCnt} from CSV · {manCnt} Manual</span>
                 </div>

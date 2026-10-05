@@ -124,7 +124,7 @@ export default function CloudLinkCard({
     if (!pending && minimal) {
         return (
             <div className="flex items-start gap-3">
-                <span className="size-9 rounded-md bg-sky-600 text-white inline-flex items-center justify-center shrink-0">
+                <span className="size-9 rounded-md bg-[#18181B] text-white inline-flex items-center justify-center shrink-0">
                     <FlameIcon className="w-4 h-4" />
                 </span>
                 <div className="text-[13px] text-slate-600 leading-relaxed">
@@ -161,7 +161,7 @@ export default function CloudLinkCard({
                         type="button"
                         onClick={() => void begin()}
                         disabled={start.isPending}
-                        className="h-8 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12.5px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                        className="h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12.5px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                     >
                         {start.isPending ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <CloudIcon className="w-3.5 h-3.5" />}
                         Connect to TheBoredMonkey Cloud
@@ -181,11 +181,11 @@ export default function CloudLinkCard({
                 onClick={copy}
                 initial={{ scale: 0.96, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="group relative rounded-lg border border-slate-200 bg-slate-50 px-6 py-4 font-mono text-[28px] tracking-[0.28em] text-slate-900 hover:border-sky-300 transition-colors"
+                className="group relative rounded-lg border border-slate-200 bg-slate-50 px-6 py-4 font-mono text-[28px] tracking-[0.28em] text-slate-900 hover:border-amber-200 transition-colors"
                 title="Copy code"
             >
                 {pending.user_code}
-                <span className="absolute -top-2 -right-2 size-6 rounded-full bg-white border border-slate-200 text-slate-500 inline-flex items-center justify-center group-hover:text-sky-600">
+                <span className="absolute -top-2 -right-2 size-6 rounded-full bg-white border border-slate-200 text-slate-500 inline-flex items-center justify-center group-hover:text-slate-900">
                     {copied ? <CheckIcon className="w-3 h-3 text-emerald-600" /> : <CopyIcon className="w-3 h-3" />}
                 </span>
             </motion.button>
@@ -200,8 +200,8 @@ export default function CloudLinkCard({
             </a>
             <div className="inline-flex items-center gap-2 text-[12px] text-slate-500">
                 <span className="relative flex size-2">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75 animate-ping" />
-                    <span className="relative inline-flex size-2 rounded-full bg-sky-500" />
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping" />
+                    <span className="relative inline-flex size-2 rounded-full bg-amber-400" />
                 </span>
                 Waiting for approval
                 <Countdown until={pending.expires_at} />
@@ -231,7 +231,7 @@ function Countdown({ until }: { until: Date }) {
 function Bullet({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
     return (
         <li className="flex items-start gap-2">
-            <Icon className="w-3.5 h-3.5 mt-0.5 text-sky-600 shrink-0" />
+            <Icon className="w-3.5 h-3.5 mt-0.5 text-slate-900 shrink-0" />
             <span className="leading-relaxed">{children}</span>
         </li>
     );
@@ -240,7 +240,7 @@ function Bullet({ icon: Icon, children }: { icon: React.ComponentType<{ classNam
 // A small animated diagram: this server, the cloud, and mail flowing between.
 function Illustration() {
     return (
-        <div className="rounded-lg border border-slate-200 bg-gradient-to-b from-sky-50/60 to-white p-4 h-[170px] relative overflow-hidden">
+        <div className="rounded-lg border border-slate-200 bg-gradient-to-b from-[#FFF9DB]/60 to-white p-4 h-[170px] relative overflow-hidden">
             <div className="absolute left-5 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5">
                 <span className="size-10 rounded-md bg-white border border-slate-200 inline-flex items-center justify-center text-slate-700">
                     <InboxIcon className="w-4 h-4" />
@@ -248,7 +248,7 @@ function Illustration() {
                 <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">You</span>
             </div>
             <div className="absolute right-5 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5">
-                <span className="size-10 rounded-md bg-sky-600 inline-flex items-center justify-center text-white">
+                <span className="size-10 rounded-md bg-[#18181B] inline-flex items-center justify-center text-white">
                     <CloudIcon className="w-4 h-4" />
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">Pool</span>
@@ -257,7 +257,7 @@ function Illustration() {
             {[0, 1, 2].map((i) => (
                 <motion.span
                     key={i}
-                    className="absolute top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-sky-500"
+                    className="absolute top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-amber-400"
                     initial={{ left: 72, opacity: 0 }}
                     animate={{ left: ["72px", "calc(100% - 78px)"], opacity: [0, 1, 1, 0] }}
                     transition={{ duration: 2.4, delay: i * 0.8, repeat: Infinity, ease: "easeInOut" }}

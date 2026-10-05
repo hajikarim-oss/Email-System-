@@ -48,7 +48,7 @@ export default function SecuritySelect({
                             value === o.value
                                 ? o.value === "none"
                                     ? "bg-amber-50 text-amber-700 font-medium"
-                                    : "bg-sky-50 text-sky-700 font-medium"
+                                    : "bg-[#FFF9DB] text-slate-900 font-medium"
                                 : "text-slate-600 hover:bg-slate-50",
                         )}
                     >

@@ -64,7 +64,7 @@ const DEAL_STATUS: Record<Deal["status"], { label: string; cls: string; dot: str
 const PRIORITY_DOT: Record<CRMTask["priority"], string> = {
     urgent: "bg-red-500",
     high: "bg-amber-500",
-    medium: "bg-sky-500",
+    medium: "bg-amber-400",
     low: "bg-slate-400",
 };
 
@@ -147,7 +147,7 @@ export default function ContactContextPanel({
                         {/* Identity */}
                         <div className="px-3 py-3">
                             <div className="flex items-start gap-2.5">
-                                <div className="size-8 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-[12px] font-semibold shrink-0">
+                                <div className="size-8 rounded-full bg-[#FFF3B0] text-slate-900 flex items-center justify-center text-[12px] font-semibold shrink-0">
                                     {initials(name)}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -171,7 +171,7 @@ export default function ContactContextPanel({
                                 )}
                                 <Link
                                     to="/app/contacts"
-                                    className="ml-auto inline-flex items-center gap-1 text-[10.5px] text-slate-400 hover:text-sky-700 transition-colors"
+                                    className="ml-auto inline-flex items-center gap-1 text-[10.5px] text-slate-400 hover:text-black transition-colors"
                                 >
                                     Contacts
                                     <ExternalLinkIcon className="w-2.5 h-2.5" />
@@ -184,7 +184,7 @@ export default function ContactContextPanel({
                                 <button
                                     type="button"
                                     onClick={() => setMeetingOpen(true)}
-                                    className="h-7 px-2 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[11.5px] font-medium inline-flex items-center gap-1.5 transition-colors"
+                                    className="h-7 px-2 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[11.5px] font-medium inline-flex items-center gap-1.5 transition-colors"
                                 >
                                     <CalendarPlusIcon className="w-3 h-3" />
                                     Schedule call
@@ -209,7 +209,7 @@ export default function ContactContextPanel({
                                         <Link
                                             key={c.id}
                                             to="/app/campaigns"
-                                            className="inline-flex items-center gap-1 h-5 px-1.5 rounded bg-white border border-slate-200 hover:border-sky-300 text-[10.5px] text-slate-600 hover:text-sky-700 transition-colors"
+                                            className="inline-flex items-center gap-1 h-5 px-1.5 rounded bg-white border border-slate-200 hover:border-amber-200 text-[10.5px] text-slate-600 hover:text-black transition-colors"
                                         >
                                             <MegaphoneIcon className="w-2.5 h-2.5 text-slate-400" />
                                             <span className="truncate max-w-[140px]">{c.name}</span>
@@ -366,7 +366,7 @@ function DealsSection({
                 canAdd ? (
                     <AddButton open={open} onClick={() => setOpen((o) => !o)} />
                 ) : (
-                    <Link to="/app/crm/pipelines" className="text-[10.5px] text-slate-400 hover:text-sky-700">
+                    <Link to="/app/crm/pipelines" className="text-[10.5px] text-slate-400 hover:text-black">
                         Add a pipeline
                     </Link>
                 )
@@ -597,7 +597,7 @@ function TasksSection({
                         onChange={(e) => setDesc(e.target.value)}
                         placeholder="Details (optional)"
                         rows={2}
-                        className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-700 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 resize-none"
+                        className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-700 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 resize-none"
                     />
                     <p className="text-[10px] text-slate-400 leading-snug">
                         Linked to {contactName}
@@ -762,7 +762,7 @@ function Badge({
 function Metric({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
     return (
         <div className="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 text-center">
-            <div className={`text-[14px] font-light tabular-nums leading-none ${accent ? "text-sky-700" : "text-slate-900"}`}>
+            <div className={`text-[14px] font-light tabular-nums leading-none ${accent ? "text-slate-900" : "text-slate-900"}`}>
                 {value}
             </div>
             <div className="text-[9px] uppercase tracking-[0.08em] text-slate-400 mt-1">{label}</div>

@@ -21,7 +21,7 @@ import { ScheduledList } from "@/components/app/unibox/ScheduledList";
 import { ThreadView } from "@/components/app/unibox/ThreadView";
 import { ScopeRail, scopeKey, type UniboxScope } from "@/components/app/unibox/ScopeRail";
 import { ScopeSheet } from "@/components/app/unibox/ScopeSheet";
-import { UniboxHeader, UNIBOX_TEAM_MEMBERS } from "@/components/app/unibox/UniboxHeader";
+import { UniboxHeader, UNIBOX_TEAM_MEMBERS, type UniboxDatePreset, type UniboxDateFilterState } from "@/components/app/unibox/UniboxHeader";
 import useFeatureAccess from "@/hooks/useFeatureAccess";
 import { LockedSurface } from "@/components/layout/LockedSurface";
 import { NoAccess } from "@/components/layout/NoAccess";
@@ -66,6 +66,68 @@ export default function UniboxPage() {
   });
 
   const [selectedCampaignId, setSelectedCampaignId] = React.useState<string>("all");
+  const [dateFilter, setDateFilter] = React.useState<UniboxDateFilterState>({ preset: "all" });
+
+  const handleSelectDatePreset = React.useCallback((preset: UniboxDatePreset) => {
+    if (preset === "all") {
+      setDateFilter({ preset: "all", label: undefined, since: undefined, until: undefined });
+      return;
+    }
+    const now = new Date();
+    if (preset === "today") {
+      const since = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const until = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      setDateFilter({ preset: "today", since, until, label: "Today" });
+      return;
+    }
+    if (preset === "yesterday") {
+      const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+      const until = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      setDateFilter({ preset: "yesterday", since: yesterday, until, label: "Yesterday" });
+      return;
+    }
+    if (preset === "7d") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+      const until = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      setDateFilter({ preset: "7d", since: start, until, label: "Last 7 days" });
+      return;
+    }
+    if (preset === "30d") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
+      const until = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      setDateFilter({ preset: "30d", since: start, until, label: "Last 30 days" });
+      return;
+    }
+  }, []);
+
+  const handleApplyCustomDateRange = React.useCallback((startStr: string, endStr: string) => {
+    let since: Date | undefined;
+    let until: Date | undefined;
+    let label = "Custom";
+    if (startStr) {
+      const parts = startStr.split("-").map(Number);
+      since = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+    }
+    if (endStr) {
+      const parts = endStr.split("-").map(Number);
+      until = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
+    }
+    if (startStr && endStr) {
+      label = `${startStr.slice(5)} to ${endStr.slice(5)}`;
+    } else if (startStr) {
+      label = `From ${startStr.slice(5)}`;
+    } else if (endStr) {
+      label = `Until ${endStr.slice(5)}`;
+    }
+    setDateFilter({
+      preset: "custom",
+      since,
+      until,
+      customStart: startStr,
+      customEnd: endStr,
+      label,
+    });
+  }, []);
 
   // Sync if user profile loads late
   React.useEffect(() => {
@@ -260,24 +322,33 @@ export default function UniboxPage() {
         next.campaignId = selectedCampaignId;
       }
 
+      if (dateFilter.since) {
+        next.since = dateFilter.since;
+      }
+      if (dateFilter.until) {
+        next.until = dateFilter.until;
+      }
+
       return next;
     },
-    [scope, tagAccountIds, selectedMemberId, selectedCampaignId],
+    [scope, tagAccountIds, selectedMemberId, selectedCampaignId, dateFilter],
   );
   const [params, setParams] = React.useState<UniboxSearchParams>(() =>
     paramsForScope("newest"),
   );
-  // Reset filters when the scope changes or member/campaign filter changes,
+  // Reset filters when the scope changes or member/campaign/date filter changes,
   // keeping only the sort. Setting state during render re-renders before commit.
   const tagIdsKey = tagAccountIds?.join(",") ?? "";
-  const [prevReset, setPrevReset] = React.useState({ scope, tagIdsKey, selectedMemberId, selectedCampaignId });
+  const dateFilterKey = `${dateFilter.preset}_${dateFilter.since?.getTime() || ""}_${dateFilter.until?.getTime() || ""}`;
+  const [prevReset, setPrevReset] = React.useState({ scope, tagIdsKey, selectedMemberId, selectedCampaignId, dateFilterKey });
   if (
     prevReset.scope !== scope ||
     prevReset.tagIdsKey !== tagIdsKey ||
     prevReset.selectedMemberId !== selectedMemberId ||
-    prevReset.selectedCampaignId !== selectedCampaignId
+    prevReset.selectedCampaignId !== selectedCampaignId ||
+    prevReset.dateFilterKey !== dateFilterKey
   ) {
-    setPrevReset({ scope, tagIdsKey, selectedMemberId, selectedCampaignId });
+    setPrevReset({ scope, tagIdsKey, selectedMemberId, selectedCampaignId, dateFilterKey });
     setParams((prev) => paramsForScope(prev.sortBy));
   }
 
@@ -346,6 +417,9 @@ export default function UniboxPage() {
           onSelectMember={(id) => setSelectedMemberId(id)}
           selectedCampaignId={selectedCampaignId}
           onSelectCampaign={(id) => setSelectedCampaignId(id)}
+          dateFilter={dateFilter}
+          onSelectDatePreset={handleSelectDatePreset}
+          onApplyCustomDateRange={handleApplyCustomDateRange}
           isMaster={isMaster}
           currentUser={user}
         />
@@ -381,6 +455,8 @@ export default function UniboxPage() {
                   scopeLabel={scopeLabel}
                   params={params}
                   setParams={setParams}
+                  activeDateLabel={dateFilter.preset !== "all" ? dateFilter.label : undefined}
+                  onClearDateFilter={() => handleSelectDatePreset("all")}
                 />
               </div>
 

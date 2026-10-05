@@ -64,7 +64,7 @@ export function isIdleCampaign(c: Pick<CampaignStatusSubject, "status" | "idle_s
 }
 
 export const CAMPAIGN_IDLE_LABEL = "waiting for leads";
-export const CAMPAIGN_IDLE_TONE = "text-sky-600";
+export const CAMPAIGN_IDLE_TONE = "text-slate-900";
 
 export function campaignDisplayTone(c: CampaignStatusSubject): string {
     if (isIdleCampaign(c)) return CAMPAIGN_IDLE_TONE;

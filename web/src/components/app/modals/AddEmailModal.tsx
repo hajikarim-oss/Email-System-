@@ -556,14 +556,14 @@ function ProviderNotConfigured({ provider, selfHosted }: { provider: OAuthProvid
     return (
         <div className="p-4">
             {selfHosted && (
-                <div className="mb-3 rounded-md border border-sky-200 bg-sky-50 p-3 flex items-start gap-2.5">
-                    <CloudIcon className="w-4 h-4 text-sky-600 mt-0.5 shrink-0" />
+                <div className="mb-3 rounded-md border border-amber-200 bg-[#FFF9DB] p-3 flex items-start gap-2.5">
+                    <CloudIcon className="w-4 h-4 text-slate-900 mt-0.5 shrink-0" />
                     <div className="min-w-0">
-                        <p className="text-[12.5px] font-medium text-sky-900">Skip the OAuth setup: connect TheBoredMonkey Cloud</p>
-                        <p className="text-[12.5px] text-sky-800 mt-1">
+                        <p className="text-[12.5px] font-medium text-slate-900">Skip the OAuth setup: connect TheBoredMonkey Cloud</p>
+                        <p className="text-[12.5px] text-slate-900 mt-1">
                             Linked instances sign mailboxes in through TheBoredMonkey's own Google and Microsoft apps, and the cloud warms them. Free for 10 mailboxes.
                         </p>
-                        <a href="/app/settings/warmbly-cloud" className="mt-2 inline-flex h-7 px-2.5 items-center gap-1.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium transition-colors">
+                        <a href="/app/settings/warmbly-cloud" className="mt-2 inline-flex h-7 px-2.5 items-center gap-1.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors">
                             Connect TheBoredMonkey Cloud
                         </a>
                     </div>
@@ -700,9 +700,9 @@ function WorkspaceMailboxes({ onAdopted }: { onAdopted: () => void }) {
     };
 
     return (
-        <div className="px-4 py-3 bg-sky-50/40">
+        <div className="px-4 py-3 bg-[#FFF9DB]/40">
             <div className="flex items-center gap-1.5 mb-2">
-                <CloudIcon className="w-3.5 h-3.5 text-sky-600" />
+                <CloudIcon className="w-3.5 h-3.5 text-slate-900" />
                 <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">In your TheBoredMonkey Cloud workspace</span>
             </div>
             <div className="space-y-1.5">
@@ -1114,7 +1114,7 @@ function HostPortInput({
     portPlaceholder: string;
 }) {
     return (
-        <div className="flex items-stretch h-7 rounded-md border border-slate-200 bg-white focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 transition-colors min-w-0 overflow-hidden">
+        <div className="flex items-stretch h-7 rounded-md border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-2 focus-within:ring-[#FFE600]/30 transition-colors min-w-0 overflow-hidden">
             <input
                 value={host}
                 onChange={(e) => onHost(e.target.value)}

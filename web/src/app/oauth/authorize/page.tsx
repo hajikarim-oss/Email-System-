@@ -133,7 +133,7 @@ export default function OAuthConsentPage() {
                 {info.logo_url ? (
                     <img src={info.logo_url} alt={info.name} className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-200" />
                 ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50 text-[18px] font-semibold uppercase text-sky-700 ring-1 ring-sky-100">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FFF9DB] text-[18px] font-semibold uppercase text-slate-900 ring-1 ring-[#FFE600]/40">
                         {info.name.charAt(0)}
                     </div>
                 )}
@@ -146,7 +146,7 @@ export default function OAuthConsentPage() {
                         href={info.website_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11.5px] text-sky-700 hover:underline"
+                        className="inline-flex items-center gap-1 text-[11.5px] text-slate-900 hover:underline"
                     >
                         <ExternalLinkIcon className="h-3 w-3" />
                         {info.website_url.replace(/^https?:\/\//, "")}
@@ -177,7 +177,7 @@ export default function OAuthConsentPage() {
                 <button
                     onClick={approve}
                     disabled={submitting}
-                    className="h-9 flex-1 rounded-lg bg-sky-600 text-[13px] font-medium text-white hover:bg-sky-700 disabled:opacity-60"
+                    className="h-9 flex-1 rounded-lg bg-[#18181B] text-[13px] font-medium text-white hover:bg-black disabled:opacity-60"
                 >
                     {submitting ? "Authorizing…" : "Authorize"}
                 </button>

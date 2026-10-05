@@ -39,16 +39,15 @@ export function Page({ children, className }: {
     width?: "default" | "wide" | "full";
 }) {
     return (
-        <div className={cn("flex flex-col min-h-full bg-white", className)}>
+        <div className={cn("flex flex-col min-h-full bg-[#FAF9F5]", className)}>
             {children}
         </div>
     );
 }
 
 /**
- * PageTopbar — 48px topbar at the top of a page. Eyebrow label at the
- * left in small tracked uppercase, an inline subtitle for context, actions
- * on the right.
+ * PageTopbar — 48px topbar at the top of a page. Editorial headline at the
+ * left, an inline subtitle for context, actions on the right.
  */
 export function PageTopbar({
     eyebrow,
@@ -66,22 +65,24 @@ export function PageTopbar({
             className={cn(
                 // Single 48px row on >=md; on mobile it wraps so action
                 // clusters drop to a second line instead of widening the page.
-                "min-h-12 md:h-12 px-5 py-1.5 md:py-0 border-b border-slate-200 flex flex-wrap md:flex-nowrap items-center gap-3 gap-y-1.5 shrink-0 bg-white sticky top-0 z-10",
+                "min-h-12 md:h-12 px-5 py-1.5 md:py-0 border-b border-stone-200/90 flex flex-wrap md:flex-nowrap items-center gap-3 gap-y-1.5 shrink-0 bg-white sticky top-0 z-10",
                 className,
             )}
         >
-            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">
-                {eyebrow}
-            </span>
-            {subtitle && (
-                <>
-                    <div className="h-4 w-px bg-slate-200" />
-                    <span className="text-[12.5px] text-slate-600 truncate">
-                        {subtitle}
-                    </span>
-                </>
-            )}
-            {children && <div className="ml-auto flex items-center gap-1.5 min-w-0 flex-wrap justify-end md:flex-nowrap">{children}</div>}
+            <div className="flex items-center gap-2.5 min-w-0">
+                <span className="font-editorial text-[20px] md:text-[22px] font-normal tracking-tight text-slate-950">
+                    {eyebrow}
+                </span>
+                {subtitle && (
+                    <>
+                        <div className="h-4 w-px bg-stone-300 shrink-0" />
+                        <span className="text-[12.5px] text-slate-600 font-medium truncate">
+                            {subtitle}
+                        </span>
+                    </>
+                )}
+            </div>
+            {children && <div className="ml-auto flex items-center gap-2 min-w-0 flex-wrap justify-end md:flex-nowrap">{children}</div>}
         </div>
     );
 }
@@ -108,11 +109,11 @@ export function TopbarAction({
 }) {
     const cls =
         variant === "primary"
-            ? "bg-sky-600 hover:bg-sky-700 text-white"
-            : "border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 bg-white";
+            ? "bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 font-semibold border border-black/10 shadow-xs"
+            : "border border-slate-300 hover:border-slate-900 text-slate-800 hover:text-black bg-white font-medium shadow-2xs";
     if (href) {
         const actionCls = cn(
-            "h-7 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors",
+            "h-7 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors cursor-pointer",
             cls,
             className,
         );
@@ -136,7 +137,7 @@ export function TopbarAction({
             onClick={onClick}
             disabled={disabled}
             className={cn(
-                "h-7 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
+                "h-7 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer",
                 cls,
                 className,
             )}
@@ -199,23 +200,23 @@ export function Stat({
     const inner = (
         <>
             <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">
+                <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold">
                     {label}
                 </span>
                 {accent && (
-                    <span className="size-1.5 rounded-full bg-sky-500 animate-pulse" />
+                    <span className="size-2 rounded-full bg-[#FFE600] ring-2 ring-[#FFE600]/30 shadow-xs" />
                 )}
                 {(href || onClick) && (
-                    <span className="ml-auto text-[10px] text-slate-300 group-hover:text-slate-500 transition-colors">
+                    <span className="ml-auto text-[11px] text-slate-400 group-hover:text-slate-600 transition-colors">
                         →
                     </span>
                 )}
             </div>
-            <div className="text-[26px] text-slate-900 font-light leading-none mt-2 tabular-nums">
+            <div className="text-[22px] text-slate-900 font-bold tracking-tight leading-none mt-2 tabular-nums">
                 {typeof value === "number" ? value.toLocaleString() : value}
             </div>
             {sub && (
-                <div className="text-[10px] text-slate-400 mt-1.5 font-mono truncate">{sub}</div>
+                <div className="text-[10px] text-slate-400 mt-1 font-mono truncate">{sub}</div>
             )}
         </>
     );
@@ -280,7 +281,7 @@ export function SectionBar({
                 className,
             )}
         >
-            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">
+            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold">
                 {label}
             </span>
             {count !== undefined && (
@@ -343,14 +344,14 @@ export function EmptyBlock({
     cta?: React.ReactNode;
 }) {
     return (
-        <div className="px-5 py-16 text-center">
-            <p className="text-[12.5px] text-slate-700 font-medium mb-1">{title}</p>
+        <div className="px-5 py-16 text-center bg-[#FAF9F5]/30 flex flex-col items-center justify-center">
+            <h3 className="font-editorial text-2xl font-normal text-slate-950 tracking-tight mb-1">{title}</h3>
             {body && (
-                <p className="text-[11.5px] text-slate-400 mb-4 max-w-[34ch] mx-auto leading-relaxed">
+                <p className="text-[13px] text-slate-600 mb-4 max-w-[36ch] mx-auto leading-relaxed">
                     {body}
                 </p>
             )}
-            {cta && <div className="mt-4 flex justify-center gap-1.5">{cta}</div>}
+            {cta && <div className="mt-4 flex justify-center gap-2">{cta}</div>}
         </div>
     );
 }

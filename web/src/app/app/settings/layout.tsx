@@ -275,7 +275,7 @@ function SettingsLayoutInner() {
                                     type="button"
                                     onClick={saveAndLeave}
                                     disabled={savingLeave}
-                                    className="h-8 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12.5px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                    className="h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12.5px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                                 >
                                     {savingLeave && <Loader2Icon className="w-3.5 h-3.5 animate-spin" />}
                                     Save changes

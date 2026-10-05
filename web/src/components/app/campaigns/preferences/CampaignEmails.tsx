@@ -53,7 +53,7 @@ function RampPreview({
                         <div
                             key={i}
                             title={`Day ${i + 1}: ${val}/day`}
-                            className={`flex-1 min-w-[4px] rounded-t-sm ${today ? "bg-sky-500" : "bg-sky-200"}`}
+                            className={`flex-1 min-w-[4px] rounded-t-sm ${today ? "bg-amber-400" : "bg-[#FFE600]/60"}`}
                             style={{ height: `${Math.max(10, (val / ceiling) * 100)}%` }}
                         />
                     );
@@ -169,7 +169,7 @@ export function RotationRampSection({
                                 className="w-36"
                             />
                         </div>
-                        <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-sky-50 text-sky-700 text-[11.5px] font-medium">
+                        <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-[#FFF9DB] text-slate-900 text-[11.5px] font-medium">
                             Today's cap
                             <span className="font-mono tabular-nums">{newCampaign.ramp_level}</span>
                         </span>

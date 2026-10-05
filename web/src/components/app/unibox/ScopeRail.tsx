@@ -137,7 +137,7 @@ export function ScopeRail({ scope, onChange }: ScopeRailProps) {
           <button
             type="button"
             onClick={() => useComposeStore.getState().openCompose()}
-            className="w-full h-8 rounded-lg bg-sky-600 text-white text-[12px] font-medium inline-flex items-center justify-center gap-1.5 hover:bg-sky-700 active:bg-sky-800 shadow-sm shadow-sky-600/20 transition-colors"
+            className="w-full h-8 rounded-lg bg-[#FFE600] text-slate-950 text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-[#F2DC00] border border-black/10 shadow-xs transition-colors cursor-pointer"
           >
             <PenLineIcon className="w-3.5 h-3.5" />
             Compose
@@ -553,7 +553,7 @@ function FolderItem({
             active
               ? "bg-white/80 text-slate-700"
               : countTone === "accent"
-                ? "bg-sky-100 text-sky-700"
+                ? "bg-[#FFF3B0] text-slate-900"
                 : "text-slate-400",
           )}
         >
@@ -617,13 +617,13 @@ function Item({
       className={cn(
         "w-full h-7 pl-2 pr-2 rounded-md flex items-center gap-2 transition-colors text-left",
         active
-          ? "bg-sky-100 text-sky-900 font-medium"
+          ? "bg-[#FFF3B0] text-slate-900 font-medium"
           : "text-slate-600 hover:bg-slate-200/70 hover:text-slate-900",
       )}
       title={label}
     >
       <span
-        className={cn("shrink-0", active ? "text-sky-700" : "text-slate-500")}
+        className={cn("shrink-0", active ? "text-slate-900" : "text-slate-500")}
       >
         {icon}
       </span>
@@ -640,9 +640,9 @@ function Item({
           className={cn(
             "shrink-0 font-mono tabular-nums text-[10.5px] px-1.5 h-4 rounded inline-flex items-center",
             active
-              ? "bg-white/80 text-sky-700"
+              ? "bg-white/80 text-slate-900"
               : countTone === "accent"
-                ? "bg-sky-100 text-sky-700"
+                ? "bg-[#FFF3B0] text-slate-900"
                 : "text-slate-400",
           )}
         >

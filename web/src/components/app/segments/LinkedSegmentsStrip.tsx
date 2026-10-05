@@ -47,7 +47,7 @@ export default function LinkedSegmentsStrip({
                                 className={cn(
                                     "h-6 pl-1.5 pr-2 rounded-l-md border inline-flex items-center gap-1.5 text-[11.5px] transition-colors",
                                     active
-                                        ? "border-sky-300 bg-sky-50 text-sky-800"
+                                        ? "border-amber-200 bg-[#FFF9DB] text-slate-900"
                                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900",
                                 )}
                             >
@@ -59,7 +59,7 @@ export default function LinkedSegmentsStrip({
                                         empty || held
                                             ? "text-amber-700"
                                             : active
-                                              ? "text-sky-700"
+                                              ? "text-slate-900"
                                               : "text-slate-500",
                                     )}
                                 >
@@ -80,7 +80,7 @@ export default function LinkedSegmentsStrip({
                                 className={cn(
                                     "h-6 px-1.5 rounded-r-md border border-l-0 inline-flex items-center transition-colors",
                                     active
-                                        ? "border-sky-300 bg-sky-50 text-sky-700 hover:text-sky-900"
+                                        ? "border-amber-200 bg-[#FFF9DB] text-slate-900 hover:text-black underline underline-offset-2 cursor-pointer"
                                         : "border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:border-slate-300",
                                 )}
                             >

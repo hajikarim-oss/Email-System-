@@ -9,12 +9,13 @@
 // the rest of the strip scrolls horizontally.
 
 import * as React from "react";
-import { LayoutGridIcon, PenLineIcon, XIcon, UsersIcon, UserIcon, CheckIcon, LayersIcon } from "lucide-react";
+import { LayoutGridIcon, PenLineIcon, XIcon, UsersIcon, UserIcon, CheckIcon, LayersIcon, CalendarIcon } from "lucide-react";
 import useUniboxOverview from "@/lib/api/hooks/app/unibox/useUniboxOverview";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import ShortcutTooltip from "@/components/ui/shortcut-tooltip";
 import { useComposeStore } from "@/hooks/useComposeStore";
 import { PopoverMenu, PopoverMenuTrigger, PopoverMenuContent, PopoverMenuItem, SelectButton } from "@/components/ui/popover-menu";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { cn } from "@/lib/utils";
 
 export const UNIBOX_TEAM_MEMBERS = [
@@ -34,6 +35,17 @@ export const UNIBOX_CAMPAIGNS = [
     { id: "cmtvl4lye0001tdcgjxhipix8", name: "Campaign 108", code: "Th_camp_108", leadCount: 20, unread: 0, memberId: "cmu6m31bv00033307zao17anp" },
 ];
 
+export type UniboxDatePreset = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
+
+export interface UniboxDateFilterState {
+    preset: UniboxDatePreset;
+    since?: Date;
+    until?: Date;
+    customStart?: string;
+    customEnd?: string;
+    label?: string;
+}
+
 interface UniboxHeaderProps {
     scopeLabel: string;
     onClearScope?: () => void;
@@ -42,6 +54,9 @@ interface UniboxHeaderProps {
     onSelectMember?: (id: string) => void;
     selectedCampaignId?: string;
     onSelectCampaign?: (id: string) => void;
+    dateFilter?: UniboxDateFilterState;
+    onSelectDatePreset?: (preset: UniboxDatePreset) => void;
+    onApplyCustomDateRange?: (start: string, end: string) => void;
     isMaster?: boolean;
     currentUser?: any;
 }
@@ -54,6 +69,9 @@ export function UniboxHeader({
     onSelectMember,
     selectedCampaignId = "all",
     onSelectCampaign,
+    dateFilter = { preset: "all" },
+    onSelectDatePreset,
+    onApplyCustomDateRange,
     isMaster = true,
     currentUser,
 }: UniboxHeaderProps) {
@@ -80,6 +98,14 @@ export function UniboxHeader({
         ];
     }, [isMaster, currentUser]);
 
+    const [customFrom, setCustomFrom] = React.useState(dateFilter.customStart || "");
+    const [customTo, setCustomTo] = React.useState(dateFilter.customEnd || "");
+
+    React.useEffect(() => {
+        if (dateFilter.customStart !== undefined) setCustomFrom(dateFilter.customStart);
+        if (dateFilter.customEnd !== undefined) setCustomTo(dateFilter.customEnd);
+    }, [dateFilter.customStart, dateFilter.customEnd]);
+
     return (
         <header className="h-10 px-3 sm:px-4 border-b border-slate-200 bg-white flex items-center gap-2 sm:gap-3 shrink-0 overflow-x-auto">
             {onOpenScopeSheet && (
@@ -103,7 +129,7 @@ export function UniboxHeader({
                 <PopoverMenu align="start">
                     <PopoverMenuTrigger asChild>
                         <SelectButton
-                            icon={<UsersIcon className="w-3.5 h-3.5 text-sky-600" />}
+                            icon={<UsersIcon className="w-3.5 h-3.5 text-slate-900" />}
                             label={currentMember.name}
                             className="h-7 text-xs font-medium w-[160px] justify-between shrink-0"
                         />
@@ -121,27 +147,27 @@ export function UniboxHeader({
                                 trailing={
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         {member.unread > 0 && (
-                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 shrink-0">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-sky-600 shrink-0" />
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF3B0] text-slate-900 shrink-0">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[#18181B] shrink-0" />
                                                 {member.unread} unread
                                             </span>
                                         )}
                                         {selectedMemberId === member.id && (
-                                            <CheckIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                            <CheckIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
                                         )}
                                     </div>
                                 }
                                 className={cn(
                                     "flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors mb-0.5",
                                     selectedMemberId === member.id
-                                        ? "bg-sky-50 text-sky-950 font-medium"
+                                        ? "bg-[#FFF9DB] text-slate-900 font-medium"
                                         : "hover:bg-slate-50 text-slate-700"
                                 )}
                             >
                                 <div className="flex flex-col min-w-0 pr-1">
                                     <span className={cn(
                                         "text-[12.5px] truncate leading-snug",
-                                        selectedMemberId === member.id ? "font-semibold text-sky-900" : "font-medium text-slate-800"
+                                        selectedMemberId === member.id ? "font-semibold text-slate-900" : "font-medium text-slate-800"
                                     )}>
                                         {member.name}
                                     </span>
@@ -169,14 +195,14 @@ export function UniboxHeader({
                         className={cn(
                             "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-xs font-medium transition-colors shrink-0",
                             selectedCampaignId !== "all"
-                                ? "bg-sky-50/80 border-sky-300 text-sky-900 font-semibold shadow-xs"
+                                ? "bg-[#FFF9DB]/80 border-amber-200 text-slate-900 font-semibold shadow-xs"
                                 : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                         )}
                     >
-                        <LayersIcon className={cn("w-3.5 h-3.5", selectedCampaignId !== "all" ? "text-sky-600" : "text-slate-500")} />
+                        <LayersIcon className={cn("w-3.5 h-3.5", selectedCampaignId !== "all" ? "text-slate-900" : "text-slate-500")} />
                         <span className="truncate max-w-[130px]">{currentCampaign.name}</span>
                         {currentCampaign.unread > 0 && (
-                            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-sky-200/80 text-sky-800">
+                            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#FFE600]/60/80 text-slate-900">
                                 {currentCampaign.unread}
                             </span>
                         )}
@@ -199,28 +225,28 @@ export function UniboxHeader({
                                             "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold shrink-0",
                                             camp.id === "cmp_1790233732719_dvlj"
                                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
-                                                : "bg-sky-100 text-sky-700"
+                                                : "bg-[#FFF3B0] text-slate-900"
                                         )}>
                                             <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
                                             {camp.unread} unread
                                         </span>
                                     )}
                                     {selectedCampaignId === camp.id && (
-                                        <CheckIcon className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                        <CheckIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
                                     )}
                                 </div>
                             }
                             className={cn(
                                 "flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors mb-0.5",
                                 selectedCampaignId === camp.id
-                                    ? "bg-sky-50 text-sky-950 font-medium"
+                                    ? "bg-[#FFF9DB] text-slate-900 font-medium"
                                     : "hover:bg-slate-50 text-slate-700"
                             )}
                         >
                             <div className="flex flex-col min-w-0 pr-1">
                                 <span className={cn(
                                     "text-[12.5px] truncate leading-snug",
-                                    selectedCampaignId === camp.id ? "font-semibold text-sky-900" : "font-medium text-slate-800"
+                                    selectedCampaignId === camp.id ? "font-semibold text-slate-900" : "font-medium text-slate-800"
                                 )}>
                                     {camp.name}
                                 </span>
@@ -237,13 +263,145 @@ export function UniboxHeader({
 
             {/* Campaign breadcrumb chip when active */}
             {selectedCampaignId !== "all" && (
-                <div className="inline-flex items-center gap-1 h-5 pl-2 pr-1 rounded-full bg-sky-100 text-sky-800 text-[11px] font-medium shrink-0">
+                <div className="inline-flex items-center gap-1 h-5 pl-2 pr-1 rounded-full bg-[#FFF3B0] text-slate-900 text-[11px] font-medium shrink-0">
                     <span>{currentCampaign.code || currentCampaign.name}</span>
                     <button
                         type="button"
                         onClick={() => onSelectCampaign?.("all")}
-                        className="hover:bg-sky-200 rounded-full p-0.5 transition-colors"
+                        className="hover:bg-[#FFE600]/60 rounded-full p-0.5 transition-colors"
                         aria-label="Clear campaign filter"
+                    >
+                        <XIcon className="w-2.5 h-2.5" />
+                    </button>
+                </div>
+            )}
+
+            {/* Date Filter Dropdown */}
+            <PopoverMenu align="start">
+                <PopoverMenuTrigger asChild>
+                    <button
+                        type="button"
+                        className={cn(
+                            "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-xs font-medium transition-colors shrink-0",
+                            dateFilter.preset !== "all"
+                                ? "bg-[#FFF9DB]/80 border-amber-200 text-slate-900 font-semibold shadow-xs"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                        )}
+                    >
+                        <CalendarIcon className={cn("w-3.5 h-3.5", dateFilter.preset !== "all" ? "text-slate-900" : "text-slate-500")} />
+                        <span className="truncate max-w-[125px]">
+                            {dateFilter.preset === "all" ? "Date" : (dateFilter.label || "Date Filter")}
+                        </span>
+                        {dateFilter.preset !== "all" && (
+                            <span
+                                role="button"
+                                tabIndex={-1}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelectDatePreset?.("all");
+                                }}
+                                className="hover:bg-[#FFE600]/60 rounded-full p-0.5 transition-colors ml-0.5"
+                                aria-label="Clear date filter"
+                            >
+                                <XIcon className="w-2.5 h-2.5" />
+                            </span>
+                        )}
+                    </button>
+                </PopoverMenuTrigger>
+                <PopoverMenuContent minWidth={270} className="w-[280px] p-2 shadow-xl border border-slate-200/90 rounded-xl bg-white z-50">
+                    <div className="px-2 py-1 flex items-center justify-between border-b border-slate-100 mb-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Filter by Date</span>
+                        {dateFilter.preset !== "all" && (
+                            <button
+                                type="button"
+                                onClick={() => onSelectDatePreset?.("all")}
+                                className="text-[10.5px] text-slate-900 hover:text-black font-medium"
+                            >
+                                Reset
+                            </button>
+                        )}
+                    </div>
+                    <div className="space-y-0.5">
+                        {[
+                            { id: "all", label: "All time" },
+                            { id: "today", label: "Today" },
+                            { id: "yesterday", label: "Yesterday" },
+                            { id: "7d", label: "Last 7 days" },
+                            { id: "30d", label: "Last 30 days" },
+                        ].map((item) => (
+                            <PopoverMenuItem
+                                key={item.id}
+                                selected={dateFilter.preset === item.id}
+                                onSelect={() => onSelectDatePreset?.(item.id as UniboxDatePreset)}
+                                trailing={
+                                    dateFilter.preset === item.id ? (
+                                        <CheckIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
+                                    ) : undefined
+                                }
+                                className={cn(
+                                    "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors",
+                                    dateFilter.preset === item.id
+                                        ? "bg-[#FFF9DB] text-slate-900 font-semibold"
+                                        : "hover:bg-slate-50 text-slate-700"
+                                )}
+                            >
+                                <span>{item.label}</span>
+                            </PopoverMenuItem>
+                        ))}
+                    </div>
+
+                    {/* Custom Date Range Picker */}
+                    <div className="mt-2.5 pt-2 border-t border-slate-100">
+                        <div className="flex items-center justify-between px-1 mb-1.5">
+                            <span className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wider">
+                                Custom Range
+                            </span>
+                            {dateFilter.preset === "custom" && (
+                                <span className="text-[10px] font-semibold text-slate-900">Active</span>
+                            )}
+                        </div>
+                        <div className="space-y-1.5 px-0.5">
+                            <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">From</label>
+                                <DatePicker
+                                    value={customFrom}
+                                    onChange={setCustomFrom}
+                                    placeholder="Start date"
+                                    className="w-full"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 font-medium block mb-0.5">To</label>
+                                <DatePicker
+                                    value={customTo}
+                                    onChange={setCustomTo}
+                                    placeholder="End date"
+                                    className="w-full"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                disabled={!customFrom && !customTo}
+                                onClick={() => onApplyCustomDateRange?.(customFrom, customTo)}
+                                className="w-full mt-1 h-7 rounded-md bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900 text-white text-[11.5px] font-medium transition-colors"
+                            >
+                                Apply Range
+                            </button>
+                        </div>
+                    </div>
+                </PopoverMenuContent>
+            </PopoverMenu>
+
+            {/* Date filter active breadcrumb chip */}
+            {dateFilter.preset !== "all" && (
+                <div className="inline-flex items-center gap-1 h-5 pl-2 pr-1 rounded-full bg-[#FFF3B0] text-slate-900 text-[11px] font-medium shrink-0">
+                    <CalendarIcon className="w-2.5 h-2.5 text-slate-900" />
+                    <span>{dateFilter.label || "Date"}</span>
+                    <button
+                        type="button"
+                        onClick={() => onSelectDatePreset?.("all")}
+                        className="hover:bg-[#FFE600]/60 rounded-full p-0.5 transition-colors"
+                        aria-label="Clear date filter"
                     >
                         <XIcon className="w-2.5 h-2.5" />
                     </button>
@@ -254,7 +412,7 @@ export function UniboxHeader({
                 <button
                     type="button"
                     onClick={onClearScope}
-                    className="inline-flex items-center gap-1 h-5 pl-1.5 pr-1 rounded bg-sky-50 text-sky-700 text-[11px] font-medium hover:bg-sky-100 transition-colors shrink-0"
+                    className="inline-flex items-center gap-1 h-5 pl-1.5 pr-1 rounded bg-[#FFF9DB] text-slate-900 text-[11px] font-medium hover:bg-[#FFF3B0] transition-colors shrink-0"
                     aria-label="Clear scope"
                 >
                     <span className="truncate max-w-[45vw] md:max-w-none">{scopeLabel}</span>
@@ -302,7 +460,7 @@ export function UniboxHeader({
                     <button
                         type="button"
                         onClick={() => useComposeStore.getState().openCompose()}
-                        className="lg:hidden inline-flex items-center gap-1.5 h-6 px-2.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11.5px] font-medium shadow-sm shadow-sky-600/20 transition-colors"
+                        className="lg:hidden inline-flex items-center gap-1.5 h-6 px-2.5 rounded-lg bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-[11.5px] font-semibold shadow-xs transition-colors cursor-pointer"
                     >
                         <PenLineIcon className="w-3 h-3" />
                         Compose
@@ -331,7 +489,7 @@ function Stat({
             <span
                 className={cn(
                     "font-mono tabular-nums text-[12.5px] font-semibold",
-                    tone === "accent" ? "text-sky-600" : muted ? "text-slate-400" : "text-slate-900",
+                    tone === "accent" ? "text-slate-900" : muted ? "text-slate-400" : "text-slate-900",
                 )}
             >
                 <AnimatedNumber value={value} />

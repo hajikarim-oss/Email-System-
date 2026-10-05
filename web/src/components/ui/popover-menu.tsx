@@ -315,7 +315,7 @@ export function PopoverMenuContent({
 
 export function PopoverMenuLabel({ children }: { children: React.ReactNode }) {
     return (
-        <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">
+        <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold">
             {children}
         </div>
     );
@@ -374,7 +374,7 @@ export function PopoverMenuItem({
             {trailing !== undefined ? (
                 trailing ? <div className="shrink-0">{trailing}</div> : null
             ) : selected ? (
-                <span className="text-[10px] text-sky-600 shrink-0">●</span>
+                <span className="text-[12px] text-amber-500 font-bold shrink-0">●</span>
             ) : null}
         </button>
     );
@@ -417,7 +417,7 @@ export const SelectButton = React.forwardRef<HTMLButtonElement, SelectButtonProp
                 type="button"
                 {...rest}
                 className={cn(
-                    "h-7 px-2 rounded-md border border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:text-slate-900 inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors",
+                    "h-7 px-2.5 rounded-md border border-stone-200/90 hover:border-stone-900 bg-white text-slate-800 hover:text-black inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors shadow-2xs cursor-pointer",
                     className,
                 )}
             >

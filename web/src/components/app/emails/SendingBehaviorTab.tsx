@@ -227,7 +227,7 @@ function TodayCard({ mailboxId, enabled }: { mailboxId: string; enabled: boolean
                 <span className="text-slate-400 tabular-nums">{p.remaining_today} left</span>
             </div>
             <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${used}%` }} />
+                <div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${used}%` }} />
             </div>
         </div>
     );
@@ -302,7 +302,7 @@ export default function SendingBehaviorTab({ mailboxId, timezone }: { mailboxId:
                         <div
                             className={cn(
                                 "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                                form.enabled ? "bg-sky-50 text-sky-600" : "bg-slate-100 text-slate-400",
+                                form.enabled ? "bg-[#FFF9DB] text-slate-900" : "bg-slate-100 text-slate-400",
                             )}
                         >
                             <ClockIcon className="w-4 h-4" />
@@ -441,9 +441,9 @@ export default function SendingBehaviorTab({ mailboxId, timezone }: { mailboxId:
 
                 {/* Timezone note */}
                 <div className="px-5 py-4">
-                    <div className="rounded-md border border-sky-100 bg-sky-50/70 px-3 py-2.5 flex gap-2.5">
-                        <InfoIcon className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
-                        <p className="text-[11.5px] text-sky-900/90 leading-relaxed">
+                    <div className="rounded-md border border-amber-200 bg-[#FFF9DB]/70 px-3 py-2.5 flex gap-2.5">
+                        <InfoIcon className="w-4 h-4 text-slate-900 shrink-0 mt-0.5" />
+                        <p className="text-[11.5px] text-slate-900/90 leading-relaxed">
                             Every time here is local to <b>{tz || "UTC"}</b>, this mailbox&apos;s own timezone. Mailboxes in
                             other regions keep their own working hours on the same campaign. Change the timezone on the
                             mailbox to move the whole schedule.
@@ -478,9 +478,9 @@ export default function SendingBehaviorTab({ mailboxId, timezone }: { mailboxId:
                             <button
                                 onClick={save}
                                 disabled={mutation.isPending || !!error}
-                                className="h-8 px-3.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                className="h-8 px-3.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                             >
-                                {mutation.isPending && <Loading className="!w-3.5 h-3.5 text-white" />}
+                                {mutation.isPending && <Loading className="!w-3.5 h-3.5 text-slate-950" />}
                                 Save behaviour
                             </button>
                         </div>

@@ -114,7 +114,7 @@ export default function AdvisorCard({ finding, onFix, compact = false, defaultOp
                         {finding.action?.auto && !applied ? (
                             <span
                                 title="Autopilot can apply this one on its own when it is switched on"
-                                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-sky-500/25 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-700"
+                                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-900/25 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-900"
                             >
                                 <ZapIcon className="h-2.5 w-2.5" />
                                 Auto
@@ -145,7 +145,7 @@ export default function AdvisorCard({ finding, onFix, compact = false, defaultOp
                             }}
                             className={`inline-flex h-7 items-center rounded-md px-2 text-[12px] font-medium opacity-100 transition md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 ${
                                 finding.action
-                                    ? "bg-sky-600 text-white hover:bg-sky-700"
+                                    ? "bg-[#18181B] text-white hover:bg-black"
                                     : "border border-slate-200 text-slate-600 hover:bg-slate-50"
                             }`}
                         >

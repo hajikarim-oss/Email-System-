@@ -705,49 +705,51 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }, 200);
     }
 
+    const DEFAULT_NOTIFICATIONS = [
+        {
+            id: "notif_reply_jayant_q3",
+            user_id: "cmu6m304o00003307qj8ex6oa",
+            category: "inbound_reply",
+            title: "New reply from Jayant (Miss Mosa)",
+            body: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
+            link: "/app/unibox/all/th_camp_jayant_missmosa",
+            read_at: null,
+            created_at: "2026-09-24T11:33:00.000Z",
+        },
+        {
+            id: "notif_reply_saurabh_q3",
+            user_id: "cmu6m304o00003307qj8ex6oa",
+            category: "inbound_reply",
+            title: "New reply from Saurabh (Limeroad)",
+            body: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
+            link: "/app/unibox/all/th_camp_saurabh_limeroad",
+            read_at: null,
+            created_at: "2026-09-24T10:15:00.000Z",
+        },
+        {
+            id: "notif_reply_rajdeep_q2",
+            user_id: "cmtr9pp8t0000cygeyjpsz5lt",
+            category: "inbound_reply",
+            title: "New reply from Rajdeep More",
+            body: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More.",
+            link: "/app/unibox/all/th_camp_rajdeep_main",
+            read_at: null,
+            created_at: "2026-09-16T06:48:00.000Z",
+        },
+        {
+            id: "notif_reply_snehal_101",
+            user_id: "cmtr9pp8t0000cygeyjpsz5lt",
+            category: "inbound_reply",
+            title: "New reply from Snehal Maurya",
+            body: "Noted with thanks. Karim",
+            link: "/app/unibox/all/th_reachout_101_snehal",
+            read_at: null,
+            created_at: "2026-09-16T05:30:00.000Z",
+        },
+    ];
+
     if (pathWithoutQuery === "/auth/me/notifications" || pathWithoutQuery.startsWith("/auth/me/notifications/")) {
-        const defaultNotifications = [
-            {
-                id: "notif_reply_jayant_q3",
-                user_id: "cmu6m304o00003307qj8ex6oa",
-                category: "inbound_reply",
-                title: "New reply from Jayant (Miss Mosa)",
-                body: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
-                link: "/app/unibox/all/th_camp_jayant_missmosa",
-                read_at: null,
-                created_at: "2026-09-24T11:33:00.000Z",
-            },
-            {
-                id: "notif_reply_saurabh_q3",
-                user_id: "cmu6m304o00003307qj8ex6oa",
-                category: "inbound_reply",
-                title: "New reply from Saurabh (Limeroad)",
-                body: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
-                link: "/app/unibox/all/th_camp_saurabh_limeroad",
-                read_at: null,
-                created_at: "2026-09-24T10:15:00.000Z",
-            },
-            {
-                id: "notif_reply_rajdeep_q2",
-                user_id: "cmtr9pp8t0000cygeyjpsz5lt",
-                category: "inbound_reply",
-                title: "New reply from Rajdeep More",
-                body: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More.",
-                link: "/app/unibox/all/th_camp_rajdeep_main",
-                read_at: null,
-                created_at: "2026-09-16T06:48:00.000Z",
-            },
-            {
-                id: "notif_reply_snehal_101",
-                user_id: "cmtr9pp8t0000cygeyjpsz5lt",
-                category: "inbound_reply",
-                title: "New reply from Snehal Maurya",
-                body: "Noted with thanks. Karim",
-                link: "/app/unibox/all/th_reachout_101_snehal",
-                read_at: null,
-                created_at: "2026-09-16T05:30:00.000Z",
-            },
-        ];
+        const defaultNotifications = DEFAULT_NOTIFICATIONS;
 
         // Mark all as read
         if (config.method?.toLowerCase() === "put" && pathWithoutQuery === "/auth/me/notifications") {
@@ -1242,77 +1244,91 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     // 5. Campaigns
     const campaigns = await loadStorageLazy("campaigns", (c) => c?.campaigns || []);
+    const deletedCampaignIds = loadStorage<string[]>("deleted_campaign_ids", []);
 
-    // Guarantee that Q3 Campaign is present and marked as ACTIVE
-    const q3Idx = campaigns.findIndex((c: any) =>
-        c.id === "cmp_1790233732719_dvlj" ||
-        c.smartlead_id === 4015596 ||
-        (c.name && c.name.toLowerCase().includes("q3"))
-    );
-    if (q3Idx >= 0) {
-        campaigns[q3Idx] = {
-            ...campaigns[q3Idx],
-            ...Q3_CAMPAIGN_DEF,
-            id: "cmp_1790233732719_dvlj",
-            name: "Q3 Campaign",
-            smartlead_id: 4015596,
-            status: "active",
-            smartlead_status: "ACTIVE",
-            sent_count: 48,
-            open_count: 22,
-            click_count: 1,
-            reply_count: 0,
-            bounce_count: 4,
-            open_rate: 45.8,
-            click_rate: 2.1,
-            reply_rate: 0.0,
-            bounce_rate: 8.3,
-            total_leads: Math.max(campaigns[q3Idx].total_leads || 0, 1785),
-            steps: (campaigns[q3Idx].steps && campaigns[q3Idx].steps.length > 0) ? campaigns[q3Idx].steps : Q3_CAMPAIGN_DEF.steps,
-            sequences: (campaigns[q3Idx].sequences && campaigns[q3Idx].sequences.length > 0) ? campaigns[q3Idx].sequences : Q3_CAMPAIGN_DEF.sequences,
-        };
-    } else {
-        campaigns.unshift({ ...Q3_CAMPAIGN_DEF });
+    // Filter out any permanently deleted campaigns
+    for (let i = campaigns.length - 1; i >= 0; i--) {
+        if (deletedCampaignIds.includes(campaigns[i].id)) {
+            campaigns.splice(i, 1);
+        }
     }
 
-    // Guarantee that Q2 Reachout Mails is present, correctly identified with ID cmp_1789718475256_g91f and Smartlead #3980868 (PAUSED)
-    const q2Idx = campaigns.findIndex((c: any) =>
-        c.id === "cmp_1789718475256_g91f" ||
-        (c.id && c.id.toLowerCase().includes("1789718475256")) ||
-        (c.name && c.name.toLowerCase().includes("reachout"))
-    );
-    if (q2Idx >= 0) {
-        campaigns[q2Idx] = {
-            ...campaigns[q2Idx],
-            ...Q2_CAMPAIGN_DEF,
-            id: "cmp_1789718475256_g91f",
-            name: "Q2 Reachout Mails",
-            smartlead_id: 3980868,
-            status: "paused",
-            smartlead_status: "PAUSED",
-            sent_count: 48,
-            open_count: 28,
-            click_count: 8,
-            reply_count: 0,
-            bounce_count: 12,
-            open_rate: 58.3,
-            click_rate: 16.7,
-            reply_rate: 0.0,
-            bounce_rate: 25.0,
-            total_leads: Math.max(campaigns[q2Idx].total_leads || 0, 1876),
-            steps: (campaigns[q2Idx].steps && campaigns[q2Idx].steps.length > 0) ? campaigns[q2Idx].steps : Q2_CAMPAIGN_DEF.steps,
-            sequences: (campaigns[q2Idx].sequences && campaigns[q2Idx].sequences.length > 0) ? campaigns[q2Idx].sequences : Q2_CAMPAIGN_DEF.sequences,
-        };
-    } else {
-        campaigns.splice(1, 0, { ...Q2_CAMPAIGN_DEF });
+    // Guarantee that Q3 Campaign is present unless explicitly deleted
+    if (!deletedCampaignIds.includes("cmp_1790233732719_dvlj")) {
+        const q3Idx = campaigns.findIndex((c: any) =>
+            c.id === "cmp_1790233732719_dvlj" ||
+            c.smartlead_id === 4015596 ||
+            (c.name && c.name.toLowerCase().includes("q3"))
+        );
+        if (q3Idx >= 0) {
+            const currentQ3Status = campaigns[q3Idx].status || "active";
+            campaigns[q3Idx] = {
+                ...Q3_CAMPAIGN_DEF,
+                ...campaigns[q3Idx],
+                id: "cmp_1790233732719_dvlj",
+                name: "Q3 Campaign",
+                smartlead_id: 4015596,
+                status: currentQ3Status,
+                smartlead_status: currentQ3Status === "paused" ? "PAUSED" : "ACTIVE",
+                sent_count: 48,
+                open_count: 22,
+                click_count: 1,
+                reply_count: 0,
+                bounce_count: 4,
+                open_rate: 45.8,
+                click_rate: 2.1,
+                reply_rate: 0.0,
+                bounce_rate: 8.3,
+                total_leads: Math.max(campaigns[q3Idx].total_leads || 0, 1785),
+                steps: (campaigns[q3Idx].steps && campaigns[q3Idx].steps.length > 0) ? campaigns[q3Idx].steps : Q3_CAMPAIGN_DEF.steps,
+                sequences: (campaigns[q3Idx].sequences && campaigns[q3Idx].sequences.length > 0) ? campaigns[q3Idx].sequences : Q3_CAMPAIGN_DEF.sequences,
+            };
+        } else {
+            campaigns.unshift({ ...Q3_CAMPAIGN_DEF });
+        }
+    }
+
+    // Guarantee that Q2 Reachout Mails is present unless explicitly deleted
+    if (!deletedCampaignIds.includes("cmp_1789718475256_g91f")) {
+        const q2Idx = campaigns.findIndex((c: any) =>
+            c.id === "cmp_1789718475256_g91f" ||
+            (c.id && c.id.toLowerCase().includes("1789718475256")) ||
+            (c.name && c.name.toLowerCase().includes("reachout"))
+        );
+        if (q2Idx >= 0) {
+            const currentQ2Status = campaigns[q2Idx].status || "paused";
+            campaigns[q2Idx] = {
+                ...Q2_CAMPAIGN_DEF,
+                ...campaigns[q2Idx],
+                id: "cmp_1789718475256_g91f",
+                name: "Q2 Reachout Mails",
+                smartlead_id: 3980868,
+                status: currentQ2Status,
+                smartlead_status: currentQ2Status === "active" ? "ACTIVE" : "PAUSED",
+                sent_count: 48,
+                open_count: 28,
+                click_count: 8,
+                reply_count: 0,
+                bounce_count: 12,
+                open_rate: 58.3,
+                click_rate: 16.7,
+                reply_rate: 0.0,
+                bounce_rate: 25.0,
+                total_leads: Math.max(campaigns[q2Idx].total_leads || 0, 1876),
+                steps: (campaigns[q2Idx].steps && campaigns[q2Idx].steps.length > 0) ? campaigns[q2Idx].steps : Q2_CAMPAIGN_DEF.steps,
+                sequences: (campaigns[q2Idx].sequences && campaigns[q2Idx].sequences.length > 0) ? campaigns[q2Idx].sequences : Q2_CAMPAIGN_DEF.sequences,
+            };
+        } else {
+            campaigns.splice(1, 0, { ...Q2_CAMPAIGN_DEF });
+        }
     }
 
     // Link Campaign 116 / 120 / 108 / 106 as PAUSED to match live Smartlead state
     campaigns.forEach((c: any) => {
         if (c.id === "cmp_1789556689473" || c.name === "Campaign 116") {
             c.smartlead_id = 3967633;
-            c.status = "paused";
-            c.smartlead_status = "PAUSED";
+            c.status = c.status || "paused";
+            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
             c.sent_count = 1;
             c.open_count = 1;
             c.click_count = 0;
@@ -1322,8 +1338,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             c.reply_rate = 100.0;
         } else if (c.id === "cmp_1789560721755" || (c.name?.includes("120") && !c.name?.includes("Reachout"))) {
             c.smartlead_id = 3967990;
-            c.status = "paused";
-            c.smartlead_status = "PAUSED";
+            c.status = c.status || "paused";
+            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
             c.sent_count = 1;
             c.open_count = 1;
             c.click_count = 0;
@@ -1332,15 +1348,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             c.open_rate = 100.0;
             c.reply_rate = 100.0;
         } else if (c.id === "cmtvl4lye0001tdcgjxhipix8" || c.name?.includes("108")) {
-            c.status = "paused";
-            c.smartlead_status = "PAUSED";
+            c.status = c.status || "paused";
+            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
         } else if (c.id === "cmtvi0fiz0001gkjds7ym4te0" || c.name?.includes("106")) {
-            c.status = "paused";
-            c.smartlead_status = "PAUSED";
+            c.status = c.status || "paused";
+            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
         } else if (c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) {
             c.smartlead_id = 3980868;
-            c.status = "paused";
-            c.smartlead_status = "PAUSED";
+            c.status = c.status || "paused";
+            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
             if (!c.total_leads || c.total_leads < 1876) c.total_leads = 1876;
             if (!c.sent_count) c.sent_count = 48;
             c.timezone = "Asia/Kolkata";
@@ -1612,7 +1628,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const matchingContacts = contacts.filter((c: any) =>
             c.campaign_id === campId || (Array.isArray(c.campaigns) && c.campaigns.includes(campId))
         );
-        if (matchingContacts.length >= ((isQ2 ? 1876 : 100))) {
+        if (matchingContacts.length > 0) {
             saveStorage(`campaign_leads_${campId}`, matchingContacts);
             const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
             if (camp) {
@@ -1923,28 +1939,42 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         // DELETE CAMPAIGN: Remove from array, clean up lead mappings, persist to localStorage
         if (method === "DELETE" && (!sub || sub === "delete")) {
-            const campIndex = campaigns.findIndex((c: { id: string }) => c.id === campId);
+            const targetId = match?.id || campId;
+            const campIndex = campaigns.findIndex((c: any) => c.id === targetId || c.id === campId);
             if (campIndex >= 0) {
                 campaigns.splice(campIndex, 1);
                 saveStorage("campaigns", campaigns);
             }
+            try {
+                localStorage.removeItem(`tbm_core_data_v5_campaign_leads_${targetId}`);
+                localStorage.removeItem(`tbm_core_data_v5_campaign_logs_${targetId}`);
+                localStorage.removeItem(`tbm_core_data_v5_campaign_leads_${campId}`);
+                localStorage.removeItem(`tbm_core_data_v5_campaign_logs_${campId}`);
+            } catch {}
+            const curDelCamps = loadStorage<string[]>("deleted_campaign_ids", []);
+            if (!curDelCamps.includes(targetId)) curDelCamps.push(targetId);
+            if (!curDelCamps.includes(campId)) curDelCamps.push(campId);
+            saveStorage("deleted_campaign_ids", curDelCamps);
+
             // Clean up contacts referencing this campaign
-                const currentContacts = await loadStorageLazy("contacts", (c) => c?.contacts || []);
+            const currentContacts = await loadStorageLazy("contacts", (c) => c?.contacts || []);
             let contactsModified = false;
             currentContacts.forEach((ct: any) => {
-                if (ct.campaign_id === campId) {
+                if (ct.campaign_id === targetId || ct.campaign_id === campId) {
                     ct.campaign_id = null;
                     contactsModified = true;
                 }
-                if (Array.isArray(ct.campaigns) && ct.campaigns.includes(campId)) {
-                    ct.campaigns = ct.campaigns.filter((id: string) => id !== campId);
-                    contactsModified = true;
+                if (Array.isArray(ct.campaigns)) {
+                    if (ct.campaigns.includes(targetId) || ct.campaigns.includes(campId)) {
+                        ct.campaigns = ct.campaigns.filter((id: string) => id !== targetId && id !== campId);
+                        contactsModified = true;
+                    }
                 }
             });
             if (contactsModified) {
                 saveStorage("contacts", currentContacts);
             }
-            return res({ success: true, deleted_id: campId });
+            return res({ success: true, deleted_id: targetId });
         }
 
         // DUPLICATE CAMPAIGN
@@ -2318,26 +2348,34 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         // STOP / PAUSE CAMPAIGN
         if ((sub === "stop" || sub === "pause") && method === "POST") {
-            if (match) {
-                match.status = "paused";
-                match.smartlead_status = "PAUSED";
-                match.updated_at = new Date().toISOString();
-                saveStorage("campaigns", campaigns);
-
-                // Instantly sync pause to Smartlead
-                const smId = match.smartlead_id || (match.id === "cmp_1789718475256_g91f" ? 3980868 : null);
-                if (smId) {
-                    fetch(`/api/smartlead/status?id=${smId}`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ status: "PAUSED" }),
-                    }).catch(() => {});
-                }
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: match.id, status: "paused" } }));
-                }
+            const targetId = match?.id || campId;
+            const target = match || campaigns.find((c: any) => c.id === targetId || c.id === campId);
+            if (target) {
+                target.status = "paused";
+                target.smartlead_status = "PAUSED";
+                target.updated_at = new Date().toISOString();
             }
-            return res({ status: "paused" });
+            const idx = campaigns.findIndex((c: any) => c.id === targetId || c.id === campId);
+            if (idx >= 0) {
+                campaigns[idx].status = "paused";
+                campaigns[idx].smartlead_status = "PAUSED";
+                campaigns[idx].updated_at = new Date().toISOString();
+            }
+            saveStorage("campaigns", campaigns);
+
+            // Instantly sync pause to Smartlead
+            const smId = target?.smartlead_id || (targetId === "cmp_1789718475256_g91f" ? 3980868 : null);
+            if (smId) {
+                fetch(`/api/smartlead/status?id=${smId}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "PAUSED" }),
+                }).catch(() => {});
+            }
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: targetId, status: "paused" } }));
+            }
+            return res({ status: "paused", id: targetId });
         }
 
         if (sub === "steps" || sub === "sequences") {
@@ -2682,6 +2720,32 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         saveStorage("campaigns", campaigns);
                     }
                 }
+                if (addCamps.includes(cId)) {
+                    const toAddContacts = contacts.filter((ct: any) => ids.includes(ct.id) || body.all);
+                    const existingIds = new Set(cLeads.map((l: any) => l.id));
+                    const newLeads = toAddContacts.filter(c => !existingIds.has(c.id)).map(c => ({
+                        ...c,
+                        campaign_id: cId,
+                        campaigns: Array.from(new Set([...(c.campaigns || []), cId])),
+                        campaign_lead: {
+                            status: "pending",
+                            sent: 0,
+                            opened: 0,
+                            machine_opened: 0,
+                            clicked: 0,
+                            replied: 0,
+                            bounced: 0,
+                            unsubscribed: 0
+                        }
+                    }));
+                    const combined = [...cLeads, ...newLeads];
+                    saveStorage(`campaign_leads_${cId}`, combined);
+                    const camp = campaigns.find((c: any) => c.id === cId);
+                    if (camp) {
+                        camp.total_leads = combined.length;
+                        saveStorage("campaigns", campaigns);
+                    }
+                }
             }
 
             const updatedContacts: any[] = [];
@@ -2813,7 +2877,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             console.warn("[standaloneMock] Failed to query intelligence contacts, falling back:", e);
         }
         if (liveContactsError) {
-            throw new Error(liveContactsError);
+            console.warn("[standaloneMock] Live contacts endpoint unavailable, falling back to local dataset:", liveContactsError);
         }
 
         // Campaign scoping — if campaign_ids is specified, query dedicated campaign leads registry
@@ -3112,13 +3176,13 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     if (pathWithoutQuery === "/contacts/segments") {
         const { counts, error } = await loadCategoryCounts();
-        if (error) throw new Error(error);
+        if (error) console.warn("[standaloneMock] live category counts error:", error);
         return res(buildSegments(counts));
     }
 
     if (pathWithoutQuery === "/contacts/categories") {
         const { counts, error } = await loadCategoryCounts();
-        if (error) throw new Error(error);
+        if (error) console.warn("[standaloneMock] live category counts error:", error);
         return res(buildCategories(counts));
     }
 
@@ -3501,14 +3565,16 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         id: "msg_reply_rajdeep_main",
         email_id: "cmtlkufpi000o80qmmlfsfat7", // Haji Karim
         thread_id: "th_camp_rajdeep_main",
+        campaign_id: "cmp_1789718475256_g91f",
+        campaign_name: "Q2 Reachout Mails",
         from_addr: ["Haji Karim <hajikarimbeldaar@gmail.com>"],
         to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
         subject: "Re: Influencer marketing partnership — TheBoredMonkey",
         snippet: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More. Best regards, Haji Karim",
         internal_date: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
-        seen: true,
+        seen: false,
         message_count: 2,
-        has_unread: false,
+        has_unread: true,
         folder: "inbox",
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
@@ -3898,14 +3964,19 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         // 4. Since / Until date filtering
         const sinceParam = queryParams.get("since");
         if (sinceParam) {
-            const sinceTime = new Date(sinceParam).getTime();
+            const sinceDate = new Date(sinceParam);
+            const sinceTime = sinceDate.getTime();
             if (!Number.isNaN(sinceTime)) {
                 pool = pool.filter(r => new Date(r.internal_date || "").getTime() >= sinceTime);
             }
         }
         const untilParam = queryParams.get("until");
         if (untilParam) {
-            const untilTime = new Date(untilParam).getTime();
+            const untilDate = new Date(untilParam);
+            if (untilParam.length === 10) {
+                untilDate.setHours(23, 59, 59, 999);
+            }
+            const untilTime = untilDate.getTime();
             if (!Number.isNaN(untilTime)) {
                 pool = pool.filter(r => new Date(r.internal_date || "").getTime() <= untilTime);
             }
@@ -4118,6 +4189,37 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/unibox/seen") {
+        const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+        const emailIds: string[] = body.email_ids || body.ids || [];
+        const threadId = body.threadId || body.thread_id;
+        const seen = body.seen !== false;
+
+        // 1. Update unibox_inbox_messages
+        const currentInbox = loadStorage<any[]>("unibox_inbox_messages", defaultInboxRows);
+        const updatedInbox = currentInbox.map(r => {
+            const matches = (threadId && (r.thread_id === threadId || r.id === threadId)) || 
+                            emailIds.includes(r.id) || 
+                            emailIds.includes(r.email_id) || 
+                            (r.thread_id && emailIds.includes(r.thread_id));
+            if (matches) {
+                return { ...r, seen, has_unread: !seen };
+            }
+            return r;
+        });
+        saveStorage("unibox_inbox_messages", updatedInbox);
+
+        // 2. Mark corresponding notifications in app_notifications_feed as read
+        const currentNotifs = loadStorage<any[]>("app_notifications_feed", DEFAULT_NOTIFICATIONS);
+        const updatedNotifs = currentNotifs.map(n => {
+            const matchesThread = threadId && n.link?.includes(threadId);
+            const matchesId = emailIds.some(id => n.link?.includes(id));
+            if (matchesThread || matchesId) {
+                return { ...n, read_at: seen ? new Date().toISOString() : null };
+            }
+            return n;
+        });
+        saveStorage("app_notifications_feed", updatedNotifs);
+
         return res({ status: "ok", updated: true });
     }
 

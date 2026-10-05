@@ -296,7 +296,7 @@ export default function RichTextEditor({
     // underline appears on focus, nothing more.
     if (minimal) {
         return (
-            <div className="border-b border-transparent pb-1 transition-colors focus-within:border-sky-300">
+            <div className="border-b border-transparent pb-1 transition-colors focus-within:border-slate-800">
                 <div className="relative">
                     <EditorContent editor={editor} />
                     {placeholder && editor.isEmpty && (
@@ -312,7 +312,7 @@ export default function RichTextEditor({
     }
 
     return (
-        <div className="rounded-md border border-slate-200 bg-white focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 transition-colors">
+        <div className="rounded-md border border-slate-200 bg-white focus-within:border-slate-800 focus-within:ring-2 focus-within:ring-[#FFE600]/30 transition-colors">
             <Toolbar
                 editor={editor}
                 variables={variables}
@@ -524,7 +524,7 @@ function Toolbar({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => editor.chain().focus().insertAIVariable().run()}
                 title="Insert an AI block — writes unique copy for each recipient"
-                className="h-7 px-1.5 inline-flex items-center gap-1 rounded text-sky-600 transition-colors hover:bg-sky-50 hover:text-sky-700"
+                className="h-7 px-1.5 inline-flex items-center gap-1 rounded text-slate-900 transition-colors hover:bg-[#FFF9DB] hover:text-black"
             >
                 <SparklesIcon className="w-3.5 h-3.5" />
                 <span className="text-[11.5px] font-medium">AI</span>
@@ -573,7 +573,7 @@ function Toolbar({
                                 }
                             }}
                             placeholder="https://…"
-                            className="h-7 w-56 rounded border border-slate-200 px-2 text-[12px] text-slate-800 outline-none focus:border-sky-400"
+                            className="h-7 w-56 rounded border border-slate-200 px-2 text-[12px] text-slate-800 outline-none focus:border-slate-800"
                         />
                         {links.includes(UNSUBSCRIBE_TOKEN) && (
                             <button
@@ -631,7 +631,7 @@ function Btn({
             onMouseDown={(e) => e.preventDefault()}
             onClick={onClick}
             className={`size-7 inline-flex items-center justify-center rounded transition-colors disabled:opacity-40 disabled:hover:bg-transparent ${
-                active ? "bg-sky-50 text-sky-700" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                active ? "bg-[#FFF9DB] text-slate-900" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
             }`}
         >
             {children}
@@ -738,7 +738,7 @@ export function VariableMenu({
                                                 onPick(v);
                                                 setOpen(false);
                                             }}
-                                            className="flex min-w-0 flex-col items-start rounded-md border border-slate-200 px-2 py-1 text-left transition-colors hover:border-sky-300 hover:bg-sky-50/50"
+                                            className="flex min-w-0 flex-col items-start rounded-md border border-slate-200 px-2 py-1 text-left transition-colors hover:border-amber-200 hover:bg-[#FFF9DB]"
                                         >
                                             <span className="w-full truncate text-[11.5px] text-slate-700">
                                                 {meta?.label ?? v}
@@ -770,7 +770,7 @@ export function VariableMenu({
                                                     onPick(v);
                                                     setOpen(false);
                                                 }}
-                                                className="flex min-w-0 flex-col items-start rounded-md border border-slate-200 px-2 py-1 text-left transition-colors hover:border-sky-300 hover:bg-sky-50/50"
+                                                className="flex min-w-0 flex-col items-start rounded-md border border-slate-200 px-2 py-1 text-left transition-colors hover:border-amber-200 hover:bg-[#FFF9DB]"
                                             >
                                                 <span className="w-full truncate text-[11.5px] text-slate-700">
                                                     {meta?.label ?? v}
@@ -800,14 +800,14 @@ export function VariableMenu({
                                         }
                                     }}
                                     placeholder="field name (e.g. role)"
-                                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                                 />
                                 <button
                                     type="button"
                                     onMouseDown={(e) => e.preventDefault()}
                                     onClick={insertCustom}
                                     disabled={!customName}
-                                    className="h-7 shrink-0 rounded-md bg-sky-600 px-2.5 text-[11.5px] font-medium text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
+                                    className="h-7 shrink-0 rounded-md bg-[#18181B] px-2.5 text-[11.5px] font-medium text-white transition-colors hover:bg-black disabled:opacity-50"
                                 >
                                     Insert
                                 </button>
@@ -827,7 +827,7 @@ export function VariableMenu({
                                                 setCustom("");
                                                 setOpen(false);
                                             }}
-                                            className="inline-flex max-w-full items-center truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                                            className="inline-flex max-w-full items-center truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600 transition-colors hover:border-amber-200 hover:bg-[#FFF9DB] hover:text-black"
                                         >
                                             {k}
                                         </button>
@@ -854,7 +854,7 @@ export function VariableMenu({
                             target="_blank"
                             rel="noreferrer"
                             onMouseDown={(e) => e.preventDefault()}
-                            className="flex items-center justify-between gap-2 border-t border-slate-100 px-3 py-2 text-[11.5px] font-medium text-sky-600 transition-colors hover:bg-sky-50/60"
+                            className="flex items-center justify-between gap-2 border-t border-slate-100 px-3 py-2 text-[11.5px] font-medium text-slate-900 transition-colors hover:bg-[#FFF9DB]"
                         >
                             Full guide &amp; examples
                             <span aria-hidden="true">↗</span>

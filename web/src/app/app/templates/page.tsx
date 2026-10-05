@@ -118,7 +118,7 @@ export default function TemplatesPage() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search by name or subject…"
-                        className="w-full h-7 pl-7 pr-7 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                        className="w-full h-7 pl-7 pr-7 rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30"
                     />
                     {search && (
                         <button
@@ -643,7 +643,7 @@ function TemplateEditor({
                                     onChange={(e) => setBodyPlain(e.target.value)}
                                     placeholder="Hi {{.FirstName}}, …"
                                     rows={8}
-                                    className="w-full rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100 px-2.5 py-2 resize-y leading-relaxed font-mono"
+                                    className="w-full rounded-md border border-slate-200 bg-white text-[12.5px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 px-2.5 py-2 resize-y leading-relaxed font-mono"
                                 />
                             </div>
 
@@ -670,7 +670,7 @@ function TemplateEditor({
                                         onChange={(e) => setBodyHTML(e.target.value)}
                                         placeholder="<p>Hi {{.FirstName}}, …</p>"
                                         rows={6}
-                                        className="w-full rounded-md border border-slate-200 bg-slate-50 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-sky-400 focus:ring-2 focus:ring-sky-100 px-2.5 py-2 resize-y leading-relaxed font-mono"
+                                        className="w-full rounded-md border border-slate-200 bg-slate-50 text-[12px] text-slate-900 placeholder:text-slate-400 outline-none transition-colors focus:border-slate-800 focus:ring-2 focus:ring-[#FFE600]/30 px-2.5 py-2 resize-y leading-relaxed font-mono"
                                     />
                                 )}
                             </div>

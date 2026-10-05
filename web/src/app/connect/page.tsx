@@ -190,7 +190,7 @@ function Steps({ current }: { current: "code" | "review" | "done" }) {
                         </div>
                         {i < STEPS.length - 1 && (
                             <span className="relative flex-1 h-px bg-slate-200 overflow-hidden rounded-full">
-                                <motion.span animate={{ width: i < idx ? "100%" : "0%" }} transition={{ duration: 0.4 }} className="absolute inset-y-0 left-0 bg-sky-600" />
+                                <motion.span animate={{ width: i < idx ? "100%" : "0%" }} transition={{ duration: 0.4 }} className="absolute inset-y-0 left-0 bg-[#18181B]" />
                             </span>
                         )}
                     </React.Fragment>
@@ -204,7 +204,7 @@ function CodeStep({ code, setCode, loading, error, onRetry }: { code: string; se
     return (
         <div>
             <div className="text-center">
-                <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-sky-50 text-sky-700 text-[11px] font-medium">
+                <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-[#FFF9DB] text-slate-900 text-[11px] font-medium">
                     <CloudIcon className="w-3 h-3" /> TheBoredMonkey Cloud
                 </span>
                 <h1 className="mt-4 text-[24px] sm:text-[28px] font-semibold tracking-[-0.03em] leading-[1.1] text-slate-900">Link your self-hosted instance</h1>
@@ -263,7 +263,7 @@ function Slot({ index }: { index: number }) {
     return (
         <InputOTPSlot
             index={index}
-            className="!w-10 !h-12 sm:!w-12 sm:!h-14 !rounded-lg !border !border-slate-200 !shadow-none first:!rounded-lg last:!rounded-lg text-[20px] font-semibold font-mono text-slate-900 data-[active=true]:!border-sky-400 data-[active=true]:!ring-sky-400/15"
+            className="!w-10 !h-12 sm:!w-12 sm:!h-14 !rounded-lg !border !border-slate-200 !shadow-none first:!rounded-lg last:!rounded-lg text-[20px] font-semibold font-mono text-slate-900 data-[active=true]:!border-slate-800 data-[active=true]:!ring-slate-800/15"
         />
     );
 }
@@ -310,7 +310,7 @@ function ReviewStep({
                 {pending ? "This instance wants to warm its mailboxes here" : "This code was already used"}
             </h1>
 
-            <div className="mt-5 flex items-center gap-4 rounded-xl border border-slate-200 bg-gradient-to-b from-sky-50/60 to-white px-4 py-4">
+            <div className="mt-5 flex items-center gap-4 rounded-xl border border-slate-200 bg-gradient-to-b from-[#FFF9DB]/60 to-white px-4 py-4">
                 <span className="size-11 rounded-lg bg-slate-900 text-white inline-flex items-center justify-center shrink-0">
                     <ServerIcon className="w-5 h-5" />
                 </span>
@@ -332,7 +332,7 @@ function ReviewStep({
                             : "It is linked already. If the instance is still waiting, start a new request from its settings."}
                     </p>
                     <div className="mt-5 flex items-center gap-2">
-                        <Link to="/app/settings/warmbly-cloud" className="h-10 px-4 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[13px] font-medium inline-flex items-center gap-1.5 transition-colors">
+                        <Link to="/app/settings/warmbly-cloud" className="h-10 px-4 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[13px] font-medium inline-flex items-center gap-1.5 transition-colors">
                             Linked instances <ArrowRightIcon className="w-3.5 h-3.5" />
                         </Link>
                     </div>
@@ -355,17 +355,17 @@ function ReviewStep({
                                         type="button"
                                         onClick={() => setOrgId(o.id)}
                                         className={`w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                                            on ? "border-sky-400 bg-sky-50/60 ring-2 ring-sky-100" : "border-slate-200 hover:border-slate-300"
+                                            on ? "border-slate-800 bg-[#FFF9DB]/60 ring-2 ring-[#FFE600]/40" : "border-slate-200 hover:border-slate-300"
                                         }`}
                                     >
-                                        <span className={`size-8 rounded-md inline-flex items-center justify-center shrink-0 overflow-hidden ${on ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                                        <span className={`size-8 rounded-md inline-flex items-center justify-center shrink-0 overflow-hidden ${on ? "bg-[#18181B] text-white" : "bg-slate-100 text-slate-600"}`}>
                                             {o.avatar ? <img src={o.avatar} alt="" className="size-full object-cover" /> : <BuildingIcon className="w-4 h-4" />}
                                         </span>
                                         <span className="min-w-0 flex-1">
                                             <span className="block text-[13.5px] font-medium text-slate-900 truncate">{o.name}</span>
                                             <span className="block text-[11.5px] text-slate-500 capitalize">{o.role}</span>
                                         </span>
-                                        <span className={`size-4 rounded-full border inline-flex items-center justify-center ${on ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300"}`}>
+                                        <span className={`size-4 rounded-full border inline-flex items-center justify-center ${on ? "border-slate-900 bg-[#18181B] text-white" : "border-slate-300"}`}>
                                             {on && <CheckIcon className="w-2.5 h-2.5" />}
                                         </span>
                                     </button>
@@ -393,7 +393,7 @@ function ReviewStep({
                             type="button"
                             onClick={onApprove}
                             disabled={!orgId || busy}
-                            className="flex-1 h-10 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[13.5px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60"
+                            className="flex-1 h-10 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[13.5px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60"
                         >
                             {approving ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <CheckIcon className="w-4 h-4" />}
                             Link instance
@@ -408,7 +408,7 @@ function ReviewStep({
 function Perm({ icon: Icon, title, body }: { icon: React.ComponentType<{ className?: string }>; title: string; body: string }) {
     return (
         <li className="rounded-lg border border-slate-200 px-3 py-2.5 flex items-start gap-2.5">
-            <Icon className="w-4 h-4 mt-0.5 text-sky-600 shrink-0" />
+            <Icon className="w-4 h-4 mt-0.5 text-slate-900 shrink-0" />
             <span>
                 <span className="block text-[12px] font-semibold text-slate-900">{title}</span>
                 <span className="block text-[12px] text-slate-500 leading-relaxed">{body}</span>
@@ -425,14 +425,14 @@ function Flow() {
                 {[0, 1].map((i) => (
                     <motion.span
                         key={i}
-                        className="absolute top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-sky-500"
+                        className="absolute top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-amber-400"
                         initial={{ left: 0, opacity: 0 }}
                         animate={{ left: ["0%", "100%"], opacity: [0, 1, 1, 0] }}
                         transition={{ duration: 1.8, delay: i * 0.9, repeat: Infinity, ease: "easeInOut" }}
                     />
                 ))}
             </span>
-            <span className="size-9 rounded-lg bg-sky-600 text-white inline-flex items-center justify-center">
+            <span className="size-9 rounded-lg bg-[#18181B] text-white inline-flex items-center justify-center">
                 <CloudIcon className="w-4 h-4" />
             </span>
         </div>
@@ -473,14 +473,14 @@ function DoneStep({ approved, instanceName, instanceUrl, orgName, onAnother }: {
             </p>
             <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
                 {approved && instanceUrl && (
-                    <a href={instanceUrl} className="h-10 px-4 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[13.5px] font-medium inline-flex items-center gap-1.5 transition-colors">
+                    <a href={instanceUrl} className="h-10 px-4 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[13.5px] font-medium inline-flex items-center gap-1.5 transition-colors">
                         Back to {instanceName || "your instance"} <ExternalLinkIcon className="w-3.5 h-3.5" />
                     </a>
                 )}
                 <Link
                     to="/app/settings/warmbly-cloud"
                     className={`h-10 px-4 rounded-md text-[13.5px] font-medium inline-flex items-center gap-1.5 transition-colors ${
-                        approved && instanceUrl ? "border border-slate-200 hover:border-slate-300 text-slate-800" : "bg-sky-600 hover:bg-sky-700 text-white"
+                        approved && instanceUrl ? "border border-slate-200 hover:border-slate-300 text-slate-800" : "bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer"
                     }`}
                 >
                     Linked instances <ArrowRightIcon className="w-3.5 h-3.5" />

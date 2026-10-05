@@ -191,9 +191,9 @@ export default function Calendar({
                             isDisabled
                               ? "text-slate-300 cursor-not-allowed"
                               : isSelected
-                                ? "bg-sky-600 text-white font-medium"
+                                ? "bg-[#18181B] text-white font-medium"
                                 : isCurrentDay
-                                  ? "bg-sky-50 text-sky-700 font-medium hover:bg-sky-100"
+                                  ? "bg-[#FFF9DB] text-slate-900 font-medium hover:bg-[#FFF3B0]"
                                   : isCurrentMonth
                                     ? "text-slate-700 hover:bg-slate-100"
                                     : "text-slate-300 hover:bg-slate-50"
@@ -224,7 +224,7 @@ export default function Calendar({
                       setCurrentMonth(new Date());
                       handleDateSelect(new Date());
                     }}
-                    className="text-[11.5px] font-medium text-sky-600 hover:text-sky-700 transition-colors"
+                    className="text-[11.5px] font-medium text-slate-900 hover:text-black transition-colors"
                   >
                     Today
                   </button>

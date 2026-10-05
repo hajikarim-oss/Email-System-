@@ -174,7 +174,7 @@ export default function WorkspaceSettingsPage() {
                     label="Unsubscribe and opt-out"
                     description="The opt-out line every campaign email carries, and the suppression list, live under Sending."
                 >
-                    <Link to="/app/settings/sending" className="text-[12px] text-sky-700 hover:text-sky-800 font-medium">
+                    <Link to="/app/settings/sending" className="text-[12px] text-slate-900 hover:text-black cursor-pointer font-medium">
                         Open sending settings
                     </Link>
                 </Row>

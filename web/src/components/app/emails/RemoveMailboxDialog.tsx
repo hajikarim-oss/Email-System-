@@ -103,8 +103,8 @@ export default function RemoveMailboxDialog({
                         <div className="p-5 space-y-4">
                             {/* Mailbox Card */}
                             <div className="flex items-center gap-3 p-3 rounded-lg border border-slate-200/80 bg-slate-50/60">
-                                <div className="w-9 h-9 rounded-full bg-sky-100 border border-sky-200/60 flex items-center justify-center shrink-0">
-                                    <span className="text-[11px] font-bold text-sky-700">
+                                <div className="w-9 h-9 rounded-full bg-[#FFF3B0] border border-amber-200/60 flex items-center justify-center shrink-0">
+                                    <span className="text-[11px] font-bold text-slate-900">
                                         {initials}
                                     </span>
                                 </div>

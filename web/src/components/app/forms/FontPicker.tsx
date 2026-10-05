@@ -76,7 +76,7 @@ export default function FontPicker({
                 aria-expanded={open}
                 onClick={() => setOpen((o) => !o)}
                 className={`h-7 w-full px-2.5 inline-flex items-center gap-2 rounded-md border bg-white text-[12.5px] text-slate-900 transition-colors ${
-                    open ? "border-sky-400 ring-2 ring-sky-100" : "border-slate-200 hover:border-slate-300"
+                    open ? "border-slate-800 ring-2 ring-[#FFE600]/40" : "border-slate-200 hover:border-slate-300"
                 }`}
             >
                 <span className="truncate" style={{ fontFamily: FONT_CATALOG[current].stack }}>
@@ -111,7 +111,7 @@ export default function FontPicker({
                                                 setOpen(false);
                                             }}
                                             className={`w-full h-9 px-2.5 rounded flex items-center gap-2 text-left transition-colors ${
-                                                active ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-100"
+                                                active ? "bg-[#FFF9DB] text-slate-900" : "text-slate-700 hover:bg-slate-100"
                                             }`}
                                         >
                                             <span className="truncate text-[14px]" style={{ fontFamily: f.stack }}>

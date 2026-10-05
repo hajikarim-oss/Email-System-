@@ -56,7 +56,7 @@ function inline(
                                 onOpen(url);
                             }
                         }}
-                        className="text-sky-700 underline decoration-sky-300 underline-offset-2 hover:decoration-sky-500"
+                        className="text-slate-900 underline decoration-slate-400 underline-offset-2 hover:decoration-slate-400"
                     >
                         {label}
                     </a>,
@@ -75,7 +75,7 @@ function Caret() {
     return (
         <span
             aria-hidden
-            className="ai-caret ml-0.5 inline-block h-[1em] w-[2px] translate-y-[0.15em] rounded-sm bg-sky-500"
+            className="ai-caret ml-0.5 inline-block h-[1em] w-[2px] translate-y-[0.15em] rounded-sm bg-amber-400"
         />
     );
 }

@@ -228,7 +228,7 @@ function Chip({
 }) {
     const cls =
         variant === "match"
-            ? "border-sky-200 bg-sky-50/60"
+            ? "border-amber-200 bg-[#FFF9DB]/60"
             : variant === "fallback"
               ? "border-amber-200 bg-amber-50/60 border-dashed"
               : "border-slate-200 bg-slate-50";
@@ -268,8 +268,8 @@ function StatusBadge({ status }: { status: Status }) {
 function ModePill({ mode }: { mode: Mode }) {
     const m = {
         off: { t: "Matching off", c: "bg-slate-100 text-slate-500" },
-        prefer: { t: "Prefer same", c: "bg-sky-50 text-sky-700" },
-        strict: { t: "Strict same", c: "bg-sky-50 text-sky-700" },
+        prefer: { t: "Prefer same", c: "bg-[#FFF9DB] text-slate-900" },
+        strict: { t: "Strict same", c: "bg-[#FFF9DB] text-slate-900" },
     }[mode];
     return (
         <span

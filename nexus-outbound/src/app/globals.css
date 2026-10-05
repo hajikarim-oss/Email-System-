@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
@@ -57,6 +57,7 @@
 
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
+  --font-editorial: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -73,7 +74,7 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  --background: 218 36% 96%;
+  --background: 45 25% 97%;
   --foreground: 222 38% 16%;
   --border: 218 25% 88%;
   --card: 0 0% 100%;
@@ -83,37 +84,37 @@
   --sidebar: 222 36% 15%;
   --sidebar-foreground: 218 28% 86%;
   --sidebar-border: 222 27% 24%;
-  --sidebar-primary: 169 70% 48%;
+  --sidebar-primary: 48 100% 50%;
   --sidebar-primary-foreground: 222 42% 13%;
   --sidebar-accent: 222 30% 21%;
   --sidebar-accent-foreground: 218 28% 91%;
-  --sidebar-ring: 169 70% 48%;
+  --sidebar-ring: 48 100% 50%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 222 38% 16%;
   --popover-border: 218 25% 88%;
 
-  --primary: 169 70% 37%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 48 100% 50%;
+  --primary-foreground: 222 38% 12%;
   --secondary: 218 31% 92%;
   --secondary-foreground: 222 38% 20%;
   --muted: 218 31% 93%;
   --muted-foreground: 219 16% 48%;
-  --accent: 39 94% 62%;
+  --accent: 48 100% 50%;
   --accent-foreground: 222 42% 14%;
   --destructive: 3 71% 52%;
   --destructive-foreground: 0 0% 100%;
 
   --input: 218 24% 82%;
-  --ring: 169 70% 37%;
-  --chart-1: 169 70% 37%;
+  --ring: 48 100% 50%;
+  --chart-1: 48 100% 50%;
   --chart-2: 39 94% 53%;
   --chart-3: 205 72% 51%;
   --chart-4: 3 71% 52%;
   --chart-5: 267 51% 57%;
 
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
-  --app-font-serif: Georgia, serif;
+  --app-font-serif: 'Newsreader', Georgia, serif;
   --app-font-mono: 'DM Mono', monospace;
   --radius: 0.7rem;
 

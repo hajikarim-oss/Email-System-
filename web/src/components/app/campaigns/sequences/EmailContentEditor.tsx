@@ -253,7 +253,7 @@ export default function EmailContentEditor({
                                 type="button"
                                 onClick={saveAsTemplate}
                                 disabled={!tplName.trim() || createTemplate.isPending}
-                                className="h-7 px-2.5 rounded-md bg-sky-600 text-[12px] font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                                className="h-7 px-2.5 rounded-md bg-[#18181B] text-[12px] font-medium text-white hover:bg-black disabled:opacity-50"
                             >
                                 {createTemplate.isPending ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : "Save"}
                             </button>

@@ -181,7 +181,7 @@ function ConfigureStep({
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="production-server"
-                        className="w-full h-8 px-2.5 rounded-md border border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-200 outline-none text-[12.5px] text-slate-900 placeholder:text-slate-400"
+                        className="w-full h-8 px-2.5 rounded-md border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-[#FFE600]/30 outline-none text-[12.5px] text-slate-900 placeholder:text-slate-400"
                     />
                 </Field>
 
@@ -191,7 +191,7 @@ function ConfigureStep({
                         onChange={(e) => setDescription(e.target.value)}
                         rows={2}
                         placeholder="Server-side calls from EU production"
-                        className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-200 outline-none text-[12.5px] text-slate-900 placeholder:text-slate-400 resize-none"
+                        className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-[#FFE600]/30 outline-none text-[12.5px] text-slate-900 placeholder:text-slate-400 resize-none"
                     />
                 </Field>
 
@@ -279,7 +279,7 @@ function ConfigureStep({
                             onChange={(e) => setAllowedIPsRaw(e.target.value)}
                             rows={2}
                             placeholder="203.0.113.10, 198.51.100.0/24"
-                            className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-200 outline-none text-[12px] text-slate-900 placeholder:text-slate-400 resize-none font-mono"
+                            className="w-full px-2.5 py-1.5 rounded-md border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-[#FFE600]/30 outline-none text-[12px] text-slate-900 placeholder:text-slate-400 resize-none font-mono"
                         />
                     </Field>
                 )}
@@ -302,7 +302,7 @@ function ConfigureStep({
                         type="button"
                         onClick={submit}
                         disabled={create.isPending}
-                        className="h-7 px-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                        className="h-7 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
                     >
                         {create.isPending ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <KeyIcon className="w-3 h-3" />}
                         Create key
@@ -439,7 +439,7 @@ function RateLimitSetter({ value, onChange }: { value: number; onChange: (v: num
                 step={1}
                 value={Math.min(value, 1000)}
                 onChange={(e) => onChange(clamp(Number(e.target.value)))}
-                className="w-full mt-3 h-1.5 accent-sky-600 cursor-pointer"
+                className="w-full mt-3 h-1.5 accent-slate-900 cursor-pointer cursor-pointer"
             />
 
             <div className="flex items-center justify-center gap-1.5 mt-2.5">
@@ -450,7 +450,7 @@ function RateLimitSetter({ value, onChange }: { value: number; onChange: (v: num
                         onClick={() => onChange(v)}
                         className={`h-6 px-2.5 rounded-md text-[11px] tabular-nums transition-colors ${
                             value === v
-                                ? "bg-sky-600 text-white"
+                                ? "bg-[#18181B] text-white"
                                 : "border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300"
                         }`}
                     >
@@ -481,13 +481,13 @@ function PresetCard({
             onClick={onClick}
             className={`relative text-left rounded-md border px-2.5 py-2 transition-colors ${
                 active
-                    ? "border-sky-400 bg-sky-50/60"
+                    ? "border-slate-800 bg-[#FFF9DB]/60"
                     : "border-slate-200 hover:border-slate-300 bg-white"
             }`}
         >
             <div className="flex items-center gap-1.5 mb-0.5">
-                <span className={active ? "text-sky-600" : "text-slate-500"}>{icon}</span>
-                <span className={`text-[11.5px] font-medium ${active ? "text-sky-900" : "text-slate-900"}`}>
+                <span className={active ? "text-slate-900" : "text-slate-500"}>{icon}</span>
+                <span className={`text-[11.5px] font-medium ${active ? "text-slate-900" : "text-slate-900"}`}>
                     {label}
                 </span>
             </div>
@@ -543,7 +543,7 @@ function PermissionMatrix({
                                         <div
                                             className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
                                                 on
-                                                    ? "border-sky-600 bg-sky-600 text-white"
+                                                    ? "border-slate-900 bg-[#18181B] text-white"
                                                     : "border-slate-300 bg-white"
                                             }`}
                                         >

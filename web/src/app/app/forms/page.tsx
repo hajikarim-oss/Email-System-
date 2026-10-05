@@ -327,7 +327,7 @@ function FormsList() {
                                 <th className="pl-5 pr-2 py-2 w-9">
                                     <input
                                         type="checkbox"
-                                        className="w-3.5 h-3.5 rounded accent-sky-600"
+                                        className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer"
                                         checked={allSelected}
                                         onChange={toggleAll}
                                     />
@@ -352,13 +352,13 @@ function FormsList() {
                                         key={f.id}
                                         onClick={() => navigate(`/app/forms/${f.id}`)}
                                         className={`h-11 border-b border-slate-100 cursor-pointer transition-colors ${
-                                            isSel ? "bg-sky-50/60 hover:bg-sky-50/80" : "hover:bg-slate-50/80"
+                                            isSel ? "bg-[#FFF9DB]/60 hover:bg-[#FFF9DB]" : "hover:bg-slate-50/80"
                                         }`}
                                     >
                                         <td className="pl-5 pr-2" onClick={(e) => e.stopPropagation()}>
                                             <input
                                                 type="checkbox"
-                                                className="w-3.5 h-3.5 rounded accent-sky-600"
+                                                className="w-3.5 h-3.5 rounded accent-slate-900 cursor-pointer"
                                                 checked={isSel}
                                                 onChange={(e) => toggleOne(f.id, e.target.checked)}
                                             />
@@ -457,7 +457,7 @@ function FormsList() {
 
             {selected.length > 0 && (
                 <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center max-w-[calc(100vw-16px)] flex-wrap justify-center md:max-w-none md:flex-nowrap gap-1.5 rounded-md border border-slate-200 bg-white shadow-[0_6px_20px_-4px_rgba(15,23,42,0.12),0_2px_4px_rgba(15,23,42,0.04)] px-2 py-1.5">
-                    <div className="inline-flex items-center gap-1.5 px-2 h-7 rounded bg-sky-50 text-sky-700 text-[12px] font-medium">
+                    <div className="inline-flex items-center gap-1.5 px-2 h-7 rounded bg-[#FFF9DB] text-slate-900 text-[12px] font-medium">
                         <CheckIcon className="w-3 h-3" />
                         <span>{selected.length} selected</span>
                     </div>

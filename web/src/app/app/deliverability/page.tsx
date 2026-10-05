@@ -225,7 +225,7 @@ export default function DeliverabilityPage() {
                                                     <button
                                                         key={m.key}
                                                         onClick={() => toggleMetric(m.key)}
-                                                        className={`h-6 px-2 rounded text-[11px] font-medium transition-colors inline-flex items-center gap-1.5 ${
+                                                        className={`h-6 px-2 rounded text-[11px] font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
                                                             visible ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
                                                         }`}
                                                     >
@@ -259,7 +259,7 @@ export default function DeliverabilityPage() {
                                             { label: "Sent", value: d?.emails_sent, dot: "bg-slate-400" },
                                             { label: "Opens", value: d?.open_count, dot: "bg-emerald-500" },
                                             { label: "Clicks", value: d?.click_count, dot: "bg-violet-500" },
-                                            { label: "Replies", value: d?.reply_count, dot: "bg-sky-500" },
+                                            { label: "Replies", value: d?.reply_count, dot: "bg-amber-400" },
                                             { label: "Bounces", value: d?.bounce_count, dot: "bg-rose-500" },
                                             { label: "Complaints", value: d?.complaint_count, dot: "bg-amber-500" },
                                             { label: "Unsubscribes", value: d?.unsubscribe_count, dot: "bg-orange-500" },
@@ -474,7 +474,7 @@ function CheckSquare({ on }: { on: boolean }) {
     return (
         <span
             className={`inline-flex size-3.5 items-center justify-center rounded-[3px] border transition-colors ${
-                on ? "bg-sky-600 border-sky-600 text-white" : "border-slate-300 bg-white text-transparent"
+                on ? "bg-[#18181B] border-slate-900 text-white" : "border-slate-300 bg-white text-transparent"
             }`}
         >
             <CheckIcon className="w-2.5 h-2.5" strokeWidth={3} />

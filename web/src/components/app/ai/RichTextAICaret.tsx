@@ -234,7 +234,7 @@ export default function RichTextAICaret({ editor }: { editor: Editor }) {
                         style={{ position: "fixed", top: companion.top - 1, left: companion.left, zIndex: 55 }}
                         title="Write with AI (⌘J)"
                         aria-label="Write with AI"
-                        className="inline-flex size-[22px] items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-sky-50 hover:text-sky-600"
+                        className="inline-flex size-[22px] items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-[#FFF9DB] hover:text-slate-900"
                         onMouseDown={(e) => {
                             e.preventDefault();
                             frozenPos.current = editor.state.selection.from;
@@ -264,7 +264,7 @@ export default function RichTextAICaret({ editor }: { editor: Editor }) {
                     >
                         {phase === "busy" ? (
                             <div className="flex items-center gap-2 px-3 py-2.5">
-                                <SparklesIcon className="h-3.5 w-3.5 shrink-0 animate-pulse text-sky-500" />
+                                <SparklesIcon className="h-3.5 w-3.5 shrink-0 animate-pulse text-amber-500" />
                                 <span className="text-[12px] font-medium text-slate-600">Writing…</span>
                             </div>
                         ) : phase === "applied" ? (
@@ -303,7 +303,7 @@ export default function RichTextAICaret({ editor }: { editor: Editor }) {
                         ) : (
                             <div>
                                 <div className="flex items-center gap-1.5 px-2.5 pb-2 pt-2.5">
-                                    <SparklesIcon className="h-3.5 w-3.5 shrink-0 text-sky-500" />
+                                    <SparklesIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
                                     <input
                                         ref={inputRef}
                                         value={instruction}
@@ -323,7 +323,7 @@ export default function RichTextAICaret({ editor }: { editor: Editor }) {
                                         onClick={submit}
                                         disabled={!instruction.trim()}
                                         aria-label="Write at the cursor"
-                                        className="inline-flex size-6 items-center justify-center rounded-md bg-sky-600 text-white transition-colors hover:bg-sky-700 disabled:opacity-40"
+                                        className="inline-flex size-6 items-center justify-center rounded-md bg-[#18181B] text-white transition-colors hover:bg-black disabled:opacity-40"
                                     >
                                         <ArrowUpIcon className="h-3.5 w-3.5" />
                                     </button>

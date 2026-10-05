@@ -47,7 +47,7 @@ export default function TemplatePickerContent({
 
             {showSearch && (
                 <div className="px-2 pb-2">
-                    <div className="flex items-center gap-1.5 px-2 h-7 rounded-md border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 transition-colors">
+                    <div className="flex items-center gap-1.5 px-2 h-7 rounded-md border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-slate-800 focus-within:ring-2 focus-within:ring-[#FFE600]/30 transition-colors">
                         <SearchIcon className="w-3 h-3 text-slate-400 shrink-0" />
                         <input
                             type="text"
@@ -94,7 +94,7 @@ export default function TemplatePickerContent({
                     <button
                         type="button"
                         onClick={() => setSearch("")}
-                        className="mt-2 text-[11.5px] text-sky-700 hover:text-sky-900 font-medium"
+                        className="mt-2 text-[11.5px] text-slate-900 hover:text-black underline underline-offset-2 cursor-pointer font-medium"
                     >
                         Clear search
                     </button>
@@ -153,7 +153,7 @@ function TemplateRow({
         <button
             type="button"
             onClick={onPick}
-            className="w-full text-left rounded-md px-2.5 py-1.5 flex flex-col gap-0.5 hover:bg-slate-50 active:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+            className="w-full text-left rounded-md px-2.5 py-1.5 flex flex-col gap-0.5 hover:bg-slate-50 active:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFE600]/40"
         >
             <span className="text-[12.5px] font-medium text-slate-900 truncate">
                 {template.name}
@@ -186,7 +186,7 @@ function TemplatePickerEmpty({ onClose }: { onClose: () => void }) {
             <Link
                 to="/app/templates"
                 onClick={onClose}
-                className="inline-flex items-center gap-1.5 h-7 px-2.5 mt-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium transition-colors"
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 mt-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors"
             >
                 <SettingsIcon className="w-3 h-3" />
                 Create a template

@@ -83,7 +83,7 @@ function BoundaryFallback({ error, info, reset }: { error: Error; info: React.Er
                     </button>
                     <button
                         onClick={reset}
-                        className="h-7 px-2.5 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
+                        className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors"
                     >
                         <RefreshCcwIcon className="w-3 h-3" />
                         Retry
