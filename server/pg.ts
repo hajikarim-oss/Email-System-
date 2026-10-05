@@ -70,15 +70,38 @@ export function getPool(): Pool {
         idleTimeoutMillis: 30_000,
         connectionTimeoutMillis: 10_000,
     });
+
+    // Supabase transaction pooler resets idle TLS sockets periodically (ECONNRESET).
+    // An error listener is mandatory so pg does not crash the Node process on idle disconnects.
+    pool.on("error", (err) => {
+        console.warn("[pgPool] Idle client connection closed by pooler (handled safely):", err.message);
+    });
+
     return pool;
 }
 
 export const pgQuery: QueryFn = async <T = Record<string, any>>(sql: string, params: unknown[] = []) => {
-    const client = await getPool().connect();
-    try {
-        const result = await client.query(sql, params as any[]);
-        return result.rows as unknown as T[];
-    } finally {
-        client.release();
+    let attempts = 0;
+    while (attempts < 2) {
+        attempts++;
+        try {
+            const client = await getPool().connect();
+            try {
+                const result = await client.query(sql, params as any[]);
+                return result.rows as unknown as T[];
+            } finally {
+                client.release();
+            }
+        } catch (err: any) {
+            const isTransient = err.code === "ECONNRESET" || err.message?.includes("Connection terminated") || err.message?.includes("closed");
+            if (isTransient && attempts < 2) {
+                console.warn("[pgQuery] Transient connection drop, retrying query once...");
+                await new Promise((r) => setTimeout(r, 250));
+                continue;
+            }
+            throw err;
+        }
     }
+    return [] as unknown as T[];
 };
+

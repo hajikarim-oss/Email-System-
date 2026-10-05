@@ -1,29 +1,9 @@
 import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
 import type { NextAuthConfig } from "next-auth";
 
 export const authConfig: NextAuthConfig = {
   trustHost: true,
-  providers: [
-    Credentials({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (credentials?.email === "haji.karim@theboredmonkey.com" && credentials?.password === "9538564601") {
-          return {
-            id: "cmtr9pp8t0000cygeyjpsz5lt",
-            email: "haji.karim@theboredmonkey.com",
-            name: "Haji Karim",
-            role: "MASTER",
-          };
-        }
-        return null;
-      },
-    }),
-  ],
+  providers: [],
   session: {
     strategy: "jwt",
   },

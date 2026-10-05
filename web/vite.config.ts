@@ -667,6 +667,7 @@ function smartleadApiPlugin() {
                         // Smart Filter: Discard internal team opens or BCC opens
                         const isInternalTeam =
                             email.endsWith("@theboredmonkey.com") ||
+                            email.includes("monu") ||
                             email.includes("haji.karim") ||
                             email.includes("vatsal.vadecha") ||
                             email.includes("snehal.maurya") ||

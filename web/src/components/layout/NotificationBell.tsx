@@ -25,6 +25,7 @@ import {
     useNotifications,
     useMarkAllNotificationsRead,
     useMarkNotificationRead,
+    useClearReadNotifications,
 } from "@/lib/api/hooks/app/notifications/useNotifications";
 import type { AppNotification } from "@/lib/api/models/app/notifications/Notification";
 
@@ -83,8 +84,9 @@ export function NotificationBell() {
     const { data, isLoading } = useNotifications();
     const markAll = useMarkAllNotificationsRead();
     const markOne = useMarkNotificationRead();
+    const clearRead = useClearReadNotifications();
     const [open, setOpen] = React.useState(false);
-    const [filter, setFilter] = React.useState<"all" | "unread">("all");
+    const [filter, setFilter] = React.useState<"all" | "unread">("unread");
     const ref = React.useRef<HTMLDivElement>(null);
     const close = React.useCallback(() => setOpen(false), []);
     useClickOutside(ref, close);
@@ -147,6 +149,15 @@ export function NotificationBell() {
                 <BellIcon className="size-4" />
             </span>
             <span className="text-[12px] text-slate-400">You&apos;re all caught up.</span>
+            {filter === "unread" && items.length > 0 && (
+                <button
+                    type="button"
+                    onClick={() => setFilter("all")}
+                    className="text-[11px] text-blue-600 hover:text-blue-700 underline mt-0.5"
+                >
+                    View past notifications ({items.length})
+                </button>
+            )}
         </div>
     );
 
@@ -207,15 +218,24 @@ export function NotificationBell() {
                                     </button>
                                 ))}
                             </div>
-                            {unread > 0 && (
+                            {unread > 0 ? (
                                 <button
                                     type="button"
                                     onClick={() => markAll.mutate()}
-                                    className="text-[11px] text-slate-900 hover:text-black shrink-0"
+                                    className="text-[11px] text-slate-900 hover:text-black shrink-0 font-medium"
                                 >
                                     Mark all read
                                 </button>
-                            )}
+                            ) : items.some((n) => n.read_at) ? (
+                                <button
+                                    type="button"
+                                    onClick={() => clearRead.mutate()}
+                                    className="text-[11px] text-slate-500 hover:text-slate-900 shrink-0"
+                                    title="Remove all read notifications from feed"
+                                >
+                                    Clear read
+                                </button>
+                            ) : null}
                         </div>
                         <div className="max-h-96 overflow-y-auto">
                             {isLoading ? (

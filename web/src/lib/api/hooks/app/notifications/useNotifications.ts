@@ -5,6 +5,7 @@ import {
     listNotifications,
     markNotificationRead,
     markAllNotificationsRead,
+    clearReadNotifications,
 } from "@/lib/api/client/app/notifications/notifications";
 import type { NotificationPreferences } from "@/lib/api/models/app/notifications/Notification";
 
@@ -53,3 +54,12 @@ export function useMarkAllNotificationsRead() {
         onSuccess: () => qc.invalidateQueries({ queryKey: FEED_KEY }),
     });
 }
+
+export function useClearReadNotifications() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: () => clearReadNotifications(),
+        onSuccess: () => qc.invalidateQueries({ queryKey: FEED_KEY }),
+    });
+}
+

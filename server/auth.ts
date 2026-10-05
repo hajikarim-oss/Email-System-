@@ -113,5 +113,11 @@ export function readBearer(req: IncomingMessage): string | null {
     const header = req.headers.authorization || req.headers.Authorization;
     const value = Array.isArray(header) ? header[0] : header;
     if (value && value.toLowerCase().startsWith("bearer ")) return value.slice(7).trim() || null;
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+        const match = cookieHeader.match(/(?:^|;\s*)tbm_session=([^;]+)/);
+        if (match) return decodeURIComponent(match[1]);
+    }
     return null;
 }
+

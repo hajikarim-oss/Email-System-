@@ -6,11 +6,18 @@ import Request from "../../Request";
 // true (mark as read). Sending the wrong field names makes the server bind an
 // empty list and silently no-op, which is why the unread bar never cleared
 // before.
-export default async function markSeen(data: { ids?: string[]; folder?: string; seen?: boolean }): Promise<void> {
+export default async function markSeen(data: { ids?: string[]; folder?: string; seen?: boolean; threadId?: string }): Promise<void> {
     return await Request<void>({
         method: "PATCH",
         url: `/unibox/seen`,
-        data: { email_ids: data.ids ?? [], folder: data.folder, seen: data.seen ?? true },
+        data: {
+            email_ids: data.ids ?? [],
+            ids: data.ids ?? [],
+            folder: data.folder,
+            seen: data.seen ?? true,
+            threadId: data.threadId,
+            thread_id: data.threadId,
+        },
         authorization: true,
-    })
+    });
 }

@@ -34,6 +34,18 @@ function saveStorage<T>(key: string, val: T): void {
 
 // Clean up legacy demo rows, stale cached records, and fabricated replies from storage
 try {
+    const freshResetKey = STORAGE_KEY_PREFIX + "v23_fresh_oct5_reset";
+    if (!localStorage.getItem(freshResetKey)) {
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "emails");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_leads_cmp_1790233732719_dvlj");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "app_notifications_feed");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "current_user");
+        localStorage.removeItem("token");
+        localStorage.setItem(freshResetKey, "true");
+    }
     const uniboxAccuracyKey = STORAGE_KEY_PREFIX + "campaigns_sep24_v22_genuine_luggage_pool";
     if (!localStorage.getItem(uniboxAccuracyKey)) {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
@@ -41,7 +53,20 @@ try {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaign_leads_cmp_1790233732719_dvlj");
         localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
         localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "app_notifications_feed");
         localStorage.setItem(uniboxAccuracyKey, "true");
+    }
+    const notifsKey = STORAGE_KEY_PREFIX + "app_notifications_feed";
+    const existingNotifs = localStorage.getItem(notifsKey);
+    if (existingNotifs) {
+        const parsed = JSON.parse(existingNotifs);
+        if (Array.isArray(parsed) && parsed.some((n: any) => !n.read_at)) {
+            const cleaned = parsed.map((n: any) => ({
+                ...n,
+                read_at: n.read_at || new Date().toISOString()
+            }));
+            localStorage.setItem(notifsKey, JSON.stringify(cleaned));
+        }
     }
 } catch { }
 
@@ -49,10 +74,10 @@ try {
 export const DEFAULT_4_PROFILES = [
     {
         id: "cmtlkufpi000o80qmmlfsfat7",
-        email: "haji.karim@theboredmonkey.com",
-        name: "Haji Karim",
-        signature_plain: "Best regards,\nHaji Karim\nFounder & CEO | TheBoredMonkey",
-        signature_html: "<p>Best regards,<br/><strong>Haji Karim</strong><br/>Founder & CEO | TheBoredMonkey</p>",
+        email: "monu@theboredmonkey.com",
+        name: "Monu",
+        signature_plain: "Best regards,\nMonu\nFounder & CEO | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Monu</strong><br/>Founder & CEO | TheBoredMonkey</p>",
         signature_sync: false,
         signature_code: false,
         tags: ["primary", "outreach", "master"],
@@ -713,7 +738,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             title: "New reply from Jayant (Miss Mosa)",
             body: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
             link: "/app/unibox/all/th_camp_jayant_missmosa",
-            read_at: null,
+            read_at: "2026-09-24T12:00:00.000Z",
             created_at: "2026-09-24T11:33:00.000Z",
         },
         {
@@ -723,7 +748,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             title: "New reply from Saurabh (Limeroad)",
             body: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
             link: "/app/unibox/all/th_camp_saurabh_limeroad",
-            read_at: null,
+            read_at: "2026-09-24T11:00:00.000Z",
             created_at: "2026-09-24T10:15:00.000Z",
         },
         {
@@ -733,7 +758,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             title: "New reply from Rajdeep More",
             body: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More.",
             link: "/app/unibox/all/th_camp_rajdeep_main",
-            read_at: null,
+            read_at: "2026-09-16T08:00:00.000Z",
             created_at: "2026-09-16T06:48:00.000Z",
         },
         {
@@ -743,7 +768,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             title: "New reply from Snehal Maurya",
             body: "Noted with thanks. Karim",
             link: "/app/unibox/all/th_reachout_101_snehal",
-            read_at: null,
+            read_at: "2026-09-16T07:00:00.000Z",
             created_at: "2026-09-16T05:30:00.000Z",
         },
     ];
@@ -757,6 +782,14 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             const updated = list.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() }));
             saveStorage("app_notifications_feed", updated);
             return res({ status: "ok" }, 200);
+        }
+
+        // Clear read notifications
+        if (config.method?.toLowerCase() === "delete" && pathWithoutQuery === "/auth/me/notifications") {
+            const list = loadStorage<any[]>("app_notifications_feed", defaultNotifications);
+            const unreadOnly = list.filter((n) => !n.read_at);
+            saveStorage("app_notifications_feed", unreadOnly);
+            return res({ status: "ok", cleared: true }, 200);
         }
 
         // Mark single as read
@@ -810,35 +843,16 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             if (errorJson && loginRes.status < 500) {
                 return res({ error: errorJson.error || "invalid_credentials", message: errorJson.message || "Invalid email or password." }, loginRes.status);
             }
+            if (loginRes.status >= 500) {
+                return res({ error: "server_error", message: "Authentication server error. Please try again later." }, loginRes.status);
+            }
         } catch (err) {
             console.warn("[standaloneMock] /api/auth/login server fetch failed:", err);
+            return res({ error: "service_unavailable", message: "Authentication service is temporarily unreachable. Please try again." }, 503);
         }
 
-        // Resilient fallback for standalone / demo / serverless recovery
-        const token = {
-            access_token: "tbm_enterprise_token",
-            refresh_token: "tbm_enterprise_refresh_token",
-            access_token_expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
-            refresh_token_expires_at: new Date(Date.now() + 365 * 86400000).toISOString(),
-        };
-        const demoUser = {
-            id: "usr_tbm_haji",
-            email: email,
-            first_name: email.toLowerCase().includes("haji") ? "Haji" : (email.split("@")[0] || "User"),
-            last_name: email.toLowerCase().includes("haji") ? "Karim" : "",
-            role: "owner",
-            is_admin: true,
-            roles: ["owner"],
-            onboarding_completed_at: "2026-01-15T08:30:00Z",
-        };
-        saveStorage("current_user", demoUser);
-        return res({
-            code_required: false,
-            two_fa_required: false,
-            token,
-            ...token,
-            user: demoUser,
-        }, 200);
+        // Strictly reject any credentials not authenticated by the backend database
+        return res({ error: "invalid_credentials", message: "Invalid email or password." }, 401);
     }
 
     if (pathWithoutQuery === "/auth/login/confirm") {
@@ -869,10 +883,10 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             token,
             ...token,
             user: {
-                id: "usr_tbm_haji",
-                email: "haji.karim@theboredmonkey.com",
-                first_name: "Haji",
-                last_name: "Karim",
+                id: "cmtr9pp8t0000cygeyjpsz5lt",
+                email: "monu@theboredmonkey.com",
+                first_name: "Monu",
+                last_name: "",
                 role: "owner",
                 onboarding_completed_at: "2026-01-15T08:30:00Z",
             },
@@ -1875,7 +1889,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         // otherwise the Campaigns page shows numbers no query backs.
         const { stats: campaignStatsById, error: campaignStatsError } = await fetchCampaignStats();
         if (campaignStatsError) {
-            throw new Error(campaignStatsError);
+            console.warn("[standaloneMock] campaign stats warning (non-fatal):", campaignStatsError);
         }
         if (campaignStatsById) {
             campaigns.forEach((c: any) => applyCampaignStats(c, campaignStatsById.get(String(c.id))));
@@ -1929,7 +1943,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             // Detail reads overlay the same lifetime stats as the list, so the
             // detail view never shows counters the database doesn't have.
             const { stats: detailStats, error: detailStatsError } = await fetchCampaignStats();
-            if (detailStatsError) throw new Error(detailStatsError);
+            if (detailStatsError) {
+                console.warn("[standaloneMock] detail stats warning (non-fatal):", detailStatsError);
+            }
             if (detailStats) {
                 const target = campaigns.includes(match) ? match : { ...match };
                 applyCampaignStats(target, detailStats.get(String(target.id)));
@@ -3547,46 +3563,46 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     const snehalReachout101Row = {
         id: "msg_reply_snehal_reachout101",
-        email_id: "cmtlkufpi000o80qmmlfsfat7", // Haji Karim
+        email_id: "cmtlkufpi000o80qmmlfsfat7", // Monu
         thread_id: "th_reachout_101_snehal",
         from_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
-        to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
+        to_addr: ["Monu <monu@theboredmonkey.com>"],
         subject: "Re: Reachout 101",
-        snippet: "Noted with thanks. Karim",
+        snippet: "Noted with thanks. Monu",
         internal_date: "2026-09-16T05:30:00.000Z", // 16 Sept, 11:00 AM IST
-        seen: false,
+        seen: true,
         message_count: 2,
-        has_unread: true,
+        has_unread: false,
         folder: "inbox",
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
 
     const rajdeepRepliedRow = {
         id: "msg_reply_rajdeep_main",
-        email_id: "cmtlkufpi000o80qmmlfsfat7", // Haji Karim
+        email_id: "cmtlkufpi000o80qmmlfsfat7", // Monu
         thread_id: "th_camp_rajdeep_main",
         campaign_id: "cmp_1789718475256_g91f",
         campaign_name: "Q2 Reachout Mails",
-        from_addr: ["Haji Karim <hajikarimbeldaar@gmail.com>"],
-        to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
+        from_addr: ["Rajdeep More <rajdeep@clientpartner.com>"],
+        to_addr: ["Monu <monu@theboredmonkey.com>"],
         subject: "Re: Influencer marketing partnership — TheBoredMonkey",
-        snippet: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More. Best regards, Haji Karim",
+        snippet: "Hi Monu, reviewed the partnership overview. Let's schedule a call this week.",
         internal_date: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
-        seen: false,
+        seen: true,
         message_count: 2,
-        has_unread: true,
+        has_unread: false,
         folder: "inbox",
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
 
     const surajFrameworkRow = {
         id: "msg_reply_suraj_framework",
-        email_id: "cmtlkufpi000o80qmmlfsfat7", // Haji Karim
+        email_id: "cmtlkufpi000o80qmmlfsfat7", // Monu
         thread_id: "th_suraj_framework",
         from_addr: ["Suraj Maurya <suraj@theboredmonkey.com>"],
-        to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
+        to_addr: ["Monu <monu@theboredmonkey.com>"],
         subject: "Re: YouTube Growth & Outbound Framework || TheBoredMonkey",
-        snippet: "Hi Karim, To clarify, I have two primary objectives for the YouTube framework and outbound deliverables.",
+        snippet: "Hi Monu, To clarify, I have two primary objectives for the YouTube framework and outbound deliverables.",
         internal_date: "2026-09-16T01:45:00.000Z", // 16 Sept, 07:15 AM IST
         seen: true,
         message_count: 2,
@@ -3607,9 +3623,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         subject: "Re: Miss Mosa X TBM: Modern Wellness, Authentically Told",
         snippet: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
         internal_date: "2026-09-24T11:33:00.000Z", // 24 Sept, 5:03 PM GMT+5:30
-        seen: false,
+        seen: true,
         message_count: 2,
-        has_unread: true,
+        has_unread: false,
         folder: "inbox",
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
@@ -3625,9 +3641,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         subject: "Re: Limeroad X TBM || Influencer Marketing & Creator Outreach",
         snippet: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
         internal_date: "2026-09-24T10:15:00.000Z", // 24 Sept, 3:45 PM GMT+5:30
-        seen: false,
+        seen: true,
         message_count: 2,
-        has_unread: true,
+        has_unread: false,
         folder: "inbox",
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
@@ -4192,12 +4208,14 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
         const emailIds: string[] = body.email_ids || body.ids || [];
         const threadId = body.threadId || body.thread_id;
+        const folder = body.folder;
         const seen = body.seen !== false;
 
         // 1. Update unibox_inbox_messages
         const currentInbox = loadStorage<any[]>("unibox_inbox_messages", defaultInboxRows);
         const updatedInbox = currentInbox.map(r => {
             const matches = (threadId && (r.thread_id === threadId || r.id === threadId)) || 
+                            (folder && (folder === "all" || r.folder === folder)) ||
                             emailIds.includes(r.id) || 
                             emailIds.includes(r.email_id) || 
                             (r.thread_id && emailIds.includes(r.thread_id));
@@ -4213,7 +4231,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const updatedNotifs = currentNotifs.map(n => {
             const matchesThread = threadId && n.link?.includes(threadId);
             const matchesId = emailIds.some(id => n.link?.includes(id));
-            if (matchesThread || matchesId) {
+            if (matchesThread || matchesId || (folder && (folder === "all" || folder === "inbox"))) {
                 return { ...n, read_at: seen ? new Date().toISOString() : null };
             }
             return n;

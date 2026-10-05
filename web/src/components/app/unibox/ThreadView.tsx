@@ -256,11 +256,11 @@ export function ThreadView({ threadId, emailId }: ThreadViewProps) {
   const markSeen = useMarkSeen();
   const markSeenMutate = markSeen.mutate;
   React.useEffect(() => {
+    if (!threadId) return;
     const unseenIds = (q.data?.data ?? [])
       .filter((m) => !m.seen)
       .map((m) => m.id);
-    if (unseenIds.length === 0) return;
-    markSeenMutate({ ids: unseenIds, threadId });
+    markSeenMutate({ ids: unseenIds, threadId, seen: true });
   }, [threadId, q.data, markSeenMutate]);
 
   const snooze = useMutation({

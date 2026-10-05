@@ -58,32 +58,49 @@ function toClientUser(u: AuthUser & { createdAt?: string | Date | null }) {
     };
 }
 
-// Naive in-memory login throttle (per instance): 5 failures per email per
-// window. Enough to blunt brute force; a future edge limiter can replace it.
+// Multi-dimension login throttle (per IP and per email account):
+// 5 failures per 15-minute sliding window with exponential retry-after and memory eviction.
 const attempts = new Map<string, { n: number; until: number }>();
 const WINDOW_MS = 15 * 60_000;
 const MAX_ATTEMPTS = 5;
 
-function throttled(email: string): boolean {
-    const hit = attempts.get(email);
-    if (!hit) return false;
-    if (Date.now() > hit.until) {
-        attempts.delete(email);
-        return false;
-    }
-    return hit.n >= MAX_ATTEMPTS;
+function getClientIp(req: IncomingMessage): string {
+    const xff = req.headers["x-forwarded-for"];
+    const ipStr = Array.isArray(xff) ? xff[0] : (xff ? xff.split(",")[0].trim() : "");
+    return ipStr || req.socket.remoteAddress || "127.0.0.1";
 }
 
-function recordFailure(email: string): void {
-    if (attempts.size > 1000) attempts.clear();
-    const hit = attempts.get(email) || { n: 0, until: Date.now() + WINDOW_MS };
+function checkRateLimit(key: string): { blocked: boolean; retryAfterSec?: number } {
+    const hit = attempts.get(key);
+    if (!hit) return { blocked: false };
+    const now = Date.now();
+    if (now > hit.until) {
+        attempts.delete(key);
+        return { blocked: false };
+    }
+    if (hit.n >= MAX_ATTEMPTS) {
+        const retryAfterSec = Math.max(1, Math.ceil((hit.until - now) / 1000));
+        return { blocked: true, retryAfterSec };
+    }
+    return { blocked: false };
+}
+
+function recordFailure(key: string): void {
+    if (attempts.size > 2000) {
+        const now = Date.now();
+        for (const [k, v] of attempts.entries()) {
+            if (now > v.until) attempts.delete(k);
+        }
+        if (attempts.size > 1500) attempts.clear();
+    }
+    const hit = attempts.get(key) || { n: 0, until: Date.now() + WINDOW_MS };
     hit.n += 1;
     hit.until = Math.max(hit.until, Date.now() + WINDOW_MS);
-    attempts.set(email, hit);
+    attempts.set(key, hit);
 }
 
-function clearFailures(email: string): void {
-    attempts.delete(email);
+function clearFailures(key: string): void {
+    attempts.delete(key);
 }
 
 async function requireUser(req: IncomingMessage, res: ServerResponse): Promise<AuthUser | null> {
@@ -101,6 +118,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     try {
         if (path === "/api/auth/login" && method === "POST") {
+            const clientIp = getClientIp(req);
             const body = await readJsonBody<{ email?: string; password?: string }>(req);
             const email = String(body.email || "").trim().toLowerCase();
             const password = String(body.password || "");
@@ -109,22 +127,41 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 send(res, 400, { error: "missing_credentials", message: "Email and password are required." });
                 return;
             }
-            if (throttled(email)) {
-                send(res, 429, { error: "too_many_attempts", message: "Too many attempts. Try again later." });
+
+            // Dual check: IP-based and Email-based
+            const ipLimit = checkRateLimit(`ip:${clientIp}`);
+            const emailLimit = checkRateLimit(`email:${email}`);
+            if (ipLimit.blocked || emailLimit.blocked) {
+                const retryAfter = Math.max(ipLimit.retryAfterSec || 0, emailLimit.retryAfterSec || 0, 1);
+                res.setHeader("Retry-After", String(retryAfter));
+                send(res, 429, {
+                    error: "too_many_attempts",
+                    message: `Too many login attempts. Please wait ${retryAfter} seconds before trying again.`,
+                    retry_after: retryAfter,
+                });
                 return;
             }
 
             const user = await findUserByEmail(email);
             const ok = user ? await verifyPassword(password, await readPassword(user.id)) : false;
             if (!user || !ok) {
-                recordFailure(email);
+                recordFailure(`ip:${clientIp}`);
+                recordFailure(`email:${email}`);
                 send(res, 401, { error: "invalid_credentials", message: "Invalid email or password." });
                 return;
             }
 
-            clearFailures(email);
+            clearFailures(`ip:${clientIp}`);
+            clearFailures(`email:${email}`);
             const session = await createSession(user.id);
             const token = tokenPayload(session.token, session.expires);
+
+            // Issue HttpOnly secure cookie for web browser protection alongside API token
+            const isProd = process.env.NODE_ENV === "production";
+            res.setHeader("Set-Cookie", [
+                `tbm_session=${encodeURIComponent(session.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${isProd ? "; Secure" : ""}`,
+            ]);
+
             send(res, 200, {
                 code_required: false,
                 two_fa_required: false,
@@ -149,6 +186,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         if (path === "/api/auth/logout" && method === "POST") {
             const token = readBearer(req);
             if (token) await revokeSession(token);
+            res.setHeader("Set-Cookie", [
+                `tbm_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`,
+            ]);
             send(res, 200, { success: true });
             return;
         }

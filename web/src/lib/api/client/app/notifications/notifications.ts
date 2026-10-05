@@ -48,3 +48,12 @@ export async function markAllNotificationsRead(): Promise<void> {
         authorization: true,
     });
 }
+
+export async function clearReadNotifications(): Promise<void> {
+    await Request<void>({
+        method: "DELETE",
+        url: "/auth/me/notifications",
+        authorization: true,
+    });
+}
+
