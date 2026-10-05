@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "types": ["node"],
+    "typeRoots": ["./web/node_modules/@types", "./node_modules/@types"]
+  },
+  "include": [
+    "api/**/*",
+    "server/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "web",
+    "nexus-outbound",
+    "Frontend-101",
+    "Frontend 101-2",
+    "scripts",
+    "tests"
+  ]
+}
