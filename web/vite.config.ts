@@ -492,11 +492,11 @@ function smartleadApiPlugin() {
                             email_account_ids: mailboxIds,
                         }, chosenKey);
 
-                        // 3. Add sequence steps with normalized merge tags
+                        // 3. Add sequence steps with normalized merge tags and exact delay_in_days
                         const seqSteps = (parsed.steps && parsed.steps.length > 0)
                             ? parsed.steps.map((s: any, idx: number) => ({
                                 seq_number: idx + 1,
-                                seq_delay_details: { delay_in_days: s.wait_after || 0 },
+                                seq_delay_details: { delay_in_days: idx === 0 ? 0 : (s.wait_after !== undefined ? Number(s.wait_after) : 3) },
                                 subject: normalizeToSmartleadTemplate(s.subject || (idx === 0 ? `Outreach: ${campaignName}` : "")),
                                 email_body: normalizeToSmartleadTemplate(s.body_html || s.body_plain || "<p>Hello {{first_name}}, reaching out from TheBoredMonkey.</p>"),
                             }))
@@ -511,18 +511,49 @@ function smartleadApiPlugin() {
 
                         await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
 
-                        // 4. Save schedule (Asia/Kolkata, Monday-Friday, 10:00 - 18:00, 3 mins min interval)
+                        // 4. Save schedule (Timezone, Days of week bitmask/array, sending window)
+                        let daysOfTheWeek: number[] = [1, 2, 3, 4, 5];
+                        if (Array.isArray(parsed.days) && parsed.days.length > 0) {
+                            daysOfTheWeek = parsed.days.map(Number);
+                        } else if (typeof parsed.days === "number" && parsed.days > 0) {
+                            const decodedDays: number[] = [];
+                            for (let i = 0; i < 7; i++) {
+                                if ((parsed.days & (1 << i)) !== 0) decodedDays.push(i + 1);
+                            }
+                            if (decodedDays.length > 0) daysOfTheWeek = decodedDays;
+                        }
+
+                        const startHour = parsed.start_time || parsed.startTime || "08:00";
+                        const endHour = parsed.end_time || parsed.endTime || "18:00";
+                        const dailyCap = Number(parsed.max_new_leads_per_day) || Number(parsed.daily_limit) || Math.max((mailboxIds.length || 1) * 200, 200);
+
                         await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
                             timezone: parsed.timezone || "Asia/Kolkata",
-                            days_of_the_week: [1, 2, 3, 4, 5],
-                            start_hour: "10:00",
-                            end_hour: "18:00",
+                            days_of_the_week: daysOfTheWeek,
+                            start_hour: startHour,
+                            end_hour: endHour,
                             min_time_btw_emails: 3,
-                            // Total daily capacity of the sending pool, not
-                            // one mailbox: 4 x 50 by default, raised for
-                            // bigger pools via env or request override.
-                            max_new_leads_per_day: Number(parsed.max_new_leads_per_day) || Number(process.env.SMARTLEAD_MAX_NEW_LEADS_PER_DAY) || 200,
+                            max_new_leads_per_day: dailyCap,
                         }, chosenKey);
+
+                        // Update Campaign Settings (Stop on Reply, Open & Click Tracking)
+                        try {
+                            const trackSettings: string[] = [];
+                            if (parsed.open_tracking === false || parsed.track_opens === false) {
+                                trackSettings.push("DONT_TRACK_EMAIL_OPEN");
+                            }
+                            if (parsed.link_tracking === false || parsed.track_clicks === false) {
+                                trackSettings.push("DONT_TRACK_LINK_CLICK");
+                            }
+                            const stopCondition = parsed.stop_on_reply === false ? null : "REPLY_TO_AN_EMAIL";
+
+                            await apiCall(`/campaigns/${smartleadId}/settings`, "POST", {
+                                stop_lead_settings: stopCondition,
+                                track_settings: trackSettings,
+                            }, chosenKey);
+                        } catch (settingsErr: any) {
+                            console.warn("[Smartlead Vite Sync] Settings update warning:", settingsErr.message);
+                        }
 
                         // 5. Add leads to Smartlead campaign with robust variable mapping
                         const rawLeads = parsed.leads || [];

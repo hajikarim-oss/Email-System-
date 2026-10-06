@@ -158,11 +158,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }, chosenKey);
             }
 
-            // 3. Sequences
+            // 3. Sequences (Step 1, Step 2, Step 3 with precise delay_in_days)
             const seqSteps = (parsed.steps && parsed.steps.length > 0)
                 ? parsed.steps.map((s: any, idx: number) => ({
                     seq_number: idx + 1,
-                    seq_delay_details: { delay_in_days: s.wait_after || 0 },
+                    seq_delay_details: { delay_in_days: idx === 0 ? 0 : (s.wait_after !== undefined ? Number(s.wait_after) : 3) },
                     subject: normalizeToSmartleadTemplate(s.subject || (idx === 0 ? `Outreach: ${campaignName}` : "")),
                     email_body: normalizeToSmartleadTemplate(s.body_html || s.body_plain || "<p>Hello {{first_name}}, reaching out from TheBoredMonkey.</p>"),
                 }))
@@ -177,15 +177,49 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
 
-            // 4. Schedule
+            // 4. Decode Schedule (Timezone, Days of week bitmask/array, sending window)
+            let daysOfTheWeek: number[] = [1, 2, 3, 4, 5];
+            if (Array.isArray(parsed.days) && parsed.days.length > 0) {
+                daysOfTheWeek = parsed.days.map(Number);
+            } else if (typeof parsed.days === "number" && parsed.days > 0) {
+                const decodedDays: number[] = [];
+                for (let i = 0; i < 7; i++) {
+                    if ((parsed.days & (1 << i)) !== 0) decodedDays.push(i + 1);
+                }
+                if (decodedDays.length > 0) daysOfTheWeek = decodedDays;
+            }
+
+            const startHour = parsed.start_time || parsed.startTime || "08:00";
+            const endHour = parsed.end_time || parsed.endTime || "18:00";
+            const dailyCap = Number(parsed.max_new_leads_per_day) || Number(parsed.daily_limit) || Math.max((mailboxIds.length || 1) * 200, 200);
+
             await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
                 timezone: parsed.timezone || "Asia/Kolkata",
-                days_of_the_week: [1, 2, 3, 4, 5],
-                start_hour: "10:00",
-                end_hour: "19:00",
-                min_time_btw_emails: 2,
-                max_new_leads_per_day: Number(parsed.max_new_leads_per_day) || Math.max((mailboxIds.length || 1) * 200, 200),
+                days_of_the_week: daysOfTheWeek,
+                start_hour: startHour,
+                end_hour: endHour,
+                min_time_btw_emails: 3,
+                max_new_leads_per_day: dailyCap,
             }, chosenKey);
+
+            // 5. Update Campaign Settings (Stop on Reply, Open & Click Tracking)
+            try {
+                const trackSettings: string[] = [];
+                if (parsed.open_tracking === false || parsed.track_opens === false) {
+                    trackSettings.push("DONT_TRACK_EMAIL_OPEN");
+                }
+                if (parsed.link_tracking === false || parsed.track_clicks === false) {
+                    trackSettings.push("DONT_TRACK_LINK_CLICK");
+                }
+                const stopCondition = parsed.stop_on_reply === false ? null : "REPLY_TO_AN_EMAIL";
+
+                await apiCall(`/campaigns/${smartleadId}/settings`, "POST", {
+                    stop_lead_settings: stopCondition,
+                    track_settings: trackSettings,
+                }, chosenKey);
+            } catch (settingsErr: any) {
+                console.warn("[Smartlead Sync] Settings update warning:", settingsErr.message);
+            }
 
             // 5. Leads
             const rawLeads = parsed.leads || [];

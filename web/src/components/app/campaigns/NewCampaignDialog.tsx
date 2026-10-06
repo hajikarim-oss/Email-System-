@@ -398,8 +398,8 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                 const plain = s.body_plain || html.replace(/<[^>]+>/g, "");
                 return {
                     name: draft.kind === "one_time" ? "Email" : `Step ${i + 1}`,
-                    // Follow-up mail won't have a subject as it lands on the same thread!
-                    subject: i === 0 ? s.subject.trim() : "",
+                    // Follow-up mail without subject lands on the same thread in Smartlead!
+                    subject: i === 0 ? s.subject.trim() : (s.subject?.trim() || ""),
                     body_plain: plain,
                     body_html: html,
                     wait_after: i === 0 ? 0 : Math.max(0, s.wait_after),

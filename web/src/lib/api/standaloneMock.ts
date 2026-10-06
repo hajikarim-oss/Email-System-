@@ -2182,7 +2182,16 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                             steps: match.steps,
                             leads: campLeads.slice(0, 50),
                             sender_email: match.sender_email || availableEmails[0]?.email,
+                            mailbox_ids: Array.isArray(match.mailboxes) ? match.mailboxes : undefined,
                             timezone: match.timezone || "Asia/Kolkata",
+                            days: match.days,
+                            start_time: match.start_time,
+                            end_time: match.end_time,
+                            daily_limit: match.daily_limit,
+                            max_new_leads_per_day: match.daily_limit || (match.mailboxes?.length || 1) * 200,
+                            stop_on_reply: match.stop_on_reply,
+                            open_tracking: match.open_tracking,
+                            link_tracking: match.link_tracking,
                         }),
                     }).then((r) => r.json()).then((d) => {
                         if (d?.smartlead_id) {
@@ -2196,7 +2205,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     }).catch(() => { });
                 } catch { }
 
-                const smId = match.smartlead_id || (match.id === "cmp_1789718475256_g91f" ? 3980868 : null);
+                const smId = match.smartlead_id || (match.id === "cmp_1789718475256_g91f" ? 3980868 : match.id === "cmp_1790233732719_dvlj" ? 4015596 : null);
                 if (smId) {
                     fetch(`/api/smartlead/status?id=${smId}`, {
                         method: "POST",
@@ -2380,7 +2389,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             saveStorage("campaigns", campaigns);
 
             // Instantly sync pause to Smartlead
-            const smId = target?.smartlead_id || (targetId === "cmp_1789718475256_g91f" ? 3980868 : null);
+            const smId = target?.smartlead_id || (targetId === "cmp_1789718475256_g91f" ? 3980868 : targetId === "cmp_1790233732719_dvlj" ? 4015596 : null);
             if (smId) {
                 fetch(`/api/smartlead/status?id=${smId}`, {
                     method: "POST",
