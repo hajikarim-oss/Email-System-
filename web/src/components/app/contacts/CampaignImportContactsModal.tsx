@@ -49,6 +49,22 @@ export default function CampaignImportContactsModal({ open, onClose, campaign }:
 
             await addContactsMutation.mutateAsync(toAdd);
 
+            // Automatically mirror and synchronize new leads to Smartlead live campaign
+            try {
+                await fetch("/api/smartlead/add-leads", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        campaign_id: campaign.id,
+                        campaign_name: campaign.name,
+                        smartlead_id: (campaign as any).smartlead_id,
+                        leads: toAdd,
+                    }),
+                });
+            } catch (slErr) {
+                console.warn("[Smartlead Sync] Lead push warning:", slErr);
+            }
+
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ["contacts"] }),
                 queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
@@ -56,7 +72,7 @@ export default function CampaignImportContactsModal({ open, onClose, campaign }:
                 queryClient.invalidateQueries({ queryKey: ["analytics", "campaigns", campaign.id] }),
             ]);
 
-            toast.success(`Enrolled ${toAdd.length.toLocaleString()} lead${toAdd.length === 1 ? "" : "s"} into ${campaign.name}`);
+            toast.success(`Enrolled & synced ${toAdd.length.toLocaleString()} lead${toAdd.length === 1 ? "" : "s"} into ${campaign.name}`);
             onClose();
         } catch (err) {
             console.error("Failed to enroll leads into campaign:", err);

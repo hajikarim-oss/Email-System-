@@ -2694,6 +2694,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         if (targetCamp) {
                             targetCamp.total_leads = cLeads.length;
                         }
+
+                        // Asynchronously push newly added leads to Smartlead
+                        try {
+                            fetch("/api/smartlead/add-leads", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    campaign_id: campId,
+                                    campaign_name: targetCamp?.name,
+                                    smartlead_id: targetCamp?.smartlead_id,
+                                    leads: [contactToAdd],
+                                }),
+                            }).catch(() => {});
+                        } catch {}
                     }
                 }
                 saveStorage("contacts", contacts);
@@ -2724,6 +2738,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         targetCamp.total_leads = (targetCamp.total_leads || 0) + 1;
                         saveStorage("campaigns", campaigns);
                     }
+                    try {
+                        fetch("/api/smartlead/add-leads", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                campaign_id: campId,
+                                campaign_name: targetCamp?.name,
+                                smartlead_id: targetCamp?.smartlead_id,
+                                leads: [newContact],
+                            }),
+                        }).catch(() => {});
+                    } catch {}
                 }
                 saveStorage("contacts", contacts);
                 return res(newContact);
@@ -2774,6 +2800,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         camp.total_leads = combined.length;
                         saveStorage("campaigns", campaigns);
                     }
+                    try {
+                        fetch("/api/smartlead/add-leads", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                campaign_id: cId,
+                                campaign_name: camp?.name,
+                                smartlead_id: camp?.smartlead_id,
+                                leads: newLeads,
+                            }),
+                        }).catch(() => {});
+                    } catch {}
                 }
             }
 
@@ -3300,6 +3338,31 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             segmentsList = segmentsList.filter(s => s.id !== segId);
             saveStorage("saved_segments", segmentsList);
             return res({ success: true });
+        }
+
+        if (parts[2] === "add-to-campaign" && method === "POST") {
+            const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            const campaignId = body.campaign_id;
+            const targetCamp = campaigns.find((c: any) => c.id === campaignId);
+            const segContacts = contacts.slice(0, 50);
+            if (targetCamp) {
+                targetCamp.total_leads = (targetCamp.total_leads || 0) + segContacts.length;
+                saveStorage("campaigns", campaigns);
+            }
+            saveStorage(`campaign_leads_${campaignId}`, segContacts);
+            try {
+                fetch("/api/smartlead/add-leads", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        campaign_id: campaignId,
+                        campaign_name: targetCamp?.name,
+                        smartlead_id: targetCamp?.smartlead_id,
+                        leads: segContacts,
+                    }),
+                }).catch(() => {});
+            } catch {}
+            return res({ enroled_count: segContacts.length, newly_enroled_count: segContacts.length });
         }
 
         if (segId) {

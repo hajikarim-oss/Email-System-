@@ -16,6 +16,7 @@ import smartleadCampaignAnalytics from "./smartlead/campaign-analytics";
 import smartleadCampaignLeadsStats from "./smartlead/campaign-leads-stats";
 import smartleadSyncAndStart from "./smartlead/sync-and-start";
 import smartleadUpdateSequences from "./smartlead/update-sequences";
+import smartleadAddLeads from "./smartlead/add-leads";
 import webhookSmartlead from "./webhooks/smartlead";
 import chat from "./chat";
 
@@ -40,6 +41,7 @@ const routes: Record<string, Handler> = {
     "/api/smartlead/campaign-leads-stats": smartleadCampaignLeadsStats,
     "/api/smartlead/sync-and-start": smartleadSyncAndStart,
     "/api/smartlead/update-sequences": smartleadUpdateSequences,
+    "/api/smartlead/add-leads": smartleadAddLeads,
     "/api/webhooks/smartlead": webhookSmartlead,
     "/api/chat": chat,
     "/api/health": (_req, res) => {

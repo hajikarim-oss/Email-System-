@@ -594,7 +594,7 @@ function smartleadApiPlugin() {
                             if (!hasWebhook) {
                                 await apiCall(`/campaigns/${smartleadId}/webhooks`, "POST", {
                                     name: "TheBoredMonkey Live Event Webhook",
-                                    webhook_url: "https://email-system-omega.vercel.app/api/webhooks/smartlead",
+                                    webhook_url: "https://tbmoutreach.tech/api/webhooks/smartlead",
                                     event_types: [
                                         "EMAIL_OPEN",
                                         "EMAIL_SENT",
@@ -657,6 +657,85 @@ function smartleadApiPlugin() {
                         res.end(JSON.stringify({ ok: true, smartlead_id: smartleadId, result: slRes.data }));
                     } catch (err: any) {
                         console.error(`[Smartlead API] Failed syncing sequences:`, err.message);
+                        res.writeHead(500, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: err.message }));
+                    }
+                });
+            });
+
+            // Direct lead synchronizer to Smartlead campaign
+            server.middlewares.use("/api/smartlead/add-leads", (req: any, res: any) => {
+                if (req.method !== "POST") {
+                    res.statusCode = 405;
+                    res.end(JSON.stringify({ error: "Method not allowed" }));
+                    return;
+                }
+                let body = "";
+                req.on("data", (chunk: any) => { body += chunk; });
+                req.on("end", async () => {
+                    try {
+                        const parsed = JSON.parse(body || "{}");
+                        let smartleadId = parsed.smartlead_id ? Number(parsed.smartlead_id) : null;
+                        const campaignName = (parsed.campaign_name || parsed.name || "").trim();
+                        const rawLeads = Array.isArray(parsed.leads) ? parsed.leads : (parsed.lead ? [parsed.lead] : []);
+                        const chosenKey = parsed.api_key || DEFAULT_SMARTLEAD_KEY;
+
+                        if (!smartleadId || isNaN(smartleadId)) {
+                            const listRes = await apiCall("/campaigns", "GET", undefined, chosenKey);
+                            const allCamps = Array.isArray(listRes.data) ? listRes.data : [];
+                            if (campaignName) {
+                                const match = allCamps.find((c: any) =>
+                                    (c.name || "").toLowerCase().trim() === campaignName.toLowerCase() ||
+                                    c.name.toLowerCase().includes(campaignName.toLowerCase())
+                                );
+                                if (match) smartleadId = match.id;
+                            }
+                        }
+
+                        if (!smartleadId || isNaN(smartleadId)) {
+                            res.writeHead(400, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "Missing smartlead_id or campaign not found" }));
+                            return;
+                        }
+
+                        const leadList = rawLeads
+                            .filter((l: any) => l && (l.email || "").includes("@"))
+                            .map((l: any) => {
+                                const fName = l.first_name || l.firstName || (l.name ? l.name.split(" ")[0] : "") || (l.email ? l.email.split("@")[0] : "Prospect");
+                                const lName = l.last_name || l.lastName || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
+                                const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
+                                const jobTitle = l.title || l.role || l.custom_fields?.title || "Decision Maker";
+                                return {
+                                    email: l.email.trim(),
+                                    first_name: fName.trim(),
+                                    last_name: lName.trim(),
+                                    company_name: cName,
+                                    custom_fields: {
+                                        title: jobTitle,
+                                        firstName: fName.trim(),
+                                        lastName: lName.trim(),
+                                        company: cName,
+                                        company_name: cName,
+                                        ...(l.custom_fields || {}),
+                                    },
+                                };
+                            });
+
+                        const CHUNK_SIZE = 400;
+                        let totalUploaded = 0;
+                        const results: any[] = [];
+                        for (let i = 0; i < leadList.length; i += CHUNK_SIZE) {
+                            const chunk = leadList.slice(i, i + CHUNK_SIZE);
+                            const pushRes = await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: chunk }, chosenKey);
+                            results.push(pushRes.data);
+                            if (pushRes.data?.upload_count) totalUploaded += Number(pushRes.data.upload_count);
+                            else if (pushRes.data?.total_leads) totalUploaded += Number(pushRes.data.total_leads);
+                            else if (pushRes.status === 200) totalUploaded += chunk.length;
+                        }
+
+                        res.writeHead(200, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ ok: true, smartlead_id: smartleadId, leads_count: leadList.length, uploaded_count: totalUploaded, results }));
+                    } catch (err: any) {
                         res.writeHead(500, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ error: err.message }));
                     }

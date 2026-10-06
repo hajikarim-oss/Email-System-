@@ -625,6 +625,35 @@ export default function ContactsTable({
                         >
                             Import file
                         </TopbarAction>
+                        <TopbarAction
+                            variant="ghost"
+                            icon={<RefreshCcwIcon className="w-3 h-3" />}
+                            onClick={async () => {
+                                toast.loading("Syncing campaign leads to Smartlead...", { id: "sl_sync" });
+                                try {
+                                    const currentLeads = contacts ?? [];
+                                    const res = await fetch("/api/smartlead/add-leads", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                            campaign_id: current_campaign.id,
+                                            campaign_name: current_campaign.name,
+                                            leads: currentLeads,
+                                        }),
+                                    });
+                                    const data = await res.json();
+                                    if (data.ok) {
+                                        toast.success(`Synced ${data.uploaded_count || currentLeads.length} leads to Smartlead!`, { id: "sl_sync" });
+                                    } else {
+                                        toast.error(data.message || "Failed to sync to Smartlead", { id: "sl_sync" });
+                                    }
+                                } catch (e: any) {
+                                    toast.error(e.message || "Sync failed", { id: "sl_sync" });
+                                }
+                            }}
+                        >
+                            Sync to Smartlead
+                        </TopbarAction>
                     </div>
                 ) : segment ? (
                     <div className="flex flex-wrap items-center justify-center gap-1.5">
