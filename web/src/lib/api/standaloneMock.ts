@@ -74,10 +74,10 @@ try {
 export const DEFAULT_4_PROFILES = [
     {
         id: "cmtlkufpi000o80qmmlfsfat7",
-        email: "monu@theboredmonkey.com",
-        name: "Monu",
-        signature_plain: "Best regards,\nMonu\nFounder & CEO | TheBoredMonkey",
-        signature_html: "<p>Best regards,<br/><strong>Monu</strong><br/>Founder & CEO | TheBoredMonkey</p>",
+        email: "haji.karim@theboredmonkey.com",
+        name: "Haji Karim",
+        signature_plain: "Best regards,\nHaji Karim\nFounder & CEO | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Haji Karim</strong><br/>Founder & CEO | TheBoredMonkey</p>",
         signature_sync: false,
         signature_code: false,
         tags: ["primary", "outreach", "master"],
@@ -101,11 +101,11 @@ export const DEFAULT_4_PROFILES = [
         warmup_max: 50,
         warmup_increase: 3,
         warmup_reply_rate: 35,
-        reputation: 99,
-        daily_limit: 50,
+        reputation: 100,
+        daily_limit: 200,
         sent_today: 0,
         total_sent: 1,
-        mailbox_allowance: 50,
+        mailbox_allowance: 200,
         connected_at: "2026-09-03T13:44:59.910Z",
         created_at: "2026-09-03T13:44:59.910Z",
         updated_at: "2026-09-09T11:18:05.897Z",
@@ -141,11 +141,11 @@ export const DEFAULT_4_PROFILES = [
         warmup_max: 50,
         warmup_increase: 3,
         warmup_reply_rate: 35,
-        reputation: 98,
-        daily_limit: 50,
+        reputation: 100,
+        daily_limit: 200,
         sent_today: 0,
         total_sent: 0,
-        mailbox_allowance: 50,
+        mailbox_allowance: 200,
         connected_at: "2026-09-09T11:17:23.439Z",
         created_at: "2026-09-09T11:17:23.439Z",
         updated_at: "2026-09-09T11:29:53.612Z",
@@ -181,11 +181,11 @@ export const DEFAULT_4_PROFILES = [
         warmup_max: 50,
         warmup_increase: 3,
         warmup_reply_rate: 35,
-        reputation: 99,
-        daily_limit: 50,
-        sent_today: 48,
+        reputation: 100,
+        daily_limit: 200,
+        sent_today: 0,
         total_sent: 96,
-        mailbox_allowance: 50,
+        mailbox_allowance: 200,
         connected_at: "2026-09-18T00:00:00.000Z",
         created_at: "2026-09-18T00:00:00.000Z",
         updated_at: "2026-09-18T00:00:00.000Z",
@@ -221,11 +221,11 @@ export const DEFAULT_4_PROFILES = [
         warmup_max: 50,
         warmup_increase: 3,
         warmup_reply_rate: 35,
-        reputation: 99,
-        daily_limit: 50,
+        reputation: 100,
+        daily_limit: 200,
         sent_today: 0,
         total_sent: 0,
-        mailbox_allowance: 50,
+        mailbox_allowance: 200,
         connected_at: "2026-09-18T00:00:00.000Z",
         created_at: "2026-09-18T00:00:00.000Z",
         updated_at: "2026-09-18T00:00:00.000Z",
@@ -1049,43 +1049,43 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         });
     }
 
-    // 4. Mailboxes / Emails
-    const MIGRATION_KEY = "emails_v9_migrated";
+    // 4. Mailboxes / Emails - Strictly aligned with live Smartlead Email Accounts (4 accounts)
+    const MIGRATION_KEY = "emails_v10_smartlead_aligned";
     const migrated = loadStorage<boolean>(MIGRATION_KEY, false);
     const deletedList = loadStorage<string[]>("deleted_emails", []);
-    // Ensure the two removed gmail accounts are registered in deletedList
-    if (!deletedList.includes("theboredmonkeytech@gmail.com")) deletedList.push("theboredmonkeytech@gmail.com");
-    if (!deletedList.includes("karimsaikh356@gmail.com")) deletedList.push("karimsaikh356@gmail.com");
+    // Ensure all removed/non-Smartlead accounts are marked deleted
+    ["theboredmonkeytech@gmail.com", "karimsaikh356@gmail.com", "preeti.karki@theboredmonkey.com", "monu@theboredmonkey.com", "growth@theboredmonkey.com", "partnerships@theboredmonkey.com"].forEach(em => {
+        if (!deletedList.includes(em)) deletedList.push(em);
+    });
     saveStorage("deleted_emails", deletedList);
 
     let storedEmails = loadStorage<any[]>("emails", null as any);
 
-    if (!migrated || !Array.isArray(storedEmails)) {
-        storedEmails = DEFAULT_4_PROFILES.filter(p => !deletedList.includes(p.email.toLowerCase())).map(p => ({ ...p, sent_today: p.sent_today ?? 0, total_sent: p.total_sent ?? 0 }));
+    if (!migrated || !Array.isArray(storedEmails) || storedEmails.length !== 4 || storedEmails.some(e => e.email?.includes("monu@") || e.email?.includes("preeti.karki"))) {
+        storedEmails = DEFAULT_4_PROFILES.map(p => ({
+            ...p,
+            sent_today: p.sent_today ?? 0,
+            total_sent: p.total_sent ?? 0,
+            daily_limit: 200,
+            mailbox_allowance: 200,
+            reputation: 100,
+        }));
         saveStorage("emails", storedEmails);
         saveStorage(MIGRATION_KEY, true);
     } else {
-        for (const p of DEFAULT_4_PROFILES) {
-            if (deletedList.includes(p.email.toLowerCase())) continue;
-            const idx = storedEmails.findIndex((e: any) => e.email?.toLowerCase() === p.email.toLowerCase());
-            if (idx === -1) {
-                storedEmails.push({ ...p, sent_today: p.sent_today ?? 0, total_sent: p.total_sent ?? 0 });
-            } else {
-                storedEmails[idx] = {
-                    ...storedEmails[idx],
-                    ...p,
-                    sent_today: p.sent_today ?? 0,
-                    total_sent: p.total_sent ?? 0,
-                };
-            }
-        }
-        const cleaned = storedEmails.filter((e: any) => {
-            const em = (e.email || "").toLowerCase();
-            return em !== "growth@theboredmonkey.com" &&
-                em !== "partnerships@theboredmonkey.com" &&
-                !deletedList.includes(em);
-        }).map((e: any) => ({ ...e, sent_today: 0 }));
-        storedEmails = cleaned;
+        storedEmails = DEFAULT_4_PROFILES.map(p => {
+            const existing = storedEmails.find((e: any) => e.email?.toLowerCase() === p.email.toLowerCase());
+            return {
+                ...p,
+                ...(existing || {}),
+                name: p.name,
+                email: p.email,
+                smartlead_id: p.smartlead_id,
+                daily_limit: 200,
+                mailbox_allowance: 200,
+                reputation: 100,
+            };
+        });
         saveStorage("emails", storedEmails);
         saveStorage(MIGRATION_KEY, true);
     }

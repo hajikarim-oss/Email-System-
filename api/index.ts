@@ -6,6 +6,8 @@ import campaignAnalytics from "../server/handlers/campaign-analytics";
 import campaignStats from "../server/handlers/campaign-stats";
 import intelligenceMailboxes from "../server/handlers/mailboxes";
 import intelligenceContacts from "./intelligence/contacts";
+import intelligenceCheckBatch from "./intelligence/check-batch";
+import intelligenceCheckContact from "./intelligence/check-contact";
 import organization from "../server/handlers/organization";
 import smartleadStatus from "./smartlead/status";
 import smartleadCreateCampaign from "./smartlead/create-campaign";
@@ -29,6 +31,8 @@ const routes: Record<string, Handler> = {
     "/api/campaigns/analytics": campaignAnalytics,
     "/api/intelligence/mailboxes": intelligenceMailboxes,
     "/api/intelligence/contacts": intelligenceContacts,
+    "/api/intelligence/check-batch": intelligenceCheckBatch,
+    "/api/intelligence/check-contact": intelligenceCheckContact,
     "/api/smartlead/status": smartleadStatus,
     "/api/smartlead/create-campaign": smartleadCreateCampaign,
     "/api/smartlead/campaigns": smartleadCampaigns,

@@ -58,7 +58,7 @@ export async function getMailboxes(query: QueryFn, scope: DataScope): Promise<Ma
             coalesce(totals.total_sent, 0)::int AS total_sent
          FROM "Mailbox" m
          LEFT JOIN totals ON totals.email = lower(m."senderEmail")
-         WHERE ${ownerOwned(scope, `m."userId"`)}
+         WHERE m.status != 'RETIRED' AND ${ownerOwned(scope, `m."userId"`)}
          ORDER BY m."createdAt" ASC`,
         [todayStart],
     );

@@ -18,6 +18,7 @@ interface HistoryWarning {
     email: string; name: string; outreachState: string | null; daysSinceLastContact: number | null;
     lastSubject: string | null; lastMessage: string | null; quarantined?: boolean; quarantineReason?: string;
     lastCampaign?: string | null; campaigns?: string[];
+    hasSent?: boolean; sentStatus?: "SENT" | "NOT_SENT"; totalOutbound?: number; lastContactedAt?: string | null;
 }
 interface ContactsStepProps { selectedContacts: ContactDraftItem[]; onChangeSelected: (c: ContactDraftItem[]) => void; }
 
@@ -111,6 +112,64 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const [showWarn, setShowWarn] = React.useState(false);
     const [checking, setChecking] = React.useState(false);
     const [ignoredEmails, setIgnoredEmails] = React.useState<Set<string>>(new Set());
+    const [warnFilter, setWarnFilter] = React.useState<"all" | "sent" | "not_sent" | "quarantined">("all");
+    const [warnSearch, setWarnSearch] = React.useState("");
+
+    const sentWarnings = React.useMemo(() => historyWarnings.filter(w => w.hasSent && !w.quarantined), [historyWarnings]);
+    const notSentWarnings = React.useMemo(() => historyWarnings.filter(w => !w.hasSent && !w.quarantined), [historyWarnings]);
+    const quarWarnings = React.useMemo(() => historyWarnings.filter(w => w.quarantined), [historyWarnings]);
+
+    const skipAllSent = () => {
+        setIgnoredEmails(prev => {
+            const next = new Set(prev);
+            sentWarnings.forEach(w => next.add(w.email.toLowerCase()));
+            return next;
+        });
+        toast(`Ignored ${sentWarnings.length} contacts with sent emails`);
+    };
+
+    const skipAllNotSent = () => {
+        setIgnoredEmails(prev => {
+            const next = new Set(prev);
+            notSentWarnings.forEach(w => next.add(w.email.toLowerCase()));
+            return next;
+        });
+        toast(`Ignored ${notSentWarnings.length} uncontacted / not-sent contacts`);
+    };
+
+    const selectAllSent = () => {
+        setIgnoredEmails(prev => {
+            const next = new Set(prev);
+            sentWarnings.forEach(w => next.delete(w.email.toLowerCase()));
+            return next;
+        });
+        toast.success(`Selected ${sentWarnings.length} sent contacts`);
+    };
+
+    const selectAllNotSent = () => {
+        setIgnoredEmails(prev => {
+            const next = new Set(prev);
+            notSentWarnings.forEach(w => next.delete(w.email.toLowerCase()));
+            return next;
+        });
+        toast.success(`Selected ${notSentWarnings.length} not-sent contacts`);
+    };
+
+    const displayedWarnings = React.useMemo(() => {
+        return historyWarnings.filter(w => {
+            if (warnFilter === "sent" && (!w.hasSent || w.quarantined)) return false;
+            if (warnFilter === "not_sent" && (w.hasSent || w.quarantined)) return false;
+            if (warnFilter === "quarantined" && !w.quarantined) return false;
+            if (warnSearch.trim()) {
+                const q = warnSearch.toLowerCase().trim();
+                const matchEmail = w.email.toLowerCase().includes(q);
+                const matchName = (w.name || "").toLowerCase().includes(q);
+                const matchCamp = (w.lastCampaign || "").toLowerCase().includes(q);
+                if (!matchEmail && !matchName && !matchCamp) return false;
+            }
+            return true;
+        });
+    }, [historyWarnings, warnFilter, warnSearch]);
 
     const batchCheck = React.useCallback(async (toAdd: ContactDraftItem[]) => {
         if (!toAdd.length) return;
@@ -132,7 +191,11 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 lastMessage: d.lastMessage,
                 lastCampaign: d.lastCampaign,
                 campaigns: d.campaigns || [],
-                quarantined: false
+                quarantined: false,
+                hasSent: Boolean(d.hasSent ?? (d.totalOutbound > 0 || d.sentStatus === "SENT" || d.lastContactedAt != null)),
+                sentStatus: d.sentStatus || (d.hasSent ? "SENT" : "NOT_SENT"),
+                totalOutbound: Number(d.totalOutbound) || 0,
+                lastContactedAt: d.lastContactedAt || null,
             }));
             const quar: HistoryWarning[] = (j.quarantined || []).map((q: any) => ({
                 email: q.email,
@@ -144,7 +207,11 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 lastCampaign: null,
                 campaigns: [],
                 quarantined: true,
-                quarantineReason: q.reason
+                quarantineReason: q.reason,
+                hasSent: false,
+                sentStatus: "NOT_SENT",
+                totalOutbound: 0,
+                lastContactedAt: null,
             }));
             const all = [...dupes, ...quar];
             if (all.length > 0) {
@@ -342,103 +409,229 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                         </div>
                     </div>
 
-                    <p className="px-4 py-2 bg-amber-50/40 text-[11.5px] text-amber-900/90 border-b border-amber-100">
-                        Review prior history and campaign touches below. Use <strong>Select ✓</strong> to include or <strong>Ignore ✗</strong> to skip, or click <strong>Skip All Flagged</strong> to exclude them all at once.
-                    </p>
+                    {/* Toolbar: Filter by Sent/Not Sent, Quick Actions, Search */}
+                    <div className="px-4 py-2.5 bg-amber-50/50 border-b border-amber-200/70 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap text-[11.5px]">
+                            <p className="text-amber-900/90 leading-tight">
+                                Review prior history below. Filter by sent status or ignore specific segments:
+                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                {sentWarnings.length > 0 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={skipAllSent}
+                                            className="px-2 py-1 rounded text-[11px] font-semibold bg-rose-100/80 text-rose-800 hover:bg-rose-200 border border-rose-300 transition-colors cursor-pointer"
+                                            title="Exclude contacts that were already sent an email"
+                                        >
+                                            Ignore Sent ({sentWarnings.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={selectAllSent}
+                                            className="px-2 py-1 rounded text-[11px] font-medium bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                                        >
+                                            Select Sent
+                                        </button>
+                                    </>
+                                )}
+                                {notSentWarnings.length > 0 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={skipAllNotSent}
+                                            className="px-2 py-1 rounded text-[11px] font-semibold bg-amber-200/70 text-amber-900 hover:bg-amber-300 border border-amber-400 transition-colors cursor-pointer"
+                                            title="Exclude contacts enrolled but never actually sent an email"
+                                        >
+                                            Ignore Not Sent ({notSentWarnings.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={selectAllNotSent}
+                                            className="px-2 py-1 rounded text-[11px] font-medium bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                                        >
+                                            Select Not Sent
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
 
-                    {/* Scrollable contact cards */}
-                    <div className="px-4 py-3 space-y-2.5 max-h-[300px] overflow-y-auto bg-slate-50/40">
-                        {historyWarnings.map(w => {
-                            const ig = ignoredEmails.has(w.email.toLowerCase());
-                            return (
-                                <div
-                                    key={w.email}
+                        {/* Filter Tabs + Search */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                            <div className="flex items-center gap-1 p-0.5 rounded-lg bg-amber-200/50 border border-amber-300/70">
+                                <button
+                                    type="button"
+                                    onClick={() => setWarnFilter("all")}
                                     className={cn(
-                                        "rounded-lg border p-3 transition-all",
-                                        ig
-                                            ? "bg-slate-50 border-slate-200 opacity-55 border-l-4 border-l-slate-300"
-                                            : w.quarantined
-                                            ? "bg-red-50/60 border-red-200 shadow-xs border-l-4 border-l-red-500"
-                                            : "bg-white border-amber-200 shadow-xs border-l-4 border-l-amber-500"
+                                        "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer",
+                                        warnFilter === "all" ? "bg-white text-slate-900 font-bold shadow-xs" : "text-amber-950 hover:bg-amber-100/60"
                                     )}
                                 >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="text-[12px] font-semibold text-slate-900">{w.name}</span>
-                                                <span className="text-[10.5px] text-slate-500 font-mono">{w.email}</span>
-                                                {w.quarantined ? (
-                                                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-red-100 text-red-700 border border-red-200">
-                                                        🚫 Quarantined
-                                                    </span>
-                                                ) : (
-                                                    <OBadge state={w.outreachState}/>
-                                                )}
-                                                {w.lastCampaign && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
-                                                        Used in {w.lastCampaign}{w.campaigns && w.campaigns.length > 1 ? ` (+${w.campaigns.length - 1} more)` : ""}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {w.quarantined && w.quarantineReason && (
-                                                <p className="mt-1 text-[11px] text-red-700 font-medium">
-                                                    <strong>Suppression reason:</strong> {w.quarantineReason}
-                                                </p>
-                                            )}
-                                            {!w.quarantined && (
-                                                <div className="mt-1.5 space-y-1">
-                                                    {w.daysSinceLastContact != null && (
-                                                        <div className="flex items-center gap-1.5 text-[10.5px] text-slate-600">
-                                                            <ClockIcon className="w-3 h-3 shrink-0 text-amber-600"/>
-                                                            <span>Last contacted <strong>{w.daysSinceLastContact} days ago</strong></span>
-                                                        </div>
+                                    All ({historyWarnings.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setWarnFilter("sent")}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer inline-flex items-center gap-1",
+                                        warnFilter === "sent" ? "bg-blue-600 text-white font-bold shadow-xs" : "text-blue-900 hover:bg-blue-100/60"
+                                    )}
+                                >
+                                    <span>📤 Sent ({sentWarnings.length})</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setWarnFilter("not_sent")}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer inline-flex items-center gap-1",
+                                        warnFilter === "not_sent" ? "bg-amber-600 text-white font-bold shadow-xs" : "text-amber-950 hover:bg-amber-100/60"
+                                    )}
+                                >
+                                    <span>⏳ Not Sent ({notSentWarnings.length})</span>
+                                </button>
+                                {quarWarnings.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setWarnFilter("quarantined")}
+                                        className={cn(
+                                            "px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer inline-flex items-center gap-1",
+                                            warnFilter === "quarantined" ? "bg-rose-600 text-white font-bold shadow-xs" : "text-rose-900 hover:bg-rose-100/60"
+                                        )}
+                                    >
+                                        <span>🚫 Quarantined ({quarWarnings.length})</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="relative min-w-[180px] flex-1 sm:flex-initial">
+                                <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"/>
+                                <input
+                                    type="text"
+                                    value={warnSearch}
+                                    onChange={e => setWarnSearch(e.target.value)}
+                                    placeholder="Search flagged..."
+                                    className="w-full pl-8 pr-2.5 py-1 rounded-md text-[11px] bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Scrollable contact cards */}
+                    <div className="px-4 py-3 space-y-2.5 max-h-[320px] overflow-y-auto bg-slate-50/40">
+                        {displayedWarnings.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-slate-300 bg-white p-5 text-center text-slate-500 text-[12px]">
+                                No flagged contacts match current filter ({warnFilter}{warnSearch ? ` with query "${warnSearch}"` : ""}).
+                            </div>
+                        ) : (
+                            displayedWarnings.map(w => {
+                                const ig = ignoredEmails.has(w.email.toLowerCase());
+                                return (
+                                    <div
+                                        key={w.email}
+                                        className={cn(
+                                            "rounded-lg border p-3 transition-all",
+                                            ig
+                                                ? "bg-slate-50 border-slate-200 opacity-55 border-l-4 border-l-slate-300"
+                                                : w.quarantined
+                                                ? "bg-red-50/60 border-red-200 shadow-xs border-l-4 border-l-red-500"
+                                                : "bg-white border-amber-200 shadow-xs border-l-4 border-l-amber-500"
+                                        )}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-[12px] font-semibold text-slate-900">{w.name}</span>
+                                                    <span className="text-[10.5px] text-slate-500 font-mono">{w.email}</span>
+                                                    
+                                                    {w.quarantined ? (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-red-100 text-red-700 border border-red-200">
+                                                            🚫 Quarantined
+                                                        </span>
+                                                    ) : (
+                                                        <>
+                                                            {w.hasSent ? (
+                                                                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
+                                                                    📤 Sent {w.totalOutbound > 0 ? `(${w.totalOutbound} mail${w.totalOutbound > 1 ? "s" : ""})` : ""}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                                                                    ⏳ Not Sent Yet
+                                                                </span>
+                                                            )}
+                                                            <OBadge state={w.outreachState}/>
+                                                        </>
                                                     )}
-                                                    {w.lastSubject && (
-                                                        <div className="flex items-start gap-1.5 text-[10.5px] text-slate-700">
-                                                            <MessageSquareIcon className="w-3 h-3 mt-0.5 shrink-0 text-slate-900"/>
-                                                            <span><strong>Subject:</strong> {w.lastSubject}</span>
-                                                        </div>
-                                                    )}
-                                                    {w.lastMessage && (
-                                                        <p className="text-[11px] text-slate-600 pl-3 py-1 italic bg-amber-50/80 border-l-2 border-amber-400 rounded-r font-normal leading-snug">
-                                                            "{w.lastMessage}"
-                                                        </p>
+
+                                                    {w.lastCampaign && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                                                            Used in {w.lastCampaign}{w.campaigns && w.campaigns.length > 1 ? ` (+${w.campaigns.length - 1} more)` : ""}
+                                                        </span>
                                                     )}
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col gap-1 shrink-0">
-                                            <button
-                                                type="button"
-                                                onClick={() => { if (ig) toggleIgnore(w.email.toLowerCase()); }}
-                                                className={cn(
-                                                    "h-7 px-2.5 rounded text-[10.5px] font-semibold inline-flex items-center gap-1 border transition-all cursor-pointer",
-                                                    !ig
-                                                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                                                        : "bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-700"
+
+                                                {w.quarantined && w.quarantineReason && (
+                                                    <p className="mt-1 text-[11px] text-red-700 font-medium">
+                                                        <strong>Suppression reason:</strong> {w.quarantineReason}
+                                                    </p>
                                                 )}
-                                            >
-                                                <CheckIcon className="w-3 h-3"/>
-                                                {!ig ? "Selected ✓" : "Select"}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => { if (!ig) toggleIgnore(w.email.toLowerCase()); }}
-                                                className={cn(
-                                                    "h-7 px-2.5 rounded text-[10.5px] font-semibold inline-flex items-center gap-1 border transition-all cursor-pointer",
-                                                    ig
-                                                        ? "bg-rose-600 text-white border-rose-600 shadow-xs"
-                                                        : "bg-white text-slate-500 border-slate-200 hover:border-rose-300 hover:text-rose-700"
+
+                                                {!w.quarantined && (
+                                                    <div className="mt-1.5 space-y-1">
+                                                        {w.daysSinceLastContact != null && (
+                                                            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-600">
+                                                                <ClockIcon className="w-3 h-3 shrink-0 text-amber-600"/>
+                                                                <span>Last contacted <strong>{w.daysSinceLastContact} days ago</strong></span>
+                                                            </div>
+                                                        )}
+                                                        {w.lastSubject && (
+                                                            <div className="flex items-start gap-1.5 text-[10.5px] text-slate-700">
+                                                                <MessageSquareIcon className="w-3 h-3 mt-0.5 shrink-0 text-slate-900"/>
+                                                                <span><strong>Subject:</strong> {w.lastSubject}</span>
+                                                            </div>
+                                                        )}
+                                                        {w.lastMessage && (
+                                                            <p className="text-[11px] text-slate-600 pl-3 py-1 italic bg-amber-50/80 border-l-2 border-amber-400 rounded-r font-normal leading-snug">
+                                                                "{w.lastMessage}"
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 )}
-                                            >
-                                                <XIcon className="w-3 h-3"/>
-                                                {ig ? "Ignored ✗" : "Ignore"}
-                                            </button>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1 shrink-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { if (ig) toggleIgnore(w.email.toLowerCase()); }}
+                                                    className={cn(
+                                                        "h-7 px-2.5 rounded text-[10.5px] font-semibold inline-flex items-center gap-1 border transition-all cursor-pointer",
+                                                        !ig
+                                                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                                            : "bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-700"
+                                                    )}
+                                                >
+                                                    <CheckIcon className="w-3 h-3"/>
+                                                    {!ig ? "Selected ✓" : "Select"}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { if (!ig) toggleIgnore(w.email.toLowerCase()); }}
+                                                    className={cn(
+                                                        "h-7 px-2.5 rounded text-[10.5px] font-semibold inline-flex items-center gap-1 border transition-all cursor-pointer",
+                                                        ig
+                                                            ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                                                            : "bg-white text-slate-500 border-slate-200 hover:border-rose-300 hover:text-rose-700"
+                                                    )}
+                                                >
+                                                    <XIcon className="w-3 h-3"/>
+                                                    {ig ? "Ignored ✗" : "Ignore"}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })
+                        )}
                         {(() => {
                             const n = pendingContacts.filter(c => !historyWarnings.some(w => w.email.toLowerCase() === c.email.toLowerCase())).length;
                             return n > 0 ? (

@@ -15,6 +15,7 @@ import { scopeFor, type DataScope } from "../server/scope";
 import { smartleadPrimary, smartleadSecondary } from "../server/smartleadKeys";
 import { recordSmartleadEvent, resolveWebhookSecret, verifySmartleadSignature } from "../server/smartleadWebhook";
 import { resolveDatabaseUrl } from "../server/pg";
+import { checkBatch, checkContact } from "../server/checkBatch";
 import authHandler from "../server/handlers/auth";
 import organizationHandler from "../server/handlers/organization";
 
@@ -41,15 +42,15 @@ const uploadSourceMaps = uploadToSentry || uploadToPostHog;
 
 const sentryPlugins = uploadToSentry
     ? [
-          sentryVitePlugin({
-              authToken: sentryAuthToken,
-              org: sentryOrg,
-              project: sentryProject,
-              release: { name: process.env.VITE_SENTRY_RELEASE },
-              sourcemaps: { filesToDeleteAfterUpload: uploadToPostHog ? [] : ["dist/**/*.map"] },
-              telemetry: false,
-          }),
-      ]
+        sentryVitePlugin({
+            authToken: sentryAuthToken,
+            org: sentryOrg,
+            project: sentryProject,
+            release: { name: process.env.VITE_SENTRY_RELEASE },
+            sourcemaps: { filesToDeleteAfterUpload: uploadToPostHog ? [] : ["dist/**/*.map"] },
+            telemetry: false,
+        }),
+    ]
     : [];
 
 import https from "https";
@@ -193,7 +194,7 @@ Use your own intelligence, reasoning, and creativity. Think carefully and give r
                                                 fullText += delta;
                                                 res.write(`data: ${JSON.stringify({ type: "text_delta", text: delta })}\n\n`);
                                             }
-                                        } catch {}
+                                        } catch { }
                                     }
                                 });
                                 openAiRes.on("end", () => {
@@ -275,7 +276,7 @@ function smartleadApiPlugin() {
                                 if (fallbackRes.status >= 200 && fallbackRes.status < 300) {
                                     return resolve(fallbackRes);
                                 }
-                            } catch {}
+                            } catch { }
                         }
                         resolve({ status: res.statusCode, data: parsed });
                     } catch {
@@ -486,7 +487,7 @@ function smartleadApiPlugin() {
                             if (Array.isArray(mbRes.data) && mbRes.data.length > 0) {
                                 mailboxIds = mbRes.data.map((m: any) => m.id);
                             }
-                        } catch {}
+                        } catch { }
 
                         await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
                             email_account_ids: mailboxIds,
@@ -816,63 +817,9 @@ function databaseIntelligencePlugin() {
                             res.end(JSON.stringify({ error: "Email is required" }));
                             return;
                         }
-
-                        const prisma = getPrisma();
-                        if (!prisma) {
-                            res.writeHead(200, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({ isDuplicate: false, isQuarantined: false }));
-                            return;
-                        }
-
-                        // 1. Check suppression list
-                        const isSuppressed = await prisma.suppressedEmail.findUnique({
-                            where: { email: cleanEmail },
-                        });
-                        if (isSuppressed) {
-                            res.writeHead(200, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({
-                                isQuarantined: true,
-                                reason: isSuppressed.reason,
-                                error: `Quarantine Alert: ${cleanEmail} is on the global suppression list (${isSuppressed.reason}). Cannot add to active outreach.`,
-                            }));
-                            return;
-                        }
-
-                        // 2. Check Lead database
-                        const lead = await prisma.lead.findFirst({
-                            where: { email: cleanEmail },
-                        });
-                        if (lead) {
-                            let lastMessage = lead.lastBodyHook;
-                            if (!lastMessage) {
-                                const msg = await prisma.emailMessage.findFirst({
-                                    where: { contactEmail: cleanEmail },
-                                    orderBy: { createdAt: "desc" },
-                                    select: { bodyHook: true },
-                                });
-                                lastMessage = msg?.bodyHook || null;
-                            }
-                            res.writeHead(200, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({
-                                isDuplicate: true,
-                                existingContact: {
-                                    id: lead.id,
-                                    name: `${lead.firstName || ""} ${lead.lastName || ""}`.trim() || cleanEmail,
-                                    email: lead.email,
-                                    domain: lead.domain,
-                                    outreachState: lead.outreachState,
-                                    recencyBucket: lead.recencyBucket,
-                                    daysSinceLastContact: lead.daysSinceLastContact,
-                                    lastSubject: lead.lastSubject,
-                                    lastOutcome: lead.lastOutcome,
-                                    lastMessage: lastMessage,
-                                },
-                            }));
-                            return;
-                        }
-
+                        const result = await checkContact(cleanEmail);
                         res.writeHead(200, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ isDuplicate: false, isQuarantined: false }));
+                        res.end(JSON.stringify(result));
                     } catch (err: any) {
                         res.writeHead(500, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ error: err.message }));
@@ -892,128 +839,9 @@ function databaseIntelligencePlugin() {
                     try {
                         const parsed = JSON.parse(body || "{}");
                         const emails: string[] = (parsed.emails || []).map((e: string) => e.toLowerCase().trim()).filter(Boolean);
-                        const prisma = getPrisma();
-                        if (!prisma || emails.length === 0) {
-                            res.writeHead(200, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({ duplicates: [], quarantined: [] }));
-                            return;
-                        }
-
-                        const [suppressedList, leads, messages] = await Promise.all([
-                            prisma.suppressedEmail.findMany({
-                                where: { email: { in: emails } },
-                                select: { email: true, reason: true },
-                            }),
-                            prisma.lead.findMany({
-                                where: { email: { in: emails } },
-                                include: { campaign: true },
-                                orderBy: [
-                                    { lastContactedAt: { sort: "desc", nulls: "last" } },
-                                    { updatedAt: "desc" },
-                                ],
-                            }),
-                            prisma.emailMessage.findMany({
-                                where: { contactEmail: { in: emails } },
-                                orderBy: { createdAt: "desc" },
-                                select: {
-                                    contactEmail: true,
-                                    subjectRaw: true,
-                                    bodyHook: true,
-                                    campaignClean: true,
-                                    campaignRaw: true,
-                                    createdAt: true,
-                                    direction: true,
-                                },
-                            }),
-                        ]);
-
-                        const suppressedMap = new Map(suppressedList.map((s: any) => [s.email.toLowerCase(), s.reason]));
-                        const leadsByEmail = new Map<string, any[]>();
-                        for (const l of leads) {
-                            const em = l.email.toLowerCase();
-                            if (!leadsByEmail.has(em)) leadsByEmail.set(em, []);
-                            leadsByEmail.get(em)!.push(l);
-                        }
-
-                        const msgsByEmail = new Map<string, any[]>();
-                        for (const m of messages) {
-                            const em = m.contactEmail.toLowerCase();
-                            if (!msgsByEmail.has(em)) msgsByEmail.set(em, []);
-                            msgsByEmail.get(em)!.push(m);
-                        }
-
-                        const duplicates: any[] = [];
-                        const quarantined: any[] = [];
-
-                        for (const email of emails) {
-                            const suppReason = suppressedMap.get(email);
-                            const emailLeads = leadsByEmail.get(email) || [];
-                            const emailMsgs = msgsByEmail.get(email) || [];
-
-                            const isBurnedOrSupp = suppReason || emailLeads.some((l: any) => l.isBurned || l.status === "UNSUBSCRIBED" || l.status === "BOUNCED");
-                            if (isBurnedOrSupp) {
-                                quarantined.push({
-                                    email,
-                                    name: emailLeads[0] ? `${emailLeads[0].firstName || ""} ${emailLeads[0].lastName || ""}`.trim() || email : email,
-                                    reason: suppReason || (emailLeads.find((l: any) => l.status === "BOUNCED") ? "Email bounced previously" : emailLeads.find((l: any) => l.status === "UNSUBSCRIBED") ? "Unsubscribed from outreach" : "Marked as burned"),
-                                });
-                                continue;
-                            }
-
-                            if (emailLeads.length === 0 && emailMsgs.length === 0) {
-                                continue;
-                            }
-
-                            const campaignNames = [...new Set([
-                                ...emailLeads.map((l: any) => l.campaign?.name || l.lastCampaign).filter(Boolean),
-                                ...emailMsgs.map((m: any) => m.campaignClean || m.campaignRaw).filter(Boolean),
-                            ])];
-
-                            const leadWithSubject = emailLeads.find((l: any) => l.lastSubject && l.lastSubject !== "No prior outreach");
-                            const leadWithMessage = emailLeads.find((l: any) => l.lastBodyHook && !l.lastBodyHook.includes("No conversation"));
-                            const leadWithDays = emailLeads.find((l: any) => l.daysSinceLastContact != null);
-                            const leadWithState = emailLeads.find((l: any) => l.outreachState && !["UNKNOWN", "NEVER_REACHED", "NEVER_CONTACTED"].includes(l.outreachState));
-
-                            const msgWithSubject = emailMsgs.find((m: any) => m.subjectRaw);
-                            const msgWithBody = emailMsgs.find((m: any) => m.bodyHook);
-
-                            const subject = leadWithSubject?.lastSubject || msgWithSubject?.subjectRaw || null;
-                            const message = leadWithMessage?.lastBodyHook || msgWithBody?.bodyHook || null;
-
-                            let daysSince = leadWithDays?.daysSinceLastContact ?? null;
-                            if (daysSince == null && emailMsgs[0]?.createdAt) {
-                                daysSince = Math.floor((Date.now() - new Date(emailMsgs[0].createdAt).getTime()) / (1000 * 60 * 60 * 24));
-                            }
-
-                            let outreachState = leadWithState?.outreachState || null;
-                            if (!outreachState) {
-                                if (campaignNames.length > 0) {
-                                    outreachState = "COLD_REENGAGEMENT";
-                                } else if (daysSince != null && daysSince > 30) {
-                                    outreachState = "WARM_STALE";
-                                } else {
-                                    outreachState = "NEVER_REACHED";
-                                }
-                            }
-
-                            const hasHistory = campaignNames.length > 0 || subject != null || message != null || daysSince != null || (outreachState && outreachState !== "NEVER_REACHED");
-                            if (hasHistory) {
-                                const bestLead = emailLeads[0];
-                                duplicates.push({
-                                    email,
-                                    name: bestLead ? `${bestLead.firstName || ""} ${bestLead.lastName || ""}`.trim() || email : email,
-                                    outreachState,
-                                    daysSinceLastContact: daysSince,
-                                    lastSubject: subject,
-                                    lastMessage: message,
-                                    lastCampaign: campaignNames[0] || null,
-                                    campaigns: campaignNames,
-                                });
-                            }
-                        }
-
+                        const result = await checkBatch(emails);
                         res.writeHead(200, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ duplicates, quarantined }));
+                        res.end(JSON.stringify(result));
                     } catch (err: any) {
                         res.writeHead(500, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ error: err.message }));
@@ -1333,7 +1161,7 @@ function databaseIntelligencePlugin() {
             });
 
             // Per-campaign analytics: lifetime summary, daily series, per-step
-            
+
             // Campaign steps CRUD directly in PostgreSQL CampaignStep table
             server.middlewares.use("/api/campaigns/steps", async (req: any, res: any) => {
                 let body = "";
