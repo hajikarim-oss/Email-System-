@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
-import { resolveUser, jsonOk } from "../helper";
+import { resolveUser, jsonOk, jsonErr } from "../helper";
 
 const FALLBACK_CAMPAIGNS = [
   {
@@ -124,6 +124,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await resolveUser(req);
+    if (!user) return jsonErr("Unauthorized", 401);
+
     const body = await req.json();
     const name = body.name?.trim() || "Untitled Campaign";
 

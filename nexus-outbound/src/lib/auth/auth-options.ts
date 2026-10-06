@@ -5,15 +5,13 @@ import { promisify } from "util";
 import prisma from "@/lib/db/prisma";
 import { authConfig } from "@/lib/auth/auth.config";
 
-const scrypt = promisify(crypto.scrypt);
-
-async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
+function verifyPassword(password: string, stored: string | null | undefined): boolean {
   if (!stored) return false;
   const parts = stored.split("$");
   if (parts.length !== 6 || parts[0] !== "scrypt") return false;
   const [, n, r, p, salt, hash] = parts;
   try {
-    const derived = (await scrypt(password, salt, 64, { N: Number(n), r: Number(r), p: Number(p) })) as Buffer;
+    const derived = crypto.scryptSync(password, salt, 64, { N: Number(n), r: Number(r), p: Number(p) }) as Buffer;
     const expected = Buffer.from(hash, "base64");
     return expected.length === derived.length && crypto.timingSafeEqual(derived, expected);
   } catch {
