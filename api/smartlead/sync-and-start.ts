@@ -123,18 +123,40 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
             }
 
-            // 2. Link mailboxes
-            let mailboxIds = isPreeti ? [23458016] : [23457457];
+            // 2. Link rotational mailboxes (dedicated per campaign/team member)
+            let mailboxIds: number[] = [];
             try {
                 const mbRes = await apiCall("/email-accounts", "GET", undefined, chosenKey);
-                if (Array.isArray(mbRes.data) && mbRes.data.length > 0) {
-                    mailboxIds = mbRes.data.map((m: any) => m.id);
-                }
-            } catch {}
+                const allAccounts: any[] = Array.isArray(mbRes.data) ? mbRes.data : [];
 
-            await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
-                email_account_ids: mailboxIds,
-            }, chosenKey);
+                if (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.length > 0) {
+                    mailboxIds = parsed.mailbox_ids.map(Number).filter(Boolean);
+                } else if (Array.isArray(parsed.sender_emails) && parsed.sender_emails.length > 0) {
+                    const requested = parsed.sender_emails.map((e: string) => String(e).toLowerCase().trim());
+                    mailboxIds = allAccounts
+                        .filter((m: any) => requested.includes(String(m.from_email || m.email || "").toLowerCase().trim()))
+                        .map((m: any) => m.id);
+                } else if (sender) {
+                    const matched = allAccounts.filter((m: any) =>
+                        String(m.from_email || m.email || "").toLowerCase().trim() === sender
+                    );
+                    if (matched.length > 0) {
+                        mailboxIds = matched.map((m: any) => m.id);
+                    }
+                }
+
+                if (mailboxIds.length === 0 && allAccounts.length > 0) {
+                    mailboxIds = allAccounts.slice(0, 2).map((m: any) => m.id);
+                }
+            } catch (err: any) {
+                console.warn("[Smartlead Sync] Mailbox lookup warning:", err.message);
+            }
+
+            if (mailboxIds.length > 0) {
+                await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
+                    email_account_ids: mailboxIds,
+                }, chosenKey);
+            }
 
             // 3. Sequences
             const seqSteps = (parsed.steps && parsed.steps.length > 0)
@@ -160,12 +182,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 timezone: parsed.timezone || "Asia/Kolkata",
                 days_of_the_week: [1, 2, 3, 4, 5],
                 start_hour: "10:00",
-                end_hour: "18:00",
-                        min_time_btw_emails: 3,
-                        // Total daily capacity of the sending pool, not one
-                        // mailbox: 4 x 50 by default, raised for bigger pools.
-                        max_new_leads_per_day: Number(parsed.max_new_leads_per_day) || Number(process.env.SMARTLEAD_MAX_NEW_LEADS_PER_DAY) || 200,
-                    }, chosenKey);
+                end_hour: "19:00",
+                min_time_btw_emails: 2,
+                max_new_leads_per_day: Number(parsed.max_new_leads_per_day) || Math.max((mailboxIds.length || 1) * 200, 200),
+            }, chosenKey);
 
             // 5. Leads
             const rawLeads = parsed.leads || [];

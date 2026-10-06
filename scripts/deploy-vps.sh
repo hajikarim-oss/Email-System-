@@ -64,6 +64,15 @@ fi
 
 cd "${APP_DIR}"
 
+# Ensure environment files are present and synchronized
+if [ -f "${APP_DIR}/.env" ] && [ ! -f "${APP_DIR}/nexus-outbound/.env" ]; then
+    cp "${APP_DIR}/.env" "${APP_DIR}/nexus-outbound/.env"
+    echo "✔ Synced .env to nexus-outbound/.env"
+elif [ -f "${APP_DIR}/nexus-outbound/.env" ] && [ ! -f "${APP_DIR}/.env" ]; then
+    cp "${APP_DIR}/nexus-outbound/.env" "${APP_DIR}/.env"
+    echo "✔ Synced nexus-outbound/.env to root .env"
+fi
+
 # Build Root dependencies
 pnpm install
 

@@ -126,19 +126,19 @@ async function main() {
                 if (exists.rows.length > 0) {
                     await pool.query(
                         `UPDATE "Mailbox"
-                         SET "providerMailboxId" = $1, status = 'ACTIVE', "updatedAt" = now()
+                         SET "providerMailboxId" = $1, status = 'ACTIVE', "dailySendLimit" = 200, "updatedAt" = now()
                          WHERE id = $2`,
                         [providerId, exists.rows[0].id]
                     );
-                    console.log(`  ✓ Updated mailbox ${email} (Smartlead ID: ${providerId})`);
+                    console.log(`  ✓ Updated mailbox ${email} (Smartlead ID: ${providerId}, Daily Limit: 200)`);
                 } else {
                     const id = `mbx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
                     await pool.query(
                         `INSERT INTO "Mailbox" (id, "userId", "senderEmail", provider, "providerMailboxId", status, "dailySendLimit", "createdAt", "updatedAt")
-                         VALUES ($1, $2, $3, 'smartlead', $4, 'ACTIVE', 50, now(), now())`,
+                         VALUES ($1, $2, $3, 'smartlead', $4, 'ACTIVE', 200, now(), now())`,
                         [id, defaultOwnerId, email, providerId]
                     );
-                    console.log(`  + Created mailbox ${email} (Smartlead ID: ${providerId})`);
+                    console.log(`  + Created mailbox ${email} (Smartlead ID: ${providerId}, Daily Limit: 200)`);
                 }
             }
         }
