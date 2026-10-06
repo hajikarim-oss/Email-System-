@@ -20,7 +20,7 @@ module.exports = {
     {
       name: "email-system-api",
       cwd: ".",
-      script: "node_modules/.bin/tsx",
+      script: "node_modules/tsx/dist/cli.mjs",
       args: "api/index.ts",
       instances: 1,
       exec_mode: "fork",
@@ -37,7 +37,7 @@ module.exports = {
     {
       name: "daily-refresh-cron",
       cwd: "./nexus-outbound",
-      script: "node_modules/.bin/tsx",
+      script: "../node_modules/tsx/dist/cli.mjs",
       args: "scripts/daily_refresh.ts",
       cron_restart: "5 0 * * *", // Runs every midnight at 00:05 UTC
       autorestart: false,
