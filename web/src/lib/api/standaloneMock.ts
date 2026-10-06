@@ -108,7 +108,9 @@ export const DEFAULT_4_PROFILES = [
         mailbox_allowance: 50,
         connected_at: "2026-09-03T13:44:59.910Z",
         created_at: "2026-09-03T13:44:59.910Z",
-        updated_at: "2026-09-09T11:18:05.897Z"
+        updated_at: "2026-09-09T11:18:05.897Z",
+        smartlead_id: 24259845,
+        smartlead_api_key: "mock_smartlead_api_key",
     },
     {
         id: "cmtu07q0i00011wxajyd2ehui",
@@ -146,7 +148,9 @@ export const DEFAULT_4_PROFILES = [
         mailbox_allowance: 50,
         connected_at: "2026-09-09T11:17:23.439Z",
         created_at: "2026-09-09T11:17:23.439Z",
-        updated_at: "2026-09-09T11:29:53.612Z"
+        updated_at: "2026-09-09T11:29:53.612Z",
+        smartlead_id: 24259802,
+        smartlead_api_key: "mock_smartlead_api_key",
     },
     {
         id: "cmu6m304o00003307qj8ex6oa",
@@ -185,15 +189,15 @@ export const DEFAULT_4_PROFILES = [
         connected_at: "2026-09-18T00:00:00.000Z",
         created_at: "2026-09-18T00:00:00.000Z",
         updated_at: "2026-09-18T00:00:00.000Z",
-        smartlead_id: 23457457,
+        smartlead_id: 24259777,
         smartlead_api_key: "mock_smartlead_api_key",
     },
     {
-        id: "cmu6m31bv00033307zao17anp",
-        email: "preeti.karki@theboredmonkey.com",
-        name: "Preeti Karki",
-        signature_plain: "Best regards,\nPreeti Karki\nAccount Executive | TheBoredMonkey",
-        signature_html: "<p>Best regards,<br/><strong>Preeti Karki</strong><br/>Account Executive | TheBoredMonkey</p>",
+        id: "mbx_1791272858121_rd5gi",
+        email: "tamanna.ranawat@theboredmonkey.com",
+        name: "Tamanna Ranawat",
+        signature_plain: "Best regards,\nTamanna Ranawat\nAccount Executive | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Tamanna Ranawat</strong><br/>Account Executive | TheBoredMonkey</p>",
         signature_sync: false,
         signature_code: false,
         tags: ["primary", "outreach", "enterprise"],
@@ -225,7 +229,7 @@ export const DEFAULT_4_PROFILES = [
         connected_at: "2026-09-18T00:00:00.000Z",
         created_at: "2026-09-18T00:00:00.000Z",
         updated_at: "2026-09-18T00:00:00.000Z",
-        smartlead_id: 23458016,
+        smartlead_id: 24260216,
         smartlead_api_key: "mock_smartlead_api_key",
     }
 ];
