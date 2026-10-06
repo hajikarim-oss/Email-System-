@@ -17,15 +17,14 @@ export async function POST(req: Request) {
     const webhookSecret = process.env.SMARTLEAD_WEBHOOK_SECRET;
     if (webhookSecret) {
       const signature = req.headers.get("x-webhook-signature") || req.headers.get("x-smartlead-signature");
-      if (signature) {
-        const body = await req.text();
-        if (!verifyHmacSignature(body, signature, webhookSecret)) {
-          return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-        }
-        payload = JSON.parse(body);
-      } else {
-        payload = await req.json();
+      if (!signature) {
+        return NextResponse.json({ error: "Missing webhook signature" }, { status: 401 });
       }
+      const body = await req.text();
+      if (!verifyHmacSignature(body, signature, webhookSecret)) {
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
+      payload = JSON.parse(body);
     } else {
       payload = await req.json();
     }

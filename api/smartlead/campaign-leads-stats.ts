@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
 import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
+import { requireUser } from "../../server/handlers/auth";
 
 const PRIMARY_KEY = smartleadPrimary();
 const SECONDARY_KEY = smartleadSecondary();
@@ -24,7 +25,7 @@ function fetchLeadStats(smartleadId: string, apiKey: string): Promise<{ statusCo
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
     if (req.method === "OPTIONS") {
         res.statusCode = 200;
@@ -32,9 +33,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return;
     }
 
+    const user = await requireUser(req, res);
+    if (!user) return;
+
     try {
         const url = new URL(req.url || "", "https://email-system-omega.vercel.app");
-        const smartleadId = url.searchParams.get("id") || "4015596";
+        const rawId = url.searchParams.get("id") || "4015596";
+        if (!/^\d+$/.test(rawId)) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "invalid_id", message: "Campaign ID must be a numeric string" }));
+            return;
+        }
+        const smartleadId = rawId;
         const customApiKey = url.searchParams.get("api_key");
         const initialKey = customApiKey || PRIMARY_KEY;
 

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
+import { requireUser } from "../server/handlers/auth";
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     if (req.method !== "POST") {
@@ -7,6 +8,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         res.end(JSON.stringify({ error: "Method not allowed" }));
         return;
     }
+
+    const user = await requireUser(req, res);
+    if (!user) return;
 
     let body = "";
     req.on("data", (chunk: Buffer) => {

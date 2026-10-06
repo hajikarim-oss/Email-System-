@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 import { OutreachState, RecencyBucket, ReplyClass } from "@prisma/client";
+import { resolveUser, jsonErr } from "../../helper";
 
 export async function POST(req: Request) {
   try {
+    const user = await resolveUser(req);
+    if (!user) return jsonErr("Unauthorized", 401);
+
     const body = await req.json().catch(() => ({}));
     const format = (body.format || "csv").toLowerCase();
 

@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
+import { resolveUser } from "@/app/api/v1/helper";
 
-export async function GET() {
+export async function GET(req: Request) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+  }
+
+  const user = await resolveUser(req);
+  if (!user || user.role !== "MASTER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const apiUrl = process.env.WHATSAPP_API_URL;
     const apiToken = process.env.WHATSAPP_API_TOKEN;

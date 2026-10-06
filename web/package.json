@@ -130,5 +130,10 @@
     "typescript-eslint": "^8.45.0",
     "vite": "^7.3.6",
     "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "prosemirror-view": ">=1.42.3"
+    }
   }
 }

@@ -58,8 +58,27 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const raw = (req.url || "/").split("?")[0];
     const pathname = raw.replace(/\/+$/, "") || "/";
 
-    // Global CORS preflight & headers
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    // OWASP Defensive Security Headers
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+
+    // CORS configuration supporting authenticated credentials
+    const origin = req.headers.origin;
+    const allowedOrigins = process.env.ALLOWED_ORIGINS
+        ? process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
+        : ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://localhost:3001"];
+
+    if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production")) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+    } else if (!origin) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+    } else {
+        res.setHeader("Access-Control-Allow-Origin", allowedOrigins[0] || "*");
+    }
+
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-webhook-signature, x-smartlead-signature");
 

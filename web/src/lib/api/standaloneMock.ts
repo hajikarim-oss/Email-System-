@@ -186,7 +186,7 @@ export const DEFAULT_4_PROFILES = [
         created_at: "2026-09-18T00:00:00.000Z",
         updated_at: "2026-09-18T00:00:00.000Z",
         smartlead_id: 23457457,
-        smartlead_api_key: "39e19d19-23fa-4276-aff2-4c8b834eb4ce_3g8knd6",
+        smartlead_api_key: "mock_smartlead_api_key",
     },
     {
         id: "cmu6m31bv00033307zao17anp",
@@ -226,7 +226,7 @@ export const DEFAULT_4_PROFILES = [
         created_at: "2026-09-18T00:00:00.000Z",
         updated_at: "2026-09-18T00:00:00.000Z",
         smartlead_id: 23458016,
-        smartlead_api_key: "e4ebd3cd-1171-4f5c-96a0-7419847b7c44_asttizt",
+        smartlead_api_key: "mock_smartlead_api_key",
     }
 ];
 

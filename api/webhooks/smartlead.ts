@@ -49,14 +49,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     req.on("end", async () => {
         try {
-            // HMAC check mirrors nexus-outbound's receiver: verified only
-            // when a secret is configured AND Smartlead sent a signature.
+            // Enforce mandatory HMAC signature verification whenever secret is configured
             const secret = resolveWebhookSecret();
-            const provided = String(req.headers["x-webhook-signature"] || req.headers["x-smartlead-signature"] || "");
-            if (secret && provided && !verifySmartleadSignature(body, provided, secret)) {
-                res.writeHead(401, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "invalid_signature" }));
-                return;
+            if (secret) {
+                const provided = String(req.headers["x-webhook-signature"] || req.headers["x-smartlead-signature"] || "");
+                if (!provided || !verifySmartleadSignature(body, provided, secret)) {
+                    res.writeHead(401, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "invalid_signature", message: "Missing or invalid webhook signature" }));
+                    return;
+                }
             }
 
             const payload = JSON.parse(body || "{}");

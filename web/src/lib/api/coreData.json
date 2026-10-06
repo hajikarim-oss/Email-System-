@@ -9,7 +9,7 @@
       "image": null,
       "role": "TEAM_MEMBER",
       "isActive": true,
-      "smartleadApiKey": "98d0b77f-eabb-48ac-92c3-8a2f80fd5aa0_rbyb6by",
+      "smartleadApiKey": null,
       "createdAt": "2026-09-09T09:44:40.384Z",
       "updatedAt": "2026-09-09T11:29:51.696Z"
     },
@@ -17,12 +17,12 @@
       "id": "cmtr9pp8t0000cygeyjpsz5lt",
       "name": "Haji Karim",
       "email": "haji.karim@theboredmonkey.com",
-      "password": "$2b$12$ewGFUtnyyO1JVcHq1FO50.iIsXu27EOmecx1hVGT0RBdBXrdaP0qe",
+      "password": null,
       "emailVerified": null,
       "image": "https://lh3.googleusercontent.com/a/ACg8ocKiKMqaruDpWp-l7loefhktmRHfSxhfggBIj2P_tEJiXhSsbvg=s96-c",
       "role": "MASTER",
       "isActive": true,
-      "smartleadApiKey": "412be3a1-8c01-45cf-811e-b3a0e98a00c2_1dp80jm",
+      "smartleadApiKey": null,
       "createdAt": "2026-09-07T13:20:00.269Z",
       "updatedAt": "2026-09-10T12:00:57.813Z"
     }

@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
 import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
+import { requireUser } from "../../server/handlers/auth";
 
 const PRIMARY_KEY = smartleadPrimary();
 const SECONDARY_KEY = smartleadSecondary();
@@ -34,7 +35,7 @@ function postSequences(smartleadId: string, postData: string, apiKey: string): P
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
     if (req.method === "OPTIONS") {
         res.statusCode = 200;
@@ -47,6 +48,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         res.end(JSON.stringify({ error: "Method not allowed" }));
         return;
     }
+
+    const user = await requireUser(req, res);
+    if (!user) return;
 
     let body = "";
     req.on("data", (chunk: Buffer) => { body += chunk.toString(); });

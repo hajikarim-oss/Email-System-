@@ -20,8 +20,12 @@ function loadConfig() {
     const nexusContent = fs.existsSync(nexusEnv) ? fs.readFileSync(nexusEnv, 'utf-8') : '';
     const nexusDbMatch = nexusContent.match(/DATABASE_URL="([^"]+)"/);
 
-    const apiKey = apiKeyMatch ? apiKeyMatch[1].trim() : 'b0042f19-3f90-4910-b5de-31b1e2c8c032_ticg3c4';
-    const dbUrl = nexusDbMatch ? nexusDbMatch[1] : (dbMatch ? dbMatch[1] : null);
+    const apiKey = process.env.SMARTLEAD_API_KEY || (apiKeyMatch ? apiKeyMatch[1].trim() : null);
+    const dbUrl = process.env.DATABASE_URL || (nexusDbMatch ? nexusDbMatch[1] : (dbMatch ? dbMatch[1] : null));
+
+    if (!apiKey) {
+        throw new Error('SMARTLEAD_API_KEY is not defined in environment or .env file');
+    }
 
     return { apiKey, dbUrl };
 }

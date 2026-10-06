@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
+import { resolveUser } from "@/app/api/v1/helper";
 
 export async function POST(req: Request) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+  }
+
   try {
+    const user = await resolveUser(req);
+    if (!user || user.role !== "MASTER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { action = "simulate" } = body;
 

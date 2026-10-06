@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
 import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
+import { requireUser } from "../../server/handlers/auth";
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -11,6 +12,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         res.statusCode = 200;
         return res.end();
     }
+
+    const user = await requireUser(req, res);
+    if (!user) return;
 
     const SMARTLEAD_KEYS = [
         smartleadPrimary(),   // shared pool (Vatsal's account)

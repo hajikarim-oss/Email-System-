@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { resolveUser } from "@/app/api/v1/helper";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
@@ -10,11 +11,22 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const MIME_TO_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+};
+const ALLOWED_TYPES = Object.keys(MIME_TO_EXT);
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function POST(req: Request) {
   try {
+    const user = await resolveUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
@@ -36,8 +48,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const ext = file.name.split(".").pop() || "png";
-    const uniqueName = `${crypto.randomBytes(8).toString("hex")}.${ext}`;
+    const ext = MIME_TO_EXT[file.type] || "png";
+    const uniqueName = `${crypto.randomBytes(16).toString("hex")}.${ext}`;
     const filePath = path.join(UPLOAD_DIR, uniqueName);
 
     const arrayBuffer = await file.arrayBuffer();

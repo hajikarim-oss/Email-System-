@@ -103,7 +103,7 @@ function clearFailures(key: string): void {
     attempts.delete(key);
 }
 
-async function requireUser(req: IncomingMessage, res: ServerResponse): Promise<AuthUser | null> {
+export async function requireUser(req: IncomingMessage, res: ServerResponse): Promise<AuthUser | null> {
     const user = await resolveToken(readBearer(req) || "");
     if (!user) {
         send(res, 401, { error: "unauthorized", message: "A valid session is required." });
@@ -264,6 +264,5 @@ async function readPassword(userId: string): Promise<string | null> {
     return rows[0]?.password ?? null;
 }
 
-// requireUser is exported for sibling handlers through this module's default
-// export only; organization.ts imports its own copy.
-export { requireUser, toClientUser };
+// requireUser is already exported above; export toClientUser for consumers
+export { toClientUser };
