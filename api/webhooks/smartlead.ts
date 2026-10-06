@@ -20,7 +20,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
             status: "active",
-            endpoint: "https://email-system-omega.vercel.app/api/webhooks/smartlead",
+            endpoint: "https://tbmoutreach.tech/api/webhooks/smartlead",
             supported_events: [
                 "EMAIL_OPEN",
                 "EMAIL_SENT",

@@ -255,15 +255,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             // 6. Start campaign
             const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
 
-            // 7. Ensure Live Webhook is registered pointing to Vercel
+            // 7. Ensure Live Webhook is registered pointing to production domain
             try {
                 const whRes = await apiCall(`/campaigns/${smartleadId}/webhooks`, "GET", undefined, chosenKey);
                 const existing = Array.isArray(whRes.data) ? whRes.data : [];
-                const hasVercelWebhook = existing.some((w: any) => w.webhook_url && w.webhook_url.includes("email-system-omega.vercel.app"));
-                if (!hasVercelWebhook) {
+                const hasProductionWebhook = existing.some((w: any) => w.webhook_url && w.webhook_url.includes("tbmoutreach.tech/api/webhooks/smartlead"));
+                if (!hasProductionWebhook) {
                     await apiCall(`/campaigns/${smartleadId}/webhooks`, "POST", {
-                        name: "TheBoredMonkey Live Event Webhook",
-                        webhook_url: "https://email-system-omega.vercel.app/api/webhooks/smartlead",
+                        name: "TBM Outreach Live Webhook",
+                        webhook_url: "https://tbmoutreach.tech/api/webhooks/smartlead",
                         event_types: [
                             "EMAIL_OPEN",
                             "EMAIL_SENT",
