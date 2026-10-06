@@ -33,11 +33,13 @@ jobs:
             
             # Build Next.js Backend
             echo "⚡ Generating Prisma & Building Next.js..."
-            pnpm --dir nexus-outbound prisma generate
-            pnpm --dir nexus-outbound build
+            cd /var/www/email-system/nexus-outbound
+            npx prisma generate
+            npx next build
+            cd /var/www/email-system
             
             # Zero-downtime PM2 reload
             echo "🔄 Reloading PM2 processes..."
             pm2 reload ecosystem.config.js || pm2 start ecosystem.config.js
             
-            echo "✅ Deployment successful!"
+            echo "✅ Deployment successful! Live at https://tbmoutreach.tech"
