@@ -12,11 +12,29 @@
 
 const https = require("https");
 const { Client } = require("pg");
+const fs = require("fs");
+const path = require("path");
+
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+function loadEnv(filePath) {
+  if (fs.existsSync(filePath)) {
+    const lines = fs.readFileSync(filePath, "utf8").split("\n");
+    for (const line of lines) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match && !process.env[match[1]]) {
+        process.env[match[1]] = match[2]?.trim().replace(/^['"]|['"]$/g, "");
+      }
+    }
+  }
+}
+loadEnv(path.resolve(__dirname, "../.env"));
+loadEnv(path.resolve(__dirname, "../nexus-outbound/.env"));
 
 const API_KEY = process.env.SMARTLEAD_API_KEY;
 const DATABASE_URL = process.env.DATABASE_URL;
 const API_URL = process.env.API_URL || "https://tbmoutreach.tech";
-const AUTH_TOKEN = process.env.AUTH_TOKEN || "test-token";
+let AUTH_TOKEN = process.env.AUTH_TOKEN || "";
 
 console.log("🧪 End-to-End Campaign Flow Test");
 console.log("================================\n");
@@ -345,7 +363,28 @@ async function testGetCampaigns() {
 }
 
 async function main() {
+  const client = new Client({
+    connectionString: DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+  let tempSessionToken = null;
+
   try {
+    if (DATABASE_URL) {
+      await client.connect();
+      const userRes = await client.query(`SELECT id FROM "User" WHERE role = 'MASTER' LIMIT 1`);
+      if (userRes.rows.length > 0) {
+        tempSessionToken = "tbm_test_flow_" + Math.random().toString(36).slice(2);
+        await client.query(
+          `INSERT INTO "Session" (id, "sessionToken", "userId", expires) VALUES ($1, $2, $3, NOW() + INTERVAL '1 day')`,
+          ["ses_" + Date.now(), tempSessionToken, userRes.rows[0].id]
+        );
+        AUTH_TOKEN = tempSessionToken;
+        console.log(`🔑 Authenticated as MASTER user with session token\n`);
+      }
+      await client.end();
+    }
+
     // Test 1: Create campaign
     const campaignId = await testCampaignCreation();
     if (!campaignId) {
@@ -386,6 +425,13 @@ async function main() {
   } catch (err) {
     console.error("\n❌ Fatal Error:", err.message);
     process.exit(1);
+  } finally {
+    if (tempSessionToken && DATABASE_URL) {
+      const cleanup = new Client({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await cleanup.connect().catch(() => {});
+      await cleanup.query(`DELETE FROM "Session" WHERE "sessionToken" = $1`, [tempSessionToken]).catch(() => {});
+      await cleanup.end().catch(() => {});
+    }
   }
 }
 

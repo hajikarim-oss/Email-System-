@@ -155,7 +155,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         input.status || "DRAFT",
                         input.timezone || "Asia/Kolkata",
                         input.start_time ? parseInt(input.start_time.split(":")[0]) : null,
-                        JSON.stringify(input.days || [1, 2, 3, 4, 5]),
+                        (Array.isArray(input.days) ? input.days : [1, 2, 3, 4, 5]).map(Number),
                     ]
                 );
 
