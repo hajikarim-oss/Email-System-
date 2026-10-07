@@ -47,6 +47,10 @@ function readBody(req: IncomingMessage): Promise<string> {
     });
 }
 
+async function generateCuid(): Promise<string> {
+    return await pgQuery<any>(`SELECT gen_random_uuid()::text as id`).then(rows => rows?.[0]?.id || "");
+}
+
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {
         const user = await requireUser(req, res);
@@ -114,6 +118,82 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             send(res, 200, { success: true, deleted_id: campId });
             return;
+        }
+
+        // Handle POST campaign creation
+        if (req.method === "POST") {
+            const rawBody = await readBody(req);
+            try {
+                const input = JSON.parse(rawBody || "{}");
+                const campaignName = input.name || `Campaign ${Date.now()}`;
+
+                // Validate required fields
+                if (!campaignName || !campaignName.trim()) {
+                    send(res, 400, { error: "campaign_name_required" });
+                    return;
+                }
+
+                // Check for duplicate campaign name (unique per user)
+                const existing = await pgQuery<any>(
+                    `SELECT id FROM "Campaign" WHERE "userId" = $1 AND name = $2 LIMIT 1`,
+                    [scope.userId, campaignName]
+                );
+
+                if (existing && existing.length > 0) {
+                    send(res, 409, { error: "campaign_name_taken", name: campaignName });
+                    return;
+                }
+
+                // Create campaign in database
+                const campaign = await pgQuery<any>(
+                    `INSERT INTO "Campaign" (id, "userId", name, status, "sendTimezone", "preferredSendHour", "preferredSendDays")
+                     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6)
+                     RETURNING id, "userId", name, status, "providerCampaignId", "createdAt", "updatedAt"`,
+                    [
+                        scope.userId,
+                        campaignName,
+                        input.status || "DRAFT",
+                        input.timezone || "Asia/Kolkata",
+                        input.start_time ? parseInt(input.start_time.split(":")[0]) : null,
+                        JSON.stringify(input.days || [1, 2, 3, 4, 5]),
+                    ]
+                );
+
+                if (!campaign || campaign.length === 0) {
+                    send(res, 500, { error: "campaign_creation_failed" });
+                    return;
+                }
+
+                const campaignId = campaign[0].id;
+
+                // If campaign has steps, create them
+                if (Array.isArray(input.steps) && input.steps.length > 0) {
+                    for (let i = 0; i < input.steps.length; i++) {
+                        const step = input.steps[i];
+                        await pgQuery(
+                            `INSERT INTO "CampaignStep" (id, "campaignId", "stepNumber", "delayDays", subject, "bodyTemplate")
+                             VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)`,
+                            [
+                                campaignId,
+                                i + 1,
+                                step.wait_after || (i === 0 ? 0 : 3),
+                                step.subject || `Step ${i + 1}`,
+                                step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>",
+                            ]
+                        );
+                    }
+                }
+
+                send(res, 201, campaign[0], 30); // Cache for 30s
+                return;
+            } catch (err: any) {
+                if (err instanceof DatabaseUnavailableError) {
+                    send(res, 503, { error: "database_unavailable" });
+                    return;
+                }
+                send(res, 500, { error: err?.message || "Campaign creation failed" });
+                return;
+            }
         }
 
         // GET campaigns

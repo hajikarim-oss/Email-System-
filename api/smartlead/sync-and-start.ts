@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
 import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
 import { requireUser } from "../../server/handlers/auth";
+import { pgQuery } from "../../server/pg";
 
 const PRIMARY_KEY = smartleadPrimary();
 const SECONDARY_KEY = smartleadSecondary();
@@ -111,19 +112,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const isPreeti = sender.includes("preeti") || (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.includes(23458016));
             const chosenKey = parsed.api_key || (isPreeti ? SECONDARY_KEY : PRIMARY_KEY);
 
-            if (campaignName.includes("116")) {
-                smartleadId = 3967633;
-            } else if (smartleadId === 3959417 && !campaignName.includes("404") && !campaignName.includes("408")) {
-                smartleadId = null;
-            }
-
-            // 1. Create campaign if not linked
+            // 1. Create or find campaign in Smartlead
             if (!smartleadId) {
-                const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
-                if (createRes.data?.id) {
-                    smartleadId = createRes.data.id;
+                // Try to find existing campaign first to avoid duplicates
+                const listRes = await apiCall("/campaigns", "GET", undefined, chosenKey);
+                const campaignsList = Array.isArray(listRes.data) ? listRes.data : [];
+                const existing = campaignsList.find((c: any) =>
+                    c.name?.toLowerCase() === campaignName.toLowerCase()
+                );
+
+                if (existing?.id) {
+                    smartleadId = existing.id;
+                    console.log(`[Smartlead Sync] Using existing campaign: ${smartleadId}`);
                 } else {
-                    smartleadId = 4015596;
+                    const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
+                    if (createRes.data?.id) {
+                        smartleadId = createRes.data.id;
+                        console.log(`[Smartlead Sync] Created new campaign: ${smartleadId}`);
+                    } else {
+                        throw new Error("Failed to create or find campaign in Smartlead");
+                    }
                 }
             }
 
@@ -266,7 +274,54 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             // 6. Start campaign
             const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
 
-            // 7. Ensure Live Webhook is registered pointing to production domain
+            // 7. Save campaign to database (CRITICAL FIX: This was missing)
+            let dbCampaignId: string | null = null;
+            try {
+                const dbResult = await pgQuery<any>(
+                    `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendHour", "preferredSendDays")
+                     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)
+                     ON CONFLICT ("userId", name) DO UPDATE SET "providerCampaignId" = EXCLUDED."providerCampaignId", "updatedAt" = NOW()
+                     RETURNING id`,
+                    [
+                        user.id,
+                        campaignName,
+                        'ACTIVE',
+                        String(smartleadId),
+                        parsed.timezone || "Asia/Kolkata",
+                        parsed.start_time ? parseInt(parsed.start_time.split(":")[0]) : null,
+                        JSON.stringify(parsed.days || [1, 2, 3, 4, 5]),
+                    ]
+                );
+                dbCampaignId = dbResult?.[0]?.id;
+                console.log(`[Smartlead Sync] Campaign saved to database: ${dbCampaignId}`);
+            } catch (dbErr: any) {
+                console.error("[Smartlead Sync] Database persistence failed:", dbErr.message);
+                res.writeHead(500, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "database_persistence_failed", details: dbErr.message }));
+                return;
+            }
+
+            // 8. Save leads to database with campaign linkage
+            if (rawLeads.length > 0 && dbCampaignId) {
+                try {
+                    for (const lead of rawLeads) {
+                        const fName = lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "") || (lead.email ? lead.email.split("@")[0] : "Prospect");
+                        const lName = lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "") || "";
+
+                        await pgQuery(
+                            `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", source, status)
+                             VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'smartlead', 'ACTIVE')
+                             ON CONFLICT (email, "campaignId") DO NOTHING`,
+                            [dbCampaignId, lead.email.toLowerCase(), fName, lName]
+                        );
+                    }
+                    console.log(`[Smartlead Sync] ${rawLeads.length} leads linked to campaign ${dbCampaignId}`);
+                } catch (leadsErr: any) {
+                    console.warn("[Smartlead Sync] Lead linkage warning:", leadsErr.message);
+                }
+            }
+
+            // 9. Ensure Live Webhook is registered pointing to production domain
             try {
                 const whRes = await apiCall(`/campaigns/${smartleadId}/webhooks`, "GET", undefined, chosenKey);
                 const existing = Array.isArray(whRes.data) ? whRes.data : [];
@@ -292,6 +347,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({
                 ok: true,
+                id: dbCampaignId,
                 smartlead_id: smartleadId,
                 status: "ACTIVE",
                 leads_count: rawLeads.length,
