@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/popover-menu";
 import { cn } from "@/lib/utils";
 import type Campaign from "@/lib/api/models/app/campaigns/Campaign";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
 import { canStartCampaign, gate, useCampaignActions } from "./useCampaignActions";
 
 interface Props {
@@ -37,6 +38,7 @@ export default function CampaignActionsMenu({ campaign, variant, onToggle, after
     const [open, setOpen] = useState(false);
     const navigate = useNavigate();
     const actions = useCampaignActions();
+    const access = useFeatureAccess();
 
     const status = campaign.status ?? "draft";
     const isActive = status === "active";
@@ -91,15 +93,19 @@ export default function CampaignActionsMenu({ campaign, variant, onToggle, after
                         {isActive ? "Pause" : "Start"}
                     </PopoverMenuItem>
                 )}
-                <PopoverMenuSeparator />
-                <PopoverMenuItem
-                    danger
-                    onSelect={gate("MANAGE_CAMPAIGNS", () => actions.requestDelete(campaign, { afterDelete }))}
-                    disabled={actions.deleting}
-                    icon={<TrashIcon className="w-3 h-3" />}
-                >
-                    Delete
-                </PopoverMenuItem>
+                {access.isOwner && (
+                    <>
+                        <PopoverMenuSeparator />
+                        <PopoverMenuItem
+                            danger
+                            onSelect={() => actions.requestDelete(campaign, { afterDelete })}
+                            disabled={actions.deleting}
+                            icon={<TrashIcon className="w-3 h-3" />}
+                        >
+                            Delete
+                        </PopoverMenuItem>
+                    </>
+                )}
             </PopoverMenuContent>
         </PopoverMenu>
     );

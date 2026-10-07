@@ -1207,6 +1207,82 @@ function databaseIntelligencePlugin() {
                 });
             });
 
+            // 7b. Securely store and enroll unique contacts into live database
+            server.middlewares.use("/api/intelligence/add-contacts", async (req: any, res: any) => {
+                if (req.method !== "POST") {
+                    res.statusCode = 405;
+                    res.end(JSON.stringify({ error: "Method not allowed" }));
+                    return;
+                }
+                let body = "";
+                req.on("data", (chunk: any) => { body += chunk; });
+                req.on("end", async () => {
+                    try {
+                        const scope = await requireScope(req, res);
+                        if (!scope) return;
+                        const prisma = getPrisma();
+                        if (!prisma) {
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ success: true, count: 0, note: "database_not_connected" }));
+                            return;
+                        }
+                        const parsed = JSON.parse(body || "[]");
+                        const items: any[] = Array.isArray(parsed) ? parsed : (parsed.contacts || [parsed]);
+                        let count = 0;
+                        for (const item of items) {
+                            const email = (item.email || "").toLowerCase().trim();
+                            if (!email || !email.includes("@")) continue;
+                            const campId = item.campaign_id || (Array.isArray(item.campaigns) ? item.campaigns[0] : null);
+                            const firstName = item.first_name || item.firstName || (item.name ? item.name.split(" ")[0] : "") || "";
+                            const lastName = item.last_name || item.lastName || (item.name ? item.name.split(" ").slice(1).join(" ") : "") || "";
+                            const domain = email.split("@")[1] || "";
+                            const company = item.company || item.company_name || "";
+
+                            const existing = await prisma.lead.findFirst({ where: { email } });
+                            if (existing) {
+                                await prisma.lead.update({
+                                    where: { id: existing.id },
+                                    data: {
+                                        ...(campId ? { campaignId: campId } : {}),
+                                        ...(firstName && !existing.firstName ? { firstName } : {}),
+                                        ...(lastName && !existing.lastName ? { lastName } : {}),
+                                        domain: existing.domain || domain,
+                                        customData: {
+                                            ...(typeof existing.customData === "object" ? existing.customData : {}),
+                                            ...(item.custom_fields || {}),
+                                            ...(company ? { company } : {}),
+                                        },
+                                    },
+                                });
+                            } else {
+                                await prisma.lead.create({
+                                    data: {
+                                        email,
+                                        firstName,
+                                        lastName,
+                                        campaignId: campId || null,
+                                        domain,
+                                        status: "ACTIVE",
+                                        outreachState: "NEVER_REACHED",
+                                        customData: {
+                                            ...(item.custom_fields || {}),
+                                            ...(company ? { company } : {}),
+                                        },
+                                    },
+                                });
+                            }
+                            count++;
+                        }
+
+                        res.writeHead(200, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ success: true, count }));
+                    } catch (err: any) {
+                        res.writeHead(500, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ error: err.message }));
+                    }
+                });
+            });
+
             // 8. Live database campaigns query
             // Lifetime campaign statistics, aggregated from Lead + EmailEvent
             server.middlewares.use("/api/campaigns/stats", async (req: any, res: any) => {
@@ -1435,14 +1511,23 @@ function databaseIntelligencePlugin() {
                             return;
                         }
 
+                        if (!scope.master) {
+                            res.writeHead(403, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "Only master can delete campaigns" }));
+                            return;
+                        }
+
                         const existing = await prisma.campaign.findFirst({
-                            where: scope.master ? { OR: [{ id: campId }, { providerCampaignId: campId }] } : { userId: scope.userId, OR: [{ id: campId }, { providerCampaignId: campId }] },
+                            where: { OR: [{ id: campId }, { providerCampaignId: campId }] },
                         });
 
                         if (existing) {
                             await prisma.campaignMailbox.deleteMany({ where: { campaignId: existing.id } });
                             await prisma.campaignStep.deleteMany({ where: { campaignId: existing.id } });
-                            await prisma.lead.updateMany({ where: { campaignId: existing.id }, data: { campaignId: null } });
+                            await prisma.lead.updateMany({
+                                where: { OR: [{ campaignId: existing.id }, ...(existing.providerCampaignId ? [{ campaignId: existing.providerCampaignId }] : [])] },
+                                data: { campaignId: null },
+                            });
                             await prisma.campaign.delete({ where: { id: existing.id } });
 
                             if (existing.providerCampaignId) {

@@ -12,6 +12,19 @@ export function authHeaders(extra: Record<string, string> = {}): Record<string, 
     return headers;
 }
 
+// Helper to safely format API URLs in both browser and test/Node environments
+export function safeApiUrl(path: string): string {
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    const origin = typeof window !== "undefined" && window.location?.origin && window.location.origin !== "null"
+        ? window.location.origin
+        : "http://localhost:5173";
+    return `${origin}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
+export function safeFetch(path: string, init?: RequestInit): Promise<Response> {
+    return fetch(safeApiUrl(path), init);
+}
+
 // Standalone in-browser database & API dispatcher for TheBoredMonkey Outreach
 // Powered by real core data exported from Email System 101 Prisma/Smartlead database
 
@@ -763,7 +776,7 @@ async function loadCategoryCounts(): Promise<{ counts: CategoryCount[] | null; e
  */
 async function fetchCampaignStats(): Promise<{ stats: Map<string, any> | null; error: string | null }> {
     try {
-        const response = await fetch("/api/campaigns/stats", { headers: authHeaders() });
+        const response = await safeFetch("/api/campaigns/stats", { headers: authHeaders() });
         if (response.ok) {
             const body = await response.json();
             if (Array.isArray(body)) {
@@ -1586,10 +1599,54 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }
 
         let stored = loadStorage<any[]>(`campaign_leads_${campId}`, []);
+        const storedEmails = new Set(stored.map((l: any) => (l.email || "").toLowerCase().trim()).filter(Boolean));
+
+        // Always merge any contacts from global contacts list that belong to this campaign
+        const currentContacts = loadStorage<any[]>("contacts", []);
+        const matchingContacts = currentContacts.filter((c: any) =>
+            c.campaign_id === campId || (Array.isArray(c.campaigns) && c.campaigns.includes(campId))
+        );
+
+        let modified = false;
+        if (matchingContacts.length > 0) {
+            matchingContacts.forEach((mc: any) => {
+                const mcEmail = (mc.email || "").toLowerCase().trim();
+                if (mcEmail && !storedEmails.has(mcEmail)) {
+                    storedEmails.add(mcEmail);
+                    const cleanComp = cleanCompanyName(mc.company_name || mc.company || "Enterprise Lead");
+                    stored.push({
+                        id: mc.id || `cnt_lead_${campId}_${stored.length + 1}`,
+                        email: mc.email,
+                        first_name: mc.first_name || (mc.email ? mc.email.split("@")[0] : "Lead"),
+                        last_name: mc.last_name || "",
+                        company: cleanComp,
+                        company_name: cleanComp,
+                        domain: cleanComp,
+                        title: mc.title || mc.role || "Decision Maker",
+                        status: mc.status || "pending",
+                        tags: mc.tags || ["outreach"],
+                        custom_fields: mc.custom_fields || { company: cleanComp },
+                        campaign_id: campId,
+                        campaigns: [campId],
+                        campaign_lead: mc.campaign_lead || {
+                            status: "pending",
+                            sent: 0,
+                            opened: 0,
+                            machine_opened: 0,
+                            clicked: 0,
+                            replied: 0,
+                            bounced: 0,
+                            current_step: "Ready for delivery",
+                        },
+                    });
+                    modified = true;
+                }
+            });
+        }
+
         const availableEmails = emails.length >= 8 ? emails : DEFAULT_8_PROFILES;
 
         if (stored.length > 0) {
-            let modified = false;
             stored.forEach((l: any, idx: number) => {
                 const rawComp = l.company || l.company_name || "";
                 const cleanedComp = cleanCompanyName(rawComp);
@@ -1805,12 +1862,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 }
             }
 
-            // Strictly cap stored to targetTotal so the total is exactly 1,785 (48 completed + 1,737 pending)
-            if (stored.length > targetTotal) {
+            // Cap stored leads only for Q2 fixture campaign
+            if (isQ2 && targetTotal > 0 && stored.length > targetTotal) {
                 const completed = stored.filter((l: any) => l.status === "completed" || l.campaign_lead?.status === "completed");
                 const pending = stored.filter((l: any) => l.status !== "completed" && l.campaign_lead?.status !== "completed");
                 stored = [...completed, ...pending].slice(0, targetTotal);
                 modified = true;
+            }
+
+            const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
+            if (camp && camp.total_leads !== stored.length) {
+                camp.total_leads = stored.length;
+                saveStorage("campaigns", campaigns);
             }
 
             if (modified) {
@@ -1819,22 +1882,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             return stored;
         }
 
-        // Also check if any contacts in localStorage belong to this campaign
-        const matchingContacts = contacts.filter((c: any) =>
-            c.campaign_id === campId || (Array.isArray(c.campaigns) && c.campaigns.includes(campId))
-        );
-        if (matchingContacts.length > 0) {
-            saveStorage(`campaign_leads_${campId}`, matchingContacts);
-            const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
-            if (camp) {
-                camp.total_leads = matchingContacts.length;
-                saveStorage("campaigns", campaigns);
-            }
-            return matchingContacts;
-        }
-
         const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
-        const targetTotal = Math.max(camp?.total_leads || 0, isQ2 ? 1876 : (0));
+        const targetTotal = Math.max(camp?.total_leads || 0, isQ2 ? 1876 : 0);
         if (targetTotal === 0) {
             return [];
         }
@@ -2154,11 +2203,19 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         }
 
-        // DELETE CAMPAIGN: Remove from array, clean up lead mappings, persist to localStorage, and sync to live DB & Smartlead
+        // DELETE CAMPAIGN: Only master can delete campaigns (local mock, Postgres, Smartlead)
         if (method === "DELETE" && (!sub || sub === "delete")) {
+            const currentUser = loadStorage<any>("current_user", null);
+            const role = (currentUser?.role || "").toUpperCase();
+            const roles: string[] = (currentUser?.roles || []).map((r: any) => String(r).toUpperCase());
+            const isMaster = Boolean(currentUser) && (role === "MASTER" || role === "OWNER" || roles.includes("MASTER") || roles.includes("OWNER") || currentUser?.is_admin === true);
+            if (!isMaster) {
+                return res({ error: "Only master can delete campaigns." }, 403);
+            }
+
             // Strict ID-only lookup — NEVER fall back to campaigns[0] on delete
-            const strictMatch = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower || (c.smartlead_id && String(c.smartlead_id) === campIdLower));
-            const campIndex = campaigns.findIndex((c: any) => (c.id || "").toLowerCase() === campIdLower || (c.smartlead_id && String(c.smartlead_id) === campIdLower));
+            const strictMatch = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower || (c.smartlead_id && String(c.smartlead_id) === campIdLower) || (campId && c.id === campId));
+            const campIndex = campaigns.findIndex((c: any) => (c.id || "").toLowerCase() === campIdLower || (c.smartlead_id && String(c.smartlead_id) === campIdLower) || (campId && c.id === campId));
             const targetId = strictMatch?.id || campId;
             const smartleadIdToDelete = strictMatch?.smartlead_id || (/^\d+$/.test(campId) ? Number(campId) : undefined);
 
@@ -2173,6 +2230,10 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 localStorage.removeItem(`tbm_core_data_v5_campaign_logs_${targetId}`);
                 localStorage.removeItem(`tbm_core_data_v5_campaign_leads_${campId}`);
                 localStorage.removeItem(`tbm_core_data_v5_campaign_logs_${campId}`);
+                if (campIdLower) {
+                    localStorage.removeItem(`tbm_core_data_v5_campaign_leads_${campIdLower}`);
+                    localStorage.removeItem(`tbm_core_data_v5_campaign_logs_${campIdLower}`);
+                }
             } catch {}
 
             const curDelCamps = loadStorage<string[]>("deleted_campaign_ids", []);
@@ -2205,12 +2266,12 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
             // Trigger backend deletion in PostgreSQL database and Smartlead
             try {
-                fetch(`/api/intelligence/campaigns?id=${encodeURIComponent(targetId)}`, {
+                await safeFetch(`/api/intelligence/campaigns?id=${encodeURIComponent(targetId)}`, {
                     method: "DELETE",
                     headers: authHeaders(),
                 }).catch(() => {});
                 if (smartleadIdToDelete) {
-                    fetch(`/api/smartlead/campaigns?id=${encodeURIComponent(smartleadIdToDelete)}`, {
+                    await safeFetch(`/api/smartlead/campaigns?id=${encodeURIComponent(smartleadIdToDelete)}`, {
                         method: "DELETE",
                         headers: authHeaders(),
                     }).catch(() => {});
@@ -2870,26 +2931,32 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             if (Array.isArray(body)) {
                 const addedList: any[] = [];
                 for (const item of body) {
+                    const cleanEmail = (item.email || "").toLowerCase().trim();
+                    if (!cleanEmail) continue;
                     const campId = item.campaigns?.[0] || item.campaign_id;
-                    const existingIdx = contacts.findIndex((c: any) => (c.email || "").toLowerCase() === (item.email || "").toLowerCase());
+                    const existingIdx = contacts.findIndex((c: any) => (c.email || "").toLowerCase().trim() === cleanEmail);
+                    const cleanComp = cleanCompanyName(item.company || item.company_name || "");
                     const newC = {
                         id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                        email: item.email || "contact@example.com",
-                        first_name: item.first_name || "",
+                        email: cleanEmail,
+                        first_name: item.first_name || (cleanEmail ? cleanEmail.split("@")[0] : ""),
                         last_name: item.last_name || "",
-                        company_name: item.company || item.company_name || "",
-                        title: item.title || item.role || item.custom_fields?.role || "",
+                        company: cleanComp,
+                        company_name: cleanComp,
+                        domain: cleanComp,
+                        title: item.title || item.role || item.custom_fields?.role || "Decision Maker",
                         status: "pending",
                         tags: item.tags || ["added"],
-                        custom_fields: item.custom_fields || {},
+                        custom_fields: item.custom_fields || { company: cleanComp },
                         lead_score: 85,
                         campaign_id: campId || null,
                         campaigns: item.campaigns || (campId ? [campId] : []),
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                     };
+                    let finalContact: any;
                     if (existingIdx >= 0) {
-                        contacts[existingIdx] = {
+                        finalContact = {
                             ...contacts[existingIdx],
                             ...newC,
                             id: contacts[existingIdx].id,
@@ -2898,20 +2965,36 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                                 ? Array.from(new Set([...(contacts[existingIdx].campaigns || []), campId]))
                                 : contacts[existingIdx].campaigns,
                         };
-                        addedList.push(contacts[existingIdx]);
+                        contacts[existingIdx] = finalContact;
+                        addedList.push(finalContact);
                     } else {
                         contacts.unshift(newC);
+                        finalContact = newC;
                         addedList.push(newC);
                     }
                     if (campId) {
                         const targetCamp = campaigns.find((c: any) => c.id === campId);
                         const cLeads = loadStorage<any[]>(`campaign_leads_${campId}`, []);
-                        const contactToAdd = existingIdx >= 0 ? contacts[existingIdx] : newC;
-                        const clIdx = cLeads.findIndex((cl: any) => (cl.email || "").toLowerCase() === (item.email || "").toLowerCase());
+                        const leadItem = {
+                            ...finalContact,
+                            campaign_id: campId,
+                            campaigns: [campId],
+                            campaign_lead: finalContact.campaign_lead || {
+                                status: "pending",
+                                sent: 0,
+                                opened: 0,
+                                machine_opened: 0,
+                                clicked: 0,
+                                replied: 0,
+                                bounced: 0,
+                                current_step: "Ready for delivery",
+                            },
+                        };
+                        const clIdx = cLeads.findIndex((cl: any) => (cl.email || "").toLowerCase().trim() === cleanEmail);
                         if (clIdx >= 0) {
-                            cLeads[clIdx] = { ...cLeads[clIdx], ...contactToAdd };
+                            cLeads[clIdx] = { ...cLeads[clIdx], ...leadItem };
                         } else {
-                            cLeads.push(contactToAdd);
+                            cLeads.push(leadItem);
                         }
                         saveStorage(`campaign_leads_${campId}`, cLeads);
                         if (targetCamp) {
@@ -2921,35 +3004,97 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 }
                 saveStorage("contacts", contacts);
                 saveStorage("campaigns", campaigns);
+
+                // Sync unique contacts securely to PostgreSQL database
+                try {
+                    safeFetch("/api/intelligence/add-contacts", {
+                        method: "POST",
+                        headers: authHeaders(),
+                        body: JSON.stringify(body),
+                    }).catch(() => {});
+                } catch {}
+
                 return res(addedList);
             } else {
                 // Single contact addition
+                const cleanEmail = (body.email || "").toLowerCase().trim();
                 const campId = body.campaigns?.[0] || body.campaign_id;
+                const cleanComp = cleanCompanyName(body.company_name || body.company || "");
+                const existingIdx = contacts.findIndex((c: any) => (c.email || "").toLowerCase().trim() === cleanEmail);
                 const newContact = {
-                    id: `cnt_${Date.now()}`,
-                    email: body.email || "contact@example.com",
-                    first_name: body.first_name || "Lead",
+                    id: existingIdx >= 0 ? contacts[existingIdx].id : `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    email: cleanEmail || "contact@example.com",
+                    first_name: body.first_name || (cleanEmail ? cleanEmail.split("@")[0] : "Lead"),
                     last_name: body.last_name || "",
-                    company_name: body.company_name || body.company || "",
-                    title: body.title || body.role || "",
+                    company: cleanComp,
+                    company_name: cleanComp,
+                    domain: cleanComp,
+                    title: body.title || body.role || "Decision Maker",
                     status: "pending",
-                    tags: body.tags || [],
-                    custom_fields: body.custom_fields || {},
+                    tags: body.tags || ["added"],
+                    custom_fields: body.custom_fields || { company: cleanComp },
                     campaign_id: campId || null,
                     campaigns: body.campaigns || (campId ? [campId] : []),
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                 };
-                contacts.unshift(newContact as any);
+                let finalContact: any;
+                if (existingIdx >= 0) {
+                    finalContact = {
+                        ...contacts[existingIdx],
+                        ...newContact,
+                        campaign_id: campId || contacts[existingIdx].campaign_id,
+                        campaigns: campId
+                            ? Array.from(new Set([...(contacts[existingIdx].campaigns || []), campId]))
+                            : contacts[existingIdx].campaigns,
+                    };
+                    contacts[existingIdx] = finalContact;
+                } else {
+                    contacts.unshift(newContact as any);
+                    finalContact = newContact;
+                }
                 if (campId) {
                     const targetCamp = campaigns.find((c: any) => c.id === campId);
+                    const cLeads = loadStorage<any[]>(`campaign_leads_${campId}`, []);
+                    const leadItem = {
+                        ...finalContact,
+                        campaign_id: campId,
+                        campaigns: [campId],
+                        campaign_lead: finalContact.campaign_lead || {
+                            status: "pending",
+                            sent: 0,
+                            opened: 0,
+                            machine_opened: 0,
+                            clicked: 0,
+                            replied: 0,
+                            bounced: 0,
+                            current_step: "Ready for delivery",
+                        },
+                    };
+                    const clIdx = cLeads.findIndex((cl: any) => (cl.email || "").toLowerCase().trim() === cleanEmail);
+                    if (clIdx >= 0) {
+                        cLeads[clIdx] = { ...cLeads[clIdx], ...leadItem };
+                    } else {
+                        cLeads.push(leadItem);
+                    }
+                    saveStorage(`campaign_leads_${campId}`, cLeads);
                     if (targetCamp) {
-                        targetCamp.total_leads = (targetCamp.total_leads || 0) + 1;
-                        saveStorage("campaigns", campaigns);
+                        targetCamp.total_leads = cLeads.length;
                     }
                 }
                 saveStorage("contacts", contacts);
-                return res(newContact);
+                saveStorage("campaigns", campaigns);
+
+                // Sync unique contact securely to PostgreSQL database
+                try {
+                    fetch("/api/intelligence/add-contacts", {
+                        method: "POST",
+                        headers: authHeaders(),
+                        body: JSON.stringify([body]),
+                    }).catch(() => {});
+                } catch {}
+
+                return res(finalContact);
             }
         }
 
@@ -3099,7 +3244,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 intParams.set("member_id", memberId);
             }
 
-            const intRes = await fetch(`/api/intelligence/contacts?${intParams.toString()}`, { headers: authHeaders() });
+            const intRes = await safeFetch(`/api/intelligence/contacts?${intParams.toString()}`, { headers: authHeaders() });
             if (intRes.ok) {
                 const intJson = await intRes.json();
                 if ((!campIds || campIds.length === 0) || (intJson.total > 0 && intJson.data?.length > 0)) {

@@ -80,6 +80,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return;
             }
 
+            // Master-only check for campaign deletion
+            if (!scope.master) {
+                send(res, 403, { error: "Only master can delete campaigns" });
+                return;
+            }
+
             // Find campaign in DB
             const existing = await pgQuery<any>(
                 `SELECT id, "userId", "providerCampaignId", name FROM "Campaign" WHERE id = $1 OR "providerCampaignId" = $1 LIMIT 1`,
@@ -88,15 +94,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             if (existing && existing.length > 0) {
                 const camp = existing[0];
-                if (!scope.master && camp.userId !== scope.userId) {
-                    send(res, 403, { error: "forbidden" });
-                    return;
-                }
 
                 // Delete associated records
                 await pgQuery(`DELETE FROM "CampaignMailbox" WHERE "campaignId" = $1`, [camp.id]);
                 await pgQuery(`DELETE FROM "CampaignStep" WHERE "campaignId" = $1`, [camp.id]);
-                await pgQuery(`UPDATE "Lead" SET "campaignId" = NULL WHERE "campaignId" = $1`, [camp.id]);
+                await pgQuery(`UPDATE "Lead" SET "campaignId" = NULL WHERE "campaignId" = $1 OR "campaignId" = $2`, [camp.id, camp.providerCampaignId || camp.id]);
                 await pgQuery(`DELETE FROM "Campaign" WHERE id = $1`, [camp.id]);
 
                 // Delete from Smartlead if connected

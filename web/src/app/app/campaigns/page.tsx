@@ -723,20 +723,22 @@ export default function CampaignsPage() {
                                     >
                                         <StateIcon className="w-3.5 h-3.5" />
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            actions.requestDelete(c);
-                                        }}
-                                        disabled={actions.deleting}
-                                        className="size-6 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30 cursor-pointer"
-                                        title="Delete campaign"
-                                        aria-label="Delete campaign"
-                                    >
-                                        <Trash2Icon className="w-3.5 h-3.5" />
-                                    </button>
+                                    {access.isOwner && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                actions.requestDelete(c);
+                                            }}
+                                            disabled={actions.deleting}
+                                            className="size-6 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30 cursor-pointer"
+                                            title="Delete campaign"
+                                            aria-label="Delete campaign"
+                                        >
+                                            <Trash2Icon className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
                                     <CampaignActionsMenu
                                         campaign={c}
                                         variant="row"

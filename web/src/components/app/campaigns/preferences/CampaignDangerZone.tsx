@@ -3,13 +3,23 @@ import { TrashIcon } from "lucide-react";
 import PermissionButton from "@/components/ui/PermissionButton";
 import type Campaign from "@/lib/api/models/app/campaigns/Campaign";
 import { useCampaignActions } from "@/components/app/campaigns/useCampaignActions";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
 
 // Settings > Delete campaign. Same confirm and cleanup as the "⋯" menu; on
 // success the settings page no longer exists, so it lands on the list.
 export default function CampaignDangerZone({ campaign }: { campaign: Campaign }) {
     const navigate = useNavigate();
     const actions = useCampaignActions();
+    const access = useFeatureAccess();
     const running = campaign.status === "active";
+
+    if (!access.isOwner) {
+        return (
+            <div className="rounded-md border border-slate-200 bg-slate-50/50 p-4 text-[12px] text-slate-500">
+                Campaign deletion is restricted to master/admin accounts.
+            </div>
+        );
+    }
 
     return (
         <div className="rounded-md border border-red-200 bg-red-50/40 p-4 flex flex-col sm:flex-row sm:items-center gap-3">

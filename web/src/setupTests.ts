@@ -16,14 +16,25 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
-// Mock localStorage
+// Mock localStorage with in-memory storage behavior
+let store: Record<string, string> = {}
 const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
+  getItem: vi.fn((key: string) => (key in store ? store[key] : null)),
+  setItem: vi.fn((key: string, value: string) => {
+    store[key] = String(value)
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete store[key]
+  }),
+  clear: vi.fn(() => {
+    store = {}
+  }),
+  get length() {
+    return Object.keys(store).length
+  },
+  key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
 }
-Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true })
 
 // Mock ResizeObserver
 class ResizeObserverMock {

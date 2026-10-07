@@ -9,6 +9,7 @@ import { useConfirm } from "@/hooks/context/confirm";
 import { checkPermission, showPermissionDenied, type PermissionKey } from "@/hooks/usePermission";
 import useDeleteCampaign from "@/lib/api/hooks/app/campaigns/useDeleteCampaign";
 import useDuplicateCampaign from "@/lib/api/hooks/app/campaigns/useDuplicateCampaign";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
 import type { AppError } from "@/lib/api/client/normalizeError";
 import buildError from "@/lib/helper/buildError";
 
@@ -53,11 +54,16 @@ export function useCampaignActions() {
     const navigate = useNavigate();
     const del = useDeleteCampaign();
     const duplicate = useDuplicateCampaign();
+    const access = useFeatureAccess();
 
     // Confirm, then delete. A failure keeps the dialog open (the provider
     // stays up when the callback throws) with the error in a toast, so the
     // user can retry or cancel; success closes it and runs afterDelete.
     function requestDelete(c: CampaignLike, opts?: { afterDelete?: () => void }) {
+        if (!access.isOwner) {
+            toast.error("Only master accounts can delete campaigns.");
+            return;
+        }
         confirm.show(deleteCampaignPrompt(c), async () => {
             await toast.promise(del.mutateAsync(c.id), {
                 loading: "Deleting campaign…",
