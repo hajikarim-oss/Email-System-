@@ -101,11 +101,37 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (!user) return;
 
     let body = "";
-    req.on("data", (chunk: any) => { body += chunk.toString(); });
+    const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10 MB limit
+    let totalSize = 0;
+
+    req.on("data", (chunk: any) => {
+        totalSize += chunk.length;
+        if (totalSize > MAX_PAYLOAD_SIZE) {
+            req.destroy();
+            res.writeHead(413, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "payload_too_large", max_size: MAX_PAYLOAD_SIZE }));
+            return;
+        }
+        body += chunk.toString();
+    });
+
     req.on("end", async () => {
         try {
             const parsed = JSON.parse(body || "{}");
-            const campaignName = parsed.name || `Campaign ${Date.now()}`;
+            let campaignName = (parsed.name || `Campaign ${Date.now()}`).trim();
+
+            // Validate campaign name (max 255 chars, no null bytes)
+            if (!campaignName || campaignName.length > 255) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "invalid_campaign_name", message: "Campaign name must be 1-255 characters" }));
+                return;
+            }
+
+            if (campaignName.includes("\0")) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "invalid_campaign_name", message: "Campaign name contains invalid characters" }));
+                return;
+            }
             let smartleadId = parsed.smartlead_id;
 
             const sender = (parsed.sender_email || parsed.from_email || "").toLowerCase();
@@ -122,17 +148,41 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 );
 
                 if (existing?.id) {
-                    smartleadId = existing.id;
+                    smartleadId = validateSmartleadId(existing.id);
+                    if (!smartleadId) {
+                        throw new Error("Invalid Smartlead campaign ID format");
+                    }
                     console.log(`[Smartlead Sync] Using existing campaign: ${smartleadId}`);
                 } else {
                     const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
                     if (createRes.data?.id) {
-                        smartleadId = createRes.data.id;
+                        smartleadId = validateSmartleadId(createRes.data.id);
+                        if (!smartleadId) {
+                            throw new Error("Invalid Smartlead campaign ID format from API");
+                        }
                         console.log(`[Smartlead Sync] Created new campaign: ${smartleadId}`);
                     } else {
                         throw new Error("Failed to create or find campaign in Smartlead");
                     }
                 }
+            } else {
+                // Validate provided smartleadId
+                const validated = validateSmartleadId(smartleadId);
+                if (!validated) {
+                    throw new Error("Invalid Smartlead campaign ID provided");
+                }
+                smartleadId = validated;
+            }
+
+            // Helper function to validate Smartlead numeric IDs (prevent overflow)
+            function validateSmartleadId(id: any): string | null {
+                if (!id) return null;
+                const idStr = String(id).trim();
+                // Must be numeric string, no spaces, no overflow risk
+                if (!/^\d{1,15}$/.test(idStr)) return null;
+                const num = BigInt(idStr);
+                if (num > BigInt("999999999999999")) return null; // Max safe Smartlead ID
+                return idStr;
             }
 
             // 2. Link rotational mailboxes (dedicated per campaign/team member)
@@ -275,8 +325,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
 
             // 7. Save campaign to database (CRITICAL FIX: This was missing)
+            // Use explicit transaction to prevent race condition on concurrent upserts
             let dbCampaignId: string | null = null;
             try {
+                // Start transaction for atomic campaign + steps + leads persistence
+                await pgQuery(`BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE`);
+
                 const dbResult = await pgQuery<any>(
                     `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendHour", "preferredSendDays")
                      VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)
@@ -295,41 +349,65 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 dbCampaignId = dbResult?.[0]?.id;
                 console.log(`[Smartlead Sync] Campaign saved to database: ${dbCampaignId}`);
             } catch (dbErr: any) {
+                await pgQuery(`ROLLBACK`).catch(() => {});
                 console.error("[Smartlead Sync] Database persistence failed:", dbErr.message);
                 res.writeHead(500, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ error: "database_persistence_failed", details: dbErr.message }));
                 return;
             }
 
-            // 8. Save leads to database with campaign linkage
+            // 8. Save leads to database with campaign linkage (within transaction)
             if (rawLeads.length > 0 && dbCampaignId) {
                 try {
                     for (const lead of rawLeads) {
-                        const fName = lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "") || (lead.email ? lead.email.split("@")[0] : "Prospect");
-                        const lName = lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "") || "";
+                        // Validate and truncate inputs
+                        const firstName = (lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "") || (lead.email ? lead.email.split("@")[0] : "Prospect")).slice(0, 100);
+                        const lastName = (lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "") || "").slice(0, 100);
+                        const email = (lead.email || "").toLowerCase().trim();
+
+                        // Validate email
+                        if (!email || !email.includes("@")) {
+                            console.warn(`[Smartlead Sync] Skipping invalid email: ${email}`);
+                            continue;
+                        }
 
                         await pgQuery(
                             `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", source, status)
                              VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'smartlead', 'ACTIVE')
                              ON CONFLICT (email, "campaignId") DO NOTHING`,
-                            [dbCampaignId, lead.email.toLowerCase(), fName, lName]
+                            [dbCampaignId, email, firstName, lastName]
                         );
                     }
                     console.log(`[Smartlead Sync] ${rawLeads.length} leads linked to campaign ${dbCampaignId}`);
+
+                    // Commit transaction after all leads inserted successfully
+                    await pgQuery(`COMMIT`);
+                    console.log(`[Smartlead Sync] Transaction committed for campaign ${dbCampaignId}`);
                 } catch (leadsErr: any) {
-                    console.warn("[Smartlead Sync] Lead linkage warning:", leadsErr.message);
+                    await pgQuery(`ROLLBACK`).catch(() => {});
+                    console.error("[Smartlead Sync] Lead linkage failed:", leadsErr.message);
+                    res.writeHead(500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "lead_linkage_failed", details: leadsErr.message }));
+                    return;
                 }
+            } else if (dbCampaignId) {
+                // Commit even if no leads
+                await pgQuery(`COMMIT`).catch(() => {});
             }
 
             // 9. Ensure Live Webhook is registered pointing to production domain
             try {
+                // Use environment variable for webhook URL to support different deployments
+                const webhookUrl = process.env.WEBHOOK_URL || "https://tbmoutreach.tech/api/webhooks/smartlead";
+
                 const whRes = await apiCall(`/campaigns/${smartleadId}/webhooks`, "GET", undefined, chosenKey);
                 const existing = Array.isArray(whRes.data) ? whRes.data : [];
-                const hasProductionWebhook = existing.some((w: any) => w.webhook_url && w.webhook_url.includes("tbmoutreach.tech/api/webhooks/smartlead"));
-                if (!hasProductionWebhook) {
+                const hasWebhook = existing.some((w: any) => w.webhook_url === webhookUrl);
+
+                if (!hasWebhook) {
                     await apiCall(`/campaigns/${smartleadId}/webhooks`, "POST", {
-                        name: "TBM Outreach Live Webhook",
-                        webhook_url: "https://tbmoutreach.tech/api/webhooks/smartlead",
+                        name: "Email System Live Webhook",
+                        webhook_url: webhookUrl,
                         event_types: [
                             "EMAIL_OPEN",
                             "EMAIL_SENT",
@@ -339,9 +417,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                             "LEAD_UNSUBSCRIBED",
                         ],
                     }, chosenKey);
+                    console.log(`[Smartlead Sync] Webhook registered: ${webhookUrl}`);
                 }
             } catch (wErr: any) {
-                console.warn(`[Smartlead API] Webhook check/register:`, wErr.message);
+                console.warn(`[Smartlead API] Webhook check/register warning:`, wErr.message);
             }
 
             res.writeHead(200, { "Content-Type": "application/json" });

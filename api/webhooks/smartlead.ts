@@ -49,15 +49,32 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     req.on("end", async () => {
         try {
-            // Enforce mandatory HMAC signature verification whenever secret is configured
+            // CRITICAL FIX: Enforce mandatory HMAC signature verification
             const secret = resolveWebhookSecret();
+
+            // In production, signature verification is MANDATORY
+            if (process.env.NODE_ENV === "production" && !secret) {
+                console.error("[Webhook Security] Production webhook received without SMARTLEAD_WEBHOOK_SECRET configured");
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({
+                    error: "webhook_security_misconfigured",
+                    message: "Webhook signature verification not configured. Set SMARTLEAD_WEBHOOK_SECRET in production environment."
+                }));
+                return;
+            }
+
+            // Verify signature if secret exists
             if (secret) {
                 const provided = String(req.headers["x-webhook-signature"] || req.headers["x-smartlead-signature"] || "");
                 if (!provided || !verifySmartleadSignature(body, provided, secret)) {
+                    console.warn("[Webhook Security] Invalid or missing signature for webhook event");
                     res.writeHead(401, { "Content-Type": "application/json" });
                     res.end(JSON.stringify({ error: "invalid_signature", message: "Missing or invalid webhook signature" }));
                     return;
                 }
+            } else if (process.env.NODE_ENV !== "production") {
+                // In development, warn but allow unsigned webhooks
+                console.warn("[Webhook] Development mode: webhook signature verification disabled. Set SMARTLEAD_WEBHOOK_SECRET to enable.");
             }
 
             const payload = JSON.parse(body || "{}");

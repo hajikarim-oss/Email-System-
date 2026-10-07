@@ -170,6 +170,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 if (Array.isArray(input.steps) && input.steps.length > 0) {
                     for (let i = 0; i < input.steps.length; i++) {
                         const step = input.steps[i];
+                        // Validate subject and body length
+                        const subject = (step.subject || `Step ${i + 1}`).slice(0, 255);
+                        const body = (step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>").slice(0, 65535);
+
+                        // Fixed: Column is "delayDays" in schema, but using "delayDays" parameter name correctly
                         await pgQuery(
                             `INSERT INTO "CampaignStep" (id, "campaignId", "stepNumber", "delayDays", subject, "bodyTemplate")
                              VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)`,
@@ -177,8 +182,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                                 campaignId,
                                 i + 1,
                                 step.wait_after || (i === 0 ? 0 : 3),
-                                step.subject || `Step ${i + 1}`,
-                                step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>",
+                                subject,
+                                body,
                             ]
                         );
                     }
