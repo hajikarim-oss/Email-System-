@@ -2213,7 +2213,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 if (smId) {
                     fetch(`/api/smartlead/status?id=${smId}`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: { "Content-Type": "application/json", ...authHeaders() },
                         body: JSON.stringify({ status: "START" }),
                     }).catch(() => {});
                 }
