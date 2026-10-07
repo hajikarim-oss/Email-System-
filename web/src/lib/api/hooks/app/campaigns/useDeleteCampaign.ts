@@ -13,6 +13,7 @@ export default function useDeleteCampaign() {
     return useMutation({
         mutationFn: (id: string) => deleteCampaign(id),
         onSuccess: (_data, id) => {
+            localStorage.removeItem("tbm_core_data_v5_campaigns");
             const allLists = queryClient.getQueriesData<InfiniteData<GetCampaigns>>({
                 queryKey: ["campaigns", "list"],
             });
