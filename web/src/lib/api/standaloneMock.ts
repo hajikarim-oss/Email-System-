@@ -1940,7 +1940,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             match = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower) ||
                 (campIdLower.includes("116") ? campaigns.find((c: any) => c.name?.includes("116")) : null) ||
                 (campIdLower.includes("120") ? campaigns.find((c: any) => c.name?.includes("120")) : null) ||
-                campaigns[0];
+                // Only use first campaign as fallback for GET reads, never for mutations
+                (method === "GET" ? campaigns[0] : null);
         }
 
         if (match && method === "GET" && !sub) {
@@ -1959,11 +1960,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         // DELETE CAMPAIGN: Remove from array, clean up lead mappings, persist to localStorage
         if (method === "DELETE" && (!sub || sub === "delete")) {
-            const targetId = match?.id || campId;
-            const campIndex = campaigns.findIndex((c: any) => c.id === targetId || c.id === campId);
+            // Strict ID-only lookup — NEVER fall back to campaigns[0] on delete
+            const strictMatch = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower);
+            const campIndex = campaigns.findIndex((c: any) => (c.id || "").toLowerCase() === campIdLower);
+            const targetId = strictMatch?.id || campId;
+
             if (campIndex >= 0) {
                 campaigns.splice(campIndex, 1);
                 saveStorage("campaigns", campaigns);
+            } else {
+                // Not found in localStorage — still record deletion so list stays clean
+                console.warn(`[standaloneMock] DELETE /campaigns/${campId} — not found in localStorage, recording deletion`);
             }
             try {
                 localStorage.removeItem(`tbm_core_data_v5_campaign_leads_${targetId}`);
