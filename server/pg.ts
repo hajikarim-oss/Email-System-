@@ -73,8 +73,8 @@ export function getPool(): Pool {
 
     // Supabase transaction pooler resets idle TLS sockets periodically (ECONNRESET).
     // An error listener is mandatory so pg does not crash the Node process on idle disconnects.
-    pool.on("error", (err) => {
-        console.warn("[pgPool] Idle client connection closed by pooler (handled safely):", err.message);
+    (pool as any).on?.("error", (err: any) => {
+        console.warn("[pgPool] Idle client connection closed by pooler (handled safely):", err?.message);
     });
 
     return pool;

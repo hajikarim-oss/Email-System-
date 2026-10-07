@@ -220,7 +220,7 @@ export default function DashboardPage() {
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const { user } = useUserProfile();
-    const isMaster = user?.is_admin || user?.role === "owner" || (user?.roles && user.roles.includes("owner"));
+    const isMaster = user?.is_admin || (user as any)?.role === "owner" || (user?.roles && user.roles.includes("owner"));
     const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
     const [inspectorData, setInspectorData] = useState<InspectorPayload | null>(null);
 
@@ -1182,9 +1182,9 @@ export default function DashboardPage() {
                                 },
                                 breakdown: teamProfiles.slice(0, 5).map((p) => ({
                                     label: p.email,
-                                    value: `${p.sent_today || 0} / ${p.daily_quota || 50}`,
+                                    value: `${p.sent_today || 0} / ${p.daily_limit || (p as any).daily_quota || 50}`,
                                     detail: `Status: ${p.status} · Warmup Active`,
-                                    pct: pctOf(p.sent_today, p.daily_quota || 50),
+                                    pct: pctOf(p.sent_today, p.daily_limit || (p as any).daily_quota || 50),
                                     color: p.status === "active" ? "#10b981" : "#f59e0b",
                                 })),
                                 insights: [
@@ -2471,7 +2471,7 @@ export default function DashboardPage() {
                                                         { label: "Messages Indexed", value: formatNum(lifetime?.messages_tracked), detail: "Outbound & inbound", color: "#2563eb" },
                                                         { label: "Contacts Emailed", value: formatNum(lifetime?.contacts_emailed), detail: "Zero duplicate sends", color: "#06b6d4" },
                                                         { label: "Leads Replied", value: formatNum(lifetime?.leads_replied), detail: "Follow-up automatically halted", color: "#10b981" },
-                                                        { label: "Brands Indexed", value: lifetime?.brands, detail: "Domain-level collision shield", color: "#8b5cf6" },
+                                                        { label: "Brands Indexed", value: lifetime?.brands ?? 0, detail: "Domain-level collision shield", color: "#8b5cf6" },
                                                     ],
                                                     insights: [
                                                         "Ensures two team members never email the same company or lead simultaneously.",

@@ -5,7 +5,7 @@ import { requireUser } from "../../server/handlers/auth";
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
     if (req.method === "OPTIONS") {
@@ -25,6 +25,51 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         res.writeHead(503, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "smartlead_api_key_not_configured" }));
         return;
+    }
+
+    if (req.method === "DELETE") {
+        const url = new URL(req.url || "", "http://localhost");
+        const parts = url.pathname.split("/").filter(Boolean);
+        let id = url.searchParams.get("id");
+        if (!id && parts.length > 0) {
+            const last = parts[parts.length - 1];
+            if (last !== "campaigns") id = last;
+        }
+
+        if (!id) {
+            res.statusCode = 400;
+            res.setHeader("Content-Type", "application/json");
+            return res.end(JSON.stringify({ error: "missing_id" }));
+        }
+
+        function deleteCamp(apiKey: string): Promise<boolean> {
+            return new Promise((resolve) => {
+                const targetUrl = `https://server.smartlead.ai/api/v1/campaigns/${id}?api_key=${apiKey}`;
+                const parsedUrl = new URL(targetUrl);
+                const clientReq = https.request(
+                    {
+                        hostname: parsedUrl.hostname,
+                        path: parsedUrl.pathname + parsedUrl.search,
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                    },
+                    (clientRes) => {
+                        resolve(clientRes.statusCode === 200 || clientRes.statusCode === 204);
+                    }
+                );
+                clientReq.on("error", () => resolve(false));
+                clientReq.setTimeout(6000, () => {
+                    clientReq.destroy();
+                    resolve(false);
+                });
+                clientReq.end();
+            });
+        }
+
+        await Promise.all(SMARTLEAD_KEYS.map((k) => deleteCamp(k)));
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        return res.end(JSON.stringify({ success: true, deleted_id: id }));
     }
 
     function fetchCampaigns(apiKey: string): Promise<any[]> {

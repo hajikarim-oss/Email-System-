@@ -71,7 +71,7 @@ try {
 } catch { }
 
 // Initial state data loaded from real Email System 101 core database with 4 distinct sending profiles (50/day each = 200/day)
-export const DEFAULT_4_PROFILES = [
+export const DEFAULT_8_PROFILES = [
     {
         id: "cmtlkufpi000o80qmmlfsfat7",
         email: "haji.karim@theboredmonkey.com",
@@ -231,10 +231,171 @@ export const DEFAULT_4_PROFILES = [
         updated_at: "2026-09-18T00:00:00.000Z",
         smartlead_id: 24260216,
         smartlead_api_key: "mock_smartlead_api_key",
+    },
+    {
+        id: "cmu6m31bv00033307zao17anp",
+        email: "preeti.karki@theboredmonkey.com",
+        name: "Preeti Karki",
+        signature_plain: "Best regards,\nPreeti Karki\nClient Relations | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Preeti Karki</strong><br/>Client Relations | TheBoredMonkey</p>",
+        signature_sync: false,
+        signature_code: false,
+        tags: ["primary", "outreach", "client-relations"],
+        provider: "google",
+        status: "active",
+        last_synced_at: new Date().toISOString(),
+        campaign_limit: 50,
+        min_wait_time: 3,
+        reply_to: "",
+        save_to_sent: true,
+        tracking_domain: "mail.theboredmonkey.com",
+        tracking_domain_verified: true,
+        tracking_domain_verified_at: "2026-09-18T00:00:00.000Z",
+        auth_state: "passing",
+        auth_spf: true,
+        auth_dkim: true,
+        auth_dmarc: true,
+        warmup: "2026-09-18T00:00:00.000Z",
+        warmup_paused_at: null,
+        warmup_base: 5,
+        warmup_max: 50,
+        warmup_increase: 3,
+        warmup_reply_rate: 35,
+        reputation: 100,
+        daily_limit: 200,
+        sent_today: 0,
+        total_sent: 12,
+        mailbox_allowance: 200,
+        connected_at: "2026-09-18T00:00:00.000Z",
+        created_at: "2026-09-18T00:00:00.000Z",
+        updated_at: "2026-09-18T00:00:00.000Z",
+        smartlead_id: 23458016,
+        smartlead_api_key: "mock_smartlead_api_key",
+    },
+    {
+        id: "mbx_monu_tbm_006",
+        email: "monu@theboredmonkey.com",
+        name: "Monu",
+        signature_plain: "Best regards,\nMonu\nOperations Lead | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Monu</strong><br/>Operations Lead | TheBoredMonkey</p>",
+        signature_sync: false,
+        signature_code: false,
+        tags: ["primary", "outreach", "operations"],
+        provider: "google",
+        status: "active",
+        last_synced_at: new Date().toISOString(),
+        campaign_limit: 50,
+        min_wait_time: 3,
+        reply_to: "",
+        save_to_sent: true,
+        tracking_domain: "mail.theboredmonkey.com",
+        tracking_domain_verified: true,
+        tracking_domain_verified_at: "2026-09-18T00:00:00.000Z",
+        auth_state: "passing",
+        auth_spf: true,
+        auth_dkim: true,
+        auth_dmarc: true,
+        warmup: "2026-09-18T00:00:00.000Z",
+        warmup_paused_at: null,
+        warmup_base: 5,
+        warmup_max: 50,
+        warmup_increase: 3,
+        warmup_reply_rate: 35,
+        reputation: 100,
+        daily_limit: 200,
+        sent_today: 0,
+        total_sent: 8,
+        mailbox_allowance: 200,
+        connected_at: "2026-09-18T00:00:00.000Z",
+        created_at: "2026-09-18T00:00:00.000Z",
+        updated_at: "2026-09-18T00:00:00.000Z",
+        smartlead_id: 24260218,
+        smartlead_api_key: "mock_smartlead_api_key",
+    },
+    {
+        id: "mbx_suraj_tbm_007",
+        email: "suraj@theboredmonkey.com",
+        name: "Suraj Maurya",
+        signature_plain: "Best regards,\nSuraj Maurya\nBrand Marketing | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Suraj Maurya</strong><br/>Brand Marketing | TheBoredMonkey</p>",
+        signature_sync: false,
+        signature_code: false,
+        tags: ["primary", "outreach", "marketing"],
+        provider: "google",
+        status: "active",
+        last_synced_at: new Date().toISOString(),
+        campaign_limit: 50,
+        min_wait_time: 3,
+        reply_to: "",
+        save_to_sent: true,
+        tracking_domain: "mail.theboredmonkey.com",
+        tracking_domain_verified: true,
+        tracking_domain_verified_at: "2026-09-18T00:00:00.000Z",
+        auth_state: "passing",
+        auth_spf: true,
+        auth_dkim: true,
+        auth_dmarc: true,
+        warmup: "2026-09-18T00:00:00.000Z",
+        warmup_paused_at: null,
+        warmup_base: 5,
+        warmup_max: 50,
+        warmup_increase: 3,
+        warmup_reply_rate: 35,
+        reputation: 100,
+        daily_limit: 200,
+        sent_today: 0,
+        total_sent: 4,
+        mailbox_allowance: 200,
+        connected_at: "2026-09-18T00:00:00.000Z",
+        created_at: "2026-09-18T00:00:00.000Z",
+        updated_at: "2026-09-18T00:00:00.000Z",
+        smartlead_id: 24260220,
+        smartlead_api_key: "mock_smartlead_api_key",
+    },
+    {
+        id: "mbx_partnerships_tbm_008",
+        email: "partnerships@theboredmonkey.com",
+        name: "Partnerships Team",
+        signature_plain: "Best regards,\nPartnerships Team\nEnterprise Collaborations | TheBoredMonkey",
+        signature_html: "<p>Best regards,<br/><strong>Partnerships Team</strong><br/>Enterprise Collaborations | TheBoredMonkey</p>",
+        signature_sync: false,
+        signature_code: false,
+        tags: ["primary", "outreach", "enterprise"],
+        provider: "google",
+        status: "active",
+        last_synced_at: new Date().toISOString(),
+        campaign_limit: 50,
+        min_wait_time: 3,
+        reply_to: "",
+        save_to_sent: true,
+        tracking_domain: "mail.theboredmonkey.com",
+        tracking_domain_verified: true,
+        tracking_domain_verified_at: "2026-09-18T00:00:00.000Z",
+        auth_state: "passing",
+        auth_spf: true,
+        auth_dkim: true,
+        auth_dmarc: true,
+        warmup: "2026-09-18T00:00:00.000Z",
+        warmup_paused_at: null,
+        warmup_base: 5,
+        warmup_max: 50,
+        warmup_increase: 3,
+        warmup_reply_rate: 35,
+        reputation: 100,
+        daily_limit: 200,
+        sent_today: 0,
+        total_sent: 6,
+        mailbox_allowance: 200,
+        connected_at: "2026-09-18T00:00:00.000Z",
+        created_at: "2026-09-18T00:00:00.000Z",
+        updated_at: "2026-09-18T00:00:00.000Z",
+        smartlead_id: 24260222,
+        smartlead_api_key: "mock_smartlead_api_key",
     }
 ];
 
-const initialEmails = DEFAULT_4_PROFILES;
+export const DEFAULT_4_PROFILES = DEFAULT_8_PROFILES;
+const initialEmails = DEFAULT_8_PROFILES;
 
 // Fixture datasets (coreData.json ≈18.6 MB, q3LuggageLeads.json ≈1.9 MB).
 // Statically importing them made the initial JS chunk ~19 MB, so the app took
@@ -1049,31 +1210,31 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         });
     }
 
-    // 4. Mailboxes / Emails - Strictly aligned with live Smartlead Email Accounts (4 accounts)
-    const MIGRATION_KEY = "emails_v10_smartlead_aligned";
+    // 4. Mailboxes / Emails - Configured with 8 enterprise sender accounts
+    const MIGRATION_KEY = "emails_v15_8_enterprise_sender_accounts";
     const migrated = loadStorage<boolean>(MIGRATION_KEY, false);
     const deletedList = loadStorage<string[]>("deleted_emails", []);
-    // Ensure all removed/non-Smartlead accounts are marked deleted
-    ["theboredmonkeytech@gmail.com", "karimsaikh356@gmail.com", "preeti.karki@theboredmonkey.com", "monu@theboredmonkey.com", "growth@theboredmonkey.com", "partnerships@theboredmonkey.com"].forEach(em => {
-        if (!deletedList.includes(em)) deletedList.push(em);
-    });
-    saveStorage("deleted_emails", deletedList);
+    // Ensure active 8 sender accounts are never in deleted list
+    const activeEmails = DEFAULT_8_PROFILES.map((p) => p.email.toLowerCase());
+    const cleanedDeleted = deletedList.filter((em) => !activeEmails.includes(em.toLowerCase()));
+    saveStorage("deleted_emails", cleanedDeleted);
 
     let storedEmails = loadStorage<any[]>("emails", null as any);
 
-    if (!migrated || !Array.isArray(storedEmails) || storedEmails.length !== 4 || storedEmails.some(e => e.email?.includes("monu@") || e.email?.includes("preeti.karki"))) {
-        storedEmails = DEFAULT_4_PROFILES.map(p => ({
+    if (!migrated || !Array.isArray(storedEmails) || storedEmails.length !== 8) {
+        storedEmails = DEFAULT_8_PROFILES.map((p) => ({
             ...p,
             sent_today: p.sent_today ?? 0,
             total_sent: p.total_sent ?? 0,
             daily_limit: 200,
             mailbox_allowance: 200,
             reputation: 100,
+            status: "active",
         }));
         saveStorage("emails", storedEmails);
         saveStorage(MIGRATION_KEY, true);
     } else {
-        storedEmails = DEFAULT_4_PROFILES.map(p => {
+        storedEmails = DEFAULT_8_PROFILES.map((p) => {
             const existing = storedEmails.find((e: any) => e.email?.toLowerCase() === p.email.toLowerCase());
             return {
                 ...p,
@@ -1084,6 +1245,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 daily_limit: 200,
                 mailbox_allowance: 200,
                 reputation: 100,
+                status: "active",
             };
         });
         saveStorage("emails", storedEmails);
@@ -1264,15 +1426,30 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     const campaigns = await loadStorageLazy("campaigns", (c) => c?.campaigns || []);
     const deletedCampaignIds = loadStorage<string[]>("deleted_campaign_ids", []);
 
+    const isCampDeleted = (cId?: any, slId?: any, cName?: any) => {
+        if (!deletedCampaignIds || !deletedCampaignIds.length) return false;
+        const idLower = String(cId || "").toLowerCase();
+        const slStr = String(slId || "").toLowerCase();
+        const nameLower = String(cName || "").toLowerCase();
+        return deletedCampaignIds.some((d) => {
+            const dLower = String(d || "").toLowerCase();
+            return (
+                (idLower && dLower === idLower) ||
+                (slStr && dLower === slStr) ||
+                (nameLower && (dLower === nameLower || nameLower.includes(dLower)))
+            );
+        });
+    };
+
     // Filter out any permanently deleted campaigns
     for (let i = campaigns.length - 1; i >= 0; i--) {
-        if (deletedCampaignIds.includes(campaigns[i].id)) {
+        if (isCampDeleted(campaigns[i].id, campaigns[i].smartlead_id, campaigns[i].name)) {
             campaigns.splice(i, 1);
         }
     }
 
     // Guarantee that Q3 Campaign is present unless explicitly deleted
-    if (!deletedCampaignIds.includes("cmp_1790233732719_dvlj")) {
+    if (!isCampDeleted("cmp_1790233732719_dvlj", 4015596, "Q3 Campaign")) {
         const q3Idx = campaigns.findIndex((c: any) =>
             c.id === "cmp_1790233732719_dvlj" ||
             c.smartlead_id === 4015596 ||
@@ -1307,7 +1484,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     // Guarantee that Q2 Reachout Mails is present unless explicitly deleted
-    if (!deletedCampaignIds.includes("cmp_1789718475256_g91f")) {
+    if (!isCampDeleted("cmp_1789718475256_g91f", 3980868, "Q2 Reachout Mails")) {
         const q2Idx = campaigns.findIndex((c: any) =>
             c.id === "cmp_1789718475256_g91f" ||
             (c.id && c.id.toLowerCase().includes("1789718475256")) ||
@@ -1409,7 +1586,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }
 
         let stored = loadStorage<any[]>(`campaign_leads_${campId}`, []);
-        const availableEmails = emails.length >= 4 ? emails : DEFAULT_4_PROFILES;
+        const availableEmails = emails.length >= 8 ? emails : DEFAULT_8_PROFILES;
 
         if (stored.length > 0) {
             let modified = false;
@@ -1765,6 +1942,21 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         saveStorage(`campaign_leads_${campId}`, finalLeads);
         return finalLeads;
     }
+    if (pathWithoutQuery === "/campaigns-estimate" || pathWithoutQuery === "/campaigns/estimate") {
+        const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+        const dailyLimit = Number(body.daily_limit) || 200;
+        const mailboxCount = (Array.isArray(body.email_tag_ids) && body.email_tag_ids.length > 0)
+            ? body.email_tag_ids.length
+            : (emails?.length || 8);
+        const dailyCapacity = dailyLimit * mailboxCount;
+        return res({
+            recipients: 0,
+            mailboxes: mailboxCount,
+            daily_capacity: dailyCapacity,
+            sending_days: 1,
+            estimated_finish_at: new Date(Date.now() + 86400000).toISOString(),
+        });
+    }
     if (pathWithoutQuery === "/campaigns") {
         if (method === "POST") {
             const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
@@ -1800,8 +1992,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 risky_emails: false,
                 cc: [],
                 bcc: [],
-                start_date: new Date().toISOString(),
-                end_date: null,
+                start_date: body.start_date || (body.scheduledAt ? new Date(body.scheduledAt).toISOString() : new Date().toISOString()),
+                end_date: body.end_date || (body.endScheduledAt ? new Date(body.endScheduledAt).toISOString() : null),
                 timezone: body.timezone || "Asia/Kolkata",
                 days: body.days || 127,
                 start_time: body.start_time || "09:00",
@@ -1815,7 +2007,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 bounce_count: 0,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
-                mailboxes: emails.slice(0, 1).map((e: { id: string }) => e.id),
+                mailboxes: (Array.isArray(body.mailboxes) && body.mailboxes.length > 0)
+                    ? body.mailboxes
+                    : emails.map((e: { id: string }) => e.id),
                 steps: (body.steps || []).map((s: { name: string; subject: string; body_plain: string; body_html?: string; wait_after?: number }, idx: number) => ({
                     id: `stp_${Date.now()}_${idx}`,
                     stepNumber: idx + 1,
@@ -1847,6 +2041,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 const dbCamps = await dbCampRes.json();
                 if (Array.isArray(dbCamps) && dbCamps.length > 0) {
                     dbCamps.forEach((dbc: any) => {
+                        if (isCampDeleted(dbc.id, dbc.providerCampaignId, dbc.name)) return;
                         let local = campaigns.find((c: any) => c.id === dbc.id || (dbc.providerCampaignId && c.smartlead_id === Number(dbc.providerCampaignId)));
                         if (local) {
                             local.user_id = dbc.userId;
@@ -1877,6 +2072,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                                     subject: s.subject || "",
                                     body_plain: s.bodyTemplate || "",
                                     wait_after: s.delayDays || 0,
+                                    wait_days: s.delayDays || 0,
                                 })),
                                 mailboxes: [],
                             });
@@ -1958,18 +2154,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         }
 
-        // DELETE CAMPAIGN: Remove from array, clean up lead mappings, persist to localStorage
+        // DELETE CAMPAIGN: Remove from array, clean up lead mappings, persist to localStorage, and sync to live DB & Smartlead
         if (method === "DELETE" && (!sub || sub === "delete")) {
             // Strict ID-only lookup — NEVER fall back to campaigns[0] on delete
-            const strictMatch = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower);
-            const campIndex = campaigns.findIndex((c: any) => (c.id || "").toLowerCase() === campIdLower);
+            const strictMatch = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower || (c.smartlead_id && String(c.smartlead_id) === campIdLower));
+            const campIndex = campaigns.findIndex((c: any) => (c.id || "").toLowerCase() === campIdLower || (c.smartlead_id && String(c.smartlead_id) === campIdLower));
             const targetId = strictMatch?.id || campId;
+            const smartleadIdToDelete = strictMatch?.smartlead_id || (/^\d+$/.test(campId) ? Number(campId) : undefined);
 
             if (campIndex >= 0) {
                 campaigns.splice(campIndex, 1);
                 saveStorage("campaigns", campaigns);
             } else {
-                // Not found in localStorage — still record deletion so list stays clean
                 console.warn(`[standaloneMock] DELETE /campaigns/${campId} — not found in localStorage, recording deletion`);
             }
             try {
@@ -1978,9 +2174,14 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 localStorage.removeItem(`tbm_core_data_v5_campaign_leads_${campId}`);
                 localStorage.removeItem(`tbm_core_data_v5_campaign_logs_${campId}`);
             } catch {}
+
             const curDelCamps = loadStorage<string[]>("deleted_campaign_ids", []);
-            if (!curDelCamps.includes(targetId)) curDelCamps.push(targetId);
-            if (!curDelCamps.includes(campId)) curDelCamps.push(campId);
+            const toAdd = [targetId, campId, targetId.toLowerCase(), campId.toLowerCase()];
+            if (smartleadIdToDelete) toAdd.push(String(smartleadIdToDelete));
+            if (strictMatch?.name) toAdd.push(strictMatch.name.toLowerCase());
+            toAdd.forEach((id) => {
+                if (id && !curDelCamps.includes(id)) curDelCamps.push(id);
+            });
             saveStorage("deleted_campaign_ids", curDelCamps);
 
             // Clean up contacts referencing this campaign
@@ -2001,6 +2202,21 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             if (contactsModified) {
                 saveStorage("contacts", currentContacts);
             }
+
+            // Trigger backend deletion in PostgreSQL database and Smartlead
+            try {
+                fetch(`/api/intelligence/campaigns?id=${encodeURIComponent(targetId)}`, {
+                    method: "DELETE",
+                    headers: authHeaders(),
+                }).catch(() => {});
+                if (smartleadIdToDelete) {
+                    fetch(`/api/smartlead/campaigns?id=${encodeURIComponent(smartleadIdToDelete)}`, {
+                        method: "DELETE",
+                        headers: authHeaders(),
+                    }).catch(() => {});
+                }
+            } catch {}
+
             return res({ success: true, deleted_id: targetId });
         }
 
@@ -2043,7 +2259,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
                 // Get or initialize campaign leads (such as all 1876 contacts for Q2 Reachout Mails)
                 const campLeads = await getOrInitCampaignLeads(match.id, match);
-                const availableEmails = emails.length >= 4 ? emails : DEFAULT_4_PROFILES;
+                const availableEmails = emails.length >= 8 ? emails : DEFAULT_8_PROFILES;
                 const nowIso = new Date().toISOString();
 
                 // Helper variable interpolator for personalized email outreach
@@ -2067,16 +2283,16 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, title);
                 }
 
-                // Pick next pending leads to dispatch (e.g. 4 leads, 1 for each mailbox in rotation pool)
+                // Pick next pending leads to dispatch (e.g. 8 leads, 1 for each mailbox in rotation pool)
                 const pendingLeads = campLeads.filter((ct: any) => ct.status === "pending" || !ct.status);
-                const batchSize = Math.min(4, pendingLeads.length > 0 ? pendingLeads.length : 1);
+                const batchSize = Math.min(8, pendingLeads.length > 0 ? pendingLeads.length : 1);
                 const toDispatch = pendingLeads.slice(0, batchSize);
 
                 const dispatchedRecords: any[] = [];
                 const currentSentCount = match.sent_count || 0;
 
                 toDispatch.forEach((lead: any, idx: number) => {
-                    // Smart mailbox rotation across 4 profiles: Vatsal, Preeti, Haji, Snehal
+                    // Smart mailbox rotation across 8 enterprise sender accounts
                     const mailboxIndex = (currentSentCount + idx) % availableEmails.length;
                     const mailbox = availableEmails[mailboxIndex];
 

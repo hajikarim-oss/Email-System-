@@ -145,6 +145,10 @@ export function FieldRow({ children, className }: { children: React.ReactNode; c
 // field border. Value is a number; onChange always gets a clamped
 // number. `suffix` renders a muted unit label (e.g. "emails / day")
 // inside the field, before the steppers.
+//
+// Internal string state fix: we let the user type freely (so "30" doesn't
+// immediately clamp to min=3 while mid-typing "300") and only clamp on
+// blur, Enter, or stepper clicks.
 export function NumberInput({
     value,
     onChange,
@@ -160,11 +164,6 @@ export function NumberInput({
 }: {
     value: number;
     onChange: (value: number) => void;
-    // Optional "commit point" distinct from the live onChange: fires on blur,
-    // on Enter, and on each stepper click — but NOT on every keystroke. Use it
-    // when the consumer wants to persist (e.g. a network save) only once the
-    // user settles on a value, instead of mid-typing. Omitting it preserves the
-    // original onChange-only behavior for every existing call site.
     onCommit?: (value: number) => void;
     min?: number;
     max?: number;
@@ -181,15 +180,38 @@ export function NumberInput({
         if (max !== undefined && n > max) return max;
         return n;
     };
-    const commitValue = () => onCommit?.(clamp(Number.isFinite(value) ? value : min ?? 0));
+
+    // Internal text state lets the user type freely without mid-keystroke clamping.
+    const [raw, setRaw] = React.useState(() => (Number.isFinite(value) ? String(value) : ""));
+    const focused = React.useRef(false);
+
+    // Sync when the external value changes while the field is NOT focused.
+    React.useEffect(() => {
+        if (!focused.current) {
+            setRaw(Number.isFinite(value) ? String(value) : "");
+        }
+    }, [value]);
+
+    const commit = () => {
+        const parsed = raw === "" ? (min ?? 0) : Number(raw);
+        const clamped = clamp(Number.isNaN(parsed) ? (min ?? 0) : parsed);
+        setRaw(String(clamped));
+        onChange(clamped);
+        onCommit?.(clamped);
+    };
+
     const bump = (dir: 1 | -1) => {
         if (disabled) return;
-        const next = clamp((Number.isFinite(value) ? value : 0) + dir * step);
+        const base = Number.isFinite(value) ? value : (min ?? 0);
+        const next = clamp(base + dir * step);
+        setRaw(String(next));
         onChange(next);
         onCommit?.(next);
     };
+
     const atMax = max !== undefined && value >= max;
     const atMin = min !== undefined && value <= min;
+
     return (
         <div
             className={cn(
@@ -199,27 +221,35 @@ export function NumberInput({
             )}
         >
             <input
-                type="number"
+                type="text"
                 inputMode="numeric"
-                value={Number.isFinite(value) ? value : ""}
+                value={raw}
                 disabled={disabled}
                 placeholder={placeholder}
                 onChange={(e) => {
-                    const raw = e.target.value;
-                    onChange(raw === "" ? min ?? 0 : clamp(Number(raw)));
+                    const v = e.target.value;
+                    // Allow digits, optional leading minus, nothing else
+                    if (v === "" || /^-?\d*$/.test(v)) {
+                        setRaw(v);
+                        if (v !== "") {
+                            const n = Number(v);
+                            if (!Number.isNaN(n)) {
+                                // Cap at max while typing if needed, but DO NOT clamp min mid-keystroke
+                                const live = max !== undefined && n > max ? max : n;
+                                onChange(live);
+                            }
+                        }
+                    }
                 }}
-                onBlur={onCommit ? commitValue : undefined}
-                onKeyDown={
-                    onCommit
-                        ? (e) => {
-                              if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  commitValue();
-                                  (e.target as HTMLInputElement).blur();
-                              }
-                          }
-                        : undefined
-                }
+                onFocus={() => { focused.current = true; }}
+                onBlur={() => { focused.current = false; commit(); }}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        commit();
+                        (e.target as HTMLInputElement).blur();
+                    }
+                }}
                 className={cn(
                     "w-full min-w-0 h-full bg-transparent outline-none px-2.5 text-[16px] md:text-[12.5px] text-slate-900 tabular-nums disabled:text-slate-400",
                     "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
@@ -255,3 +285,4 @@ export function NumberInput({
         </div>
     );
 }
+

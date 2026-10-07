@@ -81,6 +81,38 @@ function getOpenAiApiKey(): string {
     return "";
 }
 
+function deleteSmartleadCampaign(campaignId: string | number): Promise<boolean> {
+    const keys = [smartleadPrimary(), smartleadSecondary()].filter(Boolean);
+    if (!keys.length || !campaignId) return Promise.resolve(false);
+
+    return Promise.all(
+        keys.map(
+            (k) =>
+                new Promise<boolean>((resolve) => {
+                    const url = `https://server.smartlead.ai/api/v1/campaigns/${campaignId}?api_key=${k}`;
+                    const parsedUrl = new URL(url);
+                    const req = https.request(
+                        {
+                            hostname: parsedUrl.hostname,
+                            path: parsedUrl.pathname + parsedUrl.search,
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                        },
+                        (res: any) => {
+                            resolve(res.statusCode === 200 || res.statusCode === 204);
+                        }
+                    );
+                    req.on("error", () => resolve(false));
+                    req.setTimeout(5000, () => {
+                        req.destroy();
+                        resolve(false);
+                    });
+                    req.end();
+                })
+        )
+    ).then((results) => results.some(Boolean));
+}
+
 function localAiChatPlugin() {
     return {
         name: "local-ai-chat-plugin",
@@ -385,7 +417,7 @@ function smartleadApiPlugin() {
                 });
             });
 
-            server.middlewares.use("/api/smartlead/campaigns", async (_req: any, res: any) => {
+            server.middlewares.use("/api/smartlead/campaigns", async (req: any, res: any) => {
                 try {
                     const keys = [DEFAULT_SMARTLEAD_KEY, SECONDARY_SMARTLEAD_KEY].filter(Boolean);
                     if (keys.length === 0) {
@@ -393,6 +425,26 @@ function smartleadApiPlugin() {
                         res.end(JSON.stringify({ error: "smartlead_api_key_not_configured" }));
                         return;
                     }
+
+                    if (req.method === "DELETE") {
+                        const url = new URL(req.url, "http://localhost");
+                        let id = url.searchParams.get("id");
+                        if (!id) {
+                            const parts = url.pathname.split("/").filter(Boolean);
+                            const last = parts[parts.length - 1];
+                            if (last && last !== "campaigns") id = last;
+                        }
+                        if (!id) {
+                            res.writeHead(400, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "missing_id" }));
+                            return;
+                        }
+                        await Promise.all(keys.map((k) => apiCall(`/campaigns/${id}`, "DELETE", undefined, k).catch(() => null)));
+                        res.writeHead(200, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ success: true, deleted_id: id }));
+                        return;
+                    }
+
                     const calls = await Promise.all(keys.map((k) => apiCall("/campaigns", "GET", undefined, k)));
                     const allCamps: any[] = [];
                     const seen = new Set<number>();
@@ -513,29 +565,40 @@ function smartleadApiPlugin() {
                         await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
 
                         // 4. Save schedule (Timezone, Days of week bitmask/array, sending window)
+                        // Smartlead format: 0=Sunday, 1=Monday, ..., 6=Saturday
                         let daysOfTheWeek: number[] = [1, 2, 3, 4, 5];
                         if (Array.isArray(parsed.days) && parsed.days.length > 0) {
-                            daysOfTheWeek = parsed.days.map(Number);
+                            daysOfTheWeek = parsed.days.map((d: any) => {
+                                const n = Number(d);
+                                return n === 7 ? 0 : n;
+                            });
                         } else if (typeof parsed.days === "number" && parsed.days > 0) {
                             const decodedDays: number[] = [];
                             for (let i = 0; i < 7; i++) {
-                                if ((parsed.days & (1 << i)) !== 0) decodedDays.push(i + 1);
+                                if ((parsed.days & (1 << i)) !== 0) {
+                                    // Bit 0 is Mon -> 1, Bit 5 is Sat -> 6, Bit 6 is Sun -> 0
+                                    decodedDays.push(i === 6 ? 0 : i + 1);
+                                }
                             }
-                            if (decodedDays.length > 0) daysOfTheWeek = decodedDays;
+                            if (decodedDays.length > 0) daysOfTheWeek = decodedDays.sort((a, b) => a - b);
                         }
 
                         const startHour = parsed.start_time || parsed.startTime || "08:00";
                         const endHour = parsed.end_time || parsed.endTime || "18:00";
-                        const dailyCap = Number(parsed.max_new_leads_per_day) || Number(parsed.daily_limit) || Math.max((mailboxIds.length || 1) * 200, 200);
+                        const dailyCap = Number(parsed.daily_limit) || Number(parsed.max_new_leads_per_day) || 50;
 
-                        await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
+                        const schedulePayload: Record<string, any> = {
                             timezone: parsed.timezone || "Asia/Kolkata",
                             days_of_the_week: daysOfTheWeek,
                             start_hour: startHour,
                             end_hour: endHour,
                             min_time_btw_emails: 3,
                             max_new_leads_per_day: dailyCap,
-                        }, chosenKey);
+                        };
+                        if (parsed.start_date) schedulePayload.start_date = parsed.start_date;
+                        if (parsed.end_date) schedulePayload.end_date = parsed.end_date;
+
+                        await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", schedulePayload, chosenKey);
 
                         // Update Campaign Settings (Stop on Reply, Open & Click Tracking)
                         try {
@@ -594,7 +657,7 @@ function smartleadApiPlugin() {
                             if (!hasWebhook) {
                                 await apiCall(`/campaigns/${smartleadId}/webhooks`, "POST", {
                                     name: "TheBoredMonkey Live Event Webhook",
-                                    webhook_url: "https://tbmoutreach.tech/api/webhooks/smartlead",
+                                    webhook_url: "https://email-system-omega.vercel.app/api/webhooks/smartlead",
                                     event_types: [
                                         "EMAIL_OPEN",
                                         "EMAIL_SENT",
@@ -657,85 +720,6 @@ function smartleadApiPlugin() {
                         res.end(JSON.stringify({ ok: true, smartlead_id: smartleadId, result: slRes.data }));
                     } catch (err: any) {
                         console.error(`[Smartlead API] Failed syncing sequences:`, err.message);
-                        res.writeHead(500, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ error: err.message }));
-                    }
-                });
-            });
-
-            // Direct lead synchronizer to Smartlead campaign
-            server.middlewares.use("/api/smartlead/add-leads", (req: any, res: any) => {
-                if (req.method !== "POST") {
-                    res.statusCode = 405;
-                    res.end(JSON.stringify({ error: "Method not allowed" }));
-                    return;
-                }
-                let body = "";
-                req.on("data", (chunk: any) => { body += chunk; });
-                req.on("end", async () => {
-                    try {
-                        const parsed = JSON.parse(body || "{}");
-                        let smartleadId = parsed.smartlead_id ? Number(parsed.smartlead_id) : null;
-                        const campaignName = (parsed.campaign_name || parsed.name || "").trim();
-                        const rawLeads = Array.isArray(parsed.leads) ? parsed.leads : (parsed.lead ? [parsed.lead] : []);
-                        const chosenKey = parsed.api_key || DEFAULT_SMARTLEAD_KEY;
-
-                        if (!smartleadId || isNaN(smartleadId)) {
-                            const listRes = await apiCall("/campaigns", "GET", undefined, chosenKey);
-                            const allCamps = Array.isArray(listRes.data) ? listRes.data : [];
-                            if (campaignName) {
-                                const match = allCamps.find((c: any) =>
-                                    (c.name || "").toLowerCase().trim() === campaignName.toLowerCase() ||
-                                    c.name.toLowerCase().includes(campaignName.toLowerCase())
-                                );
-                                if (match) smartleadId = match.id;
-                            }
-                        }
-
-                        if (!smartleadId || isNaN(smartleadId)) {
-                            res.writeHead(400, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({ error: "Missing smartlead_id or campaign not found" }));
-                            return;
-                        }
-
-                        const leadList = rawLeads
-                            .filter((l: any) => l && (l.email || "").includes("@"))
-                            .map((l: any) => {
-                                const fName = l.first_name || l.firstName || (l.name ? l.name.split(" ")[0] : "") || (l.email ? l.email.split("@")[0] : "Prospect");
-                                const lName = l.last_name || l.lastName || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
-                                const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
-                                const jobTitle = l.title || l.role || l.custom_fields?.title || "Decision Maker";
-                                return {
-                                    email: l.email.trim(),
-                                    first_name: fName.trim(),
-                                    last_name: lName.trim(),
-                                    company_name: cName,
-                                    custom_fields: {
-                                        title: jobTitle,
-                                        firstName: fName.trim(),
-                                        lastName: lName.trim(),
-                                        company: cName,
-                                        company_name: cName,
-                                        ...(l.custom_fields || {}),
-                                    },
-                                };
-                            });
-
-                        const CHUNK_SIZE = 400;
-                        let totalUploaded = 0;
-                        const results: any[] = [];
-                        for (let i = 0; i < leadList.length; i += CHUNK_SIZE) {
-                            const chunk = leadList.slice(i, i + CHUNK_SIZE);
-                            const pushRes = await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: chunk }, chosenKey);
-                            results.push(pushRes.data);
-                            if (pushRes.data?.upload_count) totalUploaded += Number(pushRes.data.upload_count);
-                            else if (pushRes.data?.total_leads) totalUploaded += Number(pushRes.data.total_leads);
-                            else if (pushRes.status === 200) totalUploaded += chunk.length;
-                        }
-
-                        res.writeHead(200, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ ok: true, smartlead_id: smartleadId, leads_count: leadList.length, uploaded_count: totalUploaded, results }));
-                    } catch (err: any) {
                         res.writeHead(500, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ error: err.message }));
                     }
@@ -1431,6 +1415,48 @@ function databaseIntelligencePlugin() {
                         res.end(JSON.stringify({ error: "Database not connected" }));
                         return;
                     }
+                    if (req.method === "DELETE") {
+                        const url = new URL(req.url, "http://localhost");
+                        let campId = url.searchParams.get("id") || url.searchParams.get("campaignId");
+                        if (!campId) {
+                            const bodyParts: any[] = [];
+                            await new Promise((resolve) => {
+                                req.on("data", (chunk: any) => bodyParts.push(chunk));
+                                req.on("end", resolve);
+                            });
+                            try {
+                                const parsed = JSON.parse(Buffer.concat(bodyParts).toString() || "{}");
+                                campId = parsed.id || parsed.campaignId;
+                            } catch {}
+                        }
+                        if (!campId) {
+                            res.writeHead(400, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "missing_campaign_id" }));
+                            return;
+                        }
+
+                        const existing = await prisma.campaign.findFirst({
+                            where: scope.master ? { OR: [{ id: campId }, { providerCampaignId: campId }] } : { userId: scope.userId, OR: [{ id: campId }, { providerCampaignId: campId }] },
+                        });
+
+                        if (existing) {
+                            await prisma.campaignMailbox.deleteMany({ where: { campaignId: existing.id } });
+                            await prisma.campaignStep.deleteMany({ where: { campaignId: existing.id } });
+                            await prisma.lead.updateMany({ where: { campaignId: existing.id }, data: { campaignId: null } });
+                            await prisma.campaign.delete({ where: { id: existing.id } });
+
+                            if (existing.providerCampaignId) {
+                                await deleteSmartleadCampaign(existing.providerCampaignId);
+                            }
+                        } else if (/^\d+$/.test(campId)) {
+                            await deleteSmartleadCampaign(campId);
+                        }
+
+                        res.writeHead(200, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({ success: true, deleted_id: campId }));
+                        return;
+                    }
+
                     const dbCampaigns = await prisma.campaign.findMany({
                         where: scope.master ? {} : { userId: scope.userId },
                         include: {

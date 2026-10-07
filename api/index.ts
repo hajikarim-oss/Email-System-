@@ -47,6 +47,7 @@ const routes: Record<string, Handler> = {
     "/api/intelligence/segments": intelligenceSegments,
     "/api/campaigns/steps": campaignSteps,
     "/api/campaigns/logs": campaignLogs,
+    "/api/campaigns": intelligenceCampaigns,
     "/api/smartlead/status": smartleadStatus,
     "/api/smartlead/create-campaign": smartleadCreateCampaign,
     "/api/smartlead/campaigns": smartleadCampaigns,
@@ -70,6 +71,9 @@ const routes: Record<string, Handler> = {
 const prefixes: [string, Handler][] = [
     ["/api/auth/", auth],
     ["/api/organization", organization],
+    ["/api/campaigns/", intelligenceCampaigns],
+    ["/api/smartlead/campaigns/", smartleadCampaigns],
+    ["/campaigns/", intelligenceCampaigns],
 ];
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

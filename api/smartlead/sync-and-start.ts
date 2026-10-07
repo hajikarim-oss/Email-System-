@@ -150,7 +150,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
 
                 if (mailboxIds.length === 0 && allAccounts.length > 0) {
-                    mailboxIds = allAccounts.slice(0, 2).map((m: any) => m.id);
+                    mailboxIds = allAccounts.map((m: any) => m.id);
                 }
             } catch (err: any) {
                 console.warn("[Smartlead Sync] Mailbox lookup warning:", err.message);
@@ -182,29 +182,40 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
 
             // 4. Decode Schedule (Timezone, Days of week bitmask/array, sending window)
+            // Smartlead expects 0=Sunday, 1=Monday, ..., 6=Saturday
             let daysOfTheWeek: number[] = [1, 2, 3, 4, 5];
             if (Array.isArray(parsed.days) && parsed.days.length > 0) {
-                daysOfTheWeek = parsed.days.map(Number);
+                daysOfTheWeek = parsed.days.map((d: any) => {
+                    const n = Number(d);
+                    return n === 7 ? 0 : n;
+                });
             } else if (typeof parsed.days === "number" && parsed.days > 0) {
                 const decodedDays: number[] = [];
                 for (let i = 0; i < 7; i++) {
-                    if ((parsed.days & (1 << i)) !== 0) decodedDays.push(i + 1);
+                    if ((parsed.days & (1 << i)) !== 0) {
+                        // Bit 0 is Mon -> 1, Bit 5 is Sat -> 6, Bit 6 is Sun -> 0
+                        decodedDays.push(i === 6 ? 0 : i + 1);
+                    }
                 }
-                if (decodedDays.length > 0) daysOfTheWeek = decodedDays;
+                if (decodedDays.length > 0) daysOfTheWeek = decodedDays.sort((a, b) => a - b);
             }
 
             const startHour = parsed.start_time || parsed.startTime || "08:00";
             const endHour = parsed.end_time || parsed.endTime || "18:00";
-            const dailyCap = Number(parsed.max_new_leads_per_day) || Number(parsed.daily_limit) || Math.max((mailboxIds.length || 1) * 200, 200);
+            const dailyCap = Number(parsed.daily_limit) || Number(parsed.max_new_leads_per_day) || 50;
 
-            await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
+            const schedulePayload: Record<string, any> = {
                 timezone: parsed.timezone || "Asia/Kolkata",
                 days_of_the_week: daysOfTheWeek,
                 start_hour: startHour,
                 end_hour: endHour,
                 min_time_btw_emails: 3,
                 max_new_leads_per_day: dailyCap,
-            }, chosenKey);
+            };
+            if (parsed.start_date) schedulePayload.start_date = parsed.start_date;
+            if (parsed.end_date) schedulePayload.end_date = parsed.end_date;
+
+            await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", schedulePayload, chosenKey);
 
             // 5. Update Campaign Settings (Stop on Reply, Open & Click Tracking)
             try {

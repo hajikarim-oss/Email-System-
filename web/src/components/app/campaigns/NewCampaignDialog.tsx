@@ -35,6 +35,7 @@ import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
 import useCampaignEstimate from "@/lib/api/hooks/app/campaigns/useCampaignEstimate";
 import { useSetCampaignSegments } from "@/lib/api/hooks/app/segments";
 import useAddContacts from "@/lib/api/hooks/app/contacts/useAddContacts";
+import useEmails from "@/lib/api/hooks/app/emails/useEmails";
 import type { AddContact } from "@/components/app/AddContacts";
 import { cleanCompanyName } from "@/lib/api/standaloneMock";
 import { ContactsStep, type ContactDraftItem } from "./ContactsStep";
@@ -44,6 +45,8 @@ import { Label, NumberInput, TextInput } from "@/components/ui/field";
 import { SelectMenu, type SelectOption } from "@/components/ui/select-menu";
 import { TimePicker } from "@/components/ui/TimePicker";
 import { DateTimePicker } from "@/components/ui/DateTimePicker";
+import { format } from "date-fns";
+import ScheduleCalendarPicker from "@/components/app/campaigns/schedule/ScheduleCalendarPicker";
 import WeekdayBitmask from "@/components/app/campaigns/schedule/WeekdayBitmask";
 import EntryDelayPicker from "@/components/app/campaigns/schedule/EntryDelay.tsx";
 import { entryDelayLabel } from "@/components/app/campaigns/schedule/entryDelay";
@@ -137,6 +140,7 @@ type Draft = {
     sendMode: SendMode;
     // Local "yyyy-MM-ddTHH:mm", the DateTimePicker's shape.
     scheduledAt: string;
+    endScheduledAt: string;
 };
 
 const initialDraft = (timezone?: string): Draft => ({
@@ -149,7 +153,7 @@ const initialDraft = (timezone?: string): Draft => ({
     endTime: "18:00",
     entryDelayMinutes: 0,
     emailTagIds: [],
-    dailyLimit: 50,
+    dailyLimit: 200,
     stopOnReply: true,
     openTracking: true,
     linkTracking: true,
@@ -160,6 +164,7 @@ const initialDraft = (timezone?: string): Draft => ({
     segmentIds: [],
     sendMode: "now",
     scheduledAt: "",
+    endScheduledAt: "",
 });
 
 function scheduledDate(d: Draft): Date | null {
@@ -200,6 +205,15 @@ function stepIssue(key: StepKey, d: Draft, existingCampaigns: { id: string; name
         case "schedule":
             if (d.days === 0) return "Pick at least one sending day";
             if (d.startTime && d.endTime && d.startTime >= d.endTime) return "End time must be after the start time";
+            if (d.scheduledAt && d.endScheduledAt) {
+                const s = new Date(d.scheduledAt);
+                const e = new Date(d.endScheduledAt);
+                if (e.getTime() < s.getTime()) return "End date must be after the start date";
+            }
+            return null;
+        case "sending":
+            if (!d.dailyLimit || d.dailyLimit < 3) return "Daily limit must be at least 3 emails per day";
+            if (d.dailyLimit > 5000) return "Daily limit cannot exceed 5,000 emails per day";
             return null;
         case "email": {
             const first = d.sequences[0];
@@ -417,6 +431,9 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                 return;
             }
         }
+        const startDateIso = draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined;
+        const endDateIso = draft.endScheduledAt ? new Date(draft.endScheduledAt).toISOString() : undefined;
+
         const base = {
             name: draft.name.trim(),
             description: draft.description.trim(),
@@ -425,18 +442,26 @@ export function NewCampaignDialog({ open, onClose }: Props) {
             start_time: draft.startTime,
             end_time: draft.endTime,
             entry_delay_minutes: draft.entryDelayMinutes,
-            daily_limit: draft.dailyLimit,
+            daily_limit: Math.max(3, Math.min(5000, Number(draft.dailyLimit) || 50)),
             open_tracking: draft.openTracking,
             link_tracking: draft.linkTracking,
             utm_tracking: draft.utmTracking,
             unsubscribe_header: draft.unsubHeader,
             email_tag_ids: draft.emailTagIds,
             steps: buildSteps(),
+            start_date: startDateIso,
+            end_date: endDateIso,
         };
 
         if (draft.kind === "sequence") {
             try {
-                const created = await create.mutateAsync({ ...base, kind: "sequence", stop_on_reply: draft.stopOnReply });
+                const created = await create.mutateAsync({
+                    ...base,
+                    kind: "sequence",
+                    stop_on_reply: draft.stopOnReply,
+                    start_date: startDateIso,
+                    end_date: endDateIso,
+                });
                 if (draft.selectedContacts.length > 0) {
                     try {
                         const toAdd: AddContact[] = draft.selectedContacts.map((c) => {
@@ -505,7 +530,8 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                 ...base,
                 kind: "one_time",
                 stop_on_reply: true,
-                start_date: at ? at.toISOString() : undefined,
+                start_date: at ? at.toISOString() : (startDateIso || undefined),
+                end_date: endDateIso || undefined,
             });
             createdID = created.id;
 
@@ -1024,46 +1050,49 @@ function TimezoneField({ draft, patch }: { draft: Draft; patch: (p: Partial<Draf
 
 function SendingWindowFields({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft>) => void }) {
     const windowInvalid = draft.startTime >= draft.endTime;
-    return (
-        <>
-            <div>
-                <div className="flex items-baseline justify-between">
-                    <Label>Sending days</Label>
-                    <div className="flex items-center gap-1 text-[10.5px]">
-                        <button
-                            type="button"
-                            onClick={() => patch({ days: WEEKDAYS_MASK })}
-                            className={cn(
-                                "px-1.5 h-5 rounded transition-colors",
-                                draft.days === WEEKDAYS_MASK
-                                    ? "bg-[#FFF9DB] text-slate-900"
-                                    : "text-slate-400 hover:text-slate-700 hover:bg-slate-100",
-                            )}
-                        >
-                            Weekdays
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => patch({ days: EVERY_DAY_MASK })}
-                            className={cn(
-                                "px-1.5 h-5 rounded transition-colors",
-                                draft.days === EVERY_DAY_MASK
-                                    ? "bg-[#FFF9DB] text-slate-900"
-                                    : "text-slate-400 hover:text-slate-700 hover:bg-slate-100",
-                            )}
-                        >
-                            Every day
-                        </button>
-                    </div>
-                </div>
-                <div className="mt-1">
-                    <WeekdayBitmask weekdays={WEEKDAYS} value={draft.days} setValue={(v) => patch({ days: v })} />
-                </div>
-            </div>
+    const startDateObj = draft.scheduledAt ? new Date(draft.scheduledAt) : null;
+    const endDateObj = draft.endScheduledAt ? new Date(draft.endScheduledAt) : null;
 
-            <div className="grid grid-cols-2 gap-3">
+    return (
+        <div className="space-y-4">
+            {/* Visual Calendar Method with Weekdays, Everyday, and Month Grid */}
+            <ScheduleCalendarPicker
+                days={draft.days}
+                onDaysChange={(days) => patch({ days })}
+                startDate={startDateObj}
+                onStartDateChange={(d) => {
+                    if (d) {
+                        patch({
+                            sendMode: "later",
+                            scheduledAt: format(d, "yyyy-MM-dd'T'") + (draft.startTime || "08:00"),
+                        });
+                    } else {
+                        patch({
+                            sendMode: "now",
+                            scheduledAt: "",
+                        });
+                    }
+                }}
+                endDate={endDateObj}
+                onEndDateChange={(d) => {
+                    if (d) {
+                        patch({
+                            endScheduledAt: format(d, "yyyy-MM-dd'T'") + (draft.endTime || "18:00"),
+                        });
+                    } else {
+                        patch({
+                            endScheduledAt: "",
+                        });
+                    }
+                }}
+                startTime={draft.startTime}
+                endTime={draft.endTime}
+                timezone={draft.timezone}
+            />
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
                 <div>
-                    <Label>From</Label>
+                    <Label>Sending hours from</Label>
                     <TimePicker
                         value={draft.startTime}
                         onChange={(v) => patch({ startTime: v })}
@@ -1087,9 +1116,9 @@ function SendingWindowFields({ draft, patch }: { draft: Draft; patch: (p: Partia
             <p className={cn("text-[11.5px] leading-relaxed", windowInvalid ? "text-amber-700" : "text-slate-500")}>
                 {windowInvalid
                     ? "The window ends before it starts. Pick an end time after the start time."
-                    : `${daysLabel(draft.days)}, ${fmt12(draft.startTime)} to ${fmt12(draft.endTime)}.`}
+                    : `${daysLabel(draft.days)}, ${fmt12(draft.startTime)} to ${fmt12(draft.endTime)} (${draft.timezone}).`}
             </p>
-        </>
+        </div>
     );
 }
 
@@ -1128,6 +1157,11 @@ function ScheduleStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft
 
 function SendingStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft>) => void }) {
     const oneTime = draft.kind === "one_time";
+    const { emails } = useEmails({ query: "", tag: "" });
+    const activeMailboxesCount = emails?.length || 8;
+    const poolAccountsCount = draft.emailTagIds.length > 0 ? draft.emailTagIds.length : activeMailboxesCount;
+    const poolCapacity = (draft.dailyLimit * poolAccountsCount).toLocaleString();
+
     return (
         <div className="max-w-[560px]">
             <StepIntro
@@ -1143,24 +1177,57 @@ function SendingStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft>
                         onRemove={(t) => patch({ emailTagIds: draft.emailTagIds.filter((id) => id !== t) })}
                     />
                     <p className="text-[11px] text-slate-400 mt-1">
-                        Mailbox tags this campaign rotates through. Leave empty to use every active mailbox.
+                        Mailbox tags this campaign rotates through. Leave empty to use every active mailbox ({activeMailboxesCount} sender accounts active).
                     </p>
                 </div>
 
-                <div className="flex items-start justify-between gap-5">
-                    <div className="min-w-0">
-                        <p className="text-[12.5px] text-slate-900 font-medium">Daily limit per mailbox</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                            3 to 5,000. Stay near 50 until the mailboxes have proven their reputation.
-                        </p>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+                    <div className="flex items-start justify-between gap-5">
+                        <div className="min-w-0">
+                            <p className="text-[12.5px] text-slate-900 font-semibold">Daily limit per mailbox</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                3 to 5,000 emails / day. Paces outgoing traffic to protect mailbox reputation.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <NumberInput
+                                value={draft.dailyLimit}
+                                min={3}
+                                max={5000}
+                                onChange={(v) => patch({ dailyLimit: v })}
+                                className="w-24 shrink-0"
+                            />
+                        </div>
                     </div>
-                    <NumberInput
-                        value={draft.dailyLimit}
-                        min={3}
-                        max={5000}
-                        onChange={(v) => patch({ dailyLimit: v })}
-                        className="w-24 shrink-0"
-                    />
+
+                    {/* Quick Preset Volume Pills */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                        <span className="text-[11px] text-slate-400 mr-1">Presets:</span>
+                        {[25, 50, 100, 200, 500].map((preset) => (
+                            <button
+                                key={preset}
+                                type="button"
+                                onClick={() => patch({ dailyLimit: preset })}
+                                className={cn(
+                                    "px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all cursor-pointer",
+                                    draft.dailyLimit === preset
+                                        ? "bg-[#FFF9DB] border-slate-900 text-slate-900 font-semibold shadow-xs ring-1 ring-slate-900"
+                                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                                )}
+                            >
+                                {preset}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Live pacing volume indicator */}
+                    <div className="rounded-lg bg-slate-50 border border-slate-200/70 p-2.5 flex items-center justify-between text-[11px] text-slate-600">
+                        <span>Pacing: <strong className="text-slate-900 font-semibold">{draft.dailyLimit}</strong>/day per mailbox</span>
+                        <span className="text-slate-500">
+                            Pool capacity: ~<strong className="text-slate-900 font-semibold">{poolCapacity}</strong> sends / day
+                            <span className="text-slate-400 font-normal ml-1">({poolAccountsCount} sender accounts)</span>
+                        </span>
+                    </div>
                 </div>
 
                 <div className="border border-slate-200 rounded-md divide-y divide-slate-100 overflow-hidden">
@@ -1466,16 +1533,30 @@ function SendStep({
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
                             transition={{ duration: 0.16 }}
-                            className="overflow-hidden"
+                            className="overflow-hidden space-y-3"
                         >
-                            <Label>Start sending at</Label>
-                            <DateTimePicker
-                                value={draft.scheduledAt}
-                                onChange={(v) => patch({ scheduledAt: v })}
-                                stepMinutes={15}
-                                datePlaceholder="Pick a date"
-                            />
-                            <p className="text-[11px] text-slate-400 mt-1">In your local time.</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <Label>Start sending at</Label>
+                                    <DateTimePicker
+                                        value={draft.scheduledAt}
+                                        onChange={(v) => patch({ scheduledAt: v })}
+                                        stepMinutes={15}
+                                        datePlaceholder="Pick a start date"
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1">In your local time.</p>
+                                </div>
+                                <div>
+                                    <Label>End sending by (optional)</Label>
+                                    <DateTimePicker
+                                        value={draft.endScheduledAt}
+                                        onChange={(v) => patch({ endScheduledAt: v })}
+                                        stepMinutes={15}
+                                        datePlaceholder="Indefinite / Pick end date"
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1">Campaign pauses after this time.</p>
+                                </div>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>

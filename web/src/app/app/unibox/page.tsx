@@ -54,7 +54,7 @@ export default function UniboxPage() {
   const [scopeSheetOpen, setScopeSheetOpen] = React.useState(false);
 
   const { user } = useUserProfile();
-  const isMaster = user?.is_admin || user?.role === "owner" || (user?.roles && user.roles.includes("owner"));
+  const isMaster = user?.is_admin || (user as any)?.role === "owner" || (user?.roles && user.roles.includes("owner"));
   const userTeamMember = React.useMemo(() => {
     return UNIBOX_TEAM_MEMBERS.find((m) => m.email.toLowerCase() === user?.email?.toLowerCase());
   }, [user]);

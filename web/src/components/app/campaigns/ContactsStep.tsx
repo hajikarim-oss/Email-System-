@@ -552,7 +552,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                                                         <>
                                                             {w.hasSent ? (
                                                                 <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
-                                                                    📤 Sent {w.totalOutbound > 0 ? `(${w.totalOutbound} mail${w.totalOutbound > 1 ? "s" : ""})` : ""}
+                                                                    📤 Sent {(w.totalOutbound || 0) > 0 ? `(${w.totalOutbound} mail${(w.totalOutbound || 0) > 1 ? "s" : ""})` : ""}
                                                                 </span>
                                                             ) : (
                                                                 <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
