@@ -146,8 +146,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
                 // Create campaign in database
                 const campaign = await pgQuery<any>(
-                    `INSERT INTO "Campaign" (id, "userId", name, status, "sendTimezone", "preferredSendHour", "preferredSendDays")
-                     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6)
+                    `INSERT INTO "Campaign" (id, "userId", name, status, "sendTimezone", "preferredSendHour", "preferredSendDays", "createdAt", "updatedAt")
+                     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, NOW(), NOW())
                      RETURNING id, "userId", name, status, "providerCampaignId", "createdAt", "updatedAt"`,
                     [
                         scope.userId,
@@ -174,10 +174,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         const subject = (step.subject || `Step ${i + 1}`).slice(0, 255);
                         const body = (step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>").slice(0, 65535);
 
-                        // Fixed: Column is "delayDays" in schema, but using "delayDays" parameter name correctly
                         await pgQuery(
-                            `INSERT INTO "CampaignStep" (id, "campaignId", "stepNumber", "delayDays", subject, "bodyTemplate")
-                             VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)`,
+                            `INSERT INTO "CampaignStep" (id, "campaignId", "stepNumber", "delayDays", subject, "bodyTemplate", "createdAt", "updatedAt")
+                             VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, NOW(), NOW())`,
                             [
                                 campaignId,
                                 i + 1,
