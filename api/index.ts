@@ -8,6 +8,13 @@ import intelligenceMailboxes from "../server/handlers/mailboxes";
 import intelligenceContacts from "./intelligence/contacts";
 import intelligenceCheckBatch from "./intelligence/check-batch";
 import intelligenceCheckContact from "./intelligence/check-contact";
+import intelligenceCampaigns from "./intelligence/campaigns";
+import intelligenceSuppressions from "./intelligence/suppressions";
+import intelligenceSuppressContacts from "./intelligence/suppress-contacts";
+import intelligenceDeleteContacts from "./intelligence/delete-contacts";
+import intelligenceSegments from "./intelligence/segments";
+import campaignSteps from "./campaigns/steps";
+import campaignLogs from "./campaigns/logs";
 import organization from "../server/handlers/organization";
 import smartleadStatus from "./smartlead/status";
 import smartleadCreateCampaign from "./smartlead/create-campaign";
@@ -16,7 +23,6 @@ import smartleadCampaignAnalytics from "./smartlead/campaign-analytics";
 import smartleadCampaignLeadsStats from "./smartlead/campaign-leads-stats";
 import smartleadSyncAndStart from "./smartlead/sync-and-start";
 import smartleadUpdateSequences from "./smartlead/update-sequences";
-import smartleadAddLeads from "./smartlead/add-leads";
 import webhookSmartlead from "./webhooks/smartlead";
 import chat from "./chat";
 
@@ -34,6 +40,13 @@ const routes: Record<string, Handler> = {
     "/api/intelligence/contacts": intelligenceContacts,
     "/api/intelligence/check-batch": intelligenceCheckBatch,
     "/api/intelligence/check-contact": intelligenceCheckContact,
+    "/api/intelligence/campaigns": intelligenceCampaigns,
+    "/api/intelligence/suppressions": intelligenceSuppressions,
+    "/api/intelligence/suppress-contacts": intelligenceSuppressContacts,
+    "/api/intelligence/delete-contacts": intelligenceDeleteContacts,
+    "/api/intelligence/segments": intelligenceSegments,
+    "/api/campaigns/steps": campaignSteps,
+    "/api/campaigns/logs": campaignLogs,
     "/api/smartlead/status": smartleadStatus,
     "/api/smartlead/create-campaign": smartleadCreateCampaign,
     "/api/smartlead/campaigns": smartleadCampaigns,
@@ -41,7 +54,6 @@ const routes: Record<string, Handler> = {
     "/api/smartlead/campaign-leads-stats": smartleadCampaignLeadsStats,
     "/api/smartlead/sync-and-start": smartleadSyncAndStart,
     "/api/smartlead/update-sequences": smartleadUpdateSequences,
-    "/api/smartlead/add-leads": smartleadAddLeads,
     "/api/webhooks/smartlead": webhookSmartlead,
     "/api/chat": chat,
     "/api/health": (_req, res) => {
