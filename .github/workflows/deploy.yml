@@ -16,12 +16,14 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          command_timeout: 10m
           script: |
             echo "🚀 Starting automated deployment on VPS..."
             cd /var/www/email-system
             
-            # Pull latest changes from GitHub
-            git pull origin main
+            # Fetch and align with latest origin/main
+            git fetch origin main
+            git reset --hard origin/main
             
             # Install any new dependencies
             pnpm install
