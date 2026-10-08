@@ -17,6 +17,7 @@
 
 export interface DataScope {
     userId: string;
+    workspaceId: string;
     master: boolean;
 }
 
@@ -26,8 +27,12 @@ function lit(id: string): string {
     return SAFE_ID.test(id) ? `'${id}'` : `''`;
 }
 
-export function scopeFor(user: { id: string; role: string }): DataScope {
-    return { userId: user.id, master: user.role === "MASTER" };
+export function scopeFor(user: { id: string; role: string; workspaceId?: string }): DataScope {
+    return {
+        userId: user.id,
+        workspaceId: user.workspaceId || "default-workspace",
+        master: user.role === "MASTER"
+    };
 }
 
 /** Key fragment for memo/cache keys so cached payloads never cross users. */

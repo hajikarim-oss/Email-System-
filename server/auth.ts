@@ -29,6 +29,7 @@ export interface AuthUser {
     role: AuthRole;
     image: string | null;
     smartleadApiKey: string | null;
+    workspaceId: string;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -79,7 +80,7 @@ export async function revokeUserSessions(userId: string): Promise<void> {
     await pgQuery(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]);
 }
 
-const USER_COLS = `u.id, u.name, u.email, u.role, u.image, u."smartleadApiKey"`;
+const USER_COLS = `u.id, u.name, u.email, u.role, u.image, u."smartleadApiKey", u."workspaceId"`;
 
 export async function findUserByEmail(email: string): Promise<AuthUser | null> {
     const rows = await pgQuery<AuthUser>(
