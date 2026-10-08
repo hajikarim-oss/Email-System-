@@ -84,12 +84,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return;
             }
 
-            // Master-only check for campaign deletion
-            if (!scope.master) {
-                send(res, 403, { error: "Only master can delete campaigns" });
-                return;
-            }
-
             // Find campaign in DB (workspace check added after migration)
             // TODO: After workspace migration, add: AND "workspaceId" = $2
             const existing = await pgQuery<any>(
@@ -99,6 +93,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             if (existing && existing.length > 0) {
                 const camp = existing[0];
+
+                // Authorization check: master can delete any campaign, team members can only delete their own
+                if (!scope.master && camp.userId !== scope.userId) {
+                    send(res, 403, { error: "You can only delete your own campaigns" });
+                    return;
+                }
+
+                console.log(`[Campaigns DELETE] User ${user.email} deleting campaign ${camp.id} (owner: ${camp.userId})`);
 
                 // Delete associated records
                 await pgQuery(`DELETE FROM "CampaignMailbox" WHERE "campaignId" = $1`, [camp.id]);
@@ -110,6 +112,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 if (camp.providerCampaignId) {
                     await deleteFromSmartlead(camp.providerCampaignId);
                 }
+
+                console.log(`[Campaigns DELETE] ✓ Campaign deleted successfully`);
             } else {
                 // If not in DB, it might still be a Smartlead ID directly
                 if (/^\d+$/.test(campId)) {

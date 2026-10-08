@@ -14,9 +14,14 @@ export default function useDeleteCampaign() {
         mutationFn: (id: string) => deleteCampaign(id),
         onSuccess: (_data, id) => {
             localStorage.removeItem("tbm_core_data_v5_campaigns");
+
+            // Get all campaign list queries (includes userId in cache key now)
+            // Query key format: ["campaigns", "list", query, folder, limit, userId]
             const allLists = queryClient.getQueriesData<InfiniteData<GetCampaigns>>({
                 queryKey: ["campaigns", "list"],
+                type: "active"
             });
+
             for (const [key, oldData] of allLists) {
                 if (!oldData) continue;
                 queryClient.setQueryData(key, {
@@ -27,8 +32,12 @@ export default function useDeleteCampaign() {
                     })),
                 });
             }
+
+            // Remove campaign detail and analytics caches
             queryClient.removeQueries({ queryKey: ["campaigns", id], type: "inactive" });
             queryClient.removeQueries({ queryKey: ["analytics", "campaigns", id], type: "inactive" });
+
+            // Invalidate all campaign lists (matches any userId in key)
             queryClient.invalidateQueries({ queryKey: ["campaigns", "list"] });
             queryClient.invalidateQueries({ queryKey: ["analytics"] });
             queryClient.invalidateQueries({ queryKey: ["contacts"] });

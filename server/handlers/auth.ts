@@ -260,10 +260,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 }
 
-async function readPassword(userId: string): Promise<string | null> {
-    const rows = await pgQuery<{ password: string | null }>(`SELECT password FROM "User" WHERE id = $1`, [userId]);
-    return rows[0]?.password ?? null;
-}
 
 // requireUser is already exported above; export toClientUser for consumers
 export { toClientUser };
