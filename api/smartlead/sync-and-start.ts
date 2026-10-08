@@ -237,9 +237,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
 
             if (mailboxIds.length > 0) {
-                await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
+                const mbRes = await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
                     email_account_ids: mailboxIds,
                 }, chosenKey);
+                if (mbRes.status < 200 || mbRes.status >= 300) {
+                    console.error(`[Smartlead Sync] CRITICAL: Failed to link email accounts to campaign ${smartleadId}`);
+                    console.error(`   Status: ${mbRes.status}, Response:`, mbRes.data);
+                    throw new Error(`Email account linking failed: ${mbRes.status}`);
+                }
+                console.log(`[Smartlead Sync] ✅ Linked ${mailboxIds.length} email accounts to campaign ${smartleadId}`);
+            } else {
+                console.warn(`[Smartlead Sync] ⚠️  WARNING: No mailboxes found to link to campaign ${smartleadId}`);
+                throw new Error("No mailboxes available for campaign");
             }
 
             // 3. Sequences (Step 1, Step 2, Step 3 with precise delay_in_days)
@@ -274,7 +283,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     },
                 ];
 
-            await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
+            const seqRes = await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
+            if (seqRes.status < 200 || seqRes.status >= 300) {
+                console.error(`[Smartlead Sync] CRITICAL: Failed to create sequences for campaign ${smartleadId}`);
+                console.error(`   Status: ${seqRes.status}, Response:`, seqRes.data);
+                throw new Error(`Sequence creation failed: ${seqRes.status}`);
+            }
+            console.log(`[Smartlead Sync] ✅ Created ${seqSteps.length} sequences for campaign ${smartleadId}`);
 
             // 4. Decode Schedule (Timezone, Days of week bitmask/array, sending window)
             // Smartlead expects 0=Sunday, 1=Monday, ..., 6=Saturday
@@ -337,7 +352,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             if (parsed.start_date) schedulePayload.start_date = parsed.start_date;
             if (parsed.end_date) schedulePayload.end_date = parsed.end_date;
 
-            await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", schedulePayload, chosenKey);
+            const schedRes = await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", schedulePayload, chosenKey);
+            if (schedRes.status < 200 || schedRes.status >= 300) {
+                console.error(`[Smartlead Sync] CRITICAL: Failed to set schedule for campaign ${smartleadId}`);
+                console.error(`   Status: ${schedRes.status}, Response:`, schedRes.data);
+                console.error(`   Payload:`, schedulePayload);
+                throw new Error(`Schedule configuration failed: ${schedRes.status}`);
+            }
+            console.log(`[Smartlead Sync] ✅ Schedule configured: ${schedulePayload.start_hour}-${schedulePayload.end_hour} ${schedulePayload.timezone}, ${safeSendInterval}s intervals`);
 
             // 5. Update Campaign Settings (Stop on Reply, Open & Click Tracking)
             try {
@@ -350,10 +372,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
                 const stopCondition = parsed.stop_on_reply === false ? null : "REPLY_TO_AN_EMAIL";
 
-                await apiCall(`/campaigns/${smartleadId}/settings`, "POST", {
+                const setRes = await apiCall(`/campaigns/${smartleadId}/settings`, "POST", {
                     stop_lead_settings: stopCondition,
                     track_settings: trackSettings,
                 }, chosenKey);
+                if (setRes.status < 200 || setRes.status >= 300) {
+                    console.error(`[Smartlead Sync] WARNING: Failed to set campaign settings for ${smartleadId}`);
+                    console.error(`   Status: ${setRes.status}, Will continue anyway`);
+                }
             } catch (settingsErr: any) {
                 console.warn("[Smartlead Sync] Settings update warning:", settingsErr.message);
             }
@@ -382,11 +408,34 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         },
                     };
                 });
-                await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, chosenKey);
+                const leadsRes = await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, chosenKey);
+                if (leadsRes.status < 200 || leadsRes.status >= 300) {
+                    console.error(`[Smartlead Sync] CRITICAL: Failed to add leads to campaign ${smartleadId}`);
+                    console.error(`   Status: ${leadsRes.status}, Response:`, leadsRes.data);
+                    throw new Error(`Lead import failed: ${leadsRes.status}`);
+                }
+                console.log(`[Smartlead Sync] ✅ Added ${leadList.length} leads to campaign ${smartleadId}`);
             }
 
-            // 6. Start campaign
+            // 6. Start campaign - CRITICAL: Validate success before continuing
+            console.log(`[Smartlead Sync] Starting campaign ${smartleadId} at Smartlead...`);
             const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
+
+            if (startRes.status < 200 || startRes.status >= 300) {
+                console.error(`[Smartlead Sync] CRITICAL: Campaign START FAILED for campaign ${smartleadId}`);
+                console.error(`   Status: ${startRes.status}, Response:`, startRes.data);
+                throw new Error(`Campaign start failed with status ${startRes.status}: ${JSON.stringify(startRes.data)}`);
+            }
+
+            const campaignStatus = startRes.data?.status || startRes.data?.campaign_status;
+            if (!campaignStatus || (campaignStatus !== "RUNNING" && campaignStatus !== "START" && campaignStatus !== "started")) {
+                console.error(`[Smartlead Sync] CRITICAL: Campaign did not start properly`);
+                console.error(`   Expected status: RUNNING, Got: ${campaignStatus}`);
+                console.error(`   Full response:`, startRes.data);
+                throw new Error(`Campaign status invalid after start: ${campaignStatus}`);
+            }
+
+            console.log(`[Smartlead Sync] ✅ Campaign ${smartleadId} SUCCESSFULLY STARTED in Smartlead`);
 
             // 7. Save campaign to database (CRITICAL FIX: This was missing)
             // Use explicit transaction to prevent race condition on concurrent upserts
