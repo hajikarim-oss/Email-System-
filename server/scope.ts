@@ -27,10 +27,10 @@ function lit(id: string): string {
     return SAFE_ID.test(id) ? `'${id}'` : `''`;
 }
 
-export function scopeFor(user: { id: string; role: string; workspaceId?: string }): DataScope {
+export function scopeFor(user: { id: string; role: string; workspaceId?: string | null }): DataScope {
     return {
         userId: user.id,
-        workspaceId: user.workspaceId || "default-workspace",
+        workspaceId: user.workspaceId || "default-workspace", // Default until migration applied
         master: user.role === "MASTER"
     };
 }

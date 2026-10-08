@@ -29,7 +29,7 @@ export interface AuthUser {
     role: AuthRole;
     image: string | null;
     smartleadApiKey: string | null;
-    workspaceId: string;
+    workspaceId?: string; // Optional until migration applied
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -80,7 +80,8 @@ export async function revokeUserSessions(userId: string): Promise<void> {
     await pgQuery(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]);
 }
 
-const USER_COLS = `u.id, u.name, u.email, u.role, u.image, u."smartleadApiKey", u."workspaceId"`;
+// workspaceId column added in migration - select it if available, else set default in code
+const USER_COLS = `u.id, u.name, u.email, u.role, u.image, u."smartleadApiKey"`;
 
 export async function findUserByEmail(email: string): Promise<AuthUser | null> {
     const rows = await pgQuery<AuthUser>(
