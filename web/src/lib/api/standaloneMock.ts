@@ -410,23 +410,16 @@ export const DEFAULT_8_PROFILES = [
 export const DEFAULT_4_PROFILES = DEFAULT_8_PROFILES;
 const initialEmails = DEFAULT_8_PROFILES;
 
-// Fixture datasets (coreData.json ≈18.6 MB, q3LuggageLeads.json ≈1.9 MB).
-// Statically importing them made the initial JS chunk ~19 MB, so the app took
-// seconds to become interactive. They are now split into their own chunks and
-// fetched only when a fallback actually needs them: a fresh browser with an
-// empty store, or a campaign-lead backfill. Nothing here runs on first paint.
+// Fixture dataset (trimmed lean fallback for offline/mock development).
+// Fetched lazily only when a fallback actually needs it.
 let rawCore: any = null;
-let q3Leads: any[] = [];
 let coreDataLoad: Promise<void> | null = null;
 
 function ensureCoreData(): Promise<void> {
     if (!coreDataLoad) {
-        coreDataLoad = Promise.all([import("./coreData.json"), import("./q3LuggageLeads.json")]).then(
-            ([core, q3]) => {
-                rawCore = (core as any).default ?? core;
-                q3Leads = ((q3 as any).default ?? q3) as any[];
-            }
-        );
+        coreDataLoad = import("./coreData.json").then((core) => {
+            rawCore = (core as any).default ?? core;
+        });
     }
     return coreDataLoad;
 }

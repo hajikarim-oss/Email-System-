@@ -1647,6 +1647,30 @@ export default defineConfig({
         // Only when they are going to be uploaded: shipping them otherwise
         // would hand every visitor the app's original sources.
         sourcemap: uploadSourceMaps,
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes("node_modules")) {
+                        if (id.includes("react") || id.includes("react-dom") || id.includes("react-router-dom")) {
+                            return "vendor-react";
+                        }
+                        if (id.includes("@xyflow") || id.includes("@dagrejs")) {
+                            return "vendor-flow";
+                        }
+                        if (id.includes("@tiptap")) {
+                            return "vendor-tiptap";
+                        }
+                        if (id.includes("@radix-ui") || id.includes("lucide-react") || id.includes("@remixicon")) {
+                            return "vendor-ui";
+                        }
+                        if (id.includes("@tanstack")) {
+                            return "vendor-query";
+                        }
+                    }
+                },
+            },
+        },
+        chunkSizeWarningLimit: 1200,
     },
     resolve: {
         alias: {
