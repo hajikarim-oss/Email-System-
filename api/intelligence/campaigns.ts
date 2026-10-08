@@ -90,10 +90,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return;
             }
 
-            // Find campaign in DB and verify it belongs to user's workspace
+            // Find campaign in DB (workspace check added after migration)
+            // TODO: After workspace migration, add: AND "workspaceId" = $2
             const existing = await pgQuery<any>(
-                `SELECT id, "userId", "workspaceId", "providerCampaignId", name FROM "Campaign" WHERE (id = $1 OR "providerCampaignId" = $1) AND "workspaceId" = $2 LIMIT 1`,
-                [campId, scope.workspaceId]
+                `SELECT id, "userId", "providerCampaignId", name FROM "Campaign" WHERE id = $1 OR "providerCampaignId" = $1 LIMIT 1`,
+                [campId]
             );
 
             if (existing && existing.length > 0) {
@@ -144,13 +145,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     return;
                 }
 
-                // Create campaign in database WITH workspaceId
+                // Create campaign in database (will use workspaceId after migration)
+                // NOTE: workspaceId column added via migration, will be populated in post-migration version
                 const campaign = await pgQuery<any>(
-                    `INSERT INTO "Campaign" (id, "workspaceId", "userId", name, status, "sendTimezone", "preferredSendHour", "preferredSendDays", "createdAt", "updatedAt")
-                     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-                     RETURNING id, "workspaceId", "userId", name, status, "providerCampaignId", "createdAt", "updatedAt"`,
+                    `INSERT INTO "Campaign" (id, "userId", name, status, "sendTimezone", "preferredSendHour", "preferredSendDays", "createdAt", "updatedAt")
+                     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, NOW(), NOW())
+                     RETURNING id, "userId", name, status, "providerCampaignId", "createdAt", "updatedAt"`,
                     [
-                        scope.workspaceId,
                         scope.userId,
                         campaignName,
                         input.status || "DRAFT",
@@ -202,32 +203,34 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
         }
 
-        // GET campaigns - Filter by workspace (not just userId)
-        if (!scope.workspaceId) {
+        // GET campaigns - Temporary: filter by userId until migration applied
+        // TODO: After workspace migration, change to: WHERE c."workspaceId" = $1
+        if (!scope.userId) {
             res.writeHead(401, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "workspace_id_required", message: "Workspace ID missing from scope" }));
+            res.end(JSON.stringify({ error: "user_id_required", message: "User ID missing from scope" }));
             return;
         }
 
-        // FIXED: Filter by workspaceId so team members see all campaigns in their workspace
+        // Temporary query (pre-migration): Uses userId filtering
+        // This will be replaced by workspace filtering after migration
         const campaigns = await pgQuery<any>(
-            `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId", c."workspaceId",
+            `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                     COUNT(l.id)::int AS lead_count
              FROM "Campaign" c
              LEFT JOIN "Lead" l ON l."campaignId" = c.id
-             WHERE c."workspaceId" = $1
+             WHERE ${scope.master ? "1=1" : `c."userId" = $1`}
              GROUP BY c.id
              ORDER BY c."createdAt" DESC`,
-            [scope.workspaceId]
+            scope.master ? [] : [scope.userId]
         );
 
-        // Security check: all campaigns should belong to user's workspace
-        if (campaigns.length > 0) {
-            const unauthorizedCampaigns = campaigns.filter((c: any) => c.workspaceId !== scope.workspaceId);
+        // Verify all campaigns belong to correct user (security check)
+        if (!scope.master) {
+            const unauthorizedCampaigns = campaigns.filter((c: any) => c.userId !== scope.userId);
             if (unauthorizedCampaigns.length > 0) {
-                console.error(`[SECURITY] User ${scope.userId} attempted to access campaigns outside their workspace:`, unauthorizedCampaigns.map((c: any) => c.id));
+                console.error(`[SECURITY] User ${scope.userId} attempted to access campaigns they don't own:`, unauthorizedCampaigns.map((c: any) => c.id));
                 // Filter out unauthorized campaigns
-                const filteredCampaigns = campaigns.filter((c: any) => c.workspaceId === scope.workspaceId);
+                const filteredCampaigns = campaigns.filter((c: any) => c.userId === scope.userId);
                 send(res, 200, filteredCampaigns, 0); // NO CACHE - security critical
                 return;
             }
