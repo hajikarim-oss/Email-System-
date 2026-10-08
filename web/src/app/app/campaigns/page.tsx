@@ -316,7 +316,7 @@ export default function CampaignsPage() {
     const campaigns = campaignsData.campaigns ?? [];
 
     // Ownership is stamped on each row by the live campaigns merge
-    // (`user_id`); rows the database never saw belong to the master.
+    // (`userId`); rows the database never saw belong to the master.
     const isMaster = access.canManage;
     const currentUserId = p.user.id;
     const currentUserEmail = (p.user.email || "").toLowerCase();
@@ -324,13 +324,11 @@ export default function CampaignsPage() {
     const teamMembers = members.filter((m) => m.role !== "owner");
     const memberByUserId = new Map(members.map((m) => [m.user_id, m]));
     const ownerUserId = members.find((m) => m.role === "owner")?.user_id ?? p.user.id ?? "";
-    const ownerOf = (c: Campaign) => String((c as any).user_id || "") || ownerUserId;
+    const ownerOf = (c: Campaign) => String(c.userId || "") || ownerUserId;
 
     const isMine = (c: Campaign) => {
-        const uId = String((c as any).user_id || "");
-        const oEmail = String((c as any).owner_email || "").toLowerCase();
+        const uId = String(c.userId || "");
         if (uId && uId === currentUserId) return true;
-        if (oEmail && oEmail === currentUserEmail) return true;
         if (isMaster && (!uId || uId === ownerUserId)) return true;
         return false;
     };
@@ -674,7 +672,7 @@ export default function CampaignsPage() {
                                         className="font-mono text-[10.5px] text-slate-500 tabular-nums shrink-0 hidden sm:inline bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80"
                                         title={`Full ID: ${c.id}`}
                                     >
-                                        {(c as any).smartlead_id ? `#${(c as any).smartlead_id}` : `#${c.id.replace(/^cmp_/, "").slice(-6)}`}
+                                        {c.providerCampaignId ? `#${c.providerCampaignId}` : `#${c.id.replace(/^cmp_/, "").slice(-6)}`}
                                     </span>
                                     {isOneTimeCampaign(c) && (
                                         <span

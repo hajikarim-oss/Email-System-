@@ -10,6 +10,8 @@ export default interface Campaign {
     // to an audience, no follow-ups). Fixed at creation.
     kind: CampaignKind;
 
+    userId: string;  // Campaign owner/creator ID
+
     stop_on_reply: boolean;
     open_tracking: boolean;
     link_tracking: boolean;
