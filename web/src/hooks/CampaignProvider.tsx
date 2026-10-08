@@ -90,12 +90,15 @@ export interface Campaign extends Omit<CampaignRaw, 'start_date' | 'end_date' | 
 }
 
 export function parseCampaign(raw: CampaignRaw): Campaign {
+    const rawAny = raw as any;
+    const createdStr = raw.created_at || rawAny.createdAt || new Date().toISOString();
+    const updatedStr = raw.updated_at || rawAny.updatedAt || new Date().toISOString();
     return {
         ...raw,
-        startDate: raw.start_date ? new Date(raw.start_date) : null,
-        endDate: raw.end_date ? new Date(raw.end_date) : null,
-        updatedAt: new Date(raw.updated_at),
-        createdAt: new Date(raw.created_at),
+        startDate: raw.start_date ? new Date(raw.start_date) : (rawAny.startDate ? new Date(rawAny.startDate) : null),
+        endDate: raw.end_date ? new Date(raw.end_date) : (rawAny.endDate ? new Date(rawAny.endDate) : null),
+        updatedAt: new Date(updatedStr),
+        createdAt: new Date(createdStr),
     }
 }
 

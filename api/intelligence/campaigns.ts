@@ -236,7 +236,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             // First check what teams they belong to
             const userTeams = await pgQuery<{ teamId: string }>(
-                `SELECT teamId FROM "UserTeam" WHERE userId = $1`,
+                `SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1`,
                 [scope.userId]
             );
             console.log(`[Campaigns API] User belongs to ${userTeams.length} teams:`, userTeams.map(t => t.teamId));
@@ -248,15 +248,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                  LEFT JOIN "Lead" l ON l."campaignId" = c.id
                  WHERE c."userId" IN (
                    -- Get all users in the same teams as current user
-                   SELECT DISTINCT ut.userId
+                   SELECT DISTINCT ut."userId"
                    FROM "UserTeam" ut
-                   WHERE ut.teamId IN (
+                   WHERE ut."teamId" IN (
                      -- Get all teams the current user belongs to
-                     SELECT teamId FROM "UserTeam" WHERE userId = $1
+                     SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1
                    )
                    UNION ALL
                    -- Also include own campaigns (in case user has no teams)
-                   SELECT $1 as userId
+                   SELECT $1 as "userId"
                  )
                  GROUP BY c.id
                  ORDER BY c."createdAt" DESC`,
@@ -269,14 +269,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         if (!scope.master && campaigns.length > 0) {
             // Check if user has access to campaigns (via team membership)
             const userTeams = await pgQuery<{ teamId: string }>(
-                `SELECT DISTINCT teamId FROM "UserTeam" WHERE userId = $1`,
+                `SELECT DISTINCT "teamId" FROM "UserTeam" WHERE "userId" = $1`,
                 [scope.userId]
             );
-            const teamUserIds = await pgQuery<{ userId: string }>(
-                `SELECT DISTINCT userId FROM "UserTeam" WHERE teamId = ANY($1)`,
-                [userTeams.map((t: any) => t.teamId)]
-            );
-            const authorizedUserIds = new Set([scope.userId, ...teamUserIds.map((u: any) => u.userId)]);
+            const teamIds = userTeams.map((t: any) => t.teamId).filter(Boolean);
+            const authorizedUserIds = new Set<string>([scope.userId]);
+            if (teamIds.length > 0) {
+                const teamUserIds = await pgQuery<{ userId: string }>(
+                    `SELECT DISTINCT "userId" FROM "UserTeam" WHERE "teamId" = ANY($1::text[])`,
+                    [teamIds]
+                );
+                teamUserIds.forEach((u: any) => authorizedUserIds.add(u.userId));
+            }
 
             const unauthorizedCampaigns = campaigns.filter((c: any) => !authorizedUserIds.has(c.userId));
             if (unauthorizedCampaigns.length > 0) {
@@ -287,6 +291,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
         const formatted = campaigns.map((c: any) => ({
             ...c,
+            created_at: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
+            updated_at: c.updatedAt ? new Date(c.updatedAt).toISOString() : new Date().toISOString(),
+            user_id: c.userId || "",
+            smartlead_id: c.providerCampaignId ? Number(c.providerCampaignId) : undefined,
             _count: { leads: Number(c.lead_count || 0) },
             total_leads: Number(c.lead_count || 0),
         }));

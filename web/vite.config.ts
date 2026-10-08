@@ -1577,6 +1577,7 @@ function databaseIntelligencePlugin() {
 
             server.middlewares.use("/api/intelligence/campaigns", handleCampaignsRoute);
             server.middlewares.use("/api/campaigns", handleCampaignsRoute);
+            server.middlewares.use("/api/v1/campaigns", handleCampaignsRoute);
             server.middlewares.use("/v1/campaigns", handleCampaignsRoute);
             server.middlewares.use("/campaigns", handleCampaignsRoute);
 

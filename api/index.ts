@@ -49,6 +49,7 @@ const routes: Record<string, Handler> = {
     "/api/campaigns/steps": campaignSteps,
     "/api/campaigns/logs": campaignLogs,
     "/api/campaigns": intelligenceCampaigns,
+    "/api/v1/campaigns": intelligenceCampaigns,
     "/campaigns": intelligenceCampaigns,
     "/v1/campaigns": intelligenceCampaigns,
     "/api/smartlead/status": smartleadStatus,
@@ -99,6 +100,7 @@ const prefixes: [string, Handler][] = [
     ["/api/campaigns/", intelligenceCampaigns],
     ["/api/smartlead/campaigns/", smartleadCampaigns],
     ["/api/campaigns/", intelligenceCampaigns],
+    ["/api/v1/campaigns", intelligenceCampaigns],
     ["/campaigns", intelligenceCampaigns],
     ["/v1/campaigns", intelligenceCampaigns],
 ];
