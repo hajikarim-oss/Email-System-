@@ -14,8 +14,9 @@ interface UseCampaignsProps {
 
 export default function useCampaigns({ query, folder, limit = DEFAULT_PAGINATION_LIMIT, enabled = true }: UseCampaignsProps) {
     // Get current user to include in cache key (prevents cross-user cache pollution)
-    const { data: user } = useUser();
-    const userId = user?.id || "anonymous";
+    // CRITICAL: Wait for user data before fetching campaigns
+    const { data: user, isLoading: userLoading } = useUser();
+    const userId = user?.id || "";
 
     // Send counts on these cards move on realtime invalidation, so the long
     // staleTime below is free while the socket is up and strands the list for
@@ -40,7 +41,8 @@ export default function useCampaigns({ query, folder, limit = DEFAULT_PAGINATION
         staleTime: 5 * 60 * 1000,
         gcTime: 10 * 60 * 1000,
         refetchInterval,
-        enabled,
+        // CRITICAL: Only fetch after user is loaded (userId must be set, not empty)
+        enabled: enabled && !!userId && !userLoading,
     });
 
     // Defensive: backend may return `data: null` on empty result sets if
