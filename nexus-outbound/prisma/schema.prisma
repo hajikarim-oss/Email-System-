@@ -107,31 +107,8 @@ enum ReplyClass {
 // MODELS
 // ─────────────────────────────────────────────
 
-// ─────────────────────────────────────────────
-// WORKSPACE — Enable team-based data isolation
-// ─────────────────────────────────────────────
-
-model Workspace {
-  id              String    @id @default(cuid())
-  name            String
-  email           String?   @unique
-  stripeId        String?   @unique
-  plan            String    @default("free") // free, pro, enterprise
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  users           User[]
-  campaigns       Campaign[]
-  mailboxes       Mailbox[]
-
-  @@index([stripeId])
-}
-
 model User {
   id              String    @id @default(cuid())
-  workspaceId     String    @default("default-workspace")
-  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
   name            String?
   email           String    @unique
   password        String?
@@ -194,9 +171,6 @@ model VerificationToken {
 
 model Mailbox {
   id                  String        @id @default(cuid())
-  workspaceId         String        @default("default-workspace")
-  workspace           Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
   userId              String
   user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   senderEmail         String        @unique
@@ -229,9 +203,6 @@ model Mailbox {
 
 model Campaign {
   id                 String         @id @default(cuid())
-  workspaceId        String         @default("default-workspace")
-  workspace          Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
   userId             String
   user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   name               String

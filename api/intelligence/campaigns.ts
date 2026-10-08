@@ -203,16 +203,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
         }
 
-        // GET campaigns - Temporary: filter by userId until migration applied
-        // TODO: After workspace migration, change to: WHERE c."workspaceId" = $1
-        if (!scope.userId) {
+        // GET campaigns - CRITICAL: Ensure consistent user filtering
+        if (!scope.master && !scope.userId) {
             res.writeHead(401, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "user_id_required", message: "User ID missing from scope" }));
             return;
         }
 
-        // Temporary query (pre-migration): Uses userId filtering
-        // This will be replaced by workspace filtering after migration
         const campaigns = await pgQuery<any>(
             `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                     COUNT(l.id)::int AS lead_count
@@ -224,7 +221,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             scope.master ? [] : [scope.userId]
         );
 
-        // Verify all campaigns belong to correct user (security check)
+        // Verify all campaigns belong to correct user
         if (!scope.master) {
             const unauthorizedCampaigns = campaigns.filter((c: any) => c.userId !== scope.userId);
             if (unauthorizedCampaigns.length > 0) {

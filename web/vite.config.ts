@@ -959,7 +959,7 @@ function databaseIntelligencePlugin() {
                         const memberId = pick("member_id");
                         let activeScope = scope;
                         if (scope.master && memberId && memberId !== "all") {
-                            activeScope = { userId: memberId, master: false };
+                            activeScope = { ...scope, userId: memberId, master: false };
                         }
 
                         const payload = await getContacts(
@@ -1014,7 +1014,7 @@ function databaseIntelligencePlugin() {
                     const memberId = urlObj.searchParams.get("member_id");
                     let activeScope = scope;
                     if (scope.master && memberId && memberId !== "all") {
-                        activeScope = { userId: memberId, master: false };
+                        activeScope = { ...scope, userId: memberId, master: false };
                     }
                     const payload = await getDashboard({ period, from, to }, prismaQuery, activeScope);
 
@@ -1591,7 +1591,7 @@ function databaseIntelligencePlugin() {
                     const memberId = urlObj.searchParams.get("member_id");
                     let activeScope = scope;
                     if (scope.master && memberId && memberId !== "all") {
-                        activeScope = { userId: memberId, master: false };
+                        activeScope = { ...scope, userId: memberId, master: false };
                     }
                     const payload = await getReport(prismaQuery, activeScope);
                     res.writeHead(200, { "Content-Type": "application/json" });
