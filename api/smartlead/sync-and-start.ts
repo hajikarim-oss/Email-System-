@@ -261,8 +261,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const startHour = parsed.start_time || parsed.startTime || "08:00";
             const endHour = parsed.end_time || parsed.endTime || "18:00";
             const dailyCap = Number(parsed.daily_limit) || Number(parsed.max_new_leads_per_day) || 50;
+
             // Support aggressive sending: 2-4 sec for ultra-fast, default 180 sec (3 min)
-            const minTimeSeconds = Number(parsed.min_time_between_emails) || Number(parsed.send_interval_seconds) || 180;
+            let minTimeSeconds = Number(parsed.min_time_between_emails) || Number(parsed.send_interval_seconds) || 180;
+
+            // Auto-optimize interval based on mailbox count (if provided)
+            const mailboxCount = parsed.mailbox_count || mailboxIds?.length || 8;
+            if (parsed.auto_optimize_interval === true && mailboxCount > 0) {
+                // Calculate optimal interval: 9 hours / (max_daily_cap / mailbox_count)
+                const leadsPerMailbox = dailyCap / mailboxCount;
+                const nineHoursSeconds = 9 * 60 * 60; // 32,400 seconds
+                const calculatedInterval = Math.round(nineHoursSeconds / leadsPerMailbox);
+                minTimeSeconds = calculatedInterval;
+                console.log(`[Smartlead Sync] Auto-optimized interval: ${calculatedInterval}s for ${mailboxCount} mailboxes (${leadsPerMailbox} leads/mailbox)`);
+            }
 
             // Allow 2-600 seconds (2 sec to 10 min) - WARNING: <5 sec is high-risk for ISP blocks
             const safeSendInterval = Math.max(2, Math.min(minTimeSeconds, 600));
@@ -270,6 +282,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             // Log warning for aggressive intervals
             if (safeSendInterval < 5) {
                 console.warn(`[Smartlead Sync] ⚠️  AGGRESSIVE SENDING: ${safeSendInterval}sec interval - HIGH RISK for ISP blocks/spam filters`);
+            }
+
+            // Log optimization info
+            if (mailboxCount > 8) {
+                console.log(`[Smartlead Sync] 📊 Optimized for ${mailboxCount} mailboxes: ${safeSendInterval}s interval, ${dailyCap / mailboxCount} leads/mailbox`);
             }
 
             const schedulePayload: Record<string, any> = {
