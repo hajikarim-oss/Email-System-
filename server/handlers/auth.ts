@@ -114,7 +114,8 @@ export async function requireUser(req: IncomingMessage, res: ServerResponse): Pr
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-    const path = (req.url || "").split("?")[0].replace(/\/+$/, "") || "/";
+    const rawPath = (req.url || "").split("?")[0].replace(/\/+$/, "") || "/";
+    const path = rawPath.replace(/^\/(?:api\/)?(?:v1\/)?auth/, "/api/auth");
     const method = req.method || "GET";
 
     try {

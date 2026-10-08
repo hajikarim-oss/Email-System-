@@ -60,6 +60,10 @@ const routes: Record<string, Handler> = {
     "/api/smartlead/sync-and-start": smartleadSyncAndStart,
     "/api/smartlead/update-sequences": smartleadUpdateSequences,
     "/api/webhooks/smartlead": webhookSmartlead,
+    "/api/auth/config": auth,
+    "/api/v1/auth/config": auth,
+    "/v1/auth/config": auth,
+    "/auth/config": auth,
     "/api/chat": chat,
     "/api/health": (_req, res) => {
         const mem = process.memoryUsage();
@@ -96,10 +100,12 @@ const routes: Record<string, Handler> = {
 // Prefix routes: exact-path map above wins first, then these.
 const prefixes: [string, Handler][] = [
     ["/api/auth/", auth],
+    ["/api/v1/auth/", auth],
+    ["/v1/auth/", auth],
+    ["/auth/", auth],
     ["/api/organization", organization],
     ["/api/campaigns/", intelligenceCampaigns],
     ["/api/smartlead/campaigns/", smartleadCampaigns],
-    ["/api/campaigns/", intelligenceCampaigns],
     ["/api/v1/campaigns", intelligenceCampaigns],
     ["/campaigns", intelligenceCampaigns],
     ["/v1/campaigns", intelligenceCampaigns],

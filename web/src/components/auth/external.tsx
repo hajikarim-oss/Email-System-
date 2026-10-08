@@ -40,19 +40,20 @@ function CellBody({ children }: { children: React.ReactNode }) {
 // Safari blocks and which lands the session in a window the app cannot read.
 export default function ExternalLogin({
     passkey,
-    providers,
+    providers = [],
     onProvider,
 }: {
     passkey?: { onClick: () => void; onPrepare: () => void; loading: boolean; disabled?: boolean; label?: string };
-    providers: string[];
+    providers?: string[];
     onProvider: (provider: string) => Promise<void> | void;
 }) {
     const passkeyRef = useRef<HTMLButtonElement | null>(null);
     // Which provider is mid-handoff. The click ends in a full page navigation,
     // so without this the button sits inert for the length of a round trip.
     const [busy, setBusy] = useState<string | null>(null);
-    const google = providers.includes("google");
-    const apple = providers.includes("apple");
+    const safeProviders = Array.isArray(providers) ? providers : [];
+    const google = safeProviders.includes("google");
+    const apple = safeProviders.includes("apple");
 
     const start = async (provider: string) => {
         if (busy) return;

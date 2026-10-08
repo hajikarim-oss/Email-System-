@@ -45,14 +45,24 @@ export default function useAuthConfig() {
         retry: 1,
     });
 
+    const raw = query.data;
+    const isValid = raw && typeof raw === "object" && Array.isArray((raw as any).providers);
+    const config: AuthConfig = isValid
+        ? (raw as AuthConfig)
+        : {
+            ...AUTH_CONFIG_FALLBACK,
+            ...(typeof raw === "object" && raw !== null ? raw : {}),
+            providers: Array.isArray((raw as any)?.providers) ? (raw as any).providers : [],
+        };
+
     return {
         ...query,
-        config: query.data ?? AUTH_CONFIG_FALLBACK,
+        config,
         // Callers must not render the captcha widget or provider buttons until
         // the real answer arrives, or the widget mounts and then unmounts.
-        ready: !query.isLoading,
+        ready: !query.isLoading && isValid,
         // The screen is running on the fallback, so it should say so instead of
         // presenting guesses as this deployment's real capabilities.
-        unreachable: query.isError,
+        unreachable: query.isError || (!query.isLoading && !isValid),
     };
 }

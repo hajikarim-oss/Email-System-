@@ -6,15 +6,14 @@ import { normalizeError } from "./normalizeError";
 
 import { handleStandaloneRequest, installStandaloneFetchInterceptor } from "../standaloneMock";
 
-// DISABLED: Mock data system - use real backend API only
-// installStandaloneFetchInterceptor();
+// Enable standalone interceptor and adapter
+installStandaloneFetchInterceptor();
 
 const Client = axios.create({
     baseURL: API_BASE_URL,
-    // Use real backend API only (disabled mock interceptor)
-    // adapter: async (config) => {
-    //     return handleStandaloneRequest(config);
-    // },
+    adapter: async (config) => {
+        return handleStandaloneRequest(config);
+    },
 });
 
 Client.interceptors.response.use(
