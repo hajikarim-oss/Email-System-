@@ -188,7 +188,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     }
                 }
 
-                send(res, 201, campaign[0], 30); // Cache for 30s
+                // NO CACHE on campaign creation - devices must sync immediately
+                send(res, 201, campaign[0], 0);
                 return;
             } catch (err: any) {
                 if (err instanceof DatabaseUnavailableError) {
