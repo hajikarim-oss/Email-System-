@@ -67,6 +67,28 @@ function normalizeToSmartleadTemplate(text: string): string {
         .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}");
 }
 
+// Detect and warn about spam-trigger phrases
+function detectSpamTriggers(text: string): string[] {
+    const triggers = [
+        { phrase: /I hope this message finds you/gi, reason: "Classic spam phrase" },
+        { phrase: /pleasure to formally confirm/gi, reason: "Overly formal (spam indicator)" },
+        { phrase: /I am writing to you/gi, reason: "Generic spam opener" },
+        { phrase: /please ensure/gi, reason: "Directive tone (looks like instruction)" },
+        { phrase: /kindly request/gi, reason: "Formal/robotic language" },
+        { phrase: /per your request/gi, reason: "Generic corporate speak" },
+        { phrase: /seamless campaign execution/gi, reason: "Corporate jargon (spam trigger)" },
+        { phrase: /adhering to this schedule/gi, reason: "Directive language (not personal)" },
+    ];
+
+    const found: string[] = [];
+    for (const trigger of triggers) {
+        if (trigger.phrase.test(text)) {
+            found.push(`⚠️ "${text.match(trigger.phrase)?.[0]}" - ${trigger.reason}`);
+        }
+    }
+    return found;
+}
+
 function cleanCompanyName(nameOrDomain?: string): string {
     if (!nameOrDomain) return "TheBoredMonkey";
     let cleaned = nameOrDomain.trim();
@@ -222,18 +244,33 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             // 3. Sequences (Step 1, Step 2, Step 3 with precise delay_in_days)
             const seqSteps = (parsed.steps && parsed.steps.length > 0)
-                ? parsed.steps.map((s: any, idx: number) => ({
-                    seq_number: idx + 1,
-                    seq_delay_details: { delay_in_days: idx === 0 ? 0 : (s.wait_after !== undefined ? Number(s.wait_after) : 3) },
-                    subject: normalizeToSmartleadTemplate(s.subject || (idx === 0 ? `Outreach: ${campaignName}` : "")),
-                    email_body: normalizeToSmartleadTemplate(s.body_html || s.body_plain || "<p>Hello {{first_name}}, reaching out from TheBoredMonkey.</p>"),
-                }))
+                ? parsed.steps.map((s: any, idx: number) => {
+                    const subject = normalizeToSmartleadTemplate(s.subject || (idx === 0 ? `Quick question for {{first_name}}` : ""));
+                    const body = normalizeToSmartleadTemplate(s.body_html || s.body_plain || (idx === 0
+                        ? "<p>Hi {{first_name}},</p><p>Thought of you when I came across {{company_name}}.</p><p>Quick question - how are you handling [topic]?</p><p>Haji</p>"
+                        : "<p>Hi {{first_name}},</p><p>Did you get a chance to think about it?</p><p>Happy to chat.</p><p>Haji</p>"
+                    ));
+
+                    // Warn about spam triggers
+                    const triggers = detectSpamTriggers(subject + " " + body);
+                    if (triggers.length > 0) {
+                        console.warn(`[Smartlead Sync] ⚠️ SPAM ALERT - Step ${idx + 1}:`);
+                        triggers.forEach(t => console.warn(`     ${t}`));
+                    }
+
+                    return {
+                        seq_number: idx + 1,
+                        seq_delay_details: { delay_in_days: idx === 0 ? 0 : (s.wait_after !== undefined ? Number(s.wait_after) : 3) },
+                        subject: subject,
+                        email_body: body,
+                    };
+                })
                 : [
                     {
                         seq_number: 1,
                         seq_delay_details: { delay_in_days: 0 },
-                        subject: `Discussion regarding partnership | ${campaignName}`,
-                        email_body: "<p>Hey {{first_name}},</p><p>Wanted to connect regarding our enterprise solutions.</p><p>Best,<br/>Haji Karim | TheBoredMonkey</p>",
+                        subject: `Quick question for {{first_name}}`,
+                        email_body: "<p>Hi {{first_name}},</p><p>Thought of you when I came across {{company_name}}.</p><p>How are you handling [key area]?</p><p>Haji</p>",
                     },
                 ];
 
