@@ -261,14 +261,23 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const startHour = parsed.start_time || parsed.startTime || "08:00";
             const endHour = parsed.end_time || parsed.endTime || "18:00";
             const dailyCap = Number(parsed.daily_limit) || Number(parsed.max_new_leads_per_day) || 50;
-            const minTimeMs = Number(parsed.min_time_between_emails) || Number(parsed.send_interval_seconds) || 180; // Default 3 min in seconds
+            // Support aggressive sending: 2-4 sec for ultra-fast, default 180 sec (3 min)
+            const minTimeSeconds = Number(parsed.min_time_between_emails) || Number(parsed.send_interval_seconds) || 180;
+
+            // Allow 2-600 seconds (2 sec to 10 min) - WARNING: <5 sec is high-risk for ISP blocks
+            const safeSendInterval = Math.max(2, Math.min(minTimeSeconds, 600));
+
+            // Log warning for aggressive intervals
+            if (safeSendInterval < 5) {
+                console.warn(`[Smartlead Sync] ⚠️  AGGRESSIVE SENDING: ${safeSendInterval}sec interval - HIGH RISK for ISP blocks/spam filters`);
+            }
 
             const schedulePayload: Record<string, any> = {
                 timezone: parsed.timezone || "Asia/Kolkata",
                 days_of_the_week: daysOfTheWeek,
                 start_hour: startHour,
                 end_hour: endHour,
-                min_time_btw_emails: Math.max(30, Math.min(minTimeMs, 600)), // 30 sec - 10 min range
+                min_time_btw_emails: safeSendInterval,
                 max_new_leads_per_day: dailyCap,
             };
             if (parsed.start_date) schedulePayload.start_date = parsed.start_date;
