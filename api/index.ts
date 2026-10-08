@@ -1,4 +1,5 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import os from "node:os";
 import analyticsDashboard from "../server/handlers/analytics-dashboard";
 import analyticsReport from "../server/handlers/analytics-report";
 import auth from "../server/handlers/auth";
@@ -58,8 +59,30 @@ const routes: Record<string, Handler> = {
     "/api/webhooks/smartlead": webhookSmartlead,
     "/api/chat": chat,
     "/api/health": (_req, res) => {
+        const mem = process.memoryUsage();
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const usedMem = totalMem - freeMem;
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() }));
+        res.end(JSON.stringify({
+            status: "ok",
+            uptime_seconds: Math.round(process.uptime()),
+            timestamp: new Date().toISOString(),
+            system: {
+                platform: os.platform(),
+                cpus: os.cpus().length,
+                loadavg: os.loadavg(),
+                total_ram_mb: Math.round(totalMem / (1024 * 1024)),
+                free_ram_mb: Math.round(freeMem / (1024 * 1024)),
+                used_ram_mb: Math.round(usedMem / (1024 * 1024)),
+                ram_usage_pct: Math.round((usedMem / totalMem) * 100),
+            },
+            node_process: {
+                rss_mb: Math.round(mem.rss / (1024 * 1024)),
+                heap_used_mb: Math.round(mem.heapUsed / (1024 * 1024)),
+                heap_total_mb: Math.round(mem.heapTotal / (1024 * 1024)),
+            }
+        }));
     },
     "/healthz": (_req, res) => {
         res.writeHead(200, { "Content-Type": "application/json" });
