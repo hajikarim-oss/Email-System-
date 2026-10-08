@@ -1,0 +1,194 @@
+{
+  "campaigns": [
+    {
+      "name": "Template 1 - Research-Based Outreach",
+      "description": "High-converting personalized research template (28-32% open, 5-7% reply)",
+      "config": {
+        "max_new_leads_per_day": 2000,
+        "mailbox_count": 10,
+        "auto_optimize_interval": true,
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "timezone": "Asia/Kolkata",
+        "days": [1, 2, 3, 4, 5]
+      },
+      "steps": [
+        {
+          "subject": "Quick question for {{first_name}}",
+          "body_html": "<p>Hi {{first_name}},</p><p>Saw your recent work on [specific achievement] at {{company_name}}—impressive stuff.</p><p>Quick question: how are you currently handling [specific pain point]?</p><p>We've helped similar companies at [industry/size] tackle this, and I thought it might be worth a quick conversation.</p><p>Happy to share what we've learned if it's relevant.</p><p>Cheers,<br/>Haji Karim<br/>TheBoredMonkey<br/>+91 9941210466<br/>https://www.theboredmonkey.com/</p>",
+          "wait_after": 0
+        },
+        {
+          "subject": "Re: One quick question",
+          "body_html": "<p>Hi {{first_name}},</p><p>Quick follow-up on my last message—still curious about your thoughts on [previous question].</p><p>No pressure at all. Just thought I'd check in.</p><p>Haji</p>",
+          "wait_after": 3
+        },
+        {
+          "subject": "Last one - {{first_name}}",
+          "body_html": "<p>Hi {{first_name}},</p><p>This is my last attempt to reach you (I promise!).</p><p>If you're not interested—totally cool, just let me know and I'll remove you from my list.</p><p>If you are, let's chat. I think there's something here worth 15 minutes of your time.</p><p>Either way, I appreciate your time.</p><p>Haji</p>",
+          "wait_after": 5
+        }
+      ]
+    },
+    {
+      "name": "Template 2 - Industry-Specific Outreach",
+      "description": "Relevant to specific industries (24-28% open, 4-6% reply)",
+      "config": {
+        "max_new_leads_per_day": 2000,
+        "mailbox_count": 10,
+        "auto_optimize_interval": true,
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "timezone": "Asia/Kolkata",
+        "days": [1, 2, 3, 4, 5]
+      },
+      "steps": [
+        {
+          "subject": "{{first_name}} - {{company_name}} opportunity",
+          "body_html": "<p>Hi {{first_name}},</p><p>I work with {{company_name}} companies like yours, and I noticed [specific industry trend/challenge].</p><p>Most are [current pain point]. Have you faced this?</p><p>A few quick wins we've seen:</p><ul><li>[Benefit 1]</li><li>[Benefit 2]</li><li>[Benefit 3]</li></ul><p>Worth a 15-min call to explore?</p><p>Haji</p>",
+          "wait_after": 0
+        },
+        {
+          "subject": "Quick follow-up",
+          "body_html": "<p>Hi {{first_name}},</p><p>I know you're probably swamped, but wanted to circle back on my previous message.</p><p>I genuinely think there's something worth discussing here.</p><p>Open to a quick call?</p><p>Haji</p>",
+          "wait_after": 4
+        }
+      ]
+    },
+    {
+      "name": "Template 3 - Direct & Brief (HIGHEST REPLY RATE)",
+      "description": "Shortest template, highest engagement (26-30% open, 6-8% reply)",
+      "config": {
+        "max_new_leads_per_day": 2000,
+        "mailbox_count": 10,
+        "auto_optimize_interval": true,
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "timezone": "Asia/Kolkata",
+        "days": [1, 2, 3, 4, 5]
+      },
+      "steps": [
+        {
+          "subject": "One quick question",
+          "body_html": "<p>Hi {{first_name}},</p><p>How is {{company_name}} handling [specific challenge]?</p><p>Genuinely curious about your approach.</p><p>Haji</p>",
+          "wait_after": 0
+        },
+        {
+          "subject": "Re: One quick question",
+          "body_html": "<p>Hi {{first_name}},</p><p>Still curious about your thoughts on [topic].</p><p>No rush—just checking in.</p><p>Haji</p>",
+          "wait_after": 3
+        },
+        {
+          "subject": "{{first_name}}, good luck with everything",
+          "body_html": "<p>Hi {{first_name}},</p><p>I'll stop here, but if you ever want to grab coffee and chat about [topic], my door is always open.</p><p>Either way, wishing you and {{company_name}} all the best.</p><p>Haji</p>",
+          "wait_after": 7
+        }
+      ]
+    },
+    {
+      "name": "Template 4 - Value-First (BUILDS CREDIBILITY)",
+      "description": "Lead with insights and value (25-29% open, 4-5% reply)",
+      "config": {
+        "max_new_leads_per_day": 2000,
+        "mailbox_count": 10,
+        "auto_optimize_interval": true,
+        "start_time": "09:00",
+        "end_time": "18:00",
+        "timezone": "Asia/Kolkata",
+        "days": [1, 2, 3, 4, 5]
+      },
+      "steps": [
+        {
+          "subject": "Thought of {{company_name}} this morning",
+          "body_html": "<p>Hi {{first_name}},</p><p>I was reading about [industry news/trend] this morning and immediately thought of {{company_name}}.</p><p>Specifically, the part about [specific insight]—I think this impacts how you're currently [their current approach].</p><p>Would be curious to know if this resonates with what you're seeing.</p><p>Haji</p>",
+          "wait_after": 0
+        },
+        {
+          "subject": "Re: {{company_name}} + [topic]",
+          "body_html": "<p>Hi {{first_name}},</p><p>Following up on my previous note about [insight].</p><p>I've been diving deeper into this and found some interesting data that might be relevant to {{company_name}}.</p><p>Worth a quick chat?</p><p>Haji</p>",
+          "wait_after": 4
+        }
+      ]
+    }
+  ],
+  "leads_example": [
+    {
+      "email": "john.doe@techcorp.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "company": "TechCorp Inc",
+      "title": "VP Sales"
+    },
+    {
+      "email": "sarah.smith@innovate.io",
+      "first_name": "Sarah",
+      "last_name": "Smith",
+      "company": "Innovate Solutions",
+      "title": "Chief Product Officer"
+    },
+    {
+      "email": "michael.chen@enterprise.com",
+      "first_name": "Michael",
+      "last_name": "Chen",
+      "company": "Enterprise Systems",
+      "title": "Director of Operations"
+    }
+  ],
+  "api_request_template": {
+    "description": "Copy this and replace [TEMPLATE_NAME], leads, and placeholders",
+    "endpoint": "POST /api/smartlead/sync-and-start",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "name": "[TEMPLATE_NAME] - Your Campaign Name",
+      "max_new_leads_per_day": 2000,
+      "mailbox_count": 10,
+      "auto_optimize_interval": true,
+      "start_time": "09:00",
+      "end_time": "18:00",
+      "timezone": "Asia/Kolkata",
+      "days": [1, 2, 3, 4, 5],
+      "leads": "[PASTE YOUR LEADS HERE - Use leads_example above]",
+      "steps": "[USE STEPS FROM ONE OF THE 4 TEMPLATES ABOVE]"
+    }
+  },
+  "placeholder_guide": {
+    "description": "Replace these in templates before sending",
+    "common_placeholders": {
+      "[specific achievement]": "Examples: 'your Q3 revenue growth', 'your recent Series B', 'your product launch'",
+      "[specific pain point]": "Examples: 'customer retention', 'lead qualification', 'sales velocity'",
+      "[industry/size]": "Examples: 'B2B SaaS', 'enterprise software', 'early-stage startups'",
+      "[specific industry trend]": "Examples: 'AI adoption', 'remote-first transformation', 'vertical SaaS consolidation'",
+      "[current pain point]": "Examples: 'struggling with churn', 'high CAC', 'slow sales cycles'",
+      "[Benefit 1-3]": "Examples: '30% faster sales cycles', '50% better response rates', '2x qualified leads'",
+      "[previous question]": "Reference to your first email's question",
+      "[industry news/trend]": "Examples: 'the latest API economy report', 'enterprise automation trends', 'vertical SaaS growth'",
+      "[specific insight]": "Examples: 'how AI is disrupting your space', 'why customer retention is critical'",
+      "[their current approach]": "Examples: 'your current sales process', 'how you handle customer onboarding'",
+      "[topic]": "Examples: 'sales automation', 'customer retention', 'lead qualification'"
+    }
+  },
+  "quick_start": {
+    "step_1": "Choose a template (1, 2, 3, or 4)",
+    "step_2": "Copy the 'steps' array from your chosen template",
+    "step_3": "Replace all [PLACEHOLDERS] with real information",
+    "step_4": "Prepare your leads CSV and convert to JSON",
+    "step_5": "Fill body with template + leads + config",
+    "step_6": "Send to POST /api/smartlead/sync-and-start",
+    "step_7": "Monitor delivery rate (should be 95%+)"
+  },
+  "expected_results": {
+    "delivered": 1900,
+    "delivered_percentage": "95%",
+    "bounced": 40,
+    "bounce_percentage": "2%",
+    "spam": 60,
+    "spam_percentage": "3%",
+    "opened": 500,
+    "open_rate": "26%",
+    "replied": 80,
+    "reply_rate": "4%"
+  }
+}
