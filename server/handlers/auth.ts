@@ -15,6 +15,7 @@ import {
     findUserByEmail,
     hashPassword,
     readBearer,
+    readPassword,
     resolveToken,
     revokeSession,
     revokeUserSessions,

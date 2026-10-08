@@ -97,6 +97,14 @@ export async function findUserById(id: string): Promise<AuthUser | null> {
     return rows[0] ?? null;
 }
 
+export async function readPassword(userId: string): Promise<string | null> {
+    const rows = await pgQuery<{ password: string | null }>(
+        `SELECT password FROM "User" WHERE id = $1`,
+        [userId]
+    );
+    return rows[0]?.password ?? null;
+}
+
 export async function resolveToken(token: string): Promise<AuthUser | null> {
     if (!token) return null;
     const rows = await pgQuery<AuthUser>(

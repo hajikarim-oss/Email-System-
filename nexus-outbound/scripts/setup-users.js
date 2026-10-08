@@ -34,7 +34,7 @@ async function hashPassword(password) {
     r: SCRYPT_R,
     p: SCRYPT_P
   });
-  return `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt}${derived.toString('base64')}`;
+  return `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt}$${derived.toString('base64')}`;
 }
 
 /**
