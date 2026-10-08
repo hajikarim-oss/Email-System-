@@ -5,7 +5,7 @@ import getUser from "../../client/auth/getUser";
 // long staleTime so navigating between pages never refetches — only
 // explicit invalidations (avatar upload, onboarding completion) move
 // it.
-export default function useUser() {
+export function useUser() {
     return useQuery({
         queryKey: ["auth", "me"],
         queryFn: () => getUser(),
@@ -14,3 +14,5 @@ export default function useUser() {
         refetchOnMount: false,
     });
 }
+
+export default useUser;

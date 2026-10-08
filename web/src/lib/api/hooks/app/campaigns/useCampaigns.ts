@@ -3,7 +3,7 @@ import getCampaigns from "@/lib/api/client/app/campaigns/getCampaigns";
 import { DEFAULT_PAGINATION_LIMIT } from "@/lib/information";
 import type GetCampaigns from "@/lib/api/models/app/campaigns/GetCampaigns";
 import useRealtimeFallbackInterval from "@/hooks/useRealtimeFallback";
-import { useUser } from "@/lib/api/hooks/auth/useUser";
+import useUser from "@/lib/api/hooks/auth/useUser";
 
 interface UseCampaignsProps {
     query: string;
