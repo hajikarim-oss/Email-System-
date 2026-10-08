@@ -6,6 +6,8 @@ export default function useCampaignAnalytics(id: string) {
         queryKey: ["analytics", "campaigns", id],
         queryFn: () => getCampaignAnalytics(id),
         enabled: !!id,
-        refetchInterval: 1000,
+        staleTime: 3 * 1000,  // Keep fresh for 3 seconds
+        gcTime: 10 * 60 * 1000,  // Keep in memory for 10 minutes
+        refetchInterval: 5 * 1000,  // Refetch every 5 seconds (less aggressive)
     })
 }

@@ -458,7 +458,11 @@ export default function CampaignsPage() {
                         </span>
                     </button>
                     {teamMembers.map((m) => {
-                        const count = campaigns.filter((c) => ownerOf(c) === m.user_id).length;
+                        const count = campaigns.filter((c) => {
+                            const ownerId = String(c.userId || "");
+                            const memberId = String(m.user_id || "");
+                            return ownerId === memberId;
+                        }).length;
                         const active = memberFilter === m.user_id;
                         return (
                             <button
