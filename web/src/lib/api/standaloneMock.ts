@@ -2311,8 +2311,11 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 match.status = "active";
                 match.updated_at = new Date().toISOString();
 
-                // Get or initialize campaign leads (such as all 1876 contacts for Q2 Reachout Mails)
-                const campLeads = await getOrInitCampaignLeads(match.id, match);
+                // Get or initialize campaign leads (preferring explicitly passed leads from startCampaign)
+                const startOptions = (request.data ? (typeof request.data === "string" ? JSON.parse(request.data) : request.data) : {}) as any;
+                const campLeads = (Array.isArray(startOptions?.leads) && startOptions.leads.length > 0)
+                    ? startOptions.leads
+                    : await getOrInitCampaignLeads(match.id, match);
                 const availableEmails = emails.length >= 8 ? emails : DEFAULT_8_PROFILES;
                 const nowIso = new Date().toISOString();
 
@@ -2461,7 +2464,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                             name: match.name,
                             smartlead_id: match.smartlead_id,
                             steps: match.steps,
-                            leads: campLeads.slice(0, 50),
+                            leads: campLeads,
                             sender_email: match.sender_email || availableEmails[0]?.email,
                             mailbox_ids: Array.isArray(match.mailboxes) ? match.mailboxes : undefined,
                             timezone: match.timezone || "Asia/Kolkata",

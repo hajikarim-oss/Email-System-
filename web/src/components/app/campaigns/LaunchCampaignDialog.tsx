@@ -94,7 +94,7 @@ export default function LaunchCampaignDialog({
 }: {
     campaign: Campaign | null;
     onClose: () => void;
-    onConfirm: (id: string, options?: { acknowledge_list_risk?: boolean }) => Promise<unknown>;
+    onConfirm: (id: string, options?: StartCampaignOptions) => Promise<unknown>;
 }) {
     const [phase, setPhase] = React.useState<Phase>("idle");
     const [error, setError] = React.useState<string | null>(null);
@@ -156,7 +156,36 @@ export default function LaunchCampaignDialog({
         setError(null);
         setPhase("launching");
         try {
-            const res = (await onConfirm(campaign.id, acknowledge ? { acknowledge_list_risk: true } : undefined)) as
+            // Auto-detect and fetch all assigned leads for this campaign to sync to Smartlead
+            let campaignLeads: any[] | undefined = undefined;
+            try {
+                const storedLeads = localStorage.getItem(`tbm_core_data_v5_campaign_leads_${campaign.id}`);
+                if (storedLeads) {
+                    const parsed = JSON.parse(storedLeads);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        campaignLeads = parsed;
+                    }
+                }
+            } catch {}
+
+            if (!campaignLeads || campaignLeads.length === 0) {
+                try {
+                    const res = await fetch(`/api/intelligence/contacts?campaign_ids=${encodeURIComponent(campaign.id)}&limit=2500`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (json && Array.isArray(json.data) && json.data.length > 0) {
+                            campaignLeads = json.data;
+                        }
+                    }
+                } catch {}
+            }
+
+            const launchOptions: StartCampaignOptions = {
+                ...(acknowledge ? { acknowledge_list_risk: true } : {}),
+                ...(campaignLeads && campaignLeads.length > 0 ? { leads: campaignLeads } : {}),
+            };
+
+            const res = (await onConfirm(campaign.id, launchOptions)) as
                 | StartCampaignResult
                 | undefined;
             setWaiting(!!res?.waiting_for_leads);

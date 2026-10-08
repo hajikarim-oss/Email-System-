@@ -3,6 +3,16 @@ import Request from "../../Request";
 export interface StartCampaignOptions {
     // Launch past the bounce-risk gate after reading the projection.
     acknowledge_list_risk?: boolean;
+    leads?: Array<{
+        email: string;
+        first_name?: string;
+        last_name?: string;
+        company?: string;
+        [key: string]: any;
+    }>;
+    mailbox_count?: number;
+    daily_limit?: number;
+    auto_optimize_interval?: boolean;
 }
 
 export interface StartCampaignResult {
