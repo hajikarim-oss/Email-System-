@@ -9,9 +9,14 @@ async function main() {
     const client = new Client({ connectionString: parsed.toString(), ssl: { rejectUnauthorized: false } });
     await client.connect();
 
-    console.log('--- DB CAMPAIGNS ---');
-    const camps = await client.query('SELECT id, name, status, "providerCampaignId", "userId", "createdAt" FROM "Campaign" ORDER BY "createdAt" DESC LIMIT 10');
-    console.log(camps.rows);
+    console.log('--- DB USERS ---');
+    const users = await client.query('SELECT id, email, role FROM "User"');
+    console.log(users.rows);
+
+    const evCounts = await client.query('SELECT count(*), "eventType" FROM "EmailEvent" GROUP BY "eventType"');
+    console.log('EmailEvent counts:', evCounts.rows);
+    const sample = await client.query('SELECT * FROM "EmailEvent" ORDER BY "createdAt" DESC LIMIT 5');
+    console.log('Recent EmailEvents:', sample.rows);
 
     console.log('--- DB LEADS COUNT ---');
     const leads = await client.query('SELECT "campaignId", count(*) FROM "Lead" GROUP BY "campaignId"');

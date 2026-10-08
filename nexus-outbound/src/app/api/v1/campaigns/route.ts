@@ -59,6 +59,8 @@ export async function GET(req: Request) {
 
     return {
       id: c.id,
+      userId: c.userId || "",
+      providerCampaignId: c.providerCampaignId || null,
       name: c.name,
       description: `Lead pool: ${c._count?.leads || 0} contacts | Steps: ${c.steps?.length || 1}`,
       status: statusStr,

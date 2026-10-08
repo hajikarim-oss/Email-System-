@@ -1481,7 +1481,7 @@ function databaseIntelligencePlugin() {
                 }
             });
 
-            server.middlewares.use("/api/intelligence/campaigns", async (req: any, res: any) => {
+            const handleCampaignsRoute = async (req: any, res: any) => {
                 try {
                     const scope = await requireScope(req, res);
                     if (!scope) return;
@@ -1511,15 +1511,15 @@ function databaseIntelligencePlugin() {
                             return;
                         }
 
-                        if (!scope.master) {
-                            res.writeHead(403, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({ error: "Only master can delete campaigns" }));
-                            return;
-                        }
-
                         const existing = await prisma.campaign.findFirst({
                             where: { OR: [{ id: campId }, { providerCampaignId: campId }] },
                         });
+
+                        if (existing && !scope.master && existing.userId !== scope.userId) {
+                            res.writeHead(403, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "forbidden", message: "You can only delete your own campaigns" }));
+                            return;
+                        }
 
                         if (existing) {
                             await prisma.campaignMailbox.deleteMany({ where: { campaignId: existing.id } });
@@ -1542,21 +1542,43 @@ function databaseIntelligencePlugin() {
                         return;
                     }
 
+                    let allowedUserIds = [scope.userId];
+                    try {
+                        const userTeams = await prisma.userTeam.findMany({ where: { userId: scope.userId }, select: { teamId: true } });
+                        if (userTeams.length > 0) {
+                            const teamIds = userTeams.map((t: any) => t.teamId);
+                            const peers = await prisma.userTeam.findMany({ where: { teamId: { in: teamIds } }, select: { userId: true } });
+                            allowedUserIds = Array.from(new Set([scope.userId, ...peers.map((p: any) => p.userId)]));
+                        }
+                    } catch {}
+
                     const dbCampaigns = await prisma.campaign.findMany({
-                        where: scope.master ? {} : { userId: scope.userId },
+                        where: scope.master ? {} : { userId: { in: allowedUserIds } },
                         include: {
                             _count: { select: { leads: true } },
                             steps: { orderBy: { stepNumber: "asc" } },
                         },
                         orderBy: { createdAt: "desc" },
                     });
+
+                    const formatted = dbCampaigns.map((c: any) => ({
+                        ...c,
+                        status: (c.status || "draft").toLowerCase(),
+                        total_leads: c._count?.leads || 0,
+                    }));
+
                     res.writeHead(200, { "Content-Type": "application/json" });
-                    res.end(JSON.stringify(dbCampaigns));
+                    res.end(JSON.stringify(formatted));
                 } catch (err: any) {
                     res.writeHead(500, { "Content-Type": "application/json" });
                     res.end(JSON.stringify({ error: err.message }));
                 }
-            });
+            };
+
+            server.middlewares.use("/api/intelligence/campaigns", handleCampaignsRoute);
+            server.middlewares.use("/api/campaigns", handleCampaignsRoute);
+            server.middlewares.use("/v1/campaigns", handleCampaignsRoute);
+            server.middlewares.use("/campaigns", handleCampaignsRoute);
 
             // 9. Live database mailboxes query, including each mailbox's real
             // "sent today" / lifetime counters derived from EmailEvent rows.

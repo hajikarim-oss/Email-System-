@@ -77,7 +77,7 @@ export default function useCampaigns({ query, folder, limit = DEFAULT_PAGINATION
     // safely read fields without optional-chaining every access.
     const campaigns =
         queryResult.data?.pages
-            .flatMap((p) => p.data ?? [])
+            .flatMap((p: any) => (Array.isArray(p) ? p : (p?.data ?? [])))
             .filter((c): c is NonNullable<typeof c> => c != null) ?? [];
 
     return {

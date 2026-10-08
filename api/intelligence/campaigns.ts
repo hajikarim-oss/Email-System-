@@ -285,9 +285,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
         }
 
+        const formatted = campaigns.map((c: any) => ({
+            ...c,
+            _count: { leads: Number(c.lead_count || 0) },
+            total_leads: Number(c.lead_count || 0),
+        }));
+
         // NO CACHE for campaigns list - always fresh from database
-        // Cache: 0 means no caching (browser won't cache this)
-        send(res, 200, campaigns, 0);
+        send(res, 200, formatted, 0);
     } catch (err: any) {
         if (err instanceof DatabaseUnavailableError) {
             send(res, 503, { error: "database_unavailable" });

@@ -161,10 +161,11 @@ export const CampaignProvider = ({ children }: { children: React.ReactNode }) =>
             let campaigns_raw: CampaignRaw[];
             if (!isNew) {
                 const data = await Call(`/campaigns?${params.toString()}`);
-                setMax(data.count)
-                campaigns_raw = data.data;
+                setMax(data?.count ?? (Array.isArray(data) ? data.length : 0));
+                campaigns_raw = Array.isArray(data) ? data : (data?.data ?? []);
             } else {
-                campaigns_raw = await Call(`/campaigns?${params.toString()}`);
+                const data = await Call(`/campaigns?${params.toString()}`);
+                campaigns_raw = Array.isArray(data) ? data : (data?.data ?? []);
             }
             const campaignsNew = parseCampaigns(campaigns_raw)
             setCampaigns(bef => bef ? [...bef, ...campaignsNew].sort((a, b) => a.createdAt.getTime()-b.createdAt.getTime()).filter(
