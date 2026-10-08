@@ -173,6 +173,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             return;
         }
 
+        if (path === "/api/auth/config" && method === "GET") {
+            send(res, 200, {
+                captcha: false,
+                password_login: true,
+                login_code: "off",
+                registration: "invite_only",
+                invites_required: true,
+                email_verification: false,
+                mail_delivers: false,
+                passkeys: false,
+                providers: [],
+                self_hosted: true,
+                billing_enabled: true,
+                setup_required: false,
+                docs_url: "https://docs.theboredmonkey.com/development/accounts-and-access/",
+                brand: { name: "TheBoredMonkey" },
+            });
+            return;
+        }
+
         if (path === "/api/auth/me" && method === "GET") {
             const user = await requireUser(req, res);
             if (!user) return;
