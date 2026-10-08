@@ -203,33 +203,67 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
         }
 
-        // GET campaigns - CRITICAL: Ensure consistent user filtering
+        // GET campaigns - Team-based visibility
         if (!scope.master && !scope.userId) {
             res.writeHead(401, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "user_id_required", message: "User ID missing from scope" }));
             return;
         }
 
-        const campaigns = await pgQuery<any>(
-            `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
-                    COUNT(l.id)::int AS lead_count
-             FROM "Campaign" c
-             LEFT JOIN "Lead" l ON l."campaignId" = c.id
-             WHERE ${scope.master ? "1=1" : `c."userId" = $1`}
-             GROUP BY c.id
-             ORDER BY c."createdAt" DESC`,
-            scope.master ? [] : [scope.userId]
-        );
+        let campaigns: any[] = [];
 
-        // Verify all campaigns belong to correct user
-        if (!scope.master) {
-            const unauthorizedCampaigns = campaigns.filter((c: any) => c.userId !== scope.userId);
+        if (scope.master) {
+            // Master sees all campaigns
+            campaigns = await pgQuery<any>(
+                `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
+                        COUNT(l.id)::int AS lead_count
+                 FROM "Campaign" c
+                 LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                 GROUP BY c.id
+                 ORDER BY c."createdAt" DESC`
+            );
+        } else {
+            // Team member sees campaigns from their team members + their own
+            campaigns = await pgQuery<any>(
+                `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
+                        COUNT(l.id)::int AS lead_count
+                 FROM "Campaign" c
+                 LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                 WHERE c."userId" IN (
+                   -- Get all users in the same teams as current user
+                   SELECT DISTINCT ut.userId
+                   FROM "UserTeam" ut
+                   WHERE ut.teamId IN (
+                     -- Get all teams the current user belongs to
+                     SELECT teamId FROM "UserTeam" WHERE userId = $1
+                   )
+                   UNION ALL
+                   -- Also include own campaigns (in case user has no teams)
+                   SELECT $1 as userId
+                 )
+                 GROUP BY c.id
+                 ORDER BY c."createdAt" DESC`,
+                [scope.userId]
+            );
+        }
+
+        // Verify authorization
+        if (!scope.master && campaigns.length > 0) {
+            // Check if user has access to campaigns (via team membership)
+            const userTeams = await pgQuery<{ teamId: string }>(
+                `SELECT DISTINCT teamId FROM "UserTeam" WHERE userId = $1`,
+                [scope.userId]
+            );
+            const teamUserIds = await pgQuery<{ userId: string }>(
+                `SELECT DISTINCT userId FROM "UserTeam" WHERE teamId = ANY($1)`,
+                [userTeams.map((t: any) => t.teamId)]
+            );
+            const authorizedUserIds = new Set([scope.userId, ...teamUserIds.map((u: any) => u.userId)]);
+
+            const unauthorizedCampaigns = campaigns.filter((c: any) => !authorizedUserIds.has(c.userId));
             if (unauthorizedCampaigns.length > 0) {
-                console.error(`[SECURITY] User ${scope.userId} attempted to access campaigns they don't own:`, unauthorizedCampaigns.map((c: any) => c.id));
-                // Filter out unauthorized campaigns
-                const filteredCampaigns = campaigns.filter((c: any) => c.userId === scope.userId);
-                send(res, 200, filteredCampaigns, 0); // NO CACHE - security critical
-                return;
+                console.error(`[SECURITY] User ${scope.userId} attempted to access unauthorized campaigns:`, unauthorizedCampaigns.map((c: any) => c.id));
+                campaigns = campaigns.filter((c: any) => authorizedUserIds.has(c.userId));
             }
         }
 

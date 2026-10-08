@@ -107,6 +107,38 @@ enum ReplyClass {
 // MODELS
 // ─────────────────────────────────────────────
 
+// ─────────────────────────────────────────────
+// TEAM — Enable team member collaboration
+// ─────────────────────────────────────────────
+
+model Team {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  teamMembers     UserTeam[]
+
+  @@index([id])
+}
+
+// ─────────────────────────────────────────────
+// USER_TEAM — Join table for team membership
+// ─────────────────────────────────────────────
+
+model UserTeam {
+  userId          String
+  teamId          String
+  joinedAt        DateTime  @default(now())
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team            Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([userId, teamId])
+  @@index([teamId])
+}
+
 model User {
   id              String    @id @default(cuid())
   name            String?
@@ -120,12 +152,13 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  mailboxes      Mailbox[]
-  campaigns      Campaign[]
-  auditLogs      AuditLog[]
-  notifications  Notification[]
-  accounts       Account[]
-  sessions       Session[]
+  mailboxes       Mailbox[]
+  campaigns       Campaign[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  accounts        Account[]
+  sessions        Session[]
+  teams           UserTeam[]  // Team memberships
 }
 
 // NextAuth required models
