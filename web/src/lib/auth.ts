@@ -26,7 +26,34 @@ export const TOKENS = [
 
 const toDate = (value: unknown): Date => value instanceof Date ? value : new Date(String(value));
 
+// Clear all cached user data from localStorage (fixes multi-device sync issue)
+export const clearUserCache = () => {
+  const cacheKeys = [
+    "tbm_core_data_v5_campaigns",
+    "tbm_core_data_v5_contacts",
+    "tbm_core_data_v5_analytics",
+    "tbm_core_data_v5_leads",
+    "tbm_core_data_v5_mailboxes",
+  ];
+
+  cacheKeys.forEach((key) => {
+    localStorage.removeItem(key);
+  });
+
+  // Clear all campaign-specific caches
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith("tbm_core_data_v5_campaign_")) {
+      localStorage.removeItem(key);
+    }
+  });
+
+  console.log("[Auth] Cleared user cache from localStorage - multi-device sync enabled");
+};
+
 export const saveTokens = (data: Record<string, unknown>) => {
+  // CRITICAL: Clear user cache on login to sync across devices
+  clearUserCache();
+
   TOKENS.forEach((k) => {
     const value = data[k];
     if (value === null || value === undefined) {
