@@ -200,19 +200,39 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
         }
 
-        // GET campaigns
+        // GET campaigns - CRITICAL: Ensure consistent user filtering
+        if (!scope.master && !scope.userId) {
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "user_id_required", message: "User ID missing from scope" }));
+            return;
+        }
+
         const campaigns = await pgQuery<any>(
             `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                     COUNT(l.id)::int AS lead_count
              FROM "Campaign" c
              LEFT JOIN "Lead" l ON l."campaignId" = c.id
-             ${scope.master ? "" : `WHERE c."userId" = $1`}
+             WHERE ${scope.master ? "1=1" : `c."userId" = $1`}
              GROUP BY c.id
              ORDER BY c."createdAt" DESC`,
             scope.master ? [] : [scope.userId]
         );
 
-        send(res, 200, campaigns, 30);
+        // Verify all campaigns belong to correct user
+        if (!scope.master) {
+            const unauthorizedCampaigns = campaigns.filter((c: any) => c.userId !== scope.userId);
+            if (unauthorizedCampaigns.length > 0) {
+                console.error(`[SECURITY] User ${scope.userId} attempted to access campaigns they don't own:`, unauthorizedCampaigns.map((c: any) => c.id));
+                // Filter out unauthorized campaigns
+                const filteredCampaigns = campaigns.filter((c: any) => c.userId === scope.userId);
+                send(res, 200, filteredCampaigns, 0); // NO CACHE - security critical
+                return;
+            }
+        }
+
+        // NO CACHE for campaigns list - always fresh from database
+        // Cache: 0 means no caching (browser won't cache this)
+        send(res, 200, campaigns, 0);
     } catch (err: any) {
         if (err instanceof DatabaseUnavailableError) {
             send(res, 503, { error: "database_unavailable" });
