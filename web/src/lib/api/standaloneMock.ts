@@ -2312,7 +2312,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 match.updated_at = new Date().toISOString();
 
                 // Get or initialize campaign leads (preferring explicitly passed leads from startCampaign)
-                const startOptions = (request.data ? (typeof request.data === "string" ? JSON.parse(request.data) : request.data) : {}) as any;
+                const startOptions = (config.data ? (typeof config.data === "string" ? JSON.parse(config.data) : config.data) : {}) as any;
                 const campLeads = (Array.isArray(startOptions?.leads) && startOptions.leads.length > 0)
                     ? startOptions.leads
                     : await getOrInitCampaignLeads(match.id, match);

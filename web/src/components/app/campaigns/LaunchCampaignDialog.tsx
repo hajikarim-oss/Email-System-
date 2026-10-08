@@ -30,8 +30,7 @@ import usePreflight from "@/lib/api/hooks/app/campaigns/usePreflight";
 import getSequences from "@/lib/api/client/app/campaigns/sequences/getSequences";
 import { preflightFailures } from "@/lib/api/models/app/campaigns/Preflight";
 import { isIdleCampaign } from "@/components/app/campaigns/status";
-import { entryDelayLabel } from "@/components/app/campaigns/schedule/entryDelay";
-import type { StartCampaignResult } from "@/lib/api/client/app/campaigns/startCampaign";
+import type { StartCampaignOptions, StartCampaignResult } from "@/lib/api/client/app/campaigns/startCampaign";
 
 type Phase = "idle" | "launching" | "done";
 
