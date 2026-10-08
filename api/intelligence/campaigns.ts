@@ -210,10 +210,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             return;
         }
 
+        console.log(`[Campaigns API] User: ${user.email}, Role: ${user.role}, Master: ${scope.master}`);
+
         let campaigns: any[] = [];
 
         if (scope.master) {
             // Master sees all campaigns
+            console.log(`[Campaigns API] Master user ${user.email} querying all campaigns`);
             campaigns = await pgQuery<any>(
                 `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                         COUNT(l.id)::int AS lead_count
@@ -222,8 +225,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                  GROUP BY c.id
                  ORDER BY c."createdAt" DESC`
             );
+            console.log(`[Campaigns API] Master query returned ${campaigns.length} campaigns`);
         } else {
             // Team member sees campaigns from their team members + their own
+            console.log(`[Campaigns API] Team member ${user.email} (${scope.userId}) querying team campaigns`);
+
+            // First check what teams they belong to
+            const userTeams = await pgQuery<{ teamId: string }>(
+                `SELECT teamId FROM "UserTeam" WHERE userId = $1`,
+                [scope.userId]
+            );
+            console.log(`[Campaigns API] User belongs to ${userTeams.length} teams:`, userTeams.map(t => t.teamId));
+
             campaigns = await pgQuery<any>(
                 `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                         COUNT(l.id)::int AS lead_count
@@ -245,6 +258,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                  ORDER BY c."createdAt" DESC`,
                 [scope.userId]
             );
+            console.log(`[Campaigns API] Team member query returned ${campaigns.length} campaigns`);
         }
 
         // Verify authorization

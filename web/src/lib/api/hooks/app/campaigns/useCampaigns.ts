@@ -3,6 +3,7 @@ import getCampaigns from "@/lib/api/client/app/campaigns/getCampaigns";
 import { DEFAULT_PAGINATION_LIMIT } from "@/lib/information";
 import type GetCampaigns from "@/lib/api/models/app/campaigns/GetCampaigns";
 import useRealtimeFallbackInterval from "@/hooks/useRealtimeFallback";
+import { useUser } from "@/lib/api/hooks/auth/useUser";
 
 interface UseCampaignsProps {
     query: string;
@@ -12,6 +13,10 @@ interface UseCampaignsProps {
 }
 
 export default function useCampaigns({ query, folder, limit = DEFAULT_PAGINATION_LIMIT, enabled = true }: UseCampaignsProps) {
+    // Get current user to include in cache key (prevents cross-user cache pollution)
+    const { data: user } = useUser();
+    const userId = user?.id || "anonymous";
+
     // Send counts on these cards move on realtime invalidation, so the long
     // staleTime below is free while the socket is up and strands the list for
     // five minutes when it is not. Poll only in that second case.
@@ -20,10 +25,10 @@ export default function useCampaigns({ query, folder, limit = DEFAULT_PAGINATION
         GetCampaigns,
         Error,
         InfiniteData<GetCampaigns, string | null>,
-        [string, string, string, string, number],
+        [string, string, string, string, number, string],
         string | null
     >({
-        queryKey: ["campaigns", "list", query, folder, limit],
+        queryKey: ["campaigns", "list", query, folder, limit, userId],
         queryFn: async ({ pageParam }) => getCampaigns(query, pageParam, folder, limit),
         initialPageParam: null,
         getNextPageParam: (lastPage) => {
