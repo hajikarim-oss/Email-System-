@@ -261,13 +261,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const startHour = parsed.start_time || parsed.startTime || "08:00";
             const endHour = parsed.end_time || parsed.endTime || "18:00";
             const dailyCap = Number(parsed.daily_limit) || Number(parsed.max_new_leads_per_day) || 50;
+            const minTimeMs = Number(parsed.min_time_between_emails) || Number(parsed.send_interval_seconds) || 180; // Default 3 min in seconds
 
             const schedulePayload: Record<string, any> = {
                 timezone: parsed.timezone || "Asia/Kolkata",
                 days_of_the_week: daysOfTheWeek,
                 start_hour: startHour,
                 end_hour: endHour,
-                min_time_btw_emails: 3,
+                min_time_btw_emails: Math.max(30, Math.min(minTimeMs, 600)), // 30 sec - 10 min range
                 max_new_leads_per_day: dailyCap,
             };
             if (parsed.start_date) schedulePayload.start_date = parsed.start_date;
