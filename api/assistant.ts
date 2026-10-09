@@ -5,7 +5,7 @@
  */
 
 import { IncomingMessage, ServerResponse } from "http";
-import { readJsonBody, send } from "./handlers/send";
+import { readJsonBody, send } from "../server/handlers/send";
 import SYSTEM_CONTEXT from "../server/assistantContext";
 
 type AssistantRequest = {

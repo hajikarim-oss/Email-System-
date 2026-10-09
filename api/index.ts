@@ -117,6 +117,8 @@ const routes: Record<string, Handler> = {
 // Prefix routes: exact-path map above wins first, then these.
 const prefixes: [string, Handler][] = [
     ["/v1/ai/sessions", agentSessionsHandler],
+    ["/ai/sessions", agentSessionsHandler],
+    ["/api/ai/sessions", agentSessionsHandler],
     ["/api/auth/", auth],
     ["/api/v1/auth/", auth],
     ["/v1/auth/", auth],
