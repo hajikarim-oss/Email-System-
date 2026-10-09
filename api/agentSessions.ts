@@ -51,7 +51,7 @@ async function loadUserContext(userId: string) {
     // Get leads
     const leads = await prisma.campaignLead.findMany({
       where: { campaign: { userId } },
-      select: { id: true, email: true, status: true }
+      select: { id: true, email: true, status: true, name: true, company: true }
     });
 
     // Get recent replies
@@ -63,10 +63,90 @@ async function loadUserContext(userId: string) {
         id: true,
         body: true,
         status: true,
-        lead: { select: { email: true } },
+        lead: { select: { email: true, name: true } },
         createdAt: true
       }
     });
+
+    // NEW: Cold leads query (no engagement > 14 days)
+    const coldLeadsResult = await prisma.$queryRaw<any[]>`
+      SELECT
+        cl.id, cl.email, cl.name, cl.title, cl.company,
+        MAX(clr."createdAt") as "lastEngagementDate",
+        CAST(EXTRACT(DAY FROM (NOW() - MAX(clr."createdAt"))) AS INT) as "daysSinceEngagement",
+        COUNT(CASE WHEN clr.direction = 'in' THEN 1 END) as "incomingReplies"
+      FROM "CampaignLead" cl
+      LEFT JOIN "CampaignLeadReply" clr ON cl.id = clr."leadId"
+      WHERE cl."userId" = ${userId}
+      GROUP BY cl.id, cl.email, cl.name, cl.title, cl.company
+      HAVING CAST(EXTRACT(DAY FROM (NOW() - MAX(clr."createdAt"))) AS INT) > 14
+      ORDER BY CAST(EXTRACT(DAY FROM (NOW() - MAX(clr."createdAt"))) AS INT) DESC
+      LIMIT 10
+    `;
+
+    // NEW: High engagement leads (3+ interactions, multiple positive)
+    const highEngagementResult = await prisma.$queryRaw<any[]>`
+      SELECT
+        cl.id, cl.name, cl.email, cl.company,
+        COUNT(clr.id) as "totalReplies",
+        COUNT(CASE WHEN clr.status = 'positive' THEN 1 END) as "positiveReplies",
+        MAX(clr."createdAt") as "lastReply"
+      FROM "CampaignLead" cl
+      JOIN "CampaignLeadReply" clr ON cl.id = clr."leadId"
+      WHERE cl."userId" = ${userId}
+      GROUP BY cl.id, cl.name, cl.email, cl.company
+      HAVING COUNT(clr.id) >= 3
+      ORDER BY COUNT(CASE WHEN clr.status = 'positive' THEN 1 END) DESC
+      LIMIT 5
+    `;
+
+    // NEW: Recent replies with full details (last 7 days)
+    const recentRepliesResult = await prisma.$queryRaw<any[]>`
+      SELECT
+        clr.id, clr.subject, clr.body, clr."createdAt",
+        clr.status, cl.name, cl.email, cl.title, cl.company,
+        c.name as "campaign"
+      FROM "CampaignLeadReply" clr
+      JOIN "CampaignLead" cl ON clr."leadId" = cl.id
+      JOIN "Campaign" c ON cl."campaignId" = c.id
+      WHERE cl."userId" = ${userId}
+        AND clr.direction = 'in'
+        AND clr."createdAt" > NOW() - INTERVAL '7 days'
+      ORDER BY clr."createdAt" DESC
+      LIMIT 15
+    `;
+
+    // NEW: Objection patterns (last 30 days)
+    const objectionPatternsResult = await prisma.$queryRaw<any[]>`
+      SELECT
+        status,
+        COUNT(*) as count
+      FROM "CampaignLeadReply"
+      WHERE "leadId" IN (
+        SELECT id FROM "CampaignLead" WHERE "userId" = ${userId}
+      )
+        AND direction = 'in'
+        AND "createdAt" > NOW() - INTERVAL '30 days'
+      GROUP BY status
+      ORDER BY count DESC
+    `;
+
+    // NEW: Campaign performance
+    const campaignPerfResult = await prisma.$queryRaw<any[]>`
+      SELECT
+        c.id, c.name,
+        COUNT(DISTINCT cl.id) as "totalLeads",
+        COUNT(DISTINCT CASE WHEN clr.direction = 'in' THEN clr.id END) as "totalReplies",
+        ROUND(100.0 * COUNT(DISTINCT CASE WHEN clr.direction = 'in' THEN clr.id END)
+              / NULLIF(COUNT(DISTINCT cl.id), 0), 1) as "replyRate",
+        COUNT(DISTINCT CASE WHEN clr.status = 'positive' THEN clr.id END) as "positiveReplies"
+      FROM "Campaign" c
+      LEFT JOIN "CampaignLead" cl ON c.id = cl."campaignId"
+      LEFT JOIN "CampaignLeadReply" clr ON cl.id = clr."leadId"
+      WHERE c."userId" = ${userId}
+      GROUP BY c.id, c.name
+      ORDER BY c."createdAt" DESC
+    `;
 
     // Get engagement metrics
     const totalCampaigns = campaigns.length;
@@ -89,6 +169,41 @@ async function loadUserContext(userId: string) {
         totalReplies,
         recentReplies: replies
       },
+      // NEW LIVE DATA
+      coldLeads: coldLeadsResult.map((l: any) => ({
+        id: l.id,
+        name: l.name,
+        email: l.email,
+        title: l.title,
+        company: l.company,
+        daysSilent: l.daysSinceEngagement || 0,
+        incomingReplies: l.incomingReplies || 0
+      })),
+      highEngagementLeads: highEngagementResult.map((l: any) => ({
+        name: l.name,
+        email: l.email,
+        company: l.company,
+        totalInteractions: l.totalReplies || 0,
+        positiveReplies: l.positiveReplies || 0
+      })),
+      recentRepliesList: recentRepliesResult.map((r: any) => ({
+        from: r.name,
+        company: r.company,
+        subject: r.subject,
+        status: r.status,
+        campaign: r.campaign,
+        date: r.createdAt
+      })),
+      objectionPatterns: objectionPatternsResult.map((p: any) => ({
+        type: p.status,
+        count: p.count || 0
+      })),
+      campaignPerformance: campaignPerfResult.map((c: any) => ({
+        name: c.name,
+        totalLeads: c.totalLeads || 0,
+        replyRate: c.replyRate || 0,
+        positiveReplies: c.positiveReplies || 0
+      })),
       timestamp: new Date().toISOString()
     };
   } catch (error) {
@@ -98,6 +213,11 @@ async function loadUserContext(userId: string) {
       campaigns: { total: 0, active: 0, list: [] },
       leads: { total: 0, list: [] },
       engagement: { totalReplies: 0, recentReplies: [] },
+      coldLeads: [],
+      highEngagementLeads: [],
+      recentRepliesList: [],
+      objectionPatterns: [],
+      campaignPerformance: [],
       timestamp: new Date().toISOString()
     };
   }
@@ -107,25 +227,91 @@ async function loadUserContext(userId: string) {
  * Build system prompt with user's real data
  */
 function buildSystemPrompt(context: any): string {
+  const coldLeadsText = context.coldLeads && context.coldLeads.length > 0
+    ? context.coldLeads.slice(0, 5).map((l: any) =>
+        `- ${l.name} (${l.company}): ${l.daysSilent} days silent, ${l.incomingReplies} replies received`
+      ).join('\n')
+    : "None currently";
+
+  const engagementText = context.highEngagementLeads && context.highEngagementLeads.length > 0
+    ? context.highEngagementLeads.map((l: any) =>
+        `- ${l.name} (${l.company}): ${l.totalInteractions} interactions, ${l.positiveReplies} positive`
+      ).join('\n')
+    : "None yet";
+
+  const campaignPerfText = context.campaignPerformance && context.campaignPerformance.length > 0
+    ? context.campaignPerformance.slice(0, 3).map((c: any) =>
+        `- "${c.name}": ${c.totalLeads} leads, ${c.replyRate}% reply rate, ${c.positiveReplies} positive`
+      ).join('\n')
+    : "No campaigns yet";
+
+  const objectionText = context.objectionPatterns && context.objectionPatterns.length > 0
+    ? context.objectionPatterns.map((p: any) =>
+        `- ${p.type}: ${p.count} replies`
+      ).join('\n')
+    : "No patterns yet";
+
+  const recentRepliesText = context.recentRepliesList && context.recentRepliesList.length > 0
+    ? context.recentRepliesList.slice(0, 5).map((r: any) =>
+        `- ${r.from} (${r.company}): "${r.subject}" [${r.status}]`
+      ).join('\n')
+    : "No recent replies";
+
   return `You are an intelligent AI assistant for an email outreach automation system called "Email System 101".
 
-User's Current System State:
-- Total Campaigns: ${context.campaigns.total} (${context.campaigns.active} active)
-- Total Leads: ${context.leads.total}
-- Total Replies Received: ${context.engagement.totalReplies}
+YOUR USER'S LIVE SYSTEM STATE:
 
-Your role:
-1. Answer questions about their campaigns, leads, and engagement metrics using their REAL data above
-2. Provide insights and recommendations based on their actual performance
-3. Help them understand their outreach metrics and suggest improvements
-4. Be conversational but professional
-5. When asked about specific metrics, reference their actual numbers from above
+📊 CAMPAIGN METRICS:
+- Total campaigns: ${context.campaigns.total} (${context.campaigns.active} active)
+- Total leads: ${context.leads.total}
+- Total replies (all time): ${context.engagement.totalReplies}
 
-Important:
-- Always be specific to THEIR data, not generic advice
-- If you don't have data for something, say so
-- Offer to help with next steps or deeper analysis
-- Keep responses concise (2-3 sentences for quick replies, more detail if requested)
+🔴 COLD LEADS NEEDING FOLLOW-UP (>14 days silent):
+${coldLeadsText}
+
+✨ HIGH-ENGAGEMENT LEADS (Ready for next step):
+${engagementText}
+
+📈 CAMPAIGN PERFORMANCE:
+${campaignPerfText}
+
+💬 RECENT REPLY PATTERNS (Last 30 days):
+${objectionText}
+
+📨 RECENT REPLIES (Last 7 days):
+${recentRepliesText}
+
+YOUR ROLE:
+1. Answer questions about their LIVE data (not generic advice)
+2. Identify cold leads and recommend follow-up strategy
+3. Analyze specific people's replies when asked
+4. Provide data-driven insights and next steps
+5. Reference their actual leads, campaigns, and metrics
+
+IMPORTANT:
+- Be specific: Use actual lead names, campaign names, numbers from their data
+- Be actionable: Suggest concrete next steps they can take today
+- Be intelligent: Apply reasoning to their unique situation
+- Be recent: Focus on last 30 days unless they ask for longer history
+
+When user asks "Which leads went cold?":
+1. Reference the COLD LEADS list above
+2. Analyze daysSilent and prioritize
+3. Suggest specific follow-up approach
+4. Ask if they want you to generate follow-ups
+
+When user asks "Analyze [person]'s replies":
+1. Search their recent replies
+2. Extract sentiment, tone, key signals
+3. Classify: INTERESTED, OBJECTION, REJECTION, etc.
+4. Provide: Pattern, confidence level, recommendation
+5. Suggest: Next step with timeline
+
+When user asks for summary or performance:
+1. Reference actual metrics from CAMPAIGN PERFORMANCE
+2. Analyze trends from recent replies
+3. Highlight cold leads vs high engagement
+4. Provide tactical recommendations
 
 Today's date: ${new Date().toISOString()}
 User ID: ${context.userId}`;
