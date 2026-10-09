@@ -26,6 +26,8 @@ import smartleadSyncAndStart from "./smartlead/sync-and-start";
 import smartleadUpdateSequences from "./smartlead/update-sequences";
 import webhookSmartlead from "./webhooks/smartlead";
 import chat from "./chat";
+import { assistantHandler } from "./assistant";
+import { automationHandler } from "./automation";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
 
@@ -65,6 +67,20 @@ const routes: Record<string, Handler> = {
     "/v1/auth/config": auth,
     "/auth/config": auth,
     "/api/chat": chat,
+    "/api/assistant/health": assistantHandler,
+    "/api/assistant/query": assistantHandler,
+    "/api/assistant/docs": assistantHandler,
+    "/api/assistant/schema": assistantHandler,
+    "/api/assistant/workflows": assistantHandler,
+    "/api/automation/score-lead": automationHandler,
+    "/api/automation/generate-emails": automationHandler,
+    "/api/automation/analyze-reply": automationHandler,
+    "/api/automation/recommend-strategy": automationHandler,
+    "/api/automation/anomalies": automationHandler,
+    "/api/automation/improvements": automationHandler,
+    "/api/automation/approval-queue": automationHandler,
+    "/api/automation/dashboard": automationHandler,
+    "/api/automation/approve-emails": automationHandler,
     "/api/health": (_req, res) => {
         const mem = process.memoryUsage();
         const totalMem = os.totalmem();
