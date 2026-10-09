@@ -324,12 +324,13 @@ export default function CampaignsPage() {
     const teamMembers = members.filter((m) => m.role !== "owner");
     const memberByUserId = new Map(members.map((m) => [m.user_id, m]));
     const ownerUserId = members.find((m) => m.role === "owner")?.user_id ?? p.user.id ?? "";
-    const ownerOf = (c: Campaign) => String(c.userId || "") || ownerUserId;
+    const ownerOf = (c: Campaign) => String(c.userId || (c as any).user_id || "") || ownerUserId;
 
     const isMine = (c: Campaign) => {
-        const uId = String(c.userId || "");
+        const uId = String(c.userId || (c as any).user_id || "");
         if (uId && uId === currentUserId) return true;
         if (isMaster && (!uId || uId === ownerUserId)) return true;
+        if (!uId || isMaster) return true;
         return false;
     };
 
@@ -459,7 +460,7 @@ export default function CampaignsPage() {
                     </button>
                     {teamMembers.map((m) => {
                         const count = campaigns.filter((c) => {
-                            const ownerId = String(c.userId || "");
+                            const ownerId = String(c.userId || (c as any).user_id || "");
                             const memberId = String(m.user_id || "");
                             return ownerId === memberId;
                         }).length;

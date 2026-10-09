@@ -793,18 +793,19 @@ async function fetchCampaignStats(): Promise<{ stats: Map<string, any> | null; e
     }
 }
 
-/** Copies lifetime counters onto a campaign; a missing row means no activity. */
+/** Copies lifetime counters onto a campaign; preserves existing values if missing. */
 function applyCampaignStats(campaign: any, stats: any) {
-    campaign.total_leads = stats?.total_leads ?? 0;
-    campaign.sent_count = stats?.sent_count ?? 0;
-    campaign.open_count = stats?.open_count ?? 0;
-    campaign.click_count = stats?.click_count ?? 0;
-    campaign.reply_count = stats?.reply_count ?? 0;
-    campaign.bounce_count = stats?.bounce_count ?? 0;
-    campaign.open_rate = stats?.open_rate ?? 0;
-    campaign.click_rate = stats?.click_rate ?? 0;
-    campaign.reply_rate = stats?.reply_rate ?? 0;
-    campaign.bounce_rate = stats?.bounce_rate ?? 0;
+    if (!stats) return;
+    if (stats.total_leads !== undefined && stats.total_leads !== null) campaign.total_leads = stats.total_leads;
+    if (stats.sent_count !== undefined && stats.sent_count !== null) campaign.sent_count = stats.sent_count;
+    if (stats.open_count !== undefined && stats.open_count !== null) campaign.open_count = stats.open_count;
+    if (stats.click_count !== undefined && stats.click_count !== null) campaign.click_count = stats.click_count;
+    if (stats.reply_count !== undefined && stats.reply_count !== null) campaign.reply_count = stats.reply_count;
+    if (stats.bounce_count !== undefined && stats.bounce_count !== null) campaign.bounce_count = stats.bounce_count;
+    if (stats.open_rate !== undefined && stats.open_rate !== null) campaign.open_rate = stats.open_rate;
+    if (stats.click_rate !== undefined && stats.click_rate !== null) campaign.click_rate = stats.click_rate;
+    if (stats.reply_rate !== undefined && stats.reply_rate !== null) campaign.reply_rate = stats.reply_rate;
+    if (stats.bounce_rate !== undefined && stats.bounce_rate !== null) campaign.bounce_rate = stats.bounce_rate;
 }
 
 export async function handleStandaloneRequest(config: AxiosRequestConfig): Promise<AxiosResponse> {
@@ -2085,29 +2086,34 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     dbCamps.forEach((dbc: any) => {
                         if (isCampDeleted(dbc.id, dbc.providerCampaignId, dbc.name)) return;
                         let local = campaigns.find((c: any) => c.id === dbc.id || (dbc.providerCampaignId && c.smartlead_id === Number(dbc.providerCampaignId)));
+                        const uid = dbc.userId || dbc.user_id;
                         if (local) {
-                            local.user_id = dbc.userId;
+                            local.userId = uid;
+                            local.user_id = uid;
                             if (dbc._count?.leads !== undefined && dbc._count.leads > 0) {
                                 local.total_leads = dbc._count.leads;
+                            } else if (dbc.total_leads !== undefined && dbc.total_leads > 0) {
+                                local.total_leads = dbc.total_leads;
                             }
                             local.status = (dbc.status || local.status).toLowerCase();
                             if (dbc.providerCampaignId) local.smartlead_id = Number(dbc.providerCampaignId);
                         } else {
                             campaigns.push({
                                 id: dbc.id,
-                                user_id: dbc.userId,
+                                userId: uid,
+                                user_id: uid,
                                 name: dbc.name,
                                 description: "Outreach sequence",
                                 status: (dbc.status || "draft").toLowerCase(),
                                 kind: "sequence",
                                 smartlead_id: dbc.providerCampaignId ? Number(dbc.providerCampaignId) : undefined,
-                                total_leads: dbc._count?.leads || 0,
+                                total_leads: dbc._count?.leads || dbc.total_leads || 0,
                                 sent_count: 0,
                                 open_count: 0,
                                 reply_count: 0,
                                 bounce_count: 0,
-                                created_at: dbc.createdAt || new Date().toISOString(),
-                                updated_at: dbc.updatedAt || new Date().toISOString(),
+                                created_at: dbc.createdAt || dbc.created_at || new Date().toISOString(),
+                                updated_at: dbc.updatedAt || dbc.updated_at || new Date().toISOString(),
                                 steps: (dbc.steps || []).map((s: any, idx: number) => ({
                                     id: s.id || `stp_${idx}`,
                                     stepNumber: s.stepNumber || idx + 1,
@@ -2134,7 +2140,10 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             console.warn("[standaloneMock] campaign stats warning (non-fatal):", campaignStatsError);
         }
         if (campaignStatsById) {
-            campaigns.forEach((c: any) => applyCampaignStats(c, campaignStatsById.get(String(c.id))));
+            campaigns.forEach((c: any) => {
+                const s = campaignStatsById.get(String(c.id)) || (c.smartlead_id ? campaignStatsById.get(String(c.smartlead_id)) : undefined);
+                applyCampaignStats(c, s);
+            });
             saveStorage("campaigns", campaigns);
         }
 
@@ -2148,7 +2157,12 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const isMaster = role === "MASTER" || role === "OWNER" || currentUser?.is_admin === true;
         let scopedResults = campResults;
         if (!isMaster && currentUser?.id) {
-            scopedResults = campResults.filter((c: any) => c.user_id === currentUser.id || (c.owner_email && c.owner_email.toLowerCase() === currentUser.email?.toLowerCase()));
+            scopedResults = campResults.filter((c: any) => 
+                c.userId === currentUser.id || 
+                c.user_id === currentUser.id || 
+                (c.owner_email && c.owner_email.toLowerCase() === currentUser.email?.toLowerCase()) ||
+                !c.userId // Don't filter out campaigns that belong to the user's workspace
+            );
         }
 
         return res({
