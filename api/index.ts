@@ -28,7 +28,7 @@ import webhookSmartlead from "./webhooks/smartlead";
 import chat from "./chat";
 import { assistantHandler } from "./assistant";
 import { automationHandler } from "./automation";
-import { voiceAssistantHandler } from "../server/voiceAssistant";
+import { agentSessionsHandler } from "./agentSessions";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
 
@@ -82,9 +82,6 @@ const routes: Record<string, Handler> = {
     "/api/automation/approval-queue": automationHandler,
     "/api/automation/dashboard": automationHandler,
     "/api/automation/approve-emails": automationHandler,
-    "/api/voice/process": voiceAssistantHandler,
-    "/api/voice/context": voiceAssistantHandler,
-    "/api/voice/action": voiceAssistantHandler,
     "/api/health": (_req, res) => {
         const mem = process.memoryUsage();
         const totalMem = os.totalmem();
@@ -119,6 +116,7 @@ const routes: Record<string, Handler> = {
 
 // Prefix routes: exact-path map above wins first, then these.
 const prefixes: [string, Handler][] = [
+    ["/v1/ai/sessions", agentSessionsHandler],
     ["/api/auth/", auth],
     ["/api/v1/auth/", auth],
     ["/v1/auth/", auth],

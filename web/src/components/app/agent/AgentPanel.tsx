@@ -40,6 +40,8 @@ import {
     DownloadIcon,
     FileTextIcon,
     PaperclipIcon,
+    MicIcon,
+    MicOffIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -152,6 +154,10 @@ export default function AgentPanel() {
     // Stick-to-bottom: autoscroll only while the user is pinned near the end,
     // so streaming never yanks them away from scrollback they are reading.
     const [pinned, setPinned] = React.useState(true);
+    // Voice input state
+    const [isListening, setIsListening] = React.useState(false);
+    const recognitionRef = React.useRef<any>(null);
+    const synthRef = React.useRef<SpeechSynthesis | null>(null);
 
     // Members without the use-AI permission have no assistant at all (the
     // header button and Cmd+I are gated too; the backend enforces it anyway).
@@ -184,6 +190,44 @@ export default function AgentPanel() {
         if (!el) return;
         el.style.height = "0px";
         el.style.height = Math.min(el.scrollHeight, 128) + "px";
+    }, []);
+
+    // Initialize Web Speech API
+    React.useEffect(() => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRecognition && !recognitionRef.current) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = "en-US";
+
+            recognition.onstart = () => setIsListening(true);
+            recognition.onend = () => setIsListening(false);
+            recognition.onerror = (event: any) => {
+                console.error("Speech recognition error:", event.error);
+                setIsListening(false);
+                if (event.error !== "no-speech") {
+                    toast.error("Microphone error: " + event.error);
+                }
+            };
+            recognition.onresult = (event: any) => {
+                let interimTranscript = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        setDraft((prev) => (prev ? prev + " " + transcript : transcript));
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+            };
+
+            recognitionRef.current = recognition;
+        }
+
+        if (!synthRef.current && typeof window !== "undefined") {
+            synthRef.current = window.speechSynthesis;
+        }
     }, []);
 
     // Opening (or restoring from the dock) with no tabs starts a fresh
@@ -423,9 +467,22 @@ export default function AgentPanel() {
         useAppStore.getState().agentOpenSession(s.id, s.title || "Conversation");
     }
 
-    function setDraft(value: string) {
+    function setDraft(value: string | ((prev: string) => string)) {
         if (activeTab) {
-            useAppStore.getState().agentPatchTab(activeTab.key, { draft: value });
+            const newValue = typeof value === "function" ? value(draft) : value;
+            useAppStore.getState().agentPatchTab(activeTab.key, { draft: newValue });
+        }
+    }
+
+    function toggleVoiceInput() {
+        if (!recognitionRef.current) {
+            toast.error("Speech recognition not supported in your browser");
+            return;
+        }
+        if (isListening) {
+            recognitionRef.current.stop();
+        } else {
+            recognitionRef.current.start();
         }
     }
 
@@ -936,6 +993,24 @@ export default function AgentPanel() {
                                     className="size-7 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center justify-center transition-colors shrink-0 cursor-pointer disabled:opacity-40"
                                 >
                                     <PaperclipIcon className="w-4 h-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={toggleVoiceInput}
+                                    disabled={composerLocked}
+                                    title={isListening ? "Stop listening" : "Click to speak (microphone)"}
+                                    className={cn(
+                                        "size-7 rounded-md inline-flex items-center justify-center transition-colors shrink-0 cursor-pointer disabled:opacity-40",
+                                        isListening
+                                            ? "bg-red-100 text-red-600 hover:bg-red-200"
+                                            : "text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+                                    )}
+                                >
+                                    {isListening ? (
+                                        <MicIcon className="w-4 h-4" />
+                                    ) : (
+                                        <MicOffIcon className="w-4 h-4" />
+                                    )}
                                 </button>
                                 <textarea
                                     ref={inputRef}
