@@ -59,6 +59,11 @@ try {
         localStorage.removeItem("token");
         localStorage.setItem(freshResetKey, "true");
     }
+    const oct9SyncKey = STORAGE_KEY_PREFIX + "v25_oct9_snehal_sync_reset";
+    if (!localStorage.getItem(oct9SyncKey)) {
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
+        localStorage.setItem(oct9SyncKey, "true");
+    }
     const uniboxAccuracyKey = STORAGE_KEY_PREFIX + "campaigns_sep24_v22_genuine_luggage_pool";
     if (!localStorage.getItem(uniboxAccuracyKey)) {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");

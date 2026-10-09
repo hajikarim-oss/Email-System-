@@ -339,7 +339,7 @@ export default function CampaignsPage() {
 
     const scopedCampaigns = useMemo(() => {
         if (!isMaster) {
-            return campaigns.filter(isMine);
+            return campaigns;
         }
         if (memberFilter) {
             return campaigns.filter((c) => ownerOf(c) === memberFilter);
