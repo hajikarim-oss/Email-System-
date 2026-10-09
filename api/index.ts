@@ -28,6 +28,7 @@ import webhookSmartlead from "./webhooks/smartlead";
 import chat from "./chat";
 import { assistantHandler } from "./assistant";
 import { automationHandler } from "./automation";
+import { voiceAssistantHandler } from "../server/voiceAssistant";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
 
@@ -81,6 +82,9 @@ const routes: Record<string, Handler> = {
     "/api/automation/approval-queue": automationHandler,
     "/api/automation/dashboard": automationHandler,
     "/api/automation/approve-emails": automationHandler,
+    "/api/voice/process": voiceAssistantHandler,
+    "/api/voice/context": voiceAssistantHandler,
+    "/api/voice/action": voiceAssistantHandler,
     "/api/health": (_req, res) => {
         const mem = process.memoryUsage();
         const totalMem = os.totalmem();
