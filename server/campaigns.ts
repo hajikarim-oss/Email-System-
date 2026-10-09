@@ -199,11 +199,11 @@ async function readCampaignSteps(query: QueryFn, campaignId: string, startTs: st
                     count(DISTINCT e."leadId") FILTER (WHERE e."eventType" IN ${inList(BOUNCE_EVENTS)})::int AS bounces
              FROM "EmailEvent" e
              JOIN "Lead" l ON l.id = e."leadId"
-             WHERE l."campaignId" = $2
+             WHERE l."campaignId" = $1
                AND substring(coalesce(e."rawPayload"->>'description', '') from 'Email (\\d+)') IS NOT NULL
              GROUP BY 1
              ORDER BY 1`,
-            [startTs, campaignId],
+            [campaignId],
         ),
         query(
             `SELECT id, "stepNumber" as step_number, subject, "delayDays" as delay_days

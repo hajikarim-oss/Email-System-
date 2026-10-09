@@ -64,7 +64,7 @@ try {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
         localStorage.setItem(oct9SyncKey, "true");
     }
-    const uniboxAccuracyKey = STORAGE_KEY_PREFIX + "campaigns_sep24_v22_genuine_luggage_pool";
+    const uniboxAccuracyKey = STORAGE_KEY_PREFIX + "campaigns_oct09_health_outreach_v26";
     if (!localStorage.getItem(uniboxAccuracyKey)) {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
         localStorage.removeItem(STORAGE_KEY_PREFIX + "emails");
@@ -4082,8 +4082,48 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         labels: [{ id: "cat_2", title: "Follow Up", color: "#3b82f6" }],
     };
 
+    // Health Outreach Campaign reply - Rupesh Raut (Atreya Innovations Private)
+    const rupeshRepliedRow = {
+        id: "msg_reply_rupesh_health",
+        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
+        shared_email_ids: ["cmu6m304o00003307qj8ex6oa", "cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
+        thread_id: "th_camp_rupesh_health",
+        campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
+        campaign_name: "Health Outreach Campaign",
+        from_addr: ["Rupesh Raut <rupesh.raut@atreyainnovations.com>"],
+        to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+        subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
+        snippet: "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect. Thanks, Rupesh",
+        internal_date: "2026-10-09T04:53:04.000Z",
+        seen: false,
+        message_count: 2,
+        has_unread: true,
+        folder: "inbox",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    const rupeshSentRow = {
+        id: "sent_init_rupesh_health",
+        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
+        shared_email_ids: ["cmu6m304o00003307qj8ex6oa", "cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
+        thread_id: "th_camp_rupesh_health",
+        campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
+        campaign_name: "Health Outreach Campaign",
+        from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+        to_addr: ["Rupesh Raut <rupesh.raut@atreyainnovations.com>"],
+        subject: "Diwali Influencer Marketing Partnership — TheBoredMonkey",
+        snippet: "Hi Rupesh. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...",
+        internal_date: "2026-10-08T12:27:45.534Z",
+        seen: true,
+        message_count: 2,
+        has_unread: false,
+        folder: "sent",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
     // Complete real conversations mapped across all team members
     const defaultInboxRows = [
+        rupeshRepliedRow,
         rajdeepRepliedRow,
         snehalReachout101Row,
         surajFrameworkRow,
@@ -4133,8 +4173,10 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         ...cleanStoredInbox,
         ...defaultInboxRows.filter(d => !cleanStoredInbox.some(c => c.thread_id === d.thread_id))
     ];
+    allInboxRows.sort((a, b) => new Date(b.internal_date || 0).getTime() - new Date(a.internal_date || 0).getTime());
 
     const defaultSentRows = [
+        rupeshSentRow,
         {
             id: "sent_init_jayant_missmosa",
             email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
@@ -4349,13 +4391,22 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         // 1. Mailbox account filtering
         if (targetMailboxIds.length > 0) {
-            pool = pool.filter(r => targetMailboxIds.includes(r.email_id));
+            pool = pool.filter(r => 
+                targetMailboxIds.includes(r.email_id) || 
+                (r.shared_email_ids && r.shared_email_ids.some((id: string) => targetMailboxIds.includes(id))) ||
+                (r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec")
+            );
         }
 
         // 1b. Campaign filtering
         const campaignFilter = queryParams.get("campaign_id") || queryParams.get("campaignId") || "";
         if (campaignFilter && campaignFilter !== "all") {
-            pool = pool.filter(r => r.campaign_id === campaignFilter || r.campaignId === campaignFilter);
+            pool = pool.filter(r => 
+                r.campaign_id === campaignFilter || 
+                r.campaignId === campaignFilter ||
+                (campaignFilter === "3bdf7199-cc30-4461-873d-d9928b9c31ec" && (r.campaign_name === "Health Outreach Campaign" || r.campaign_id === "4103333")) ||
+                (campaignFilter === "4103333" && (r.campaign_name === "Health Outreach Campaign" || r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec"))
+            );
         }
 
         // 2. Search query filtering
@@ -4409,7 +4460,32 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const customReplies = loadStorage<any[]>(`thread_replies_${threadId}`, []);
 
         let threadMessages: any[] = [];
-        if (threadId === "th_camp_jayant_missmosa" || threadId.includes("jayant") || threadId.includes("missmosa")) {
+        if (threadId === "th_camp_rupesh_health" || threadId.includes("rupesh") || threadId.includes("health")) {
+            threadMessages = [
+                {
+                    id: "sent_init_rupesh_health",
+                    email_id: "cmtu07q0i00011wxajyd2ehui",
+                    thread_id: threadId,
+                    from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+                    to_addr: ["Rupesh Raut <rupesh.raut@atreyainnovations.com>"],
+                    subject: "Diwali Influencer Marketing Partnership — TheBoredMonkey",
+                    snippet: "Hi Rupesh. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...",
+                    internal_date: "2026-10-08T12:27:45.534Z",
+                    seen: true,
+                },
+                {
+                    id: "msg_reply_rupesh_health",
+                    email_id: "cmtu07q0i00011wxajyd2ehui",
+                    thread_id: threadId,
+                    from_addr: ["Rupesh Raut <rupesh.raut@atreyainnovations.com>"],
+                    to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
+                    subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
+                    snippet: "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect. Thanks, Rupesh",
+                    internal_date: "2026-10-09T04:53:04.000Z",
+                    seen: false,
+                }
+            ];
+        } else if (threadId === "th_camp_jayant_missmosa" || threadId.includes("jayant") || threadId.includes("missmosa")) {
             threadMessages = [
                 {
                     id: "sent_init_jayant_missmosa",
@@ -4649,6 +4725,56 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery.startsWith("/unibox/")) {
         const emailMsgId = pathWithoutQuery.replace("/unibox/", "");
         if (emailMsgId && !emailMsgId.includes("/")) {
+            if (emailMsgId.includes("rupesh")) {
+                const isReply = emailMsgId.includes("reply");
+                const fromAddr = isReply ? "Rupesh Raut <rupesh.raut@atreyainnovations.com>" : "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>";
+                const toAddr = isReply ? "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>" : "Rupesh Raut <rupesh.raut@atreyainnovations.com>";
+                const subject = isReply ? "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey" : "Diwali Influencer Marketing Partnership — TheBoredMonkey";
+                const snippet = isReply
+                    ? "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect. Thanks, Rupesh"
+                    : "Hi Rupesh. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...";
+                const html = isReply
+                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 16px 0;">Hi Vatsal,</p>
+                        <p style="margin: 0 0 16px 0;">Thank you for reaching out.</p>
+                        <p style="margin: 0 0 16px 0;">I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect.</p>
+                        <p style="margin: 0;">Thanks,<br/><strong>Rupesh Raut</strong><br/><span style="color: #64748b;">Atreya Innovations Private</span></p>
+                    </div>`
+                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Hi Rupesh,</p>
+                        <p style="margin: 0 0 14px 0;">With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result.</p>
+                        <p style="margin: 0 0 14px 0;">We are TheBoredMonkey. 4,000+ regional creators across Tamil, Telugu, Kannada, and Malayalam, including doctors, nutritionists, and large-format creators.</p>
+                        <p style="margin: 0 0 14px 0;"><strong>Recent work:</strong><br/>
+                        • Atomberg: YouTube creator seeding, 4 years, category dominance<br/>
+                        • Setu Nutrition: expert-led campaigns, 2.8M+ views, Rs 0.35 cost per view<br/>
+                        • Wakefit: regional creator strategy, 6x return on investment<br/>
+                        • Slice UPI: trust-led fintech creator campaigns</p>
+                        <p style="margin: 0 0 14px 0;">What is Atreya Innovations Private focusing on this Diwali?<br/>Open to a 15-minute call this week?</p>
+                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
+                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
+                            <p style="margin: 0 0 2px 0;"><strong>Vatsal Vadecha</strong> | Brand Partnership</p>
+                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
+                            <p style="margin: 0 0 2px 0;">Contact: +91 99452 10466</p>
+                        </div>
+                    </div>`;
+
+                return res({
+                    id: emailMsgId,
+                    from: fromAddr,
+                    to: toAddr,
+                    subject: subject,
+                    snippet: snippet,
+                    date: isReply ? "2026-10-09T04:53:04.000Z" : "2026-10-08T12:27:45.534Z",
+                    is_seen: !isReply,
+                    thread_id: "th_camp_rupesh_health",
+                    account_id: "cmtu07q0i00011wxajyd2ehui",
+                    body_plain: snippet,
+                    body_html: html,
+                    body_truncated: false,
+                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+                });
+            }
+
             if (emailMsgId.includes("jayant") || emailMsgId.includes("missmosa")) {
                 const isReply = emailMsgId.includes("reply");
                 const fromAddr = isReply ? "Jayant <jayant@missmosa.in>" : "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>";
