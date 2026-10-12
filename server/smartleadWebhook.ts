@@ -206,6 +206,22 @@ function releaseWriteLock(): void {
  * idempotent).
  */
 export async function recordSmartleadEvent(payload: Record<string, any>): Promise<SmartleadEventOutcome> {
+    const rawType = String(payload.event_type || payload.type || "").toUpperCase();
+    if (rawType === "CAMPAIGN_STATUS_CHANGED" || rawType === "CAMPAIGN_COMPLETED" || rawType === "CAMPAIGN_STOPPED") {
+        const campaignId = payload.email_campaign_id || payload.campaign_id;
+        const status = payload.status || payload.campaign_status;
+        if (campaignId && status) {
+            const mapped = ["COMPLETED", "STOPPED", "DONE"].includes(String(status).toUpperCase())
+                ? "COMPLETED"
+                : String(status).toUpperCase() === "PAUSED" ? "PAUSED" : "ACTIVE";
+            await pgQuery(
+                `UPDATE "Campaign" SET status = $1, "updatedAt" = NOW() WHERE "providerCampaignId" = $2`,
+                [mapped, String(campaignId)]
+            );
+            return "persisted";
+        }
+    }
+
     const eventType = mapSmartleadEventType(payload.event_type || payload.type);
     if (!eventType) return "unsupported";
 

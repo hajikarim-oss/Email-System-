@@ -35,10 +35,11 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
         cron?: any;
     } | null>(null);
 
-    const isActive = campaign.status === "active";
-    const smartleadId = (campaign as any).smartlead_id && (campaign as any).smartlead_id !== 3980068
-        ? (campaign as any).smartlead_id
-        : (campaign.id?.includes("1789718475256") || campaign.name?.includes("Q2 Reachout")
+    const isActive = (campaign.status || "").toLowerCase() === "active";
+    const smartleadId = (campaign as any).providerCampaignId
+        || (campaign as any).provider_campaign_id
+        || ((campaign as any).smartlead_id && (campaign as any).smartlead_id !== 3980068 ? (campaign as any).smartlead_id : null)
+        || (campaign.id?.includes("1789718475256") || campaign.name?.includes("Q2 Reachout")
             ? 3980868
             : (campaign.name?.includes("116") || campaign.id?.includes("116") ? 3967633 : 3959417));
 
@@ -46,7 +47,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
     const fetchSmartleadStatus = React.useCallback(async (showToast = false) => {
         setIsSyncing(true);
         try {
-            const res = await fetch(`/api/smartlead/status?id=${smartleadId}`);
+            const res = await fetch(`/api/smartlead/status?id=${smartleadId}${showToast ? "&sync=true" : ""}`);
             if (res.ok) {
                 const data = await res.json();
                 setSmartleadData({
@@ -57,7 +58,9 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                 });
                 setLastSynced(new Date());
                 if (showToast) {
-                    toast.success(`Smartlead Synced: Campaign #${data.id || smartleadId} is ${isActive ? "ACTIVE" : (data.status || "ACTIVE")}`);
+                    toast.success(`Smartlead Synced: Campaign #${data.id || smartleadId} is ${data.status || "COMPLETED"}`);
+                    queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+                    queryClient.invalidateQueries({ queryKey: ["analytics"] });
                 }
             }
         } catch (err) {

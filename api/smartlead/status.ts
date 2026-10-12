@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
 import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
 import { requireUser } from "../../server/handlers/auth";
+import { pgQuery } from "../../server/pg";
 
 const PRIMARY_KEY = smartleadPrimary();
 const SECONDARY_KEY = smartleadSecondary();
@@ -75,6 +76,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     }
                 } catch { }
             }
+
+            // Sync campaign status and telemetry into PostgreSQL
+            try {
+                const parsedData = JSON.parse(result.data || "{}");
+                const slStatus = (parsedData.status || "").toUpperCase();
+                if (slStatus) {
+                    let mappedStatus = "ACTIVE";
+                    if (slStatus === "COMPLETED" || slStatus === "STOPPED" || slStatus === "DONE") mappedStatus = "COMPLETED";
+                    else if (slStatus === "PAUSED") mappedStatus = "PAUSED";
+                    else if (slStatus === "DRAFT") mappedStatus = "DRAFT";
+                    await pgQuery(`UPDATE "Campaign" SET status = $1, "updatedAt" = NOW() WHERE "providerCampaignId" = $2`, [mappedStatus, String(smartleadId)]);
+                }
+                if (url.searchParams.get("sync") === "true") {
+                    const { reconcileCampaign } = await import("../../server/reconcileCampaign");
+                    await reconcileCampaign(smartleadId, initialKey);
+                }
+            } catch (syncErr) {
+                console.warn("[smartlead/status] DB sync error:", syncErr);
+            }
+
             res.writeHead(result.statusCode, { "Content-Type": "application/json" });
             res.end(result.data);
             return;
