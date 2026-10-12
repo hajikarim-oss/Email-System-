@@ -10,12 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
+        id: deploy_attempt_1
         uses: appleboy/ssh-action@v1.2.0
+        continue-on-error: true
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          timeout: 60s
           command_timeout: 10m
           script: |
             echo "🚀 Starting automated deployment on VPS..."
@@ -40,6 +43,38 @@ jobs:
             cd /var/www/email-system
             
             # Zero-downtime PM2 reload
+            echo "🔄 Reloading PM2 processes..."
+            pm2 reload ecosystem.config.js || pm2 start ecosystem.config.js
+            
+            echo "✅ Deployment successful! Live at https://tbmoutreach.tech"
+
+      - name: Retry Deploy via SSH (if first attempt timed out)
+        if: steps.deploy_attempt_1.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            echo "🚀 Retrying automated deployment on VPS..."
+            cd /var/www/email-system
+            
+            git fetch origin main
+            git reset --hard origin/main
+            pnpm install
+            
+            echo "📦 Building Frontend A..."
+            pnpm --dir web build
+            
+            echo "⚡ Generating Prisma & Building Next.js..."
+            cd /var/www/email-system/nexus-outbound
+            npx prisma generate
+            npx next build
+            cd /var/www/email-system
+            
             echo "🔄 Reloading PM2 processes..."
             pm2 reload ecosystem.config.js || pm2 start ecosystem.config.js
             
