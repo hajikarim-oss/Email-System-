@@ -9,65 +9,173 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("subject")?.toLowerCase();
+    const emailIds = searchParams.get("email_ids")?.split(",").filter(Boolean);
+    const campaignId = searchParams.get("campaign_id");
+    const memberId = searchParams.get("member_id");
+    const since = searchParams.get("since");
+    const until = searchParams.get("until");
+    const unseen = searchParams.get("unseen") === "true";
+    const awaitingReply = searchParams.get("awaiting_reply") === "true";
+    const folder = searchParams.get("folder");
+    const categoryIds = searchParams.get("category_ids")?.split(",").filter(Boolean);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+    const cursor = searchParams.get("cursor");
 
-    // Query leads who have replied or have events
-    const repliedLeads = await prisma.lead.findMany({
+    const isMaster = (user as any).role === "MASTER";
+
+    // Build campaign filter
+    const campaignWhere: any = {};
+    if (!isMaster) {
+      campaignWhere.userId = user.id;
+    } else if (memberId && memberId !== "all") {
+      campaignWhere.userId = memberId;
+    }
+
+    if (emailIds && emailIds.length > 0) {
+      campaignWhere.mailboxes = { some: { mailboxId: { in: emailIds } } };
+    }
+
+    // Build lead filter
+    const leadWhere: any = {
+      campaignId: { not: null },
+      events: { some: { eventType: { in: ["sent", "replied"] } } },
+    };
+
+    if (Object.keys(campaignWhere).length > 0) {
+      leadWhere.campaign = campaignWhere;
+    }
+
+    if (campaignId && campaignId !== "all") {
+      leadWhere.campaignId = campaignId;
+    }
+
+    if (unseen) {
+      leadWhere.status = "REPLIED";
+    }
+
+    if (awaitingReply) {
+      leadWhere.status = "ACTIVE";
+      leadWhere.totalOutbound = { gt: 0 };
+    }
+
+    if (folder === "inbox") {
+      leadWhere.status = "REPLIED";
+    } else if (folder === "sent") {
+      leadWhere.totalOutbound = { gt: 0 };
+    }
+
+    if (categoryIds && categoryIds.length > 0) {
+      const catMap: Record<string, string[]> = {
+        cat_interested: ["WORKING"],
+        cat_hot: ["WORKING"],
+        cat_warm: ["POTENTIAL"],
+        cat_bounced: ["DO_NOT_CONTACT"],
+      };
+      const cats = categoryIds.flatMap((id) => catMap[id] || []);
+      if (cats.length > 0) {
+        leadWhere.leadCategory = { in: cats };
+      }
+    }
+
+    if (since) {
+      leadWhere.updatedAt = { ...(leadWhere.updatedAt || {}), gte: new Date(since) };
+    }
+    if (until) {
+      leadWhere.updatedAt = { ...(leadWhere.updatedAt || {}), lte: new Date(until + "T23:59:59.999Z") };
+    }
+
+    if (cursor) {
+      leadWhere.updatedAt = { ...(leadWhere.updatedAt || {}), lt: new Date(cursor) };
+    }
+
+    const leads = await prisma.lead.findMany({
+      where: leadWhere,
       include: {
-        campaign: { select: { id: true, name: true } },
+        campaign: { select: { id: true, name: true, userId: true } },
         events: {
+          where: { eventType: { in: ["sent", "replied"] } },
           orderBy: { createdAt: "desc" },
-          take: 5,
+          take: 1,
         },
       },
       orderBy: { updatedAt: "desc" },
-      take: 50,
+      take: limit + 1,
     });
 
-    const mailboxes = await prisma.mailbox.findMany({ take: 1 });
-    const defaultSender = mailboxes[0]?.senderEmail || "outreach@theboredmonkey.com";
-    const defaultMailboxId = mailboxes[0]?.id || "mb_default";
+    const hasMore = leads.length > limit;
+    const items = hasMore ? leads.slice(0, limit) : leads;
 
-    const rows = repliedLeads.map((l, index) => {
-      const isReplied = l.status === "REPLIED" || !!l.repliedAt;
-      const latestEvent = l.events[0];
-      const snippet = isReplied
-        ? `Thanks for reaching out! Let's schedule a call on Tuesday at 2 PM.`
-        : `Sent sequence step #${l.lastStepSent || 1} regarding cold outreach automation.`;
+    const rows = items.map((lead) => {
+      const latestEvent = lead.events[0];
+      const raw = (latestEvent?.rawPayload || {}) as Record<string, any>;
 
-      const subject = isReplied
-        ? `Re: Connecting regarding outreach infrastructure`
-        : `Quick question for ${l.firstName || "you"}`;
+      const isReply = latestEvent?.eventType === "replied";
+
+      const subject =
+        raw.subject ||
+        raw.email_subject ||
+        (isReply
+          ? `Re: ${lead.campaign?.name || "Outreach"}`
+          : `Outreach to ${lead.firstName || lead.email}`);
+
+      const snippetRaw =
+        raw.reply_text || raw.body || raw.email_body || raw.snippet || "";
+      const snippet = String(snippetRaw).replace(/<[^>]*>/g, "").slice(0, 300);
+
+      const fromEmail = latestEvent?.fromEmail || "";
+      const fromAddr = isReply ? [lead.email] : [fromEmail || "outreach@theboredmonkey.com"];
+      const toAddr = isReply ? [fromEmail || "outreach@theboredmonkey.com"] : [lead.email];
+
+      const hasUnread = lead.status === "REPLIED";
+      const messageCount = (lead.totalOutbound || 0) + (lead.totalInbound || 0) || 1;
+
+      const labels: { id: string; title: string; color: string }[] = [];
+      if (lead.leadCategory === "WORKING" || lead.status === "REPLIED") {
+        labels.push({ id: "cat_interested", title: "Interested", color: "#10b981" });
+      } else if (lead.leadCategory === "POTENTIAL") {
+        labels.push({ id: "cat_warm", title: "Warm", color: "#f59e0b" });
+      } else if (lead.status === "BOUNCED") {
+        labels.push({ id: "cat_bounced", title: "Bounced", color: "#ef4444" });
+      }
 
       return {
-        id: `msg_${l.id}`,
-        email_id: defaultMailboxId,
-        thread_id: `th_${l.id}`,
-        from_addr: isReplied ? [l.email] : [defaultSender],
-        to_addr: isReplied ? [defaultSender] : [l.email],
-        subject,
+        id: `msg_${lead.id}`,
+        email_id: "mb_default",
+        thread_id: `th_${lead.id}`,
+        from_addr: fromAddr,
+        to_addr: toAddr,
+        subject: subject.slice(0, 200),
         snippet,
-        internal_date: (l.repliedAt || l.updatedAt).toISOString(),
-        seen: index > 2,
-        message_count: isReplied ? 2 : 1,
-        has_unread: index <= 2,
-        labels: isReplied
-          ? [{ id: "cat_hot", title: "Interested", color: "#10b981" }]
-          : [{ id: "cat_warm", title: "In Sequence", color: "#6366f1" }],
+        internal_date: (latestEvent?.createdAt || lead.updatedAt).toISOString(),
+        seen: !hasUnread,
+        message_count: messageCount,
+        has_unread: hasUnread,
+        labels,
+        campaign_id: lead.campaignId,
+        campaign_name: lead.campaign?.name,
       };
     });
 
+    // Subject/text search post-filter
     const filtered = query
-      ? rows.filter((r) => r.subject.toLowerCase().includes(query) || r.snippet.toLowerCase().includes(query))
+      ? rows.filter(
+          (r) =>
+            r.subject.toLowerCase().includes(query) ||
+            r.snippet.toLowerCase().includes(query) ||
+            r.from_addr.some((a) => a.toLowerCase().includes(query)) ||
+            r.to_addr.some((a) => a.toLowerCase().includes(query)),
+        )
       : rows;
 
     return jsonOk({
       data: filtered,
       pagination: {
-        has_more: false,
-        next_cursor: null,
+        has_more: hasMore,
+        next_cursor: hasMore ? items[items.length - 1]?.updatedAt.toISOString() : null,
       },
     });
   } catch (err: any) {
+    console.error("[unibox] Error:", err);
     return jsonErr(err.message, 500);
   }
 }

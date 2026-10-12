@@ -21,7 +21,7 @@ import { ScheduledList } from "@/components/app/unibox/ScheduledList";
 import { ThreadView } from "@/components/app/unibox/ThreadView";
 import { ScopeRail, scopeKey, type UniboxScope } from "@/components/app/unibox/ScopeRail";
 import { ScopeSheet } from "@/components/app/unibox/ScopeSheet";
-import { UniboxHeader, UNIBOX_TEAM_MEMBERS, type UniboxDatePreset, type UniboxDateFilterState } from "@/components/app/unibox/UniboxHeader";
+import { UniboxHeader, type UniboxDatePreset, type UniboxDateFilterState } from "@/components/app/unibox/UniboxHeader";
 import useFeatureAccess from "@/hooks/useFeatureAccess";
 import { LockedSurface } from "@/components/layout/LockedSurface";
 import { NoAccess } from "@/components/layout/NoAccess";
@@ -312,10 +312,7 @@ export default function UniboxPage() {
       }
 
       if (selectedMemberId !== "all" && scope.kind !== "mailbox") {
-        const mem = UNIBOX_TEAM_MEMBERS.find((m) => m.id === selectedMemberId);
-        if (mem && mem.mailboxIds.length > 0) {
-          next.accountIds = mem.mailboxIds;
-        }
+        next.memberId = selectedMemberId;
       }
 
       if (selectedCampaignId !== "all") {

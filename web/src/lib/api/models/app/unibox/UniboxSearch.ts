@@ -62,6 +62,7 @@ export interface UniboxSearchParams {
    */
   categoryIds?: string[];
   campaignId?: string;
+  memberId?: string;
   since?: Date; // From date
   until?: Date; // To date
   sortBy?: "newest" | "oldest";

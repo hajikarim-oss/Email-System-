@@ -314,6 +314,18 @@ export function NewCampaignDialog({ open, onClose }: Props) {
         [],
     );
 
+    const dirty =
+        draft.name.trim() !== "" ||
+        draft.description.trim() !== "" ||
+        draft.emailTagIds.length > 0 ||
+        draft.segmentIds.length > 0 ||
+        !draft.stopOnReply ||
+        !draft.openTracking ||
+        !draft.linkTracking ||
+        !draft.utmTracking ||
+        !draft.unsubHeader ||
+        draft.sequences.some((s) => s.subject.trim() !== "" || s.body_plain.trim() !== "");
+
     React.useEffect(() => {
         if (!open) {
             setStep(0);
@@ -398,18 +410,6 @@ export function NewCampaignDialog({ open, onClose }: Props) {
         }
         if (step < lastStep) goTo(step + 1);
     }, [issue, step, lastStep, goTo]);
-
-    const dirty =
-        draft.name.trim() !== "" ||
-        draft.description.trim() !== "" ||
-        draft.emailTagIds.length > 0 ||
-        draft.segmentIds.length > 0 ||
-        !draft.stopOnReply ||
-        !draft.openTracking ||
-        !draft.linkTracking ||
-        !draft.utmTracking ||
-        !draft.unsubHeader ||
-        draft.sequences.some((s) => s.subject.trim() !== "" || s.body_plain.trim() !== "");
 
     const isPending = create.isPending || submitting;
 

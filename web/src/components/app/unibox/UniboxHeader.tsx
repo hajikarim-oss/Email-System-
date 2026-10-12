@@ -19,14 +19,13 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import { cn } from "@/lib/utils";
 
 import useCampaigns from "@/lib/api/hooks/app/campaigns/useCampaigns";
+import useTeamMembers from "@/lib/api/hooks/app/unibox/useTeamMembers";
+import type { UniboxTeamMember } from "@/lib/api/client/app/unibox/getTeamMembers";
 
-export const UNIBOX_TEAM_MEMBERS = [
+export const UNIBOX_TEAM_MEMBERS: UniboxTeamMember[] = [
     { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 0 },
-    { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master", mailboxIds: ["cmtlkufpi000o80qmmlfsfat7"], unread: 0 },
-    { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 0 },
-    { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach", mailboxIds: ["cmu6m31bv00033307zao17anp", "cmu6m31vx00053307frspcjkj"], unread: 0 },
-    { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 1 },
 ];
+const FALLBACK_TEAM_MEMBERS = UNIBOX_TEAM_MEMBERS;
 
 export const UNIBOX_CAMPAIGNS = [
     { id: "all", name: "All Campaigns", code: "All", leadCount: 381, unread: 1 },
@@ -81,30 +80,25 @@ export function UniboxHeader({
     const overview = useUniboxOverview();
     const data = overview.data;
 
+    const teamQuery = useTeamMembers();
+    const UNIBOX_TEAM_MEMBERS = teamQuery.data || FALLBACK_TEAM_MEMBERS;
+
     const campaignsQuery = useCampaigns({ query: "", folder: "all" });
     const allCampaignsList = React.useMemo(() => {
         const pages = campaignsQuery.data?.pages || [];
         const flat = pages.flatMap((p) => p.data || []);
-        const dynamic = flat.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            code: c.id.length > 10 ? `#${c.id.slice(0, 8)}` : c.id,
-            leadCount: c.total_leads || c.totalLeads || 0,
-            unread: c.reply_count || c.replies || (c.id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" ? 1 : 0),
-            memberId: c.userId || c.user_id || undefined,
-        }));
-        const map = new Map<string, any>();
-        for (const c of UNIBOX_CAMPAIGNS) {
-            map.set(c.id, c);
-        }
-        for (const c of dynamic) {
-            if (map.has(c.id)) {
-                map.set(c.id, { ...map.get(c.id), ...c });
-            } else {
-                map.set(c.id, c);
-            }
-        }
-        return Array.from(map.values());
+        const all = [
+            { id: "all", name: "All Campaigns", code: "All", leadCount: 0, unread: 0, memberId: undefined as string | undefined },
+            ...flat.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                code: c.id.length > 10 ? `#${c.id.slice(0, 8)}` : c.id,
+                leadCount: c.total_leads || c.totalLeads || c.leadsCount || 0,
+                unread: c.reply_count || c.replies || 0,
+                memberId: (c.userId || c.user_id || undefined) as string | undefined,
+            })),
+        ];
+        return all;
     }, [campaignsQuery.data]);
 
     const currentMember = UNIBOX_TEAM_MEMBERS.find((m) => m.id === selectedMemberId) || UNIBOX_TEAM_MEMBERS[0];
