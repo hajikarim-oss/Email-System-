@@ -396,30 +396,37 @@ export class SmartleadProvider implements EmailProvider {
   // Set sending schedule for a campaign (required before starting)
   // Smartlead rotates across linked mailboxes — with 2 mailboxes and 1min interval,
   // effective speed is ~1 email every 30-40 seconds
+  //
+  // Smartlead day format: 0=Sun, 1=Mon, ..., 6=Sat (same as JS Date.getDay()).
+  // DB preferredSendDays uses the same convention, so no conversion needed.
   async setSchedule(
     providerCampaignId: string,
     schedule: {
       timezone?: string;
-      daysOfWeek?: number[]; // 1=Mon through 7=Sun
+      daysOfWeek?: number[]; // 0=Sun, 1=Mon, ..., 6=Sat (JS getDay)
       startHour?: string;    // "09:00"
       endHour?: string;      // "17:00"
       minTimeBetweenEmails?: number; // minutes (Smartlead min: 1)
       maxNewLeadsPerDay?: number;
+      startDate?: string;    // "YYYY-MM-DD" — campaign starts sending on this date
     }
   ): Promise<{ success: boolean }> {
+    const payload: Record<string, any> = {
+      timezone: schedule.timezone ?? "UTC",
+      days_of_the_week: schedule.daysOfWeek ?? [1, 2, 3, 4, 5],
+      start_hour: schedule.startHour ?? "09:00",
+      end_hour: schedule.endHour ?? "17:00",
+      min_time_btw_emails: schedule.minTimeBetweenEmails ?? 3,
+      max_new_leads_per_day: schedule.maxNewLeadsPerDay ?? 50,
+    };
+    if (schedule.startDate) payload.start_date = schedule.startDate;
+
     const response = await fetch(
       this.getUrl(`/campaigns/${providerCampaignId}/schedule`),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timezone: schedule.timezone ?? "UTC",
-          days_of_the_week: schedule.daysOfWeek ?? [1, 2, 3, 4, 5],
-          start_hour: schedule.startHour ?? "09:00",
-          end_hour: schedule.endHour ?? "17:00",
-          min_time_btw_emails: schedule.minTimeBetweenEmails ?? 3,
-          max_new_leads_per_day: schedule.maxNewLeadsPerDay ?? 50,
-        }),
+        body: JSON.stringify(payload),
       }
     );
 

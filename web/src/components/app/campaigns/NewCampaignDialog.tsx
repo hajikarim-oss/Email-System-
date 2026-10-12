@@ -78,6 +78,8 @@ const EVERY_DAY_MASK = 0b1111111;
 
 const NAME_MIN = 3;
 const NAME_MAX = 50;
+const DRAFT_STORAGE_KEY = "tbm_campaign_draft";
+const AUTO_SAVE_DELAY = 2000;
 
 type StepKey = "basics" | "contacts" | "schedule" | "sending" | "email" | "audience" | "send";
 type StepDef = { key: StepKey; label: string; icon: typeof MegaphoneIcon };
@@ -290,6 +292,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
     const [nudged, setNudged] = React.useState(false);
     // The one-time flow is three calls; the footer stays busy across all of them.
     const [submitting, setSubmitting] = React.useState(false);
+    const [draftRestored, setDraftRestored] = React.useState(false);
 
     const steps = stepsFor(draft.kind);
     const lastStep = steps.length - 1;
@@ -317,9 +320,37 @@ export function NewCampaignDialog({ open, onClose }: Props) {
             setDirection(1);
             setNudged(false);
             setSubmitting(false);
-            setDraft(initialDraft(defaultTimezone));
+            setDraftRestored(false);
+            return;
         }
+        try {
+            const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed.name?.trim()) {
+                    setDraft({
+                        ...initialDraft(defaultTimezone),
+                        ...parsed,
+                        sequences: parsed.sequences?.length ? parsed.sequences : [newSequence(0)],
+                    });
+                    setDraftRestored(true);
+                    return;
+                }
+            }
+        } catch {}
+        setDraft(initialDraft(defaultTimezone));
+        setDraftRestored(false);
     }, [open, defaultTimezone]);
+
+    React.useEffect(() => {
+        if (!open || !dirty) return;
+        const timer = setTimeout(() => {
+            try {
+                localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+            } catch {}
+        }, AUTO_SAVE_DELAY);
+        return () => clearTimeout(timer);
+    }, [open, draft, dirty]);
 
     const campaignsQuery = useCampaigns({ query: "", folder: "" });
     const existingCampaigns = React.useMemo(() => campaignsQuery.campaigns ?? [], [campaignsQuery.campaigns]);
@@ -385,7 +416,10 @@ export function NewCampaignDialog({ open, onClose }: Props) {
     const requestClose = React.useCallback(() => {
         if (isPending) return;
         if (dirty) {
-            confirm.show("Discard this campaign draft?", async () => onClose());
+            confirm.show("Discard this campaign draft?", async () => {
+                try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
+                onClose();
+            });
             return;
         }
         onClose();
@@ -511,6 +545,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                 } else {
                     toast.success("Campaign created. Add contacts, then launch it.");
                 }
+                try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
                 onClose();
                 if (created?.id) navigate(`/app/campaigns/${created.id}`);
             } catch (err) {
@@ -586,6 +621,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
             }
             await start.mutateAsync({ id: created.id });
             toast.success(at ? `Scheduled for ${fmtDateTime(at)}.` : "Sending now.");
+            try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
             onClose();
             navigate(`/app/campaigns/${created.id}`);
         } catch (err) {
@@ -632,6 +668,24 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                         <Header kind={draft.kind} onClose={requestClose} />
                         <Stepper steps={steps} step={step} canReach={canReach} goTo={goTo} />
 
+                        {draftRestored && (
+                            <div className="px-4 py-1.5 bg-amber-50 border-b border-amber-100 flex items-center justify-between shrink-0">
+                                <span className="text-[11px] text-amber-700">Draft restored from your last session.</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
+                                        setDraft(initialDraft(defaultTimezone));
+                                        setStep(0);
+                                        setDraftRestored(false);
+                                    }}
+                                    className="text-[11px] text-amber-600 hover:text-amber-800 underline underline-offset-2"
+                                >
+                                    Start fresh
+                                </button>
+                            </div>
+                        )}
+
                         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                             <AnimatePresence mode="wait" initial={false} custom={direction}>
                                 <motion.div
@@ -665,6 +719,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                         <Footer
                             step={step}
                             lastStep={lastStep}
+                            autoSaved={dirty}
                             submitLabel={
                                 draft.kind === "one_time"
                                     ? draft.sendMode === "later"
@@ -818,6 +873,7 @@ function Stepper({
 function Footer({
     step,
     lastStep,
+    autoSaved,
     submitLabel,
     submitIcon: SubmitIcon,
     issue,
@@ -828,6 +884,7 @@ function Footer({
 }: {
     step: number;
     lastStep: number;
+    autoSaved?: boolean;
     submitLabel: string;
     submitIcon: typeof PlusIcon;
     issue: string | null;
@@ -851,7 +908,7 @@ function Footer({
                 </button>
             ) : (
                 <span className="text-[11px] text-slate-400 pl-1 hidden sm:inline">
-                    Everything here can be changed later.
+                    {autoSaved ? "Draft auto-saved." : "Everything here can be changed later."}
                 </span>
             )}
 

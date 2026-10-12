@@ -85,19 +85,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const smartlead = new SmartleadProvider(smartleadApiKey);
 
+    // Start sending today
+    const today = new Date().toISOString().slice(0, 10);
+    const sendDays = campaign.preferredSendDays?.length ? campaign.preferredSendDays : [1, 2, 3, 4, 5];
+
     // If already launched, re-start
     if (campaign.providerCampaignId) {
       try {
         await smartlead.setSchedule(campaign.providerCampaignId, {
           timezone: campaign.sendTimezone || "Asia/Kolkata",
-          daysOfWeek: campaign.preferredSendDays?.length ? campaign.preferredSendDays : [1, 2, 3, 4, 5],
+          daysOfWeek: sendDays,
           startHour: "09:00",
           endHour: "17:00",
           minTimeBetweenEmails: 3,
           maxNewLeadsPerDay: 50 * smartleadMailboxIds.length,
+          startDate: today,
         });
         await smartlead.startCampaign(campaign.providerCampaignId);
-        const webhookUrl = "https://email-system-omega.vercel.app/api/webhooks/smartlead";
+        const webhookUrl = process.env.WEBHOOK_BASE_URL
+          ? `${process.env.WEBHOOK_BASE_URL}/api/webhooks/smartlead`
+          : "https://tbmoutreach.tech/api/webhooks/smartlead";
         await smartlead.configureUserWebhook(webhookUrl);
         await smartlead.configureWebhook(campaign.providerCampaignId, webhookUrl);
         await prisma.campaign.update({ where: { id }, data: { status: "ACTIVE" } });
@@ -169,13 +176,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     } catch (e) { console.error("Leads failed:", e); }
 
-    // Set schedule
+    // Set schedule with today's date so sending starts immediately
     try {
       await smartlead.setSchedule(providerCampaignId, {
         timezone: campaign.sendTimezone || "Asia/Kolkata",
-        daysOfWeek: campaign.preferredSendDays?.length ? campaign.preferredSendDays : [1, 2, 3, 4, 5],
+        daysOfWeek: sendDays,
         startHour: "09:00", endHour: "17:00", minTimeBetweenEmails: 3,
         maxNewLeadsPerDay: 50 * smartleadMailboxIds.length,
+        startDate: today,
       });
     } catch (e) { console.error("Schedule failed:", e); }
 
@@ -184,7 +192,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Configure webhooks — use correct Vercel domain as primary
     try {
-      const webhookUrl = "https://email-system-omega.vercel.app/api/webhooks/smartlead";
+      const webhookUrl = process.env.WEBHOOK_BASE_URL
+        ? `${process.env.WEBHOOK_BASE_URL}/api/webhooks/smartlead`
+        : "https://tbmoutreach.tech/api/webhooks/smartlead";
       await smartlead.configureUserWebhook(webhookUrl);
       await smartlead.configureWebhook(providerCampaignId, webhookUrl);
       console.log(`[Launch] Webhooks configured for campaign ${providerCampaignId}: ${webhookUrl}`);

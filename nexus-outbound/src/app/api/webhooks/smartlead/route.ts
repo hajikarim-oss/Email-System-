@@ -140,12 +140,22 @@ export async function POST(req: Request) {
 
     switch (internalEventType) {
       case "sent": {
-        // Track which step was sent from the raw payload
         const step = payload.step || payload.sequence_number || payload.email_sequence_number;
         const stepNum = typeof step === "number" ? step : parseInt(step);
+        const sentUpdate: Record<string, any> = {
+          totalOutbound: { increment: 1 },
+          totalMessages: { increment: 1 },
+          lastContactedAt: now,
+          lastDeliveredAt: now,
+          lastOutcome: "delivered",
+        };
         if (!isNaN(stepNum) && stepNum > lead.lastStepSent) {
-          await prisma.lead.update({ where: { id: lead.id }, data: { lastStepSent: stepNum } });
+          sentUpdate.lastStepSent = stepNum;
         }
+        if (!lead.firstContactedAt) {
+          sentUpdate.firstContactedAt = now;
+        }
+        await prisma.lead.update({ where: { id: lead.id }, data: sentUpdate });
 
         // Live Intelligence Ingestion
         await ingestEmailEvent({
@@ -225,7 +235,12 @@ export async function POST(req: Request) {
           data: {
             status: "REPLIED",
             repliedAt: now,
+            lastRepliedAt: now,
             leadCategory: "WORKING",
+            totalInbound: { increment: 1 },
+            totalReplied: { increment: 1 },
+            totalMessages: { increment: 1 },
+            lastContactedAt: now,
           },
         });
 
@@ -247,12 +262,11 @@ export async function POST(req: Request) {
         // Create notification for the campaign owner
         if (campaignId) {
           try {
-            const campaign = await prisma.campaign.findUnique({
-              where: { id: campaignId },
-              select: { userId: true, name: true },
+            const campaign = await prisma.campaign.findFirst({
+              where: { providerCampaignId: String(campaignId) },
+              select: { id: true, userId: true, name: true },
             });
             if (campaign) {
-              // Find which mailbox received the reply (from payload or lead's campaign)
               const clientEmail = payload.to_email || payload.recipient_email || "";
 
               await prisma.notification.create({
@@ -261,7 +275,7 @@ export async function POST(req: Request) {
                   type: "reply",
                   title: "New Reply Received",
                   message: `${email} replied to ${campaign.name}`,
-                  campaignId,
+                  campaignId: campaign.id,
                   campaignName: campaign.name,
                   leadEmail: email,
                   clientEmail: clientEmail || undefined,
@@ -283,8 +297,8 @@ export async function POST(req: Request) {
         if (lead.providerLeadId && campaignId) {
           try {
             // Find the correct Smartlead API key from the campaign's mailbox owner
-            const campaignRecord = await prisma.campaign.findUnique({
-              where: { id: campaignId },
+            const campaignRecord = await prisma.campaign.findFirst({
+              where: { providerCampaignId: String(campaignId) },
               include: {
                 mailboxes: {
                   include: {
@@ -326,6 +340,9 @@ export async function POST(req: Request) {
               status: "BOUNCED",
               bounceCount: newBounceCount,
               bounceType: isHard ? "hard" : "soft",
+              totalBounced: { increment: 1 },
+              lastBouncedAt: now,
+              lastOutcome: "bounced",
             },
           });
 
@@ -351,7 +368,12 @@ export async function POST(req: Request) {
         } else {
           await prisma.lead.update({
             where: { id: lead.id },
-            data: { bounceCount: newBounceCount, bounceType: "soft" },
+            data: {
+              bounceCount: newBounceCount,
+              bounceType: "soft",
+              totalBounced: { increment: 1 },
+              lastBouncedAt: now,
+            },
           });
         }
         break;

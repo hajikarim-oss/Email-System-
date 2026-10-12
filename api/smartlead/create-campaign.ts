@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import https from "https";
 import { smartleadKeyForSender, smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
 import { requireUser } from "../../server/handlers/auth";
+import { pgQuery } from "../../server/pg";
 
 const PRIMARY_KEY = smartleadPrimary();
 const SECONDARY_KEY = smartleadSecondary();
@@ -37,6 +38,12 @@ function apiCall(endpoint: string, method: string = "GET", body?: any, apiKey: s
         if (payload) req.write(payload);
         req.end();
     });
+}
+
+function generateCuid(): string {
+    const ts = Date.now().toString(36);
+    const rand = Math.random().toString(36).slice(2, 10);
+    return `c${ts}${rand}`;
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
@@ -76,6 +83,28 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         createRes = fallback;
                     }
                 } catch { }
+            }
+
+            // Persist to database so the campaign is tracked
+            if (createRes.status >= 200 && createRes.status < 300 && createRes.data?.id) {
+                const providerCampaignId = String(createRes.data.id);
+                try {
+                    const existing = await pgQuery(
+                        `SELECT id FROM "Campaign" WHERE "providerCampaignId" = $1 LIMIT 1`,
+                        [providerCampaignId]
+                    );
+                    if (existing.rows.length === 0) {
+                        const id = generateCuid();
+                        await pgQuery(
+                            `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendDays", "createdAt", "updatedAt")
+                             VALUES ($1, $2, $3, 'DRAFT', $4, 'Asia/Kolkata', '{1,2,3,4,5}', NOW(), NOW())
+                             ON CONFLICT ("userId", name) DO UPDATE SET "providerCampaignId" = $4, "updatedAt" = NOW()`,
+                            [id, user.id, campaignName, providerCampaignId]
+                        );
+                    }
+                } catch (dbErr: any) {
+                    console.error("[create-campaign] DB persist failed (campaign still created on Smartlead):", dbErr.message);
+                }
             }
 
             res.writeHead(createRes.status, { "Content-Type": "application/json" });

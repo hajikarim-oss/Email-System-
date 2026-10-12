@@ -50,6 +50,8 @@ export const launchCampaignJob = inngest.createFunction(
     if (activeLeads.length === 0) return { status: "error", message: "All leads suppressed" };
 
     const smartlead = new SmartleadProvider(smartleadApiKey);
+    const today = new Date().toISOString().slice(0, 10);
+    const sendDays = campaign.preferredSendDays?.length ? campaign.preferredSendDays : [1, 2, 3, 4, 5];
 
     // If already launched, re-start
     if (campaign.providerCampaignId) {
@@ -57,11 +59,12 @@ export const launchCampaignJob = inngest.createFunction(
         try {
           await smartlead.setSchedule(campaign.providerCampaignId!, {
             timezone: campaign.sendTimezone || "Asia/Kolkata",
-            daysOfWeek: campaign.preferredSendDays?.length ? campaign.preferredSendDays : [1, 2, 3, 4, 5],
+            daysOfWeek: sendDays,
             startHour: "09:00",
             endHour: "17:00",
             minTimeBetweenEmails: 3,
             maxNewLeadsPerDay: 50 * smartleadMailboxIds.length,
+            startDate: today,
           });
           await smartlead.startCampaign(campaign.providerCampaignId!);
 
@@ -167,15 +170,16 @@ export const launchCampaignJob = inngest.createFunction(
       }
     });
 
-    // Step 6: Set schedule
+    // Step 6: Set schedule with today's date so sending starts immediately
     await step.run("set-schedule", async () => {
       await smartlead.setSchedule(providerCampaignId, {
         timezone: campaign.sendTimezone || "Asia/Kolkata",
-        daysOfWeek: campaign.preferredSendDays?.length ? campaign.preferredSendDays : [1, 2, 3, 4, 5],
+        daysOfWeek: sendDays,
         startHour: "09:00",
         endHour: "17:00",
         minTimeBetweenEmails: 3,
         maxNewLeadsPerDay: 50 * smartleadMailboxIds.length,
+        startDate: today,
       });
     });
 
