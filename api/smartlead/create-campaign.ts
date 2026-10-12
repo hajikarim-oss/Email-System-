@@ -93,14 +93,24 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         `SELECT id FROM "Campaign" WHERE "providerCampaignId" = $1 LIMIT 1`,
                         [providerCampaignId]
                     );
-                    if (existing.rows.length === 0) {
-                        const id = generateCuid();
-                        await pgQuery(
-                            `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendDays", "createdAt", "updatedAt")
-                             VALUES ($1, $2, $3, 'DRAFT', $4, 'Asia/Kolkata', '{1,2,3,4,5}', NOW(), NOW())
-                             ON CONFLICT ("userId", name) DO UPDATE SET "providerCampaignId" = $4, "updatedAt" = NOW()`,
-                            [id, user.id, campaignName, providerCampaignId]
+                    if (existing.length === 0) {
+                        const existingByName = await pgQuery(
+                            `SELECT id FROM "Campaign" WHERE "userId" = $1 AND name = $2 LIMIT 1`,
+                            [user.id, campaignName]
                         );
+                        if (existingByName.length > 0) {
+                            await pgQuery(
+                                `UPDATE "Campaign" SET "providerCampaignId" = $1, "updatedAt" = NOW() WHERE id = $2`,
+                                [providerCampaignId, existingByName[0].id]
+                            );
+                        } else {
+                            const id = generateCuid();
+                            await pgQuery(
+                                `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendDays", "createdAt", "updatedAt")
+                                 VALUES ($1, $2, $3, 'DRAFT', $4, 'Asia/Kolkata', '{1,2,3,4,5}', NOW(), NOW())`,
+                                [id, user.id, campaignName, providerCampaignId]
+                            );
+                        }
                     }
                 } catch (dbErr: any) {
                     console.error("[create-campaign] DB persist failed (campaign still created on Smartlead):", dbErr.message);

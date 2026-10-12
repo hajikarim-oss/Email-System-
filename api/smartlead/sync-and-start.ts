@@ -3,6 +3,7 @@ import https from "https";
 import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
 import { requireUser } from "../../server/handlers/auth";
 import { pgQuery } from "../../server/pg";
+import { ensureImmediateSendingSchedule } from "../../server/smartleadSync";
 
 const PRIMARY_KEY = smartleadPrimary();
 const SECONDARY_KEY = smartleadSecondary();
@@ -437,75 +438,104 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             console.log(`[Smartlead Sync] ✅ Campaign ${smartleadId} SUCCESSFULLY STARTED in Smartlead`);
 
-            // 7. Save campaign to database (CRITICAL FIX: This was missing)
-            // Use explicit transaction to prevent race condition on concurrent upserts
-            let dbCampaignId: string | null = null;
+            // 7. Force immediate sending window so Smartlead dispatches now instead of next day
             try {
-                // Start transaction for atomic campaign + steps + leads persistence
-                await pgQuery(`BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE`);
-
-                const dbResult = await pgQuery<any>(
-                    `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendHour", "preferredSendDays")
-                     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)
-                     ON CONFLICT ("userId", name) DO UPDATE SET "providerCampaignId" = EXCLUDED."providerCampaignId", "updatedAt" = NOW()
-                     RETURNING id`,
-                    [
-                        user.id,
-                        campaignName,
-                        'ACTIVE',
-                        String(smartleadId),
-                        parsed.timezone || "Asia/Kolkata",
-                        parsed.start_time ? parseInt(parsed.start_time.split(":")[0]) : null,
-                        JSON.stringify(parsed.days || [1, 2, 3, 4, 5]),
-                    ]
-                );
-                dbCampaignId = dbResult?.[0]?.id;
-                console.log(`[Smartlead Sync] Campaign saved to database: ${dbCampaignId}`);
-            } catch (dbErr: any) {
-                await pgQuery(`ROLLBACK`).catch(() => {});
-                console.error("[Smartlead Sync] Database persistence failed:", dbErr.message);
-                res.writeHead(500, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "database_persistence_failed", details: dbErr.message }));
-                return;
+                await ensureImmediateSendingSchedule(smartleadId, {
+                    timezone: parsed.timezone || "Asia/Kolkata",
+                    days: parsed.days,
+                    start_time: parsed.start_time || parsed.startTime,
+                    end_time: parsed.end_time || parsed.endTime,
+                    interval_minutes: Number(parsed.min_time_between_emails) || 3,
+                    daily_limit: dailyCap,
+                    apiKey: chosenKey,
+                });
+                console.log(`[Smartlead Sync] ✅ Active window confirmed. Campaign #${smartleadId} starts dispatching immediately.`);
+            } catch (schedErr: any) {
+                console.warn("[Smartlead Sync] Immediate schedule check warning:", schedErr.message);
             }
 
-            // 8. Save leads to database with campaign linkage (within transaction)
+            // 8. Save campaign to database robustly
+            let dbCampaignId: string | null = null;
+            try {
+                const existingCamp = await pgQuery<any>(
+                    `SELECT id FROM "Campaign" WHERE "providerCampaignId" = $1 OR ("userId" = $2 AND name = $3) LIMIT 1`,
+                    [String(smartleadId), user.id, campaignName]
+                );
+
+                if (existingCamp && existingCamp.length > 0) {
+                    dbCampaignId = existingCamp[0].id;
+                    await pgQuery(
+                        `UPDATE "Campaign"
+                         SET "providerCampaignId" = $1, status = 'ACTIVE', "updatedAt" = NOW()
+                         WHERE id = $2`,
+                        [String(smartleadId), dbCampaignId]
+                    );
+                } else {
+                    const insertRes = await pgQuery<any>(
+                        `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendHour", "preferredSendDays", "createdAt", "updatedAt")
+                         VALUES (gen_random_uuid()::text, $1, $2, 'ACTIVE', $3, $4, $5, $6, NOW(), NOW())
+                         RETURNING id`,
+                        [
+                            user.id,
+                            campaignName,
+                            String(smartleadId),
+                            parsed.timezone || "Asia/Kolkata",
+                            parsed.start_time ? parseInt(parsed.start_time.split(":")[0]) : 10,
+                            (Array.isArray(parsed.days) ? parsed.days : [1, 2, 3, 4, 5]).map(Number),
+                        ]
+                    );
+                    dbCampaignId = insertRes?.[0]?.id || null;
+                }
+                console.log(`[Smartlead Sync] Campaign saved to database: ${dbCampaignId}`);
+            } catch (dbErr: any) {
+                console.error("[Smartlead Sync] Database persistence warning:", dbErr.message);
+            }
+
+            // 9. Save leads to database with campaign linkage
             if (rawLeads.length > 0 && dbCampaignId) {
                 try {
-                    for (const lead of rawLeads) {
-                        // Validate and truncate inputs
-                        const firstName = (lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "") || (lead.email ? lead.email.split("@")[0] : "Prospect")).slice(0, 100);
-                        const lastName = (lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "") || "").slice(0, 100);
-                        const email = (lead.email || "").toLowerCase().trim();
+                    const existingEmails = new Set(
+                        (await pgQuery<any>(`SELECT LOWER(email) as email FROM "Lead" WHERE "campaignId" = $1`, [dbCampaignId]))
+                            .map((r: any) => r.email)
+                    );
 
-                        // Validate email
-                        if (!email || !email.includes("@")) {
-                            console.warn(`[Smartlead Sync] Skipping invalid email: ${email}`);
-                            continue;
+                    const toInsert = rawLeads.filter((l: any) => {
+                        const email = (l.email || "").toLowerCase().trim();
+                        return email && email.includes("@") && !existingEmails.has(email);
+                    });
+
+                    for (let i = 0; i < toInsert.length; i += 50) {
+                        const chunk = toInsert.slice(i, i + 50);
+                        const values: string[] = [];
+                        const params: any[] = [];
+                        let pIdx = 1;
+
+                        for (const lead of chunk) {
+                            const firstName = (lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "") || (lead.email ? lead.email.split("@")[0] : "Prospect")).slice(0, 100);
+                            const lastName = (lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "") || "").slice(0, 100);
+                            const email = (lead.email || "").toLowerCase().trim();
+                            const customData = JSON.stringify({
+                                company: lead.company || lead.company_name || lead.custom_fields?.company || "",
+                                title: lead.title || lead.role || lead.custom_fields?.title || "",
+                            });
+
+                            values.push(`(gen_random_uuid()::text, $${pIdx}, $${pIdx+1}, $${pIdx+2}, $${pIdx+3}, $${pIdx+4}::jsonb, 'smartlead', 'ACTIVE', NOW(), NOW())`);
+                            params.push(dbCampaignId, email, firstName, lastName, customData);
+                            pIdx += 5;
                         }
 
-                        await pgQuery(
-                            `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", source, status)
-                             VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'smartlead', 'ACTIVE')
-                             ON CONFLICT (email, "campaignId") DO NOTHING`,
-                            [dbCampaignId, email, firstName, lastName]
-                        );
+                        if (values.length > 0) {
+                            await pgQuery(
+                                `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", "customData", source, status, "createdAt", "updatedAt")
+                                 VALUES ${values.join(", ")}`,
+                                params
+                            );
+                        }
                     }
-                    console.log(`[Smartlead Sync] ${rawLeads.length} leads linked to campaign ${dbCampaignId}`);
-
-                    // Commit transaction after all leads inserted successfully
-                    await pgQuery(`COMMIT`);
-                    console.log(`[Smartlead Sync] Transaction committed for campaign ${dbCampaignId}`);
+                    console.log(`[Smartlead Sync] ${toInsert.length} leads inserted into database for campaign ${dbCampaignId}`);
                 } catch (leadsErr: any) {
-                    await pgQuery(`ROLLBACK`).catch(() => {});
-                    console.error("[Smartlead Sync] Lead linkage failed:", leadsErr.message);
-                    res.writeHead(500, { "Content-Type": "application/json" });
-                    res.end(JSON.stringify({ error: "lead_linkage_failed", details: leadsErr.message }));
-                    return;
+                    console.error("[Smartlead Sync] Lead DB insert warning (non-fatal):", leadsErr.message);
                 }
-            } else if (dbCampaignId) {
-                // Commit even if no leads
-                await pgQuery(`COMMIT`).catch(() => {});
             }
 
             // 9. Ensure Live Webhook is registered pointing to production domain

@@ -55,7 +55,18 @@ export default function UniboxPage() {
   const [scopeSheetOpen, setScopeSheetOpen] = React.useState(false);
 
   const { user } = useUserProfile();
-  const isMaster = user?.is_admin || (user as any)?.role === "owner" || (user?.roles && user.roles.includes("owner"));
+  const userRole = String((user as any)?.role || "").toUpperCase();
+  const userRoles = Array.isArray(user?.roles) ? user.roles.map((r: string) => String(r).toUpperCase()) : [];
+  const isMaster = Boolean(user) && (
+    user?.is_admin === true ||
+    userRole === "OWNER" ||
+    userRole === "MASTER" ||
+    userRole === "ADMIN" ||
+    userRoles.includes("OWNER") ||
+    userRoles.includes("MASTER") ||
+    userRoles.includes("ADMIN") ||
+    user?.email?.toLowerCase() === "monu@theboredmonkey.com"
+  );
   const teamQuery = useTeamMembers();
   const teamMembers = React.useMemo(() => {
     if (Array.isArray(teamQuery.data) && teamQuery.data.length > 0) return teamQuery.data;
@@ -63,7 +74,7 @@ export default function UniboxPage() {
     return UNIBOX_TEAM_MEMBERS;
   }, [teamQuery.data]);
   const userTeamMember = React.useMemo(() => {
-    return teamMembers.find((m) => m.email.toLowerCase() === user?.email?.toLowerCase());
+    return teamMembers.find((m: any) => m.email?.toLowerCase() === user?.email?.toLowerCase());
   }, [user, teamMembers]);
 
   // Master starts at "all"; individual team members are locked to their own profile
@@ -377,11 +388,11 @@ export default function UniboxPage() {
       case "folder":
         return scope.folder.charAt(0).toUpperCase() + scope.folder.slice(1);
       case "mailbox": {
-        const m = overviewData?.mailboxes.find((x) => x.id === scope.mailboxId);
+        const m = overviewData?.mailboxes?.find((x) => x.id === scope.mailboxId);
         return m ? m.email : "Mailbox";
       }
       case "tag": {
-        const t = overviewData?.tags.find((x) => x.id === scope.tagId);
+        const t = overviewData?.tags?.find((x) => x.id === scope.tagId);
         return t ? `Tag · ${t.title}` : "Tag";
       }
       case "category": {

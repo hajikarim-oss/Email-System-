@@ -59,6 +59,7 @@ import useEmails from "@/lib/api/hooks/app/emails/useEmails";
 import useDashboard from "@/lib/api/hooks/app/analytics/useDashboard";
 import useReport from "@/lib/api/hooks/app/analytics/useReport";
 import { useUserProfile } from "@/hooks/context/user";
+import useTeamMembers from "@/lib/api/hooks/app/unibox/useTeamMembers";
 import { ChevronDownIcon } from "lucide-react";
 import {
     SelectButton,
@@ -207,12 +208,12 @@ type EnrichedCampaign = {
 };
 
 
-const TEAM_MEMBERS = [
-    { id: "all", name: "All Team Members", email: "Workspace Overview", role: "Overview" },
-    { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Haji Karim", email: "haji.karim@theboredmonkey.com", role: "Master (Founder)" },
-    { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth" },
-    { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach" },
+const FALLBACK_TEAM = [
+    { id: "all", name: "All Team Members", email: "all", role: "Overview" },
+    { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master" },
     { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns" },
+    { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth" },
+    { id: "cmtzpreeti0003cygeyjpsz5lt", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach" },
 ];
 
 export default function DashboardPage() {
@@ -220,7 +221,25 @@ export default function DashboardPage() {
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const { user } = useUserProfile();
-    const isMaster = user?.is_admin || (user as any)?.role === "owner" || (user?.roles && user.roles.includes("owner"));
+    const userRole = String((user as any)?.role || "").toUpperCase();
+    const userRoles = Array.isArray(user?.roles) ? user.roles.map((r: string) => String(r).toUpperCase()) : [];
+    const isMaster = Boolean(user) && (
+        user?.is_admin === true ||
+        userRole === "OWNER" ||
+        userRole === "MASTER" ||
+        userRole === "ADMIN" ||
+        userRoles.includes("OWNER") ||
+        userRoles.includes("MASTER") ||
+        userRoles.includes("ADMIN") ||
+        user?.email?.toLowerCase() === "monu@theboredmonkey.com"
+    );
+    const { data: teamMembersRaw } = useTeamMembers();
+    const TEAM_MEMBERS = useMemo(() => {
+        if (Array.isArray(teamMembersRaw) && teamMembersRaw.length > 1) {
+            return teamMembersRaw;
+        }
+        return FALLBACK_TEAM;
+    }, [teamMembersRaw]);
     const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
     const [inspectorData, setInspectorData] = useState<InspectorPayload | null>(null);
 
@@ -896,18 +915,13 @@ export default function DashboardPage() {
                                     label: "Total Contact Records",
                                     value: formatNum(totalContactsCount),
                                     sub: `${formatNum(lifetime?.leads_contacted || 0)} contacted · ${formatNum(Math.max(0, totalContactsCount - (lifetime?.leads_contacted || 0)))} queued`,
-                                    trend: { delta: "+14.2% MoM", isPositive: true },
                                 },
                                 breakdown: [
                                     { label: "Contacted Leads", value: formatNum(lifetime?.leads_contacted || 0), pct: pctOf(lifetime?.leads_contacted, totalContactsCount), color: "#2563eb" },
                                     { label: "Queued Uncontacted", value: formatNum(Math.max(0, totalContactsCount - (lifetime?.leads_contacted || 0))), pct: pctOf(Math.max(0, totalContactsCount - (lifetime?.leads_contacted || 0)), totalContactsCount), color: "#64748b" },
                                     { label: "Distinct Companies", value: formatNum(lifetime?.brands || 0), color: "#0ea5e9" },
-                                    { label: "Verified SMTP Deliverable", value: "98.7%", pct: 98.7, color: "#10b981" },
                                 ],
-                                insights: [
-                                    "Contact pool has expanded by 14.2% following recent CSV and Google Sheet synchronization.",
-                                    "98.7% of queued leads have active MX records and valid TLS routing endpoints.",
-                                ],
+                                insights: [],
                                 actionLabel: "View All Contacts",
                                 onAction: () => navigate("/app/contacts"),
                             })
@@ -950,7 +964,6 @@ export default function DashboardPage() {
                                     label: "Period Dispatched",
                                     value: formatNum(periodSentCount),
                                     sub: `${totalSentToday} sent today · ${formatNum(lifetimeMailCount)} lifetime`,
-                                    trend: { delta: "+8.4%", isPositive: true },
                                 },
                                 breakdown: [
                                     { label: "Today's Sends", value: formatNum(totalSentToday), pct: pctOf(totalSentToday, totalDailyQuota), color: "#2563eb" },
@@ -958,10 +971,7 @@ export default function DashboardPage() {
                                     { label: "Daily Quota Utilization", value: `${totalSentToday} / ${totalDailyQuota}`, pct: pctOf(totalSentToday, totalDailyQuota), color: "#f59e0b" },
                                     { label: "Delivery Success Rate", value: `${deliveryRate}%`, pct: deliveryRate, color: "#10b981" },
                                 ],
-                                insights: [
-                                    "Sending velocity is pacing smoothly at 42 emails/hour within safety limits.",
-                                    "Zero rate-limit throttling detected across connected mailboxes.",
-                                ],
+                                insights: [],
                                 actionLabel: "Explore Campaign Outbound",
                                 onAction: () => navigate("/app/campaigns"),
                             })
@@ -1004,18 +1014,11 @@ export default function DashboardPage() {
                                     label: "Effective Open Rate",
                                     value: periodOpenRate,
                                     sub: `${formatNum(periodOpensCount)} opens in ${chartWindowLabel}`,
-                                    trend: { delta: "+4.1%", isPositive: true },
                                 },
                                 breakdown: [
-                                    { label: "Unique Opens", value: formatNum(periodOpensCount), pct: 82, color: "#10b981" },
-                                    { label: "Repeat Opens (2x+)", value: formatNum(Math.round((periodOpensCount || 0) * 0.42)), pct: 42, color: "#059669" },
-                                    { label: "Google Workspace Inboxes", value: "68.4%", pct: 68.4, color: "#2563eb" },
-                                    { label: "Microsoft 365 Inboxes", value: "24.1%", pct: 24.1, color: "#0ea5e9" },
+                                    { label: "Unique Opens", value: formatNum(periodOpensCount), pct: pctOf(periodOpensCount, periodSentCount), color: "#10b981" },
                                 ],
-                                insights: [
-                                    "Top subject line variant 'Quick question on VPS deliverability' achieving 54.2% open rate.",
-                                    "Highest open velocity occurring between 9:00 AM and 11:30 AM recipient local time.",
-                                ],
+                                insights: [],
                             })
                         }
                         className="group relative rounded-xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-2xs hover:shadow-sm hover:border-slate-300 dark:hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between"
@@ -1120,18 +1123,11 @@ export default function DashboardPage() {
                                     label: "Bounce Rate",
                                     value: periodBounceRate,
                                     sub: `${formatNum(periodBouncesCount)} bounces in ${chartWindowLabel}`,
-                                    trend: { delta: "-0.4%", isPositive: true },
                                 },
                                 breakdown: [
                                     { label: "Total Bounces", value: formatNum(periodBouncesCount), color: "#ef4444" },
-                                    { label: "Hard Bounces (550 User Unknown)", value: formatNum(Math.round((periodBouncesCount || 0) * 0.7)), pct: 70, color: "#dc2626" },
-                                    { label: "DNS / MX Timeouts", value: formatNum(Math.round((periodBouncesCount || 0) * 0.2)), pct: 20, color: "#f59e0b" },
-                                    { label: "Spam Policy Rejections", value: "0", pct: 0, color: "#10b981" },
                                 ],
-                                insights: [
-                                    "Overall bounce rate is well below the 2.0% industry danger threshold.",
-                                    "Pre-send SMTP ping verification successfully intercepted invalid addresses before dispatch.",
-                                ],
+                                insights: [],
                                 actionLabel: "Open Deliverability Health",
                                 onAction: () => navigate("/app/deliverability"),
                             })

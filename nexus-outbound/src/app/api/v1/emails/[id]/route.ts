@@ -27,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       min_wait_time: 120,
       reply_to: mailbox.senderEmail,
       save_to_sent: true,
-      tracking_domain: "track.theboredmonkey.com",
+      tracking_domain: "",
       tracking_domain_verified: true,
       auth_state: "passing",
       auth_spf: true,

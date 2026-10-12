@@ -736,7 +736,10 @@ function ScheduledMessageBubble({
   onCancel: () => void;
 }) {
   const when = formatScheduled(item.scheduled_at);
-  const recipients = [...item.to, ...(item.cc ?? []), ...(item.bcc ?? [])];
+  const toList = Array.isArray(item.to) ? item.to : (typeof item.to === "string" && item.to ? [item.to] : []);
+  const ccList = Array.isArray(item.cc) ? item.cc : (typeof item.cc === "string" && item.cc ? [item.cc] : []);
+  const bccList = Array.isArray(item.bcc) ? item.bcc : (typeof item.bcc === "string" && item.bcc ? [item.bcc] : []);
+  const recipients = [...toList, ...ccList, ...bccList];
   const recipientLine =
     recipients.slice(0, 3).join(", ") +
     (recipients.length > 3 ? ` +${recipients.length - 3}` : "");

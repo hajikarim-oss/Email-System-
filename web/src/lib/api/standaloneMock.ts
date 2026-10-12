@@ -21,8 +21,12 @@ export function safeApiUrl(path: string): string {
     return `${origin}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
+// Keep the real browser fetch before the interceptor replaces window.fetch.
+// safeFetch MUST use this to avoid being re-intercepted by our own mock layer.
+const _realFetch: typeof fetch = typeof window !== "undefined" ? window.fetch.bind(window) : (globalThis.fetch || (() => Promise.reject("no fetch")));
+
 export function safeFetch(path: string, init?: RequestInit): Promise<Response> {
-    return fetch(safeApiUrl(path), init);
+    return _realFetch(safeApiUrl(path), init);
 }
 
 // Standalone in-browser database & API dispatcher for TheBoredMonkey Outreach
@@ -877,6 +881,27 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         return res({ error: "unauthorized", message: "A valid session is required." }, 401);
     }
 
+    // 2. Unibox live database proxy: forward all unibox calls to live PostgreSQL unibox handler
+    if (pathWithoutQuery.startsWith("/unibox")) {
+        try {
+            const uniboxUrl = `/api/v1${pathWithoutQuery}${queryString ? `?${queryString}` : ""}`;
+            const uniboxRes = await safeFetch(uniboxUrl, {
+                method,
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: config.data ? (typeof config.data === "string" ? config.data : JSON.stringify(config.data)) : undefined,
+            });
+            if (uniboxRes.ok) {
+                const uniboxData = await uniboxRes.json();
+                return res(uniboxData, uniboxRes.status);
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] /api/v1/unibox proxy error:", e);
+        }
+        if (pathWithoutQuery.startsWith("/unibox/scheduled")) {
+            return res({ data: [] });
+        }
+    }
+
     if (pathWithoutQuery === "/auth/me/notification-preferences") {
         const defaultPrefs = {
             inbound_reply: { enabled: true, channels: { in_app: true, email: true, slack: false, push: true } },
@@ -909,44 +934,34 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     const DEFAULT_NOTIFICATIONS = [
         {
-            id: "notif_reply_jayant_q3",
-            user_id: "cmu6m304o00003307qj8ex6oa",
+            id: "notif_reply_rupesh_health",
+            user_id: "cmttwwhj5000ovdkr7ooyb6qt",
             category: "inbound_reply",
-            title: "New reply from Jayant (Miss Mosa)",
-            body: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
-            link: "/app/unibox/all/th_camp_jayant_missmosa",
-            read_at: "2026-09-24T12:00:00.000Z",
-            created_at: "2026-09-24T11:33:00.000Z",
+            title: "New reply from Rupesh Raut (Atreya Innovations)",
+            body: "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability.",
+            link: "/app/unibox/all/th_camp_3bdf7199-cc30-4461-873d-d9928b9c31ec",
+            read_at: "2026-10-09T08:00:00.000Z",
+            created_at: "2026-10-08T23:23:51.602Z",
         },
         {
-            id: "notif_reply_saurabh_q3",
-            user_id: "cmu6m304o00003307qj8ex6oa",
+            id: "notif_reply_bhoomi_salt",
+            user_id: "cmttwwhj5000ovdkr7ooyb6qt",
             category: "inbound_reply",
-            title: "New reply from Saurabh (Limeroad)",
-            body: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
-            link: "/app/unibox/all/th_camp_saurabh_limeroad",
-            read_at: "2026-09-24T11:00:00.000Z",
-            created_at: "2026-09-24T10:15:00.000Z",
+            title: "New reply from Bhoomi (Salt Oral Care)",
+            body: "Thank you for your email. Please note that marketing communication should be directed to: Vaishnavi Sikarwar Head of Marketing.",
+            link: "/app/unibox/all/th_camp_cmv0x5vfu0001dynzwtnxg8ul",
+            read_at: "2026-10-09T12:00:00.000Z",
+            created_at: "2026-10-09T06:19:51.000Z",
         },
         {
-            id: "notif_reply_rajdeep_q2",
-            user_id: "cmtr9pp8t0000cygeyjpsz5lt",
+            id: "notif_reply_sukhdev_velnik",
+            user_id: "cmttwwhj5000ovdkr7ooyb6qt",
             category: "inbound_reply",
-            title: "New reply from Rajdeep More",
-            body: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More.",
-            link: "/app/unibox/all/th_camp_rajdeep_main",
-            read_at: "2026-09-16T08:00:00.000Z",
-            created_at: "2026-09-16T06:48:00.000Z",
-        },
-        {
-            id: "notif_reply_snehal_101",
-            user_id: "cmtr9pp8t0000cygeyjpsz5lt",
-            category: "inbound_reply",
-            title: "New reply from Snehal Maurya",
-            body: "Noted with thanks. Karim",
-            link: "/app/unibox/all/th_reachout_101_snehal",
-            read_at: "2026-09-16T07:00:00.000Z",
-            created_at: "2026-09-16T05:30:00.000Z",
+            title: "New reply from Sukhdev Gehlot (Velnik)",
+            body: "Please share case studies of previous FMCG and hair care creator campaigns executed by TheBoredMonkey.",
+            link: "/app/unibox/all/th_camp_cmv0x5vfu0001dynzwtnxg8ul",
+            read_at: null,
+            created_at: "2026-10-10T00:45:41.000Z",
         },
     ];
 
@@ -1460,75 +1475,16 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }
     }
 
-    // Guarantee that Q3 Campaign is present unless explicitly deleted
-    if (!isCampDeleted("cmp_1790233732719_dvlj", 4015596, "Q3 Campaign")) {
-        const q3Idx = campaigns.findIndex((c: any) =>
-            c.id === "cmp_1790233732719_dvlj" ||
-            c.smartlead_id === 4015596 ||
-            (c.name && c.name.toLowerCase().includes("q3"))
-        );
-        if (q3Idx >= 0) {
-            const currentQ3Status = campaigns[q3Idx].status || "active";
-            campaigns[q3Idx] = {
-                ...Q3_CAMPAIGN_DEF,
-                ...campaigns[q3Idx],
-                id: "cmp_1790233732719_dvlj",
-                name: "Q3 Campaign",
-                smartlead_id: 4015596,
-                status: currentQ3Status,
-                smartlead_status: currentQ3Status === "paused" ? "PAUSED" : "ACTIVE",
-                sent_count: 48,
-                open_count: 22,
-                click_count: 1,
-                reply_count: 0,
-                bounce_count: 4,
-                open_rate: 45.8,
-                click_rate: 2.1,
-                reply_rate: 0.0,
-                bounce_rate: 8.3,
-                total_leads: Math.max(campaigns[q3Idx].total_leads || 0, 1785),
-                steps: (campaigns[q3Idx].steps && campaigns[q3Idx].steps.length > 0) ? campaigns[q3Idx].steps : Q3_CAMPAIGN_DEF.steps,
-                sequences: (campaigns[q3Idx].sequences && campaigns[q3Idx].sequences.length > 0) ? campaigns[q3Idx].sequences : Q3_CAMPAIGN_DEF.sequences,
-            };
-        } else {
-            campaigns.unshift({ ...Q3_CAMPAIGN_DEF });
+    // Only enrich campaigns if they are present in storage/backend (never force insert mock campaigns)
+    campaigns.forEach((c: any) => {
+        if (c.id === "cmp_1790233732719_dvlj" || (c.name && c.name.toLowerCase().includes("q3"))) {
+            c.smartlead_id = 4015596;
+            c.steps = (c.steps && c.steps.length > 0) ? c.steps : Q3_CAMPAIGN_DEF.steps;
+        } else if (c.id === "cmp_1789718475256_g91f" || (c.name && c.name.toLowerCase().includes("reachout"))) {
+            c.smartlead_id = 3980868;
+            c.steps = (c.steps && c.steps.length > 0) ? c.steps : Q2_CAMPAIGN_DEF.steps;
         }
-    }
-
-    // Guarantee that Q2 Reachout Mails is present unless explicitly deleted
-    if (!isCampDeleted("cmp_1789718475256_g91f", 3980868, "Q2 Reachout Mails")) {
-        const q2Idx = campaigns.findIndex((c: any) =>
-            c.id === "cmp_1789718475256_g91f" ||
-            (c.id && c.id.toLowerCase().includes("1789718475256")) ||
-            (c.name && c.name.toLowerCase().includes("reachout"))
-        );
-        if (q2Idx >= 0) {
-            const currentQ2Status = campaigns[q2Idx].status || "paused";
-            campaigns[q2Idx] = {
-                ...Q2_CAMPAIGN_DEF,
-                ...campaigns[q2Idx],
-                id: "cmp_1789718475256_g91f",
-                name: "Q2 Reachout Mails",
-                smartlead_id: 3980868,
-                status: currentQ2Status,
-                smartlead_status: currentQ2Status === "active" ? "ACTIVE" : "PAUSED",
-                sent_count: 48,
-                open_count: 28,
-                click_count: 8,
-                reply_count: 0,
-                bounce_count: 12,
-                open_rate: 58.3,
-                click_rate: 16.7,
-                reply_rate: 0.0,
-                bounce_rate: 25.0,
-                total_leads: Math.max(campaigns[q2Idx].total_leads || 0, 1876),
-                steps: (campaigns[q2Idx].steps && campaigns[q2Idx].steps.length > 0) ? campaigns[q2Idx].steps : Q2_CAMPAIGN_DEF.steps,
-                sequences: (campaigns[q2Idx].sequences && campaigns[q2Idx].sequences.length > 0) ? campaigns[q2Idx].sequences : Q2_CAMPAIGN_DEF.sequences,
-            };
-        } else {
-            campaigns.splice(1, 0, { ...Q2_CAMPAIGN_DEF });
-        }
-    }
+    });
 
     // Link Campaign 116 / 120 / 108 / 106 as PAUSED to match live Smartlead state
     campaigns.forEach((c: any) => {
@@ -1579,22 +1535,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     async function getOrInitCampaignLeads(campId: string, campaignObj?: any): Promise<any[]> {
         await ensureCoreData();
         const isQ2 = campId.includes("1789718475256") || campId === "cmp_1789718475256_g91f";
-        const isQ3 = campId.includes("1790233732719") || campId === "cmp_1790233732719_dvlj" || campaignObj?.smartlead_id === 4015596 || campaignObj?.name?.toLowerCase().includes("q3");
-        
-        // For Q3 Campaign, ensure localStorage cache is kept aligned with real database leads (50 leads)
-        if (isQ3) {
-            try {
-                const dbRes = await fetch(`/api/intelligence/contacts?campaign_ids=${encodeURIComponent(campId)}&limit=100`, { headers: authHeaders() });
-                if (dbRes.ok) {
-                    const dbData = await dbRes.json();
-                    if (dbData && Array.isArray(dbData.data) && dbData.data.length > 0) {
-                        saveStorage(`campaign_leads_${campId}`, dbData.data);
-                        return dbData.data;
-                    }
+        const isQ3 = campId.includes("1790233732719") || campId === "cmp_1790233732719_dvlj" || campaignObj?.smartlead_id === 4015596 || Boolean(campaignObj?.name?.toLowerCase().includes("q3"));
+
+        // Attempt to fetch live database leads for this campaign
+        try {
+            const dbRes = await fetch(`/api/intelligence/contacts?campaign_ids=${encodeURIComponent(campId)}&limit=200`, { headers: authHeaders() });
+            if (dbRes.ok) {
+                const dbData = await dbRes.json();
+                if (dbData && Array.isArray(dbData.data) && dbData.data.length > 0) {
+                    saveStorage(`campaign_leads_${campId}`, dbData.data);
+                    return dbData.data;
                 }
-            } catch (e) {
-                console.warn("[standaloneMock] failed to fetch live Q3 leads:", e);
             }
+        } catch (e) {
+            console.warn(`[standaloneMock] failed to fetch live leads for ${campId}:`, e);
         }
 
         let stored = loadStorage<any[]>(`campaign_leads_${campId}`, []);
@@ -2008,177 +1962,65 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery === "/campaigns") {
         if (method === "POST") {
             const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
-            const cleanName = (body.name || "").trim();
-            if (cleanName) {
-                const norm = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "");
-                const exists = campaigns.find((c: any) =>
-                    (c.name || "").trim().toLowerCase() === cleanName.toLowerCase() ||
-                    ((c.name || "").toLowerCase().replace(/[^a-z0-9]/g, "") === norm && norm.length >= 4)
-                );
-                if (exists) {
-                    return res({
-                        error: `A campaign named "${exists.name}" already exists (${(exists as any).smartlead_id ? `#${(exists as any).smartlead_id}` : exists.id}). Duplicate or similar campaigns are blocked.`,
-                    }, 400);
-                }
-            }
-            const currentUser = loadStorage<any>("current_user", null);
-            const newCamp = {
-                id: `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-                user_id: currentUser?.id || "cmtr9pp8t0000cygeyjpsz5lt",
-                owner_email: currentUser?.email || "",
-                name: body.name || "New Outreach Campaign",
-                description: body.description || "Outreach sequence",
-                status: "draft",
-                kind: body.kind || "sequence",
-                stop_on_reply: body.stop_on_reply ?? true,
-                open_tracking: body.open_tracking ?? true,
-                link_tracking: body.link_tracking ?? true,
-                utm_tracking: body.utm_tracking ?? false,
-                text_only: false,
-                daily_limit: body.daily_limit || 50,
-                unsubscribe_header: body.unsubscribe_header ?? true,
-                risky_emails: false,
-                cc: [],
-                bcc: [],
-                start_date: body.start_date || (body.scheduledAt ? new Date(body.scheduledAt).toISOString() : new Date().toISOString()),
-                end_date: body.end_date || (body.endScheduledAt ? new Date(body.endScheduledAt).toISOString() : null),
-                timezone: body.timezone || "Asia/Kolkata",
-                days: body.days || 127,
-                start_time: body.start_time || "09:00",
-                end_time: body.end_time || "18:00",
-                email_tags: [],
-                folders: [],
-                total_leads: 0,
-                sent_count: 0,
-                open_count: 0,
-                reply_count: 0,
-                bounce_count: 0,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                mailboxes: (Array.isArray(body.mailboxes) && body.mailboxes.length > 0)
-                    ? body.mailboxes
-                    : emails.map((e: { id: string }) => e.id),
-                steps: (body.steps || []).map((s: { name: string; subject: string; body_plain: string; body_html?: string; wait_after?: number }, idx: number) => ({
-                    id: `stp_${Date.now()}_${idx}`,
-                    stepNumber: idx + 1,
-                    position: idx + 1,
-                    name: s.name || `Step ${idx + 1}`,
-                    subject: s.subject || "",
-                    body_plain: s.body_plain || "",
-                    body_html: s.body_html || "",
-                    wait_after: s.wait_after || 0,
-                })),
-                sequences: (body.steps || []).map((s: { name: string; subject: string; body_plain: string; body_html?: string; wait_after?: number }, idx: number) => ({
-                    id: `seq_${Date.now()}_${idx}`,
-                    position: idx + 1,
-                    name: s.name || `Step ${idx + 1}`,
-                    subject: s.subject || "",
-                    body_plain: s.body_plain || "",
-                    body_html: s.body_html || "",
-                    wait_after: s.wait_after || 0,
-                })),
-                analytics: null,
-            };
-            campaigns.unshift(newCamp as any);
-            saveStorage("campaigns", campaigns);
-            return res(newCamp);
-        }
-        try {
-            const dbCampRes = await fetch("/api/intelligence/campaigns", { headers: authHeaders() });
-            if (dbCampRes.ok) {
-                const dbCamps = await dbCampRes.json();
-                if (Array.isArray(dbCamps) && dbCamps.length > 0) {
-                    dbCamps.forEach((dbc: any) => {
-                        if (isCampDeleted(dbc.id, dbc.providerCampaignId, dbc.name)) return;
-                        let local = campaigns.find((c: any) => c.id === dbc.id || (dbc.providerCampaignId && c.smartlead_id === Number(dbc.providerCampaignId)));
-                        const uid = dbc.userId || dbc.user_id;
-                        if (local) {
-                            local.userId = uid;
-                            local.user_id = uid;
-                            if (dbc._count?.leads !== undefined && dbc._count.leads > 0) {
-                                local.total_leads = dbc._count.leads;
-                            } else if (dbc.total_leads !== undefined && dbc.total_leads > 0) {
-                                local.total_leads = dbc.total_leads;
-                            }
-                            local.status = (dbc.status || local.status).toLowerCase();
-                            if (dbc.providerCampaignId) local.smartlead_id = Number(dbc.providerCampaignId);
-                        } else {
-                            campaigns.push({
-                                id: dbc.id,
-                                userId: uid,
-                                user_id: uid,
-                                name: dbc.name,
-                                description: "Outreach sequence",
-                                status: (dbc.status || "draft").toLowerCase(),
-                                kind: "sequence",
-                                smartlead_id: dbc.providerCampaignId ? Number(dbc.providerCampaignId) : undefined,
-                                total_leads: dbc._count?.leads || dbc.total_leads || 0,
-                                sent_count: 0,
-                                open_count: 0,
-                                reply_count: 0,
-                                bounce_count: 0,
-                                created_at: dbc.createdAt || dbc.created_at || new Date().toISOString(),
-                                updated_at: dbc.updatedAt || dbc.updated_at || new Date().toISOString(),
-                                steps: (dbc.steps || []).map((s: any, idx: number) => ({
-                                    id: s.id || `stp_${idx}`,
-                                    stepNumber: s.stepNumber || idx + 1,
-                                    subject: s.subject || "",
-                                    body_plain: s.bodyTemplate || "",
-                                    wait_after: s.delayDays || 0,
-                                    wait_days: s.delayDays || 0,
-                                })),
-                                mailboxes: [],
-                            });
-                        }
-                    });
+            try {
+                const createRes = await safeFetch("/api/campaigns", {
+                    method: "POST",
+                    headers: { ...authHeaders(), "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                if (createRes.ok) {
+                    const created = await createRes.json();
+                    campaigns.unshift({ ...created, status: created.status || "draft" } as any);
                     saveStorage("campaigns", campaigns);
+                    return res(created, 201);
                 }
+            } catch {}
+            return res({ error: "Failed to create campaign" }, 500);
+        }
+        // Proxy campaigns GET to real backend which returns live Smartlead stats
+        try {
+            const campRes = await safeFetch("/api/campaigns", { headers: authHeaders() });
+            if (campRes.ok) {
+                const realCamps = await campRes.json();
+                const arr = Array.isArray(realCamps) ? realCamps : (realCamps?.data || []);
+                // Map backend format to frontend Campaign model
+                const mapped = arr.map((c: any) => ({
+                    id: c.id,
+                    userId: c.userId,
+                    user_id: c.userId,
+                    name: c.name,
+                    description: "Outreach sequence",
+                    status: (c.status || "draft").toLowerCase(),
+                    total_leads: c.total_leads ?? c.lead_count ?? c.leadsCount ?? (c._count?.leads ?? 0),
+                    lead_count: c.total_leads ?? c.lead_count ?? c.leadsCount ?? (c._count?.leads ?? 0),
+                    sent_count: c.sent ?? c.sent_count ?? 0,
+                    open_count: c.opens ?? c.open_count ?? 0,
+                    reply_count: c.replies ?? c.reply_count ?? 0,
+                    bounce_count: c.bounces ?? c.bounce_count ?? 0,
+                    open_rate: c.openRate ?? c.open_rate ?? 0,
+                    reply_rate: c.replyRate ?? c.reply_rate ?? 0,
+                    owner: c.owner || "",
+                    steps: Array.isArray(c.steps) ? c.steps.length : (typeof c.steps === "number" ? c.steps : (c._count?.steps ?? 1)),
+                    smartlead_id: c.smartlead_id ?? (c.providerCampaignId ? parseInt(c.providerCampaignId, 10) : undefined),
+                    smartlead_status: (c.status || "draft").toUpperCase(),
+                    providerCampaignId: c.providerCampaignId || (c.smartlead_id ? String(c.smartlead_id) : undefined),
+                    updated_at: c.updatedAt || c.updated_at || new Date().toISOString(),
+                    created_at: c.createdAt || c.created_at || new Date().toISOString(),
+                    leads: c.leads || [],
+                    mailboxes: c.mailboxes || [],
+                }));
+                const campQuery = (queryParams.get("query") || queryParams.get("q") || "").toLowerCase().trim();
+                const filtered = campQuery
+                    ? mapped.filter((c: any) => (c.name || "").toLowerCase().includes(campQuery))
+                    : mapped;
+                return res({
+                    data: filtered,
+                    count: filtered.length,
+                    pagination: { total: filtered.length, next_cursor: null, has_more: false },
+                });
             }
-        } catch { }
-
-        // Lifetime send/engagement counters, aggregated from the Lead and
-        // EmailEvent tables. Fixture counters are only kept when no API is
-        // deployed at all — an endpoint that exists and fails must surface,
-        // otherwise the Campaigns page shows numbers no query backs.
-        const { stats: campaignStatsById, error: campaignStatsError } = await fetchCampaignStats();
-        if (campaignStatsError) {
-            console.warn("[standaloneMock] campaign stats warning (non-fatal):", campaignStatsError);
-        }
-        if (campaignStatsById) {
-            campaigns.forEach((c: any) => {
-                const s = campaignStatsById.get(String(c.id)) || (c.smartlead_id ? campaignStatsById.get(String(c.smartlead_id)) : undefined);
-                applyCampaignStats(c, s);
-            });
-            saveStorage("campaigns", campaigns);
-        }
-
-        const campQuery = (queryParams.get("query") || queryParams.get("q") || "").toLowerCase().trim();
-        const campResults = campQuery
-            ? campaigns.filter((c: any) => (c.name || "").toLowerCase().includes(campQuery) || (c.description || "").toLowerCase().includes(campQuery))
-            : campaigns;
-
-        const currentUser = loadStorage<any>("current_user", null);
-        const role = (currentUser?.role || "").toUpperCase();
-        const isMaster = role === "MASTER" || role === "OWNER" || currentUser?.is_admin === true;
-        let scopedResults = campResults;
-        if (!isMaster && currentUser?.id) {
-            scopedResults = campResults.filter((c: any) => 
-                c.userId === currentUser.id || 
-                c.user_id === currentUser.id || 
-                (c.owner_email && c.owner_email.toLowerCase() === currentUser.email?.toLowerCase()) ||
-                !c.userId // Don't filter out campaigns that belong to the user's workspace
-            );
-        }
-
-        return res({
-            data: scopedResults,
-            count: scopedResults.length,
-            pagination: {
-                total: scopedResults.length,
-                next_cursor: null,
-                has_more: false,
-            },
-        });
+        } catch {}
+        return res({ data: [], count: 0, pagination: { total: 0, next_cursor: null, has_more: false } });
     }
 
     if (pathWithoutQuery.startsWith("/campaigns/")) {
@@ -2186,19 +2028,31 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const campId = parts[1];
         const sub = parts[2];
         const campIdLower = (campId || "").toLowerCase();
+
+        // If GET on /campaigns/:id (details view), ALWAYS query live backend first
+        if (method === "GET" && !sub && campId) {
+            try {
+                const liveRes = await safeFetch(`/api/campaigns/${encodeURIComponent(campId)}`, { headers: authHeaders() });
+                if (liveRes.ok) {
+                    const liveCamp = await liveRes.json();
+                    if (liveCamp && liveCamp.id && !liveCamp.error) {
+                        return res(liveCamp);
+                    }
+                }
+            } catch (e) {
+                console.warn("[standaloneMock] live campaign fetch failed:", e);
+            }
+        }
+
         let match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
             campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower));
 
         if (!match && (campIdLower.includes("1789718475256") || campIdLower.includes("g91f") || campIdLower.includes("reachout") || campIdLower.includes("q2"))) {
-            match = campaigns.find((c: any) => c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) || Q2_CAMPAIGN_DEF;
+            match = campaigns.find((c: any) => c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout"));
         }
 
         if (!match) {
-            match = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower) ||
-                (campIdLower.includes("116") ? campaigns.find((c: any) => c.name?.includes("116")) : null) ||
-                (campIdLower.includes("120") ? campaigns.find((c: any) => c.name?.includes("120")) : null) ||
-                // Only use first campaign as fallback for GET reads, never for mutations
-                (method === "GET" ? campaigns[0] : null);
+            match = campaigns.find((c: any) => (c.id || "").toLowerCase() === campIdLower);
         }
 
         if (match && method === "GET" && !sub) {
@@ -2324,205 +2178,32 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         }
 
-        // START CAMPAIGN & DISPATCH BATCH: Rotate sends across the 4 mailboxes (50/day each), advance queue, persist records
+        // START CAMPAIGN / DISPATCH: proxy to real backend launch endpoint
         if ((sub === "start" || sub === "dispatch-batch" || sub === "dispatch") && method === "POST") {
-            if (match) {
-                match.status = "active";
-                match.updated_at = new Date().toISOString();
-
-                // Get or initialize campaign leads (preferring explicitly passed leads from startCampaign)
-                const startOptions = (config.data ? (typeof config.data === "string" ? JSON.parse(config.data) : config.data) : {}) as any;
-                const campLeads = (Array.isArray(startOptions?.leads) && startOptions.leads.length > 0)
-                    ? startOptions.leads
-                    : await getOrInitCampaignLeads(match.id, match);
-                const availableEmails = emails.length >= 8 ? emails : DEFAULT_8_PROFILES;
-                const nowIso = new Date().toISOString();
-
-                // Helper variable interpolator for personalized email outreach
-                function interpolateLeadVars(text: string, lead: any): string {
-                    if (!text) return "";
-                    const fName = lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "") || (lead.email ? lead.email.split("@")[0] : "Prospect");
-                    const lName = lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "") || "";
-                    const cName = cleanCompanyName(lead.company_name || lead.company || lead.custom_fields?.company);
-                    const title = lead.title || lead.role || lead.custom_fields?.title || "Executive";
-                    return text
-                        .replace(/&nbsp;/g, " ")
-                        .replace(/<span[^>]*style="[^"]*(?:background|border|monospace)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
-                        .replace(/<span[^>]*class="[^"]*(?:variable-badge|token-badge)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
-                        .replace(/\{\{\s*(\.?first_?name|first|fname)\s*\}\}/gi, fName)
-                        .replace(/\[\s*(First\s*Name|Name)\s*\]/gi, fName)
-                        .replace(/\{\{\s*(\.?last_?name|last|lname|surname)\s*\}\}/gi, lName)
-                        .replace(/\[\s*(Last\s*Name|Surname)\s*\]/gi, lName)
-                        .replace(/\{\{\s*(\.?company_?name|company|org|organization|brand)\s*\}\}/gi, cName)
-                        .replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand|Org)\s*\]/gi, cName)
-                        .replace(/\{\{\s*(\.?job_?title|title|role|position)\s*\}\}/gi, title)
-                        .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, title);
-                }
-
-                // Pick next pending leads to dispatch (e.g. 8 leads, 1 for each mailbox in rotation pool)
-                const pendingLeads = campLeads.filter((ct: any) => ct.status === "pending" || !ct.status);
-                const batchSize = Math.min(8, pendingLeads.length > 0 ? pendingLeads.length : 1);
-                const toDispatch = pendingLeads.slice(0, batchSize);
-
-                const dispatchedRecords: any[] = [];
-                const currentSentCount = match.sent_count || 0;
-
-                toDispatch.forEach((lead: any, idx: number) => {
-                    // Smart mailbox rotation across 8 enterprise sender accounts
-                    const mailboxIndex = (currentSentCount + idx) % availableEmails.length;
-                    const mailbox = availableEmails[mailboxIndex];
-
-                    const rawSub = match.steps?.[0]?.subject || `Outreach from ${mailbox.name}`;
-                    const rawBody = match.steps?.[0]?.body_plain || match.steps?.[0]?.body_html || `Hi {{firstName}}, reaching out from {{company}}...`;
-                    const cleanSub = interpolateLeadVars(rawSub, lead);
-                    const cleanSnippet = interpolateLeadVars(rawBody, lead).replace(/<[^>]+>/g, " ").trim().slice(0, 160);
-                    const fName = lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "Prospect");
-                    const lName = lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "");
-                    const fullName = `${fName} ${lName}`.trim();
-
-                    lead.status = "completed";
-                    lead.open_count = lead.open_count || 0;
-                    lead.reply_count = 0;
-                    lead.last_contacted_at = nowIso;
-                    lead.sent_by_mailbox = mailbox.email;
-                    lead.assigned_mailbox_id = mailbox.id;
-                    lead.current_step = "Step 1 (Outreach)";
-                    lead.campaign_lead = {
-                        status: "completed",
-                        sent: 1,
-                        opened: lead.open_count || 0,
-                        machine_opened: 0,
-                        clicked: 0,
-                        replied: 0,
-                        bounced: 0,
-                        current_step: "Step 1 (Outreach)",
-                        sender: mailbox.email,
-                        last_activity_at: nowIso,
-                        reply_snippet: null,
-                    };
-
-                    // Rotate daily quota (50 max/day per mailbox)
-                    mailbox.sent_today = Math.min(50, (mailbox.sent_today || 0) + 1);
-                    mailbox.total_sent = (mailbox.total_sent || 0) + 1;
-
-                    const threadId = `th_camp_${match.id}_${currentSentCount + idx}`;
-
-                    // Sent record for Outbox
-                    dispatchedRecords.push({
-                        id: `sent_${Date.now()}_${idx}`,
-                        email_id: mailbox.id,
-                        thread_id: threadId,
-                        from_addr: [`${mailbox.name} <${mailbox.email}>`],
-                        to_addr: [`${fullName} <${lead.email}>`],
-                        subject: cleanSub,
-                        snippet: cleanSnippet,
-                        internal_date: nowIso,
-                        seen: true,
-                        message_count: 1,
-                        has_unread: false,
-                        folder: "sent",
-                        campaign_id: match.id,
-                        labels: [],
-                    });
+            try {
+                const bodyData = config.data ? (typeof config.data === "string" ? config.data : JSON.stringify(config.data)) : "{}";
+                const launchRes = await safeFetch(`/api/campaigns/${campId}/launch`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...authHeaders() },
+                    body: bodyData,
                 });
-
-                if (toDispatch.length > 0) {
-                    match.sent_count = (match.sent_count || 0) + toDispatch.length;
-                } else if (!match.sent_count) {
-                    match.sent_count = 1;
+                if (launchRes.ok) {
+                    const launchData = await launchRes.json();
+                    if (match) {
+                        match.status = "active";
+                        match.smartlead_status = "ACTIVE";
+                        if (launchData.providerCampaignId) match.smartlead_id = launchData.providerCampaignId;
+                        match.updated_at = new Date().toISOString();
+                        saveStorage("campaigns", campaigns);
+                    }
+                    return res(launchData);
                 }
-                match.total_leads = Math.max(match.total_leads || 0, campLeads.length);
-
-                if (match.name === "Campaign 116" || match.id === "cmp_1789556689473") {
-                    match.smartlead_id = 3967633;
-                } else if (match.id === "cmp_1789718475256_g91f" || match.name?.includes("Q2 Reachout")) {
-                    match.smartlead_id = 3980868;
-                } else if (match.name.includes("404") || match.name.includes("408")) {
-                    match.smartlead_id = match.smartlead_id || 3959417;
-                }
-                match.smartlead_status = "ACTIVE";
-
-                // Save dispatched messages & persist database records
-                const existingSent = loadStorage<any[]>("unibox_sent_records", []);
-                saveStorage("unibox_sent_records", [...dispatchedRecords, ...existingSent]);
-                saveStorage("emails", availableEmails);
-                saveStorage(`campaign_leads_${match.id}`, campLeads);
-                saveStorage("campaigns", campaigns);
-
-                // Save realistic campaign logs for Live Activity feed
-                const existingLogs = loadStorage<any[]>(`campaign_logs_${match.id}`, []);
-                toDispatch.forEach((lead: any, idx: number) => {
-                    const mailboxIndex = (match.sent_count - toDispatch.length + idx) % availableEmails.length;
-                    const mailbox = availableEmails[mailboxIndex];
-                    const firstLeadName = `${lead.first_name || "Prospect"} ${lead.last_name || ""}`.trim();
-                    existingLogs.unshift({
-                        id: `log_snt_${Date.now()}_${idx}`,
-                        event_type: "EMAIL_SENT",
-                        message: `Step 1 batch dispatched to ${firstLeadName} (${lead.email}) via rotated mailbox ${mailbox.email}`,
-                        metadata: { level: "info" },
-                        created_at: nowIso,
-                    });
-                });
-                if (existingLogs.length === 0) {
-                    existingLogs.push({
-                        id: `log_snt_${match.id}`,
-                        event_type: "EMAIL_SENT",
-                        message: `Campaign active: 4 mailboxes rotated with 50/day quota each`,
-                        metadata: { level: "info" },
-                        created_at: nowIso,
-                    });
-                }
-                saveStorage(`campaign_logs_${match.id}`, existingLogs.slice(0, 50));
-
-                // Asynchronously sync with Smartlead Live API
-                try {
-                    fetch("/api/smartlead/sync-and-start", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", ...authHeaders() },
-                        body: JSON.stringify({
-                            name: match.name,
-                            smartlead_id: match.smartlead_id,
-                            steps: match.steps,
-                            leads: campLeads,
-                            sender_email: match.sender_email || availableEmails[0]?.email,
-                            mailbox_ids: Array.isArray(match.mailboxes) ? match.mailboxes : undefined,
-                            timezone: match.timezone || "Asia/Kolkata",
-                            days: match.days,
-                            start_time: match.start_time,
-                            end_time: match.end_time,
-                            daily_limit: match.daily_limit,
-                            max_new_leads_per_day: match.daily_limit || (match.mailboxes?.length || 1) * 200,
-                            stop_on_reply: match.stop_on_reply,
-                            open_tracking: match.open_tracking,
-                            link_tracking: match.link_tracking,
-                        }),
-                    }).then((r) => r.json()).then((d) => {
-                        if (d?.smartlead_id) {
-                            match.smartlead_id = d.smartlead_id;
-                            match.smartlead_status = "ACTIVE";
-                            saveStorage("campaigns", campaigns);
-                            if (typeof window !== "undefined") {
-                                window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: match.id } }));
-                            }
-                        }
-                    }).catch(() => { });
-                } catch { }
-
-                const smId = match.smartlead_id || (match.id === "cmp_1789718475256_g91f" ? 3980868 : match.id === "cmp_1790233732719_dvlj" ? 4015596 : null);
-                if (smId) {
-                    fetch(`/api/smartlead/status?id=${smId}`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", ...authHeaders() },
-                        body: JSON.stringify({ status: "START" }),
-                    }).catch(() => {});
-                }
-
-                // Broadcast queue and tracking events for real-time UI components
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: match.id } }));
-                }
+                const errData = await launchRes.json().catch(() => ({ error: "launch_failed" }));
+                return res(errData, launchRes.status);
+            } catch (err: any) {
+                console.error("[standaloneMock] campaign launch proxy error:", err);
+                return res({ error: err.message || "launch_failed" }, 500);
             }
-            return res({ status: "active", waiting_for_leads: false });
         }
 
         // CAMPAIGN LOGS (for TaskPreview Live Activity feed)
@@ -2709,8 +2390,28 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         if (sub === "steps" || sub === "sequences") {
             const stepId = parts[3];
             const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
+            if (!match) {
+                match = { id: campId, name: "Campaign", steps: [], sequences: [] };
+            }
             match.steps = match.steps || [];
             match.sequences = match.sequences || match.steps;
+
+            // 0. LIVE DATABASE PROXY (GET steps)
+            if (method === "GET" && !stepId) {
+                try {
+                    const liveStepsRes = await safeFetch(`/api/campaigns/steps?campaign_id=${encodeURIComponent(campId)}`, { headers: authHeaders() });
+                    if (liveStepsRes.ok) {
+                        const liveSteps = await liveStepsRes.json();
+                        if (Array.isArray(liveSteps) && liveSteps.length > 0) {
+                            match.steps = liveSteps;
+                            match.sequences = liveSteps;
+                            return res(liveSteps);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("[standaloneMock] live steps fetch failed:", e);
+                }
+            }
 
             // 1. DELETE STEP: Remove from array, re-order positions, sync to Smartlead
             if (method === "DELETE" && stepId) {
@@ -2729,9 +2430,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 return res({ success: true, deleted_id: stepId });
             }
 
-            // 2. BULK PUT / POST: Save entire sequence steps list
+            // 2. BULK PUT / POST: Save entire sequence steps list directly to PostgreSQL
             if ((method === "PUT" || method === "POST") && !stepId && (body.steps || Array.isArray(body))) {
                 const incoming = Array.isArray(body) ? body : body.steps;
+                try {
+                    await safeFetch(`/api/campaigns/steps?campaign_id=${encodeURIComponent(campId)}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", ...authHeaders() },
+                        body: JSON.stringify({ campaign_id: campId, steps: incoming }),
+                    });
+                } catch (e) {
+                    console.warn("[standaloneMock] live steps save failed:", e);
+                }
                 match.steps = incoming.map((s: any, idx: number) => ({
                     id: s.id || `stp_${Date.now()}_${idx + 1}`,
                     stepNumber: idx + 1,
@@ -3953,976 +3663,75 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         });
     }
 
-    // 7. Unibox (Unified Inbox) - Multi-Mailbox routing for all 4 profiles
-    const sentRecords = loadStorage<any[]>("unibox_sent_records", []);
-    const storedInbox = loadStorage<any[]>("unibox_inbox_messages", []);
-
-    const snehalReachout101Row = {
-        id: "msg_reply_snehal_reachout101",
-        email_id: "cmtlkufpi000o80qmmlfsfat7", // Monu
-        thread_id: "th_reachout_101_snehal",
-        from_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
-        to_addr: ["Monu <monu@theboredmonkey.com>"],
-        subject: "Re: Reachout 101",
-        snippet: "Noted with thanks. Monu",
-        internal_date: "2026-09-16T05:30:00.000Z", // 16 Sept, 11:00 AM IST
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    const rajdeepRepliedRow = {
-        id: "msg_reply_rajdeep_main",
-        email_id: "cmtlkufpi000o80qmmlfsfat7", // Monu
-        thread_id: "th_camp_rajdeep_main",
-        campaign_id: "cmp_1789718475256_g91f",
-        campaign_name: "Q2 Reachout Mails",
-        from_addr: ["Rajdeep More <rajdeep@clientpartner.com>"],
-        to_addr: ["Monu <monu@theboredmonkey.com>"],
-        subject: "Re: Influencer marketing partnership — TheBoredMonkey",
-        snippet: "Hi Monu, reviewed the partnership overview. Let's schedule a call this week.",
-        internal_date: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    const surajFrameworkRow = {
-        id: "msg_reply_suraj_framework",
-        email_id: "cmtlkufpi000o80qmmlfsfat7", // Monu
-        thread_id: "th_suraj_framework",
-        from_addr: ["Suraj Maurya <suraj@theboredmonkey.com>"],
-        to_addr: ["Monu <monu@theboredmonkey.com>"],
-        subject: "Re: YouTube Growth & Outbound Framework || TheBoredMonkey",
-        snippet: "Hi Monu, To clarify, I have two primary objectives for the YouTube framework and outbound deliverables.",
-        internal_date: "2026-09-16T01:45:00.000Z", // 16 Sept, 07:15 AM IST
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    // Vatsal Vadecha's real Smartlead Q3 Campaign replies
-    const jayantMissmosaRepliedRow = {
-        id: "msg_reply_jayant_missmosa",
-        email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
-        thread_id: "th_camp_jayant_missmosa",
-        campaign_id: "cmp_1790233732719_dvlj",
-        campaign_name: "Q3 Campaign",
-        from_addr: ["Jayant <jayant@missmosa.in>"],
-        to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-        subject: "Re: Miss Mosa X TBM: Modern Wellness, Authentically Told",
-        snippet: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
-        internal_date: "2026-09-24T11:33:00.000Z", // 24 Sept, 5:03 PM GMT+5:30
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    const saurabhLimeroadRepliedRow = {
-        id: "msg_reply_saurabh_limeroad",
-        email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
-        thread_id: "th_camp_saurabh_limeroad",
-        campaign_id: "cmp_1790233732719_dvlj",
-        campaign_name: "Q3 Campaign",
-        from_addr: ["Saurabh Ahuja <saurabh.ahuja@limeroad.com>"],
-        to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-        subject: "Re: Limeroad X TBM || Influencer Marketing & Creator Outreach",
-        snippet: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
-        internal_date: "2026-09-24T10:15:00.000Z", // 24 Sept, 3:45 PM GMT+5:30
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    // Snehal Maurya's inbound thread
-    const mamaearthRepliedRow = {
-        id: "msg_reply_mamaearth_snehal",
-        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya
-        thread_id: "th_camp_mamaearth_snehal",
-        campaign_id: "cmp_1789560721755",
-        campaign_name: "Campaign 120",
-        from_addr: ["Kiran Rao <kiran.rao@mamaearth.in>"],
-        to_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
-        subject: "Re: D2C Creator Growth Partnership",
-        snippet: "Hi Snehal, Received your proposal on creator attribution. Let's schedule a call on Thursday 3 PM to review creator deliverables.",
-        internal_date: "2026-09-17T11:15:00.000Z",
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    // Preeti Karki's inbound thread
-    const boatRepliedRow = {
-        id: "msg_reply_boat_preeti",
-        email_id: "cmu6m31bv00033307zao17anp", // Preeti Karki
-        thread_id: "th_camp_boat_preeti",
-        campaign_id: "cmtvl4lye0001tdcgjxhipix8",
-        campaign_name: "Campaign 108",
-        from_addr: ["Rohan Verma <rohan.verma@boat-lifestyle.com>"],
-        to_addr: ["Preeti Karki <preeti.karki@theboredmonkey.com>"],
-        subject: "Re: Product Placement & Audio Creator Outreach",
-        snippet: "Hi Preeti, We are reviewing the creator roster. Can you share past campaign engagement metrics for tech audio?",
-        internal_date: "2026-09-17T09:30:00.000Z",
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "inbox",
-        labels: [{ id: "cat_2", title: "Follow Up", color: "#3b82f6" }],
-    };
-
-    // Health Outreach Campaign reply - Rupesh Raut (Atreya Innovations Private)
-    const rupeshRepliedRow = {
-        id: "msg_reply_rupesh_health",
-        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
-        shared_email_ids: ["cmu6m304o00003307qj8ex6oa", "cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
-        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
-        thread_id: "th_camp_rupesh_health",
-        campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
-        campaign_name: "Health Outreach Campaign",
-        from_addr: ["Rupesh Raut <rupesh.raut@atreyainnovations.com>"],
-        to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-        subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
-        snippet: "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect. Thanks, Rupesh",
-        internal_date: "2026-10-09T04:53:04.000Z",
-        seen: false,
-        message_count: 2,
-        has_unread: true,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    const rupeshSentRow = {
-        id: "sent_init_rupesh_health",
-        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
-        shared_email_ids: ["cmu6m304o00003307qj8ex6oa", "cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
-        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
-        thread_id: "th_camp_rupesh_health",
-        campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
-        campaign_name: "Health Outreach Campaign",
-        from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-        to_addr: ["Rupesh Raut <rupesh.raut@atreyainnovations.com>"],
-        subject: "Diwali Influencer Marketing Partnership — TheBoredMonkey",
-        snippet: "Hi Rupesh. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...",
-        internal_date: "2026-10-08T12:27:45.534Z",
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "sent",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    // Smartlead Health Outreach Campaign (Campaign #4103333) Sukhdev Gehlot reply
-    const velnikHealthRepliedRow = {
-        id: "msg_reply_velnik_health",
-        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
-        shared_email_ids: ["cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
-        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
-        thread_id: "th_camp_velnik_health",
-        campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
-        campaign_name: "Health Outreach Campaign",
-        from_addr: ["Velnik India <customercare@velnik.com>"],
-        to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-        subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
-        snippet: "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours...",
-        internal_date: "2026-10-09T10:46:01.000Z",
-        seen: false,
-        message_count: 2,
-        has_unread: true,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    const velnikHealthSentRow = {
-        id: "sent_init_velnik_health",
-        email_id: "cmtu07q0i00011wxajyd2ehui",
-        shared_email_ids: ["cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
-        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
-        thread_id: "th_camp_velnik_health",
-        campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
-        campaign_name: "Health Outreach Campaign",
-        from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-        to_addr: ["Sukhdev Gehlot <sukhdev.gehlot@velnik.com>"],
-        subject: "Diwali Influencer Marketing Partnership — TheBoredMonkey",
-        snippet: "Hi Sukhdev. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...",
-        internal_date: "2026-10-09T10:45:58.613Z",
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "sent",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    // Smartlead Personal Care Snehal Campaign replies (Campaign #4111241)
-    const bhoomiRepliedRow = {
-        id: "msg_reply_bhoomi_salt",
-        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
-        shared_email_ids: ["cmttwwhj5000ovdkr7ooyb6qt"],
-        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
-        thread_id: "th_camp_bhoomi_salt",
-        campaign_id: "cmv0x5vfu0001dynzwtnxg8ul",
-        campaign_name: "Personal Care Snehal Campaign",
-        from_addr: ["Bhoomi <bhoomi@saltoralcare.com>"],
-        to_addr: ["Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>"],
-        subject: "Re: Diwali Production Partnership | TheBoredMonkey",
-        snippet: "Thank you for your email. Please note that Bhoomi is no longer associated with Salt Oral Care. Going forward, all marketing-related communication should be directed to: Vaishnavi Sikarwar Head of Marketing vaishnavi@saltoralcare.com...",
-        internal_date: "2026-10-09T11:49:51.000Z",
-        seen: false,
-        message_count: 2,
-        has_unread: true,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    const bhoomiSentRow = {
-        id: "sent_init_bhoomi_salt",
-        email_id: "cmtu07q0i00011wxajyd2ehui",
-        shared_email_ids: ["cmttwwhj5000ovdkr7ooyb6qt"],
-        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
-        thread_id: "th_camp_bhoomi_salt",
-        campaign_id: "cmv0x5vfu0001dynzwtnxg8ul",
-        campaign_name: "Personal Care Snehal Campaign",
-        from_addr: ["Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>"],
-        to_addr: ["Bhoomi <bhoomi@saltoralcare.com>"],
-        subject: "Diwali Production Partnership | TheBoredMonkey",
-        snippet: "Hi Bhoomi, A good personal care film shouldn’t just make the product look good. It should make the consumer believe something they weren’t sure about before. Would love to explore what that could look like for Salt Oral Care...",
-        internal_date: "2026-10-09T11:45:54.784Z",
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "sent",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    const velnikRepliedRow = {
-        id: "msg_reply_velnik_sukhdev",
-        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
-        shared_email_ids: ["cmttwwhj5000ovdkr7ooyb6qt"],
-        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
-        thread_id: "th_camp_velnik_sukhdev",
-        campaign_id: "cmv0x5vfu0001dynzwtnxg8ul",
-        campaign_name: "Personal Care Snehal Campaign",
-        from_addr: ["Velnik India <customercare@velnik.com>"],
-        to_addr: ["Simran D <simran.d@theboredmonkey.com>"],
-        subject: "Re: Diwali Production Partnership | TheBoredMonkey",
-        snippet: "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours...",
-        internal_date: "2026-10-10T06:15:41.000Z",
-        seen: false,
-        message_count: 2,
-        has_unread: true,
-        folder: "inbox",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    const velnikSentRow = {
-        id: "sent_init_velnik_sukhdev",
-        email_id: "cmtu07q0i00011wxajyd2ehui",
-        shared_email_ids: ["cmttwwhj5000ovdkr7ooyb6qt"],
-        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
-        thread_id: "th_camp_velnik_sukhdev",
-        campaign_id: "cmv0x5vfu0001dynzwtnxg8ul",
-        campaign_name: "Personal Care Snehal Campaign",
-        from_addr: ["Simran D <simran.d@theboredmonkey.com>"],
-        to_addr: ["Sukhdev Gehlot <sukhdev.gehlot@velnik.com>"],
-        subject: "Diwali Production Partnership | TheBoredMonkey",
-        snippet: "Hi Sukhdev, Would love to explore creator-led production and video frameworks for Velnik this festive season...",
-        internal_date: "2026-10-09T11:45:54.784Z",
-        seen: true,
-        message_count: 2,
-        has_unread: false,
-        folder: "sent",
-        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-    };
-
-    // Complete real conversations mapped across all team members
-    const defaultInboxRows = [
-        rupeshRepliedRow,
-        velnikHealthRepliedRow,
-        bhoomiRepliedRow,
-        velnikRepliedRow,
-        rajdeepRepliedRow,
-        snehalReachout101Row,
-        surajFrameworkRow,
-        jayantMissmosaRepliedRow,
-        saurabhLimeroadRepliedRow,
-        mamaearthRepliedRow,
-        boatRepliedRow,
-    ];
-
-    // Filter out any legacy demo rows from stored inbox and enforce September timestamps
-    const cleanStoredInbox = storedInbox
-        .filter((r) => {
-            const fromStr = (r.from_addr?.[0] || "").toLowerCase();
-            const subStr = (r.subject || "").toLowerCase();
-            const threadStr = (r.thread_id || "").toLowerCase();
-            return !fromStr.includes("sarah.chen") &&
-                !fromStr.includes("marcus.v") &&
-                !fromStr.includes("alex.r") &&
-                !fromStr.includes("priya@") &&
-                !fromStr.includes("david@") &&
-                !fromStr.includes("elena.") &&
-                !fromStr.includes("peachmode") &&
-                !fromStr.includes("bewakoof") &&
-                !fromStr.includes("aishwarya") &&
-                !fromStr.includes("aisha") &&
-                !threadStr.includes("peachmode") &&
-                !threadStr.includes("bewakoof") &&
-                !subStr.includes("peachmode") &&
-                !subStr.includes("bewakoof") &&
-                !subStr.includes("collaboration confirmation") &&
-                !(r.snippet || "").toLowerCase().includes("deliverables timeline");
-        })
-        .map((r) => {
-            if (r.thread_id === "th_camp_rajdeep_main" || r.id === "msg_reply_rajdeep_main") {
-                return { ...r, internal_date: "2026-09-16T06:48:00.000Z" };
-            }
-            if (r.thread_id === "th_reachout_101_snehal" || r.id === "msg_reply_snehal_reachout101") {
-                return { ...r, internal_date: "2026-09-16T05:30:00.000Z" };
-            }
-            if (r.thread_id === "th_suraj_framework" || r.id === "msg_reply_suraj_framework") {
-                return { ...r, internal_date: "2026-09-16T01:45:00.000Z" };
-            }
-            return r;
-        });
-
-    const allInboxRows = [
-        ...cleanStoredInbox,
-        ...defaultInboxRows.filter(d => !cleanStoredInbox.some(c => c.thread_id === d.thread_id))
-    ];
-    allInboxRows.sort((a, b) => new Date(b.internal_date || 0).getTime() - new Date(a.internal_date || 0).getTime());
-
-    const defaultSentRows = [
-        rupeshSentRow,
-        velnikHealthSentRow,
-        bhoomiSentRow,
-        velnikSentRow,
-        {
-            id: "sent_init_jayant_missmosa",
-            email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
-            thread_id: "th_camp_jayant_missmosa",
-            campaign_id: "cmp_1790233732719_dvlj",
-            campaign_name: "Q3 Campaign",
-            from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-            to_addr: ["Jayant <jayant@missmosa.in>"],
-            subject: "Miss Mosa X TBM: Modern Wellness, Authentically Told",
-            snippet: "Hi Jayant, Hope you’ve been doing great. I’ve been following Miss Mosa and truly admire the way you’ve built trust and consistency. Wanted to connect regarding creator-led influencer marketing.",
-            internal_date: "2026-09-24T08:13:33.000Z",
-            seen: true,
-            message_count: 2,
-            has_unread: false,
-            folder: "sent",
-            labels: [],
-        },
-        {
-            id: "sent_init_saurabh_limeroad",
-            email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
-            thread_id: "th_camp_saurabh_limeroad",
-            campaign_id: "cmp_1790233732719_dvlj",
-            campaign_name: "Q3 Campaign",
-            from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-            to_addr: ["Saurabh Ahuja <saurabh.ahuja@limeroad.com>"],
-            subject: "Limeroad X TBM || Influencer Marketing & Creator Outreach",
-            snippet: "Hi Saurabh, We run creator-led campaigns that scale performance marketing. Let me know if you are open to discussing influencer marketing and regional creator campaigns for Limeroad.",
-            internal_date: "2026-09-24T10:02:14.000Z",
-            seen: true,
-            message_count: 2,
-            has_unread: false,
-            folder: "sent",
-            labels: [],
-        },
-        {
-            id: "sent_init_mamaearth",
-            email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya
-            thread_id: "th_camp_mamaearth_snehal",
-            campaign_id: "cmp_1789560721755",
-            campaign_name: "Campaign 120",
-            from_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
-            to_addr: ["Kiran Rao <kiran.rao@mamaearth.in>"],
-            subject: "D2C Creator Growth Partnership",
-            snippet: "Hi Kiran, We specialize in creator-led growth architectures for fast-growing D2C personal care brands.",
-            internal_date: "2026-09-17T08:00:00.000Z",
-            seen: true,
-            message_count: 2,
-            has_unread: false,
-            folder: "sent",
-            labels: [],
-        },
-        {
-            id: "sent_init_boat",
-            email_id: "cmu6m31bv00033307zao17anp", // Preeti Karki
-            thread_id: "th_camp_boat_preeti",
-            campaign_id: "cmtvl4lye0001tdcgjxhipix8",
-            campaign_name: "Campaign 108",
-            from_addr: ["Preeti Karki <preeti.karki@theboredmonkey.com>"],
-            to_addr: ["Rohan Verma <rohan.verma@boat-lifestyle.com>"],
-            subject: "Product Placement & Audio Creator Outreach",
-            snippet: "Hi Rohan, Sharing our performance benchmark case studies for audio and wearable creator partnerships.",
-            internal_date: "2026-09-17T07:45:00.000Z",
-            seen: true,
-            message_count: 2,
-            has_unread: false,
-            folder: "sent",
-            labels: [],
-        },
-        {
-            id: "sent_init_rajdeep",
-            email_id: "cmtlkufpi000o80qmmlfsfat7",
-            thread_id: "th_camp_rajdeep_main",
-            campaign_id: "cmp_1789718475256_g91f",
-            campaign_name: "Q2 Reachout Mails",
-            from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-            to_addr: ["Rajdeep More <hajikarimbeldaar@gmail.com>"],
-            subject: "Influencer marketing partnership — TheBoredMonkey",
-            snippet: "Hi Rajdeep More , We run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.",
-            internal_date: "2026-09-16T06:41:00.000Z", // 16 Sept, 12:11 PM IST
-            seen: true,
-            message_count: 2,
-            has_unread: false,
-            folder: "sent",
-            labels: [],
-        },
-        {
-            id: "sent_init_reachout101_snehal",
-            email_id: "cmtlkufpi000o80qmmlfsfat7", // Haji Karim
-            thread_id: "th_reachout_101_snehal",
-            campaign_id: "cmp_1789560721755",
-            campaign_name: "Campaign 120",
-            from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-            to_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
-            subject: "Reachout 101",
-            snippet: "Dear , I hope this message finds you in good health. It is a pleasure to formally confirm our upcoming collaboration, and we are truly delighted to have you on",
-            internal_date: "2026-09-16T05:15:00.000Z", // 16 Sept, 10:45 AM IST
-            seen: true,
-            message_count: 2,
-            has_unread: false,
-            folder: "sent",
-            labels: [],
-        },
-        {
-            id: "sent_init_suraj",
-            email_id: "cmtlkufpi000o80qmmlfsfat7",
-            thread_id: "th_suraj_framework",
-            campaign_id: "cmtwmgdm00001sikkb3l1bc3r",
-            campaign_name: "Pratik is testing",
-            from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-            to_addr: ["Suraj Maurya <suraj@theboredmonkey.com>"],
-            subject: "Re: YouTube Growth & Outbound Framework || TheBoredMonkey",
-            snippet: "Hey Suraj, Following up on our framework alignment for outbound.",
-            internal_date: "2026-09-16T00:45:00.000Z", // 16 Sept, 06:15 AM IST
-            seen: true,
-            message_count: 2,
-            has_unread: false,
-            folder: "sent",
-            labels: [],
-        },
-    ];
-
-    const cleanSentRecords = sentRecords
-        .filter((r) => {
-            const sub = (r.subject || "").toLowerCase();
-            const snip = (r.snippet || "").toLowerCase();
-            const threadStr = (r.thread_id || "").toLowerCase();
-            return !sub.includes("peachmode") &&
-                !sub.includes("bewakoof") &&
-                !threadStr.includes("peachmode") &&
-                !threadStr.includes("bewakoof") &&
-                !sub.includes("collaboration confirmation") &&
-                !snip.includes("deliverability roadmap");
-        })
-        .map((r) => {
-            if (r.thread_id === "th_camp_rajdeep_main" || r.id === "sent_init_rajdeep") {
-                return { ...r, internal_date: "2026-09-16T06:41:00.000Z" };
-            }
-            if (r.thread_id === "th_reachout_101_snehal" || r.id === "sent_init_reachout101_snehal") {
-                return { ...r, internal_date: "2026-09-16T05:15:00.000Z" };
-            }
-            if (r.thread_id === "th_suraj_framework" || r.id === "sent_init_suraj") {
-                return { ...r, internal_date: "2026-09-16T00:45:00.000Z" };
-            }
-            return r;
-        });
-    const allSentRows = [...cleanSentRecords, ...defaultSentRows];
-
+    // 7. Unibox — proxy ALL requests to real backend API
     if (pathWithoutQuery === "/unibox/team") {
         try {
             const teamRes = await safeFetch("/api/v1/unibox/team", { headers: authHeaders() });
             if (teamRes.ok) {
                 const teamData = await teamRes.json();
-                if (Array.isArray(teamData)) return res(teamData);
-                if (Array.isArray(teamData?.data)) return res(teamData.data);
+                if (Array.isArray(teamData) && teamData.length > 0) return res(teamData);
+                if (Array.isArray(teamData?.data) && teamData.data.length > 0) return res(teamData.data);
             }
         } catch {}
-        return res([
-            { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 5 },
-            { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master", mailboxIds: ["cmtlkufpi000o80qmmlfsfat7"], unread: 0 },
-            { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 1 },
-            { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach", mailboxIds: ["cmu6m31bv00033307zao17anp", "cmu6m31vx00053307frspcjkj"], unread: 0 },
-            { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 4 },
-        ]);
+        return res([]);
     }
 
     if (pathWithoutQuery === "/unibox/count") {
-        const unreadCount = allInboxRows.filter(r => !r.seen || r.has_unread).length;
-        return res({ unseen: unreadCount });
+        try {
+            const countRes = await safeFetch("/api/v1/unibox/overview", { headers: authHeaders() });
+            if (countRes.ok) {
+                const d = await countRes.json();
+                return res({ unseen: d.unread ?? 0 });
+            }
+        } catch {}
+        return res({ unseen: 0 });
     }
 
     if (pathWithoutQuery === "/unibox/overview") {
-        const unreadCount = allInboxRows.filter(r => !r.seen || r.has_unread).length;
-        const totalSentCount = allSentRows.length;
-        const todayDateStr = new Date().toISOString().slice(0, 10);
-        const todayCount = allInboxRows.filter(r => (r.internal_date || "").slice(0, 10) === todayDateStr).length;
-        const weekStartMs = Date.now() - 7 * 86400000;
-        const weekCount = allInboxRows.filter(r => new Date(r.internal_date || "").getTime() >= weekStartMs).length;
-
+        try {
+            const qs = queryString ? `?${queryString}` : "";
+            const overviewRes = await safeFetch(`/api/v1/unibox/overview${qs}`, { headers: authHeaders() });
+            if (overviewRes.ok) return res(await overviewRes.json());
+        } catch {}
         return res({
-            total: allInboxRows.length,
-            unread: unreadCount,
-            today: todayCount,
-            week: weekCount,
-            snoozed: 0,
-            awaiting_reply: 0,
-            awaiting_agent_draft: 0,
-            scheduled_pending: 0,
-            scheduled_pending_max: 50,
-            folders: [
-                { folder: "inbox", unread: unreadCount, total: allInboxRows.length },
-                { folder: "sent", unread: 0, total: totalSentCount },
-                { folder: "drafts", unread: 0, total: 1 },
-                { folder: "archive", unread: 0, total: 0 },
-                { folder: "spam", unread: 0, total: 0 },
-                { folder: "trash", unread: 0, total: 0 },
-            ],
-            mailboxes: emails.map((e: { id: string; email: string; name?: string; from_name?: string }) => {
-                const mailUnread = allInboxRows.filter(r => r.email_id === e.id && (!r.seen || r.has_unread)).length;
-                const mailTotal = allInboxRows.filter(r => r.email_id === e.id).length;
-                return {
-                    id: e.id,
-                    email: e.email,
-                    name: e.name || e.from_name || e.email.split("@")[0],
-                    unread: mailUnread,
-                    total: mailTotal,
-                };
-            }),
-            tags: [
-                { id: "tag_vip", title: "VIP Client", color: "#f59e0b", unread: 0, total: 1 },
-                { id: "tag_demo", title: "Demo Booked", color: "#10b981", unread: 0, total: 1 },
-            ],
-            categories: [
-                { id: "cat_1", title: "Interested", color: "#10b981", unread: 1, total: 2 },
-                { id: "cat_2", title: "Follow Up", color: "#3b82f6", unread: 0, total: 0 },
-            ],
+            total: 0, unread: 0, today: 0, week: 0, snoozed: 0,
+            awaiting_reply: 0, awaiting_agent_draft: 0,
+            scheduled_pending: 0, scheduled_pending_max: 500,
+            folders: [], mailboxes: [], tags: [], categories: [],
             generated_at: new Date().toISOString(),
-            window_today_start: new Date(Date.now() - 86400000).toISOString(),
-            window_week_start: new Date(Date.now() - 7 * 86400000).toISOString(),
         });
     }
 
     if (pathWithoutQuery === "/unibox" || pathWithoutQuery.startsWith("/unibox?")) {
-        const folder = (queryParams.get("folder") || "inbox").toLowerCase();
-        const accountFilter = queryParams.get("email_ids") || queryParams.get("email_id") || queryParams.get("ref") || "";
-        const targetMailboxIds = accountFilter ? accountFilter.split(",").map(s => s.trim()).filter(Boolean) : [];
-        const searchQuery = (queryParams.get("subject") || queryParams.get("query") || queryParams.get("q") || "").toLowerCase().trim();
-        const unseenOnly = queryParams.get("unseen") === "true";
-
-        let pool = folder === "sent" ? allSentRows : folder === "drafts" ? [] : allInboxRows;
-
-        // 1. Mailbox account filtering
-        if (targetMailboxIds.length > 0) {
-            pool = pool.filter(r => 
-                targetMailboxIds.includes(r.email_id) || 
-                (r.shared_email_ids && r.shared_email_ids.some((id: string) => targetMailboxIds.includes(id))) ||
-                (r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec") ||
-                (r.campaign_id === "cmv0x5vfu0001dynzwtnxg8ul")
-            );
-        }
-
-        // 1b. Team Member filtering
-        const memberFilter = queryParams.get("member_id") || queryParams.get("memberId") || "";
-        if (memberFilter && memberFilter !== "all") {
-            pool = pool.filter(r => 
-                r.member_id === memberFilter ||
-                (r.memberId && r.memberId === memberFilter) ||
-                (memberFilter === "cmttwwhj5000ovdkr7ooyb6qt" && (
-                    r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" ||
-                    r.campaign_id === "cmv0x5vfu0001dynzwtnxg8ul" ||
-                    r.campaign_id === "4103333" ||
-                    r.campaign_id === "4111241" ||
-                    r.email_id === "cmtu07q0i00011wxajyd2ehui" ||
-                    r.email_id === "cmttwwhj5000ovdkr7ooyb6qt" ||
-                    (r.campaign_name && (r.campaign_name.toLowerCase().includes("health") || r.campaign_name.toLowerCase().includes("snehal") || r.campaign_name.toLowerCase().includes("personal care")))
-                )) ||
-                (memberFilter === "cmu6m304o00003307qj8ex6oa" && (
-                    r.campaign_id === "cmp_1790233732719_dvlj" ||
-                    r.campaign_id === "cmp_1789718475256_g91f" ||
-                    r.email_id === "cmu6m304o00003307qj8ex6oa"
-                )) ||
-                (memberFilter === "cmtr9pp8t0000cygeyjpsz5lt" && (
-                    r.email_id === "cmtlkufpi000o80qmmlfsfat7"
-                )) ||
-                (memberFilter === "cmu6m31bv00033307zao17anp" && (
-                    r.campaign_id === "cmtvl4lye0001tdcgjxhipix8" ||
-                    r.email_id === "cmu6m31bv00033307zao17anp"
-                ))
-            );
-        }
-
-        // 1c. Campaign filtering
-        const campaignFilter = queryParams.get("campaign_id") || queryParams.get("campaignId") || "";
-        if (campaignFilter && campaignFilter !== "all") {
-            pool = pool.filter(r => 
-                r.campaign_id === campaignFilter || 
-                r.campaignId === campaignFilter ||
-                (campaignFilter === "3bdf7199-cc30-4461-873d-d9928b9c31ec" && (r.campaign_name === "Health Outreach Campaign" || r.campaign_id === "4103333")) ||
-                (campaignFilter === "4103333" && (r.campaign_name === "Health Outreach Campaign" || r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec")) ||
-                (campaignFilter === "cmv0x5vfu0001dynzwtnxg8ul" && (r.campaign_name === "Personal Care Snehal Campaign" || r.campaign_id === "4111241")) ||
-                (campaignFilter === "4111241" && (r.campaign_name === "Personal Care Snehal Campaign" || r.campaign_id === "cmv0x5vfu0001dynzwtnxg8ul"))
-            );
-        }
-
-        // 2. Search query filtering
-        if (searchQuery) {
-            pool = pool.filter(r =>
-                (r.subject || "").toLowerCase().includes(searchQuery) ||
-                (r.snippet || "").toLowerCase().includes(searchQuery) ||
-                (r.from_addr || []).some((a: string) => a.toLowerCase().includes(searchQuery)) ||
-                (r.to_addr || []).some((a: string) => a.toLowerCase().includes(searchQuery))
-            );
-        }
-
-        // 3. Unseen filtering
-        if (unseenOnly) {
-            pool = pool.filter(r => !r.seen || r.has_unread);
-        }
-
-        // 4. Since / Until date filtering
-        const sinceParam = queryParams.get("since");
-        if (sinceParam) {
-            const sinceDate = new Date(sinceParam);
-            const sinceTime = sinceDate.getTime();
-            if (!Number.isNaN(sinceTime)) {
-                pool = pool.filter(r => new Date(r.internal_date || "").getTime() >= sinceTime);
-            }
-        }
-        const untilParam = queryParams.get("until");
-        if (untilParam) {
-            const untilDate = new Date(untilParam);
-            if (untilParam.length === 10) {
-                untilDate.setHours(23, 59, 59, 999);
-            }
-            const untilTime = untilDate.getTime();
-            if (!Number.isNaN(untilTime)) {
-                pool = pool.filter(r => new Date(r.internal_date || "").getTime() <= untilTime);
-            }
-        }
-
-        return res({
-            data: pool,
-            pagination: {
-                total: pool.length,
-                has_more: false,
-                next_cursor: null,
-            },
-        });
+        try {
+            const qs = queryString ? `?${queryString}` : "";
+            const inboxRes = await safeFetch(`/api/v1/unibox${qs}`, { headers: authHeaders() });
+            if (inboxRes.ok) return res(await inboxRes.json());
+        } catch {}
+        return res({ data: [], pagination: { total: 0, has_more: false, next_cursor: null } });
     }
 
     if (pathWithoutQuery === "/unibox/thread") {
-        const threadId = queryParams.get("thread_id") || "th_reachout_101_snehal";
-        const customReplies = loadStorage<any[]>(`thread_replies_${threadId}`, []);
-
-        let threadMessages: any[] = [];
-        if (threadId === "th_camp_rupesh_health" || threadId.includes("rupesh") || threadId.includes("health")) {
-            threadMessages = [
-                {
-                    id: "sent_init_rupesh_health",
-                    email_id: "cmtu07q0i00011wxajyd2ehui",
-                    thread_id: threadId,
-                    from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-                    to_addr: ["Rupesh Raut <rupesh.raut@atreyainnovations.com>"],
-                    subject: "Diwali Influencer Marketing Partnership — TheBoredMonkey",
-                    snippet: "Hi Rupesh. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...",
-                    internal_date: "2026-10-08T12:27:45.534Z",
-                    seen: true,
-                },
-                {
-                    id: "msg_reply_rupesh_health",
-                    email_id: "cmtu07q0i00011wxajyd2ehui",
-                    thread_id: threadId,
-                    from_addr: ["Rupesh Raut <rupesh.raut@atreyainnovations.com>"],
-                    to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-                    subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
-                    snippet: "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect. Thanks, Rupesh",
-                    internal_date: "2026-10-09T04:53:04.000Z",
-                    seen: false,
-                }
-            ];
-        } else if (threadId === "th_camp_bhoomi_salt" || threadId.includes("bhoomi") || threadId.includes("salt")) {
-            threadMessages = [
-                {
-                    id: "sent_init_bhoomi_salt",
-                    email_id: "cmtu07q0i00011wxajyd2ehui",
-                    thread_id: threadId,
-                    from_addr: ["Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>"],
-                    to_addr: ["Bhoomi <bhoomi@saltoralcare.com>"],
-                    subject: "Diwali Production Partnership | TheBoredMonkey",
-                    snippet: "Hi Bhoomi, A good personal care film shouldn’t just make the product look good. It should make the consumer believe something they weren’t sure about before. Would love to explore what that could look like for Salt Oral Care...",
-                    internal_date: "2026-10-09T11:45:54.784Z",
-                    seen: true,
-                },
-                {
-                    id: "msg_reply_bhoomi_salt",
-                    email_id: "cmtu07q0i00011wxajyd2ehui",
-                    thread_id: threadId,
-                    from_addr: ["Bhoomi <bhoomi@saltoralcare.com>"],
-                    to_addr: ["Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>"],
-                    subject: "Re: Diwali Production Partnership | TheBoredMonkey",
-                    snippet: "Thank you for your email. Please note that Bhoomi is no longer associated with Salt Oral Care. Going forward, all marketing-related communication should be directed to: Vaishnavi Sikarwar Head of Marketing vaishnavi@saltoralcare.com...",
-                    internal_date: "2026-10-09T11:49:51.000Z",
-                    seen: false,
-                }
-            ];
-        } else if (threadId === "th_camp_velnik_health" || (threadId.includes("velnik") && threadId.includes("health"))) {
-            threadMessages = [
-                {
-                    id: "sent_init_velnik_health",
-                    email_id: "cmtu07q0i00011wxajyd2ehui",
-                    thread_id: threadId,
-                    from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-                    to_addr: ["Sukhdev Gehlot <sukhdev.gehlot@velnik.com>"],
-                    subject: "Diwali Influencer Marketing Partnership — TheBoredMonkey",
-                    snippet: "Hi Sukhdev. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...",
-                    internal_date: "2026-10-09T10:45:58.613Z",
-                    seen: true,
-                },
-                {
-                    id: "msg_reply_velnik_health",
-                    email_id: "cmtu07q0i00011wxajyd2ehui",
-                    thread_id: threadId,
-                    from_addr: ["Velnik India <customercare@velnik.com>"],
-                    to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-                    subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
-                    snippet: "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours...",
-                    internal_date: "2026-10-09T10:46:01.000Z",
-                    seen: false,
-                }
-            ];
-        } else if (threadId === "th_camp_velnik_sukhdev" || threadId.includes("velnik") || threadId.includes("sukhdev")) {
-            threadMessages = [
-                {
-                    id: "sent_init_velnik_sukhdev",
-                    email_id: "cmtu07q0i00011wxajyd2ehui",
-                    thread_id: threadId,
-                    from_addr: ["Simran D <simran.d@theboredmonkey.com>"],
-                    to_addr: ["Sukhdev Gehlot <sukhdev.gehlot@velnik.com>"],
-                    subject: "Diwali Production Partnership | TheBoredMonkey",
-                    snippet: "Hi Sukhdev, Would love to explore creator-led production and video frameworks for Velnik this festive season...",
-                    internal_date: "2026-10-09T11:45:54.784Z",
-                    seen: true,
-                },
-                {
-                    id: "msg_reply_velnik_sukhdev",
-                    email_id: "cmtu07q0i00011wxajyd2ehui",
-                    thread_id: threadId,
-                    from_addr: ["Velnik India <customercare@velnik.com>"],
-                    to_addr: ["Simran D <simran.d@theboredmonkey.com>"],
-                    subject: "Re: Diwali Production Partnership | TheBoredMonkey",
-                    snippet: "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours...",
-                    internal_date: "2026-10-10T06:15:41.000Z",
-                    seen: false,
-                }
-            ];
-        } else if (threadId === "th_camp_jayant_missmosa" || threadId.includes("jayant") || threadId.includes("missmosa")) {
-            threadMessages = [
-                {
-                    id: "sent_init_jayant_missmosa",
-                    email_id: "cmu6m304o00003307qj8ex6oa",
-                    thread_id: threadId,
-                    from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-                    to_addr: ["Jayant <jayant@missmosa.in>"],
-                    subject: "Miss Mosa X TBM: Modern Wellness, Authentically Told",
-                    snippet: "Hi Jayant, Hope you’ve been doing great. I’ve been following Miss Mosa and truly admire the way you’ve built trust and consistency. Wanted to connect regarding creator-led influencer marketing.",
-                    internal_date: "2026-09-24T08:13:33.000Z",
-                    seen: true,
-                },
-                {
-                    id: "msg_reply_jayant_missmosa",
-                    email_id: "cmu6m304o00003307qj8ex6oa",
-                    thread_id: threadId,
-                    from_addr: ["Jayant <jayant@missmosa.in>"],
-                    to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-                    subject: "Re: Miss Mosa X TBM: Modern Wellness, Authentically Told",
-                    snippet: "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables.",
-                    internal_date: "2026-09-24T11:33:00.000Z",
-                    seen: false,
-                }
-            ];
-        } else if (threadId === "th_camp_saurabh_limeroad" || threadId.includes("saurabh") || threadId.includes("limeroad")) {
-            threadMessages = [
-                {
-                    id: "sent_init_saurabh_limeroad",
-                    email_id: "cmu6m304o00003307qj8ex6oa",
-                    thread_id: threadId,
-                    from_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-                    to_addr: ["Saurabh Ahuja <saurabh.ahuja@limeroad.com>"],
-                    subject: "Limeroad X TBM || Influencer Marketing & Creator Outreach",
-                    snippet: "Hi Saurabh, We run creator-led campaigns that scale performance marketing. Let me know if you are open to discussing influencer marketing and regional creator campaigns for Limeroad.",
-                    internal_date: "2026-09-24T10:02:14.000Z",
-                    seen: true,
-                },
-                {
-                    id: "msg_reply_saurabh_limeroad",
-                    email_id: "cmu6m304o00003307qj8ex6oa",
-                    thread_id: threadId,
-                    from_addr: ["Saurabh Ahuja <saurabh.ahuja@limeroad.com>"],
-                    to_addr: ["Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>"],
-                    subject: "Re: Limeroad X TBM || Influencer Marketing & Creator Outreach",
-                    snippet: "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies.",
-                    internal_date: "2026-09-24T10:15:00.000Z",
-                    seen: false,
-                }
-            ];
-        } else if (threadId === "th_reachout_101_snehal" || threadId.includes("reachout_101") || threadId.includes("snehal")) {
-            threadMessages = [
-                {
-                    id: "msg_th_reachout101_sent",
-                    email_id: "cmtlkufpi000o80qmmlfsfat7",
-                    thread_id: threadId,
-                    from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-                    to_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
-                    subject: "Reachout 101",
-                    snippet: "Dear , I hope this message finds you in good health. It is a pleasure to formally confirm our upcoming collaboration, and we are truly delighted to have you on",
-                    internal_date: "2026-09-16T05:15:00.000Z", // 16 Sept, 10:45 AM IST
-                    seen: true,
-                },
-                {
-                    id: "msg_th_reachout101_reply",
-                    email_id: "cmtlkufpi000o80qmmlfsfat7",
-                    thread_id: threadId,
-                    from_addr: ["Snehal Maurya <snehal.maurya@theboredmonkey.com>"],
-                    to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-                    subject: "Re: Reachout 101",
-                    snippet: "Noted with thanks. Karim",
-                    internal_date: "2026-09-16T05:30:00.000Z", // 16 Sept, 11:00 AM IST
-                    seen: false,
-                }
-            ];
-        } else if (threadId === "th_camp_rajdeep_main" || threadId.includes("rajdeep")) {
-            threadMessages = [
-                {
-                    id: "sent_init_rajdeep",
-                    email_id: "cmtlkufpi000o80qmmlfsfat7",
-                    thread_id: threadId,
-                    from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-                    to_addr: ["Rajdeep More <hajikarimbeldaar@gmail.com>"],
-                    subject: "Influencer marketing partnership — TheBoredMonkey",
-                    snippet: "Hi Rajdeep More , We run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.",
-                    internal_date: "2026-09-16T06:41:00.000Z", // 16 Sept, 12:11 PM IST
-                    seen: true,
-                },
-                {
-                    id: "msg_reply_rajdeep_main",
-                    email_id: "cmtlkufpi000o80qmmlfsfat7",
-                    thread_id: threadId,
-                    from_addr: ["Haji Karim <hajikarimbeldaar@gmail.com>"],
-                    to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
-                    subject: "Re: Influencer marketing partnership — TheBoredMonkey",
-                    snippet: "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More. Best regards, Haji Karim",
-                    internal_date: "2026-09-16T06:48:00.000Z", // 16 Sept, 12:18 PM IST
-                    seen: true,
-                }
-            ];
-        } else {
-            const matchedSent = allSentRows.filter(r => r.thread_id === threadId);
-            const matchedInbox = allInboxRows.filter(r => r.thread_id === threadId);
-            if (matchedSent.length > 0 || matchedInbox.length > 0) {
-                threadMessages = [...matchedSent, ...matchedInbox].sort(
-                    (a, b) => new Date(a.internal_date).getTime() - new Date(b.internal_date).getTime()
-                );
-            } else {
-                threadMessages = [
-                    {
-                        id: `msg_${threadId}_1`,
-                        email_id: emails[0]?.id || "cmtlkufpi000o80qmmlfsfat7",
-                        thread_id: threadId,
-                        from_addr: [emails[0]?.email || "haji.karim@theboredmonkey.com"],
-                        to_addr: ["prospect@example.com"],
-                        subject: "Cold outreach sequence",
-                        snippet: "Hi there, following up on our previous note.",
-                        internal_date: "2026-09-16T08:00:00.000Z",
-                        seen: true,
-                    }
-                ];
-            }
-        }
-
-        const combined = [...threadMessages, ...customReplies];
-        return res({
-            data: combined,
-            pagination: { has_more: false, next_cursor: null },
-        });
+        try {
+            const qs = queryString ? `?${queryString}` : "";
+            const threadRes = await safeFetch(`/api/v1/unibox/thread${qs}`, { headers: authHeaders() });
+            if (threadRes.ok) return res(await threadRes.json());
+        } catch {}
+        return res({ data: [], pagination: { has_more: false, next_cursor: null } });
     }
 
     if (pathWithoutQuery === "/unibox/reply") {
-        const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
-        const mailboxId = body.email_account_id || body.email_id || emails[0]?.id;
-        const senderMailbox = emails.find((e: any) => e.id === mailboxId) || emails[0];
-        const fromStr = `${senderMailbox.name || "Haji Karim"} <${senderMailbox.email || "haji.karim@theboredmonkey.com"}>`;
-        const toAddrs = Array.isArray(body.to) ? body.to : [body.to || "hajikarimbeldaar@gmail.com"];
-        const plainText = (body.body_plain || body.body_html || "Thanks for getting in touch.").replace(/<[^>]*>/g, "");
-        const htmlText = body.body_html || `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;"><p>${plainText.replace(/\n/g, "<br/>")}</p></div>`;
-
-        const replyRecord = {
-            id: `reply_${Date.now()}`,
-            email_id: mailboxId,
-            thread_id: body.thread_id || "th_camp_rajdeep_main",
-            from_addr: [fromStr],
-            to_addr: toAddrs,
-            subject: body.subject || "Re: Influencer marketing partnership — TheBoredMonkey",
-            snippet: plainText.slice(0, 160),
-            body_plain: plainText,
-            body_html: htmlText,
-            internal_date: new Date().toISOString(),
-            seen: true,
-            folder: "sent",
-            message_count: 3,
-        };
-        const existingSent = loadStorage<any[]>("unibox_sent_records", []);
-        saveStorage("unibox_sent_records", [replyRecord, ...existingSent]);
-
-        const customThreadReplies = loadStorage<any[]>(`thread_replies_${body.thread_id}`, []);
-        customThreadReplies.push(replyRecord);
-        saveStorage(`thread_replies_${body.thread_id}`, customThreadReplies);
-
-        // Update stored inbox messages if present
-        const currentStoredInbox = loadStorage<any[]>("unibox_inbox_messages", defaultInboxRows);
-        const threadInInbox = currentStoredInbox.find((t: any) => t.thread_id === body.thread_id);
-        if (threadInInbox) {
-            threadInInbox.message_count = (threadInInbox.message_count || 2) + 1;
-            threadInInbox.has_unread = false;
-            threadInInbox.seen = true;
-            saveStorage("unibox_inbox_messages", currentStoredInbox);
+        try {
+            const replyRes = await safeFetch("/api/v1/unibox/reply", {
+                method: "POST",
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: typeof config.data === "string" ? config.data : JSON.stringify(config.data || {}),
+            });
+            const replyData = await replyRes.json();
+            return res(replyData, replyRes.status);
+        } catch (err: any) {
+            return res({ error: "reply_failed", message: err?.message || "Could not send reply" }, 500);
         }
-
-        // Increment sent count on sender mailbox
-        senderMailbox.sent_today = (senderMailbox.sent_today || 0) + 1;
-        senderMailbox.total_sent = (senderMailbox.total_sent || 0) + 1;
-        saveStorage("emails", emails);
-
-        return res({
-            task_id: `task_${Date.now()}`,
-            scheduled_at: new Date(),
-            send_mode: body.send_mode || "instant",
-        });
     }
 
     if (pathWithoutQuery === "/unibox/reply/draft") {
@@ -4977,399 +3786,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         return res({ status: "ok", snoozed: true });
     }
 
-    // Single message detail for MessageBubble reader: GET /unibox/:id
+    // Single message detail: proxy to backend
     if (pathWithoutQuery.startsWith("/unibox/")) {
         const emailMsgId = pathWithoutQuery.replace("/unibox/", "");
         if (emailMsgId && !emailMsgId.includes("/")) {
-            if (emailMsgId.includes("rupesh")) {
-                const isReply = emailMsgId.includes("reply");
-                const fromAddr = isReply ? "Rupesh Raut <rupesh.raut@atreyainnovations.com>" : "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>";
-                const toAddr = isReply ? "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>" : "Rupesh Raut <rupesh.raut@atreyainnovations.com>";
-                const subject = isReply ? "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey" : "Diwali Influencer Marketing Partnership — TheBoredMonkey";
-                const snippet = isReply
-                    ? "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect. Thanks, Rupesh"
-                    : "Hi Rupesh. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...";
-                const html = isReply
-                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 16px 0;">Hi Vatsal,</p>
-                        <p style="margin: 0 0 16px 0;">Thank you for reaching out.</p>
-                        <p style="margin: 0 0 16px 0;">I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect.</p>
-                        <p style="margin: 0;">Thanks,<br/><strong>Rupesh Raut</strong><br/><span style="color: #64748b;">Atreya Innovations Private</span></p>
-                    </div>`
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hi Rupesh,</p>
-                        <p style="margin: 0 0 14px 0;">With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result.</p>
-                        <p style="margin: 0 0 14px 0;">We are TheBoredMonkey. 4,000+ regional creators across Tamil, Telugu, Kannada, and Malayalam, including doctors, nutritionists, and large-format creators.</p>
-                        <p style="margin: 0 0 14px 0;"><strong>Recent work:</strong><br/>
-                        • Atomberg: YouTube creator seeding, 4 years, category dominance<br/>
-                        • Setu Nutrition: expert-led campaigns, 2.8M+ views, Rs 0.35 cost per view<br/>
-                        • Wakefit: regional creator strategy, 6x return on investment<br/>
-                        • Slice UPI: trust-led fintech creator campaigns</p>
-                        <p style="margin: 0 0 14px 0;">What is Atreya Innovations Private focusing on this Diwali?<br/>Open to a 15-minute call this week?</p>
-                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
-                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
-                            <p style="margin: 0 0 2px 0;"><strong>Vatsal Vadecha</strong> | Brand Partnership</p>
-                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
-                            <p style="margin: 0 0 2px 0;">Contact: +91 99452 10466</p>
-                        </div>
-                    </div>`;
-
-                return res({
-                    id: emailMsgId,
-                    from: fromAddr,
-                    to: toAddr,
-                    subject: subject,
-                    snippet: snippet,
-                    date: isReply ? "2026-10-09T04:53:04.000Z" : "2026-10-08T12:27:45.534Z",
-                    is_seen: !isReply,
-                    thread_id: "th_camp_rupesh_health",
-                    account_id: "cmtu07q0i00011wxajyd2ehui",
-                    body_plain: snippet,
-                    body_html: html,
-                    body_truncated: false,
-                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-                });
-            }
-
-            if (emailMsgId.includes("bhoomi") || emailMsgId.includes("salt")) {
-                const isReply = emailMsgId.includes("reply");
-                const fromAddr = isReply ? "Bhoomi <bhoomi@saltoralcare.com>" : "Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>";
-                const toAddr = isReply ? "Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>" : "Bhoomi <bhoomi@saltoralcare.com>";
-                const subject = isReply ? "Re: Diwali Production Partnership | TheBoredMonkey" : "Diwali Production Partnership | TheBoredMonkey";
-                const snippet = isReply
-                    ? "Thank you for your email. Please note that Bhoomi is no longer associated with Salt Oral Care. Going forward, all marketing-related communication should be directed to: Vaishnavi Sikarwar Head of Marketing vaishnavi@saltoralcare.com..."
-                    : "Hi Bhoomi, A good personal care film shouldn’t just make the product look good. It should make the consumer believe something they weren’t sure about before. Would love to explore what that could look like for Salt Oral Care.";
-                const html = isReply
-                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Thank you for your email.</p>
-                        <p style="margin: 0 0 14px 0;">Please note that Bhoomi is no longer associated with Salt Oral Care. Going forward, all marketing-related communication should be directed to:</p>
-                        <p style="margin: 0 0 14px 0;"><strong>Vaishnavi Sikarwar</strong><br/>Head of Marketing<br/><a href="mailto:vaishnavi@saltoralcare.com" style="color: #0284c7;">vaishnavi@saltoralcare.com</a></p>
-                        <p style="margin: 0 0 14px 0;">Kindly note that this email ID will remain active only until <strong>30th October 2026</strong>, after which it will be deactivated.</p>
-                        <p style="margin: 0;">Thank you for your understanding.<br/><strong>Salt Oral Care | Manor Rama Care Private Limited</strong></p>
-                    </div>`
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hi Bhoomi,</p>
-                        <p style="margin: 0 0 14px 0;">A good personal care film shouldn’t just make the product look good. It should make the consumer believe something they weren’t sure about before.</p>
-                        <p style="margin: 0 0 14px 0;">We run creator-led production and video frameworks for consumer brands. Would love to explore what a high-impact festive film could look like for Salt Oral Care.</p>
-                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
-                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
-                            <p style="margin: 0 0 2px 0;"><strong>Tamanna Ranawat</strong> | Brand Partnerships</p>
-                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
-                        </div>
-                    </div>`;
-
-                return res({
-                    id: emailMsgId,
-                    from: fromAddr,
-                    to: toAddr,
-                    subject: subject,
-                    snippet: snippet,
-                    date: isReply ? "2026-10-09T11:49:51.000Z" : "2026-10-09T11:45:54.784Z",
-                    is_seen: !isReply,
-                    thread_id: "th_camp_bhoomi_salt",
-                    account_id: "cmtu07q0i00011wxajyd2ehui",
-                    body_plain: snippet,
-                    body_html: html,
-                    body_truncated: false,
-                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-                });
-            }
-
-            if (emailMsgId.includes("velnik_health")) {
-                const isReply = emailMsgId.includes("reply");
-                const fromAddr = isReply ? "Velnik India <customercare@velnik.com>" : "Haji Karim <haji.karim@theboredmonkey.com>";
-                const toAddr = isReply ? "Haji Karim <haji.karim@theboredmonkey.com>" : "Sukhdev Gehlot <sukhdev.gehlot@velnik.com>";
-                const subject = isReply ? "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey" : "Diwali Influencer Marketing Partnership — TheBoredMonkey";
-                const snippet = isReply
-                    ? "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours..."
-                    : "Hi Sukhdev. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey...";
-                const html = isReply
-                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hello,</p>
-                        <p style="margin: 0 0 14px 0;">Thank you for your email.</p>
-                        <p style="margin: 0 0 14px 0;">We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours.</p>
-                        <p style="margin: 0 0 14px 0;">If you do not get any response, feel free to contact us between Monday to Saturday, 9:30 AM to 6:30 PM IST at our Customer Care Number +917509282828, 0731 - 6669000, 0731 - 3339000.</p>
-                        <p style="margin: 0;">Have a Great Day!!!!!<br/>Best Wishes,<br/><strong>Velnik India Limited</strong></p>
-                    </div>`
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hi Sukhdev,</p>
-                        <p style="margin: 0 0 14px 0;">With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result.</p>
-                        <p style="margin: 0 0 14px 0;">We are TheBoredMonkey. 4,000+ regional creators across Tamil, Telugu, Kannada, and Malayalam.</p>
-                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
-                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
-                            <p style="margin: 0 0 2px 0;"><strong>Haji Karim</strong> | Brand Partnerships</p>
-                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
-                        </div>
-                    </div>`;
-
-                return res({
-                    id: emailMsgId,
-                    from: fromAddr,
-                    to: toAddr,
-                    subject: subject,
-                    snippet: snippet,
-                    date: isReply ? "2026-10-09T10:46:01.000Z" : "2026-10-09T10:45:58.613Z",
-                    is_seen: !isReply,
-                    thread_id: "th_camp_velnik_health",
-                    account_id: "cmtu07q0i00011wxajyd2ehui",
-                    body_plain: snippet,
-                    body_html: html,
-                    body_truncated: false,
-                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-                });
-            }
-
-            if (emailMsgId.includes("velnik") || emailMsgId.includes("sukhdev")) {
-                const isReply = emailMsgId.includes("reply");
-                const fromAddr = isReply ? "Velnik India <customercare@velnik.com>" : "Simran D <simran.d@theboredmonkey.com>";
-                const toAddr = isReply ? "Simran D <simran.d@theboredmonkey.com>" : "Sukhdev Gehlot <sukhdev.gehlot@velnik.com>";
-                const subject = isReply ? "Re: Diwali Production Partnership | TheBoredMonkey" : "Diwali Production Partnership | TheBoredMonkey";
-                const snippet = isReply
-                    ? "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours..."
-                    : "Hi Sukhdev, Would love to explore creator-led production and video frameworks for Velnik this festive season.";
-                const html = isReply
-                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hello,</p>
-                        <p style="margin: 0 0 14px 0;">Thank you for your email.</p>
-                        <p style="margin: 0 0 14px 0;">We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours.</p>
-                        <p style="margin: 0 0 14px 0;">If you do not get any response, feel free to contact us between Monday to Saturday, 9:30 AM to 6:30 PM IST at our Customer Care Number +917509282828, 0731 - 6669000, 0731 - 3339000.</p>
-                        <p style="margin: 0;">Have a Great Day!!!!!<br/>Best Wishes,<br/><strong>Velnik India Limited</strong></p>
-                    </div>`
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hi Sukhdev,</p>
-                        <p style="margin: 0 0 14px 0;">Would love to explore creator-led production and video frameworks for Velnik this festive season.</p>
-                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
-                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
-                            <p style="margin: 0 0 2px 0;"><strong>Simran D</strong> | Outreach Team</p>
-                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
-                        </div>
-                    </div>`;
-
-                return res({
-                    id: emailMsgId,
-                    from: fromAddr,
-                    to: toAddr,
-                    subject: subject,
-                    snippet: snippet,
-                    date: isReply ? "2026-10-10T06:15:41.000Z" : "2026-10-09T11:45:54.784Z",
-                    is_seen: !isReply,
-                    thread_id: "th_camp_velnik_sukhdev",
-                    account_id: "cmtu07q0i00011wxajyd2ehui",
-                    body_plain: snippet,
-                    body_html: html,
-                    body_truncated: false,
-                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-                });
-            }
-
-            if (emailMsgId.includes("jayant") || emailMsgId.includes("missmosa")) {
-                const isReply = emailMsgId.includes("reply");
-                const fromAddr = isReply ? "Jayant <jayant@missmosa.in>" : "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>";
-                const toAddr = isReply ? "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>" : "Jayant <jayant@missmosa.in>";
-                const subject = isReply ? "Re: Miss Mosa X TBM: Modern Wellness, Authentically Told" : "Miss Mosa X TBM: Modern Wellness, Authentically Told";
-                const snippet = isReply
-                    ? "Hey Please get in touch with Shraddha from our partnerships team at shraddha@missmosa.in to discuss creator deliverables."
-                    : "Hi Jayant, Hope you’ve been doing great. I’ve been following Miss Mosa and truly admire the way you’ve built trust and consistency. Wanted to connect regarding creator-led influencer marketing.";
-                const html = isReply
-                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 16px 0;">Hey,</p>
-                        <p style="margin: 0 0 16px 0;">Please get in touch with Shraddha from our partnerships team at <a href="mailto:shraddha@missmosa.in" style="color: #0284c7;">shraddha@missmosa.in</a> to discuss creator deliverables and regional outreach plans.</p>
-                        <p style="margin: 0;">Thanks,<br/><strong>Jayant | Founder, Miss Mosa</strong></p>
-                    </div>`
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hi Jayant,</p>
-                        <p style="margin: 0 0 14px 0;">Hope you’ve been doing great. I’ve been following Miss Mosa and truly admire the way you’ve built trust and consistency in modern wellness.</p>
-                        <p style="margin: 0 0 14px 0;">We run creator-led campaigns for consumer brands that scale both customer acquisition and regional authority. Would love to share how we can collaborate on Miss Mosa's next growth sprint.</p>
-                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
-                            <p style="margin: 0 0 4px 0;">Best regards,</p>
-                            <p style="margin: 0 0 2px 0;"><strong>Vatsal Vadecha</strong> | Growth &amp; Brand Partnerships</p>
-                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
-                            <p style="margin: 0 0 2px 0;">Email: <a href="mailto:vatsal.vadecha@theboredmonkey.com" style="color: #0284c7; text-decoration: none;">vatsal.vadecha@theboredmonkey.com</a></p>
-                        </div>
-                    </div>`;
-
-                return res({
-                    id: emailMsgId,
-                    from: fromAddr,
-                    to: toAddr,
-                    subject: subject,
-                    snippet: snippet,
-                    date: isReply ? "2026-09-24T11:33:00.000Z" : "2026-09-24T08:13:33.000Z",
-                    is_seen: !isReply,
-                    thread_id: "th_camp_jayant_missmosa",
-                    account_id: "cmu6m304o00003307qj8ex6oa",
-                    body_plain: snippet,
-                    body_html: html,
-                    body_truncated: false,
-                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-                });
-            }
-
-            if (emailMsgId.includes("saurabh") || emailMsgId.includes("limeroad")) {
-                const isReply = emailMsgId.includes("reply");
-                const fromAddr = isReply ? "Saurabh Ahuja <saurabh.ahuja@limeroad.com>" : "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>";
-                const toAddr = isReply ? "Vatsal Vadecha <vatsal.vadecha@theboredmonkey.com>" : "Saurabh Ahuja <saurabh.ahuja@limeroad.com>";
-                const subject = isReply ? "Re: Limeroad X TBM || Influencer Marketing & Creator Outreach" : "Limeroad X TBM || Influencer Marketing & Creator Outreach";
-                const snippet = isReply
-                    ? "+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams. Please share your deck and case studies."
-                    : "Hi Saurabh, We run creator-led campaigns that scale performance marketing. Let me know if you are open to discussing influencer marketing and regional creator campaigns for Limeroad.";
-                const html = isReply
-                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 16px 0;">+Prachi Singh +Akanksha Gulati looping in our merchandising and growth teams.</p>
-                        <p style="margin: 0 0 16px 0;">Hi Vatsal, please share your agency credentials, creator portfolio, and recent D2C case studies for our review.</p>
-                        <p style="margin: 0;">Regards,<br/><strong>Saurabh Ahuja</strong> | Limeroad</p>
-                    </div>`
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hi Saurabh,</p>
-                        <p style="margin: 0 0 14px 0;">We run creator-led campaigns that scale performance marketing for high-velocity fashion and lifestyle brands.</p>
-                        <p style="margin: 0 0 14px 0;">Let me know if you are open to exploring regional creator campaigns for Limeroad's festive collections.</p>
-                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
-                            <p style="margin: 0 0 4px 0;">Best regards,</p>
-                            <p style="margin: 0 0 2px 0;"><strong>Vatsal Vadecha</strong> | Growth &amp; Brand Partnerships</p>
-                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
-                        </div>
-                    </div>`;
-
-                return res({
-                    id: emailMsgId,
-                    from: fromAddr,
-                    to: toAddr,
-                    subject: subject,
-                    snippet: snippet,
-                    date: isReply ? "2026-09-24T10:15:00.000Z" : "2026-09-24T10:02:14.000Z",
-                    is_seen: !isReply,
-                    thread_id: "th_camp_saurabh_limeroad",
-                    account_id: "cmu6m304o00003307qj8ex6oa",
-                    body_plain: snippet,
-                    body_html: html,
-                    body_truncated: false,
-                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-                });
-            }
-
-            if (emailMsgId.includes("snehal") || emailMsgId.includes("reachout101")) {
-                const isReply = emailMsgId.includes("reply");
-                const fromAddr = isReply ? "Snehal Maurya <snehal.maurya@theboredmonkey.com>" : "Haji Karim <haji.karim@theboredmonkey.com>";
-                const toAddr = isReply ? "Haji Karim <haji.karim@theboredmonkey.com>" : "Snehal Maurya <snehal.maurya@theboredmonkey.com>";
-                const snippet = isReply ? "Noted with thanks. Karim" : "Dear , I hope this message finds you in good health. It is a pleasure to formally confirm our upcoming collaboration, and we are truly delighted to have you on";
-                const plain = isReply
-                    ? "Noted with thanks. Karim\n\n--\nKind Regards,\nSnehal Maurya | Brand Partnerships\nContact: +91 8355909373\nTheBoredMonkey"
-                    : snippet;
-                const html = isReply
-                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 16px 0;">Noted with thanks. Karim</p>
-                        <p style="margin: 16px 0 4px 0; color: #64748b; font-size: 13px;">--</p>
-                        <p style="margin: 0; color: #475569; font-size: 13px;">Kind Regards,<br/><strong>Snehal Maurya | Brand Partnerships</strong><br/>Contact: <a href="tel:+918355909373" style="color: #0284c7; text-decoration: none;">+91 8355909373</a><br/><strong>TheBoredMonkey</strong></p>
-                    </div>`
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;"><p>${snippet}</p></div>`;
-
-                return res({
-                    id: emailMsgId,
-                    from: fromAddr,
-                    to: toAddr,
-                    subject: isReply ? "Re: Reachout 101" : "Reachout 101",
-                    snippet: snippet,
-                    date: isReply ? "2026-09-16T05:30:00.000Z" : "2026-09-16T05:15:00.000Z", // 16 Sept
-                    is_seen: !isReply,
-                    thread_id: "th_reachout_101_snehal",
-                    account_id: "cmtlkufpi000o80qmmlfsfat7",
-                    body_plain: plain,
-                    body_html: html,
-                    body_truncated: false,
-                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-                });
-            }
-
-            if (emailMsgId.includes("rajdeep") || emailMsgId === "msg_reply_rajdeep_main" || emailMsgId === "sent_init_rajdeep") {
-                const isSent = emailMsgId.includes("sent") || emailMsgId === "sent_init_rajdeep";
-                const fromAddr = isSent ? "Haji Karim <haji.karim@theboredmonkey.com>" : "Haji Karim <hajikarimbeldaar@gmail.com>";
-                const toAddr = isSent ? "Rajdeep More <hajikarimbeldaar@gmail.com>" : "Haji Karim <haji.karim@theboredmonkey.com>";
-                const snippet = isSent
-                    ? "Hi Rajdeep More , We run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return."
-                    : "Hi Haji, I think you may have sent this to the wrong person. I'm not Rajdeep More. Best regards, Haji Karim";
-                const html = isSent
-                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hi Rajdeep More ,</p>
-                        <p style="margin: 0 0 14px 0;">We run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.</p>
-                        <p style="margin: 0 0 14px 0;">I wanted to explore what an influencer marketing partnership could look like for TheBoredMonkey. We work with a wide creator network across multiple languages, so we can build both scale and regional depth into a campaign.</p>
-                        <p style="margin: 0 0 16px 0;">If this isn't the right inbox for marketing partnerships, could you point me to the right team? Happy to send a one-pager either way.</p>
-                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
-                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
-                            <p style="margin: 0 0 2px 0;"><strong>Haji Karim</strong> | Influencer Relations</p>
-                            <p style="margin: 0 0 2px 0;">Contact: <a href="tel:+919945210466" style="color: #0284c7; text-decoration: none;">+91 9945210466</a></p>
-                            <p style="margin: 0 0 2px 0;"><strong>TheBoredMonkey</strong></p>
-                            <p style="margin: 0 0 12px 0;">Website: <a href="https://www.theboredmonkey.com/" target="_blank" style="color: #0284c7; text-decoration: none;">https://www.theboredmonkey.com/</a></p>
-                            <div style="display: inline-block; margin-top: 6px;">
-                                <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: #0f172a;">TheB<span style="color: #ea580c;">o</span>redM<span style="color: #ea580c;">o</span>nkey</div>
-                                <div style="font-size: 10px; color: #ea580c; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;">Creations &amp; Connections</div>
-                            </div>
-                        </div>
-                    </div>`
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
-                        <p style="margin: 0 0 14px 0;">Hi Haji,</p>
-                        <p style="margin: 0 0 14px 0;">I think you may have sent this to the wrong person. I'm not Rajdeep More.</p>
-                        <p style="margin: 0 0 4px 0;">Best regards,</p>
-                        <p style="margin: 0;">Haji Karim</p>
-                    </div>`;
-
-                return res({
-                    id: emailMsgId,
-                    from: fromAddr,
-                    to: toAddr,
-                    subject: isSent ? "Influencer marketing partnership — TheBoredMonkey" : "Re: Influencer marketing partnership — TheBoredMonkey",
-                    snippet: snippet,
-                    date: isSent ? "2026-09-16T06:41:00.000Z" : "2026-09-16T06:48:00.000Z",
-                    is_seen: true,
-                    thread_id: "th_camp_rajdeep_main",
-                    account_id: "cmtlkufpi000o80qmmlfsfat7",
-                    body_plain: isSent
-                        ? "Hi Rajdeep More ,\n\nWe run creator-led campaigns for brands like Atomberg and Wakefit, and helped move Atomberg's YouTube share of voice from 15% to 64% with a 6x return.\n\nI wanted to explore what an influencer marketing partnership could look like for TheBoredMonkey. We work with a wide creator network across multiple languages, so we can build both scale and regional depth into a campaign.\n\nIf this isn't the right inbox for marketing partnerships, could you point me to the right team? Happy to send a one-pager either way.\n\nKind Regards,\nHaji Karim | Influencer Relations\nContact: +91 9945210466\nTheBoredMonkey\nWebsite: https://www.theboredmonkey.com/"
-                        : "Hi Haji,\n\nI think you may have sent this to the wrong person. I'm not Rajdeep More.\n\nBest regards,\nHaji Karim",
-                    body_html: html,
-                    body_truncated: false,
-                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
-                });
-            }
-
-            // Check custom thread replies and sent records
-            const storedSent = loadStorage<any[]>("unibox_sent_records", []);
-            const customReplies = loadStorage<any[]>("thread_replies_th_camp_rajdeep_main", []);
-            const allCandidates = [...allInboxRows, ...allSentRows, ...storedSent, ...customReplies];
-            const found = allCandidates.find(m => m.id === emailMsgId);
-
-            if (found) {
-                return res({
-                    id: emailMsgId,
-                    from: found.from_addr?.[0] || found.from || "Haji Karim <haji.karim@theboredmonkey.com>",
-                    to: found.to_addr?.[0] || found.to || "Rajdeep More <hajikarimbeldaar@gmail.com>",
-                    subject: found.subject || "Re: Influencer marketing partnership — TheBoredMonkey",
-                    snippet: found.snippet || found.body_plain || "",
-                    date: found.internal_date || found.date || "2026-09-16T06:48:00.000Z",
-                    is_seen: found.seen ?? true,
-                    thread_id: found.thread_id,
-                    account_id: found.email_id || emails[0]?.id,
-                    body_plain: found.body_plain || found.snippet || "",
-                    body_html: found.body_html || `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;"><p>${(found.body_plain || found.snippet || "").replace(/\n/g, "<br/>")}</p></div>`,
-                    body_truncated: false,
-                    labels: found.labels || [],
-                });
-            }
-
-            return res({
-                id: emailMsgId,
-                from: "Haji Karim <haji.karim@theboredmonkey.com>",
-                to: "Rajdeep More <hajikarimbeldaar@gmail.com>",
-                subject: "Re: Outreach Discussion",
-                snippet: "Thanks for getting in touch.",
-                date: "2026-09-16T06:48:00.000Z",
-                is_seen: true,
-                thread_id: "th_camp_rajdeep_main",
-                account_id: emails[0]?.id,
-                body_plain: "Thanks for getting in touch.",
-                body_html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;"><p>Thanks for getting in touch.</p></div>`,
-                body_truncated: false,
-                labels: [],
-            });
+            try {
+                const msgRes = await safeFetch(`/api/v1/emails/${encodeURIComponent(emailMsgId)}`, { headers: authHeaders() });
+                if (msgRes.ok) return res(await msgRes.json());
+            } catch {}
+            return res({ id: emailMsgId, error: "not_found" }, 404);
         }
     }
 
@@ -6427,20 +4852,7 @@ export function installStandaloneFetchInterceptor(): void {
                     console.warn("Server-side /api/chat error, using fallback telemetry response:", err);
                 }
 
-                // Fallback grounded knowledge assistant if server is offline
-                let responseContent = "";
-                const lower = userPrompt.toLowerCase();
-
-                if (userPrompt.includes("[File Attached:") || userPrompt.includes("```csv")) {
-                    responseContent = `### 📊 Uploaded File Context Analysis\n\nI have parsed your attached file in the context of **TheBoredMonkey Outreach**:\n\n1. **Data Ingestion**: Verified records against your cross-team Collision Shield (80,000+ past contacts).\n2. **Deliverability Validation**: All domains have active MX/DNS records with 0 spam traps.\n3. **Attribution**: Recommended for **Haji Karim** (Founders/CEOs) and **Snehal Maurya** (CMOs/Growth Heads).\n\n> 📥 *You can download this complete analysis directly using the **Download Response** button below.*`;
-                } else if (lower.includes("inbox") || lower.includes("repl") || lower.includes("snehal") || lower.includes("reachout")) {
-                    responseContent = `### 📬 Real Inbound Telemetry\n\n- **Thread**: **Re: Reachout 101**\n- **From**: **Snehal Maurya** (\`snehal.maurya@theboredmonkey.com\`)\n- **To**: **Haji Karim** (\`haji.karim@theboredmonkey.com\`)\n- **Snippet**: *"Noted with thanks. Karim"*\n- **Sentiment**: **Confirmed Collaboration (High Intent)**\n\nWould you like me to draft an onboarding follow-up message?`;
-                } else if (lower.includes("campaign") || lower.includes("smartlead") || lower.includes("quota")) {
-                    responseContent = `### 🚀 Campaign & Quota Status\n\n- **Distributed Mailboxes (4 Profiles)**: 50 limit each = **200 daily sends** capacity\n  1. Haji Karim (99% health, Account #23008288)\n  2. Snehal Maurya (98% health)\n  3. Suraj Maurya (99% health)\n  4. Karim Beldaar (98% health)\n- **Active Campaigns**: Campaign 408 (Smartlead #3959417) & Campaign 404 (100% open & reply rate)\n- **Deliverability**: 99.4% health, 0 bounces.`;
-                } else {
-                    responseContent = `Hello **Haji Karim**! I am your **TheBoredMonkey Outreach AI Assistant**, with full end-to-end context across your entire workspace.\n\n### 🌐 Active Workspace Context\n- **Sending Profiles**: 4 accounts configured (200 sends/day total quota, 99.4% deliverability score)\n- **Latest Inbound**: **Snehal Maurya** on **Reachout 101** (*"Noted with thanks. Karim..."*)\n- **Active Campaigns**: Campaign 408 & 404 (100% open and reply rates)\n- **Weekly Performance**: 643 sent &bull; 52.3% open &bull; 15.2% reply &bull; 25 meetings booked\n\n### ⚡ What You Can Do:\n1. **Upload Files**: Use the 📎 button in the composer to attach lead lists, CSVs, or draft copy for analysis.\n2. **Download Outputs**: Download any copy, sequence, or table directly with the **Download** button.\n\nHow can I assist your outbound efforts right now?`;
-                }
-
+                const responseContent = "The AI assistant backend is currently unavailable. Please try again in a moment.";
                 return createSSEResponse([responseContent]);
             } catch (err) {
                 console.warn("AI session handler error:", err);

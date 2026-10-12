@@ -933,7 +933,7 @@ const edgeTypes = { converge: ConvergeEdge };
 type IfMeta = { sourceId: string; branchId: string };
 
 export default function CampaignFlow({ campaignId }: { campaignId: string }) {
-    const { data: sequences } = useSequences(campaignId);
+    const { data: sequences = [] } = useSequences(campaignId);
     const createSequence = useCreateSequence(campaignId);
     const deleteSequence = useDeleteSequence(campaignId);
     const { data: campaign } = useCampaign(campaignId);

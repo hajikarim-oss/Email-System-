@@ -172,7 +172,8 @@ function ScheduledRow({
     onCancel: () => void;
 }) {
     const when = formatWhen(item.scheduled_at);
-    const recipients = item.to.join(", ");
+    const toList = Array.isArray(item.to) ? item.to : (typeof item.to === "string" && item.to ? [item.to] : []);
+    const recipients = toList.join(", ");
     const ccCount = (item.cc?.length ?? 0) + (item.bcc?.length ?? 0);
     const overdue = new Date(item.scheduled_at).getTime() < Date.now();
 

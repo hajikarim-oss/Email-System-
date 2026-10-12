@@ -729,7 +729,7 @@ export default function LoginPage() {
                     <MotionWrap key="email" direction={direction}>
                         <EmailStep
                             mode={mode}
-                            canSignUp={signupPossible && authConfigReady}
+                            canSignUp={Boolean(signupPossible && authConfigReady)}
                             invited={!!inviteToken}
                             providers={authConfig?.providers || []}
                             passkeysEnabled={passkeysEnabled}

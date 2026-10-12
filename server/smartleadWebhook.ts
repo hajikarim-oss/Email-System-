@@ -225,7 +225,14 @@ export async function recordSmartleadEvent(payload: Record<string, any>): Promis
     const eventType = mapSmartleadEventType(payload.event_type || payload.type);
     if (!eventType) return "unsupported";
 
-    const email = String(payload.email || payload.lead_email || payload.to_email || "").toLowerCase().trim();
+    const email = String(
+        payload.email ||
+        payload.lead_email ||
+        payload.to_email ||
+        payload.lead?.email ||
+        payload.recipient_email ||
+        ""
+    ).toLowerCase().trim();
     if (!email) return "unsupported";
 
     const now = new Date().toISOString();
@@ -240,8 +247,10 @@ export async function recordSmartleadEvent(payload: Record<string, any>): Promis
             await suppressEmail(email, "HARD_BOUNCE");
         }
 
-        const providerLeadId = payload.lead_id || payload.provider_lead_id;
+        const providerLeadId = payload.lead_id || payload.provider_lead_id || payload.lead?.id;
+        const providerCampaignId = payload.email_campaign_id || payload.campaign_id;
         let lead: { id: string; bounceCount: number } | undefined;
+
         if (providerLeadId) {
             const byProvider = await pgQuery<{ id: string; bounceCount: number }>(
                 `SELECT id, "bounceCount" FROM "Lead" WHERE "providerLeadId" = $1 LIMIT 1`,
@@ -249,6 +258,19 @@ export async function recordSmartleadEvent(payload: Record<string, any>): Promis
             );
             lead = byProvider[0];
         }
+
+        if (!lead && providerCampaignId) {
+            const byCampaignAndEmail = await pgQuery<{ id: string; bounceCount: number }>(
+                `SELECT l.id, l."bounceCount"
+                 FROM "Lead" l
+                 JOIN "Campaign" c ON c.id = l."campaignId"
+                 WHERE lower(l."email") = $1 AND (c."providerCampaignId" = $2 OR c.id = $2)
+                 LIMIT 1`,
+                [email, String(providerCampaignId)],
+            );
+            lead = byCampaignAndEmail[0];
+        }
+
         if (!lead) {
             const byEmail = await pgQuery<{ id: string; bounceCount: number }>(
                 `SELECT id, "bounceCount" FROM "Lead" WHERE lower("email") = $1 ORDER BY "createdAt" DESC LIMIT 1`,
@@ -256,7 +278,40 @@ export async function recordSmartleadEvent(payload: Record<string, any>): Promis
             );
             lead = byEmail[0];
         }
+
+        // If lead doesn't exist yet but belongs to a known campaign, auto-create it so events are never dropped
+        if (!lead && providerCampaignId) {
+            const campaignRows = await pgQuery<{ id: string; userId: string }>(
+                `SELECT id, "userId" FROM "Campaign" WHERE "providerCampaignId" = $1 OR id = $1 LIMIT 1`,
+                [String(providerCampaignId)],
+            );
+            if (campaignRows.length > 0) {
+                const camp = campaignRows[0];
+                const leadId = crypto.randomUUID();
+                const firstName = String(payload.first_name || payload.lead?.first_name || email.split("@")[0] || "").slice(0, 100);
+                const lastName = String(payload.last_name || payload.lead?.last_name || "").slice(0, 100);
+                await pgQuery(
+                    `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", "providerLeadId", source, status, "createdAt", "updatedAt")
+                     VALUES ($1, $2, $3, $4, $5, $6, 'smartlead', 'ACTIVE', NOW(), NOW())
+                     ON CONFLICT DO NOTHING`,
+                    [leadId, camp.id, email, firstName, lastName, providerLeadId ? String(providerLeadId) : null],
+                );
+                const refetch = await pgQuery<{ id: string; bounceCount: number }>(
+                    `SELECT id, "bounceCount" FROM "Lead" WHERE lower("email") = $1 AND "campaignId" = $2 LIMIT 1`,
+                    [email, camp.id],
+                );
+                lead = refetch[0];
+            }
+        }
+
         if (!lead) return "no_lead";
+
+        if (providerLeadId) {
+            await pgQuery(
+                `UPDATE "Lead" SET "providerLeadId" = $1 WHERE id = $2 AND "providerLeadId" IS NULL`,
+                [String(providerLeadId), lead.id],
+            );
+        }
 
         const fromEmail = String(payload.from_email || payload.sender_email || payload.from || "").toLowerCase().trim() || null;
         const providerEventId = deriveProviderEventId(payload, eventType, email);

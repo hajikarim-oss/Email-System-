@@ -2,50 +2,20 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 import { resolveUser, jsonOk, jsonErr } from "../helper";
 
-const FALLBACK_MAILBOXES = [
-  {
-    id: "mb_primary_1",
-    senderEmail: "outreach@theboredmonkey.com",
-    provider: "smartlead",
-    status: "ACTIVE",
-    dailySendLimit: 50,
-    warmupStartAt: new Date(Date.now() - 14 * 86400000),
-    warmupReputationScore: 98,
-    createdAt: new Date(Date.now() - 14 * 86400000),
-    updatedAt: new Date(),
-    user: { name: "Haji Karim" },
-  },
-  {
-    id: "mb_primary_2",
-    senderEmail: "sales@theboredmonkey.com",
-    provider: "smartlead",
-    status: "ACTIVE",
-    dailySendLimit: 50,
-    warmupStartAt: new Date(Date.now() - 7 * 86400000),
-    warmupReputationScore: 95,
-    createdAt: new Date(Date.now() - 7 * 86400000),
-    updatedAt: new Date(),
-    user: { name: "Snehal Maurya" },
-  },
-];
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("q")?.toLowerCase();
 
-  let mailboxes: any[] = FALLBACK_MAILBOXES;
+  let mailboxes: any[] = [];
 
   try {
     const fromDb = await prisma.mailbox.findMany({
       include: { user: true },
       orderBy: { createdAt: "desc" },
-    }).catch(() => null);
-
-    if (fromDb && fromDb.length > 0) {
-      mailboxes = fromDb;
-    }
+    });
+    mailboxes = fromDb;
   } catch {
-    // fallback used
+    // empty array on failure
   }
 
   const filtered = query
@@ -61,8 +31,8 @@ export async function GET(req: Request) {
       id: m.id,
       email: m.senderEmail,
       name: m.user?.name || m.senderEmail.split("@")[0],
-      signature_plain: "--\n" + (m.user?.name || "The Bored Monkey Team"),
-      signature_html: `<p>--<br/><strong>${m.user?.name || "The Bored Monkey Team"}</strong></p>`,
+      signature_plain: "--\n" + (m.user?.name || m.senderEmail.split("@")[0]),
+      signature_html: `<p>--<br/><strong>${m.user?.name || m.senderEmail.split("@")[0]}</strong></p>`,
       signature_sync: true,
       signature_code: false,
       tags: ["Outreach", m.provider || "smartlead"],
@@ -73,7 +43,7 @@ export async function GET(req: Request) {
       min_wait_time: 120,
       reply_to: m.senderEmail,
       save_to_sent: true,
-      tracking_domain: "track.theboredmonkey.com",
+      tracking_domain: "",
       tracking_domain_verified: true,
       tracking_domain_verified_at: m.createdAt || new Date(),
       auth_state: "passing",

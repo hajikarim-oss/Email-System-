@@ -85,8 +85,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const smartlead = new SmartleadProvider(smartleadApiKey);
 
-    // Start sending today
-    const today = new Date().toISOString().slice(0, 10);
+    // Compute today's date in the campaign's timezone (not UTC) to avoid off-by-one
+    const tz = campaign.sendTimezone || "Asia/Kolkata";
+    let today: string;
+    try {
+      today = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+    } catch {
+      today = new Date().toISOString().slice(0, 10);
+    }
     const sendDays = campaign.preferredSendDays?.length ? campaign.preferredSendDays : [1, 2, 3, 4, 5];
 
     // If already launched, re-start
@@ -166,9 +172,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              lead_list: batch.map((l: any) => ({
-                email: l.email, first_name: l.firstName || l.email.split("@")[0], last_name: l.lastName || "",
-              })),
+              lead_list: batch.map((l: any) => {
+                const custom = (l.customData && typeof l.customData === "object") ? l.customData : {};
+                return {
+                  email: l.email, first_name: l.firstName || l.email.split("@")[0], last_name: l.lastName || "",
+                  company: custom.company || "", title: custom.title || "",
+                };
+              }),
             }),
           }
         );

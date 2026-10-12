@@ -5,7 +5,7 @@ export default function useTeamMembers() {
   return useQuery({
     queryKey: ["unibox", "team"],
     queryFn: getTeamMembers,
-    staleTime: 60_000,
+    staleTime: 5_000,
     gcTime: 30 * 60 * 1000,
   });
 }

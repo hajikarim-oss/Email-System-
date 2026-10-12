@@ -23,6 +23,7 @@ export async function GET(req: Request) {
             name: true,
             userId: true,
             steps: { select: { stepNumber: true, subject: true, bodyTemplate: true }, orderBy: { stepNumber: "asc" } },
+            mailboxes: { select: { mailbox: { select: { id: true, senderEmail: true } } }, take: 1 },
           },
         },
       },
@@ -78,13 +79,14 @@ export async function GET(req: Request) {
 
       const snippet = String(body).replace(/<[^>]*>/g, "").slice(0, 2000);
 
-      const senderEmail = event.fromEmail || "outreach@theboredmonkey.com";
+      const campaignMailbox = lead.campaign?.mailboxes?.[0]?.mailbox;
+      const senderEmail = event.fromEmail || campaignMailbox?.senderEmail || "";
       const fromAddr = isReply ? [lead.email] : [senderEmail];
       const toAddr = isReply ? [senderEmail] : [lead.email];
 
       return {
         id: `msg_${event.id}`,
-        email_id: "mb_default",
+        email_id: campaignMailbox?.id || lead.campaignId || "",
         thread_id: threadId,
         from_addr: fromAddr,
         to_addr: toAddr,
@@ -98,11 +100,12 @@ export async function GET(req: Request) {
     // If no events exist yet, show campaign step data as a placeholder
     if (messages.length === 0 && lead.campaign?.steps.length) {
       const step = lead.campaign.steps[0];
+      const campaignMailbox = lead.campaign?.mailboxes?.[0]?.mailbox;
       messages.push({
         id: `msg_${lead.id}_step1`,
-        email_id: "mb_default",
+        email_id: campaignMailbox?.id || lead.campaignId || "",
         thread_id: threadId,
-        from_addr: ["outreach@theboredmonkey.com"],
+        from_addr: [campaignMailbox?.senderEmail || ""],
         to_addr: [lead.email],
         subject: step.subject || `Outreach to ${lead.firstName || lead.email}`,
         snippet: step.bodyTemplate.replace(/<[^>]*>/g, "").slice(0, 2000),

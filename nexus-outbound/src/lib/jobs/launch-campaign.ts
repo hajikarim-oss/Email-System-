@@ -190,12 +190,10 @@ export const launchCampaignJob = inngest.createFunction(
 
     // Step 8: Configure webhooks
     await step.run("configure-webhooks", async () => {
-      const baseUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL;
-      if (baseUrl) {
-        const webhookUrl = `${baseUrl}/api/webhooks/smartlead`;
-        await smartlead.configureUserWebhook(webhookUrl);
-        await smartlead.configureWebhook(providerCampaignId, webhookUrl);
-      }
+      const baseUrl = process.env.WEBHOOK_BASE_URL || process.env.NEXTAUTH_URL || process.env.AUTH_URL || "https://tbmoutreach.tech";
+      const webhookUrl = `${baseUrl}/api/webhooks/smartlead`;
+      await smartlead.configureUserWebhook(webhookUrl);
+      await smartlead.configureWebhook(providerCampaignId, webhookUrl);
     });
 
     // Activate in DB

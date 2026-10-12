@@ -38,12 +38,8 @@ export async function POST(req: Request) {
 
     const smartlead = new SmartleadProvider(smartleadApiKey);
 
-    // Use the provided webhook URL or build from NEXTAUTH_URL
-    // Force correct domain for webhook delivery
-    const defaultWebhookUrl = "https://email-system-omega.vercel.app/api/webhooks/smartlead";
-    const baseUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL;
-    const fallbackUrl = baseUrl ? `${baseUrl}/api/webhooks/smartlead` : defaultWebhookUrl;
-    const finalWebhookUrl = webhookUrl || fallbackUrl;
+    const baseUrl = process.env.WEBHOOK_BASE_URL || process.env.NEXTAUTH_URL || process.env.AUTH_URL || "https://tbmoutreach.tech";
+    const finalWebhookUrl = webhookUrl || `${baseUrl}/api/webhooks/smartlead`;
 
     console.log(`[Webhook Config] Configuring webhook URL: ${finalWebhookUrl}`);
 

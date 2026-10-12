@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/popover-menu";
 
 interface CampaignTemplateEditorProps {
-    campaign: Campaign;
+    campaign?: Campaign | null;
     onSwitchToFlow?: () => void;
     showFlowToggle?: boolean;
 }
@@ -55,8 +55,9 @@ export default function CampaignTemplateEditor({
     onSwitchToFlow,
     showFlowToggle = false,
 }: CampaignTemplateEditorProps) {
-    const { data: remoteSequences, isLoading } = useSequences(campaign.id);
-    const saveStepsMutation = useSaveCampaignSteps(campaign.id);
+    const campaignId = campaign?.id || "";
+    const { data: remoteSequences, isLoading } = useSequences(campaignId);
+    const saveStepsMutation = useSaveCampaignSteps(campaignId);
 
     const { data: rawStoredTemplates = [] } = useTemplates();
     const storedTemplates = useMemo(() => {
@@ -95,9 +96,9 @@ export default function CampaignTemplateEditor({
     const initialSteps = useMemo<StepItem[]>(() => {
         const source = (remoteSequences && remoteSequences.length > 0)
             ? remoteSequences
-            : ((campaign as any).steps && (campaign as any).steps.length > 0)
+            : ((campaign as any)?.steps && (campaign as any)?.steps.length > 0)
                 ? (campaign as any).steps
-                : ((campaign as any).sequences && (campaign as any).sequences.length > 0)
+                : ((campaign as any)?.sequences && (campaign as any)?.sequences.length > 0)
                     ? (campaign as any).sequences
                     : [];
 
@@ -130,7 +131,7 @@ export default function CampaignTemplateEditor({
                 wait_after: s.wait_after !== undefined ? s.wait_after : (idx === 0 ? 0 : 3),
             };
         });
-    }, [remoteSequences, (campaign as any).steps, (campaign as any).sequences]);
+    }, [remoteSequences, (campaign as any)?.steps, (campaign as any)?.sequences]);
 
     const [steps, setSteps] = useState<StepItem[]>(initialSteps);
     const [initialSnapshot, setInitialSnapshot] = useState<string>(JSON.stringify(initialSteps));
@@ -263,7 +264,7 @@ export default function CampaignTemplateEditor({
                         )}
                     </div>
                     <p className="mt-1 text-[12px] text-slate-500 leading-relaxed max-w-2xl">
-                        Edit the email templates and follow-ups for <strong>{campaign.name}</strong>. Variables like{" "}
+                        Edit the email templates and follow-ups for <strong>{campaign?.name || "this campaign"}</strong>. Variables like{" "}
                         <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-900 font-mono text-[11px] font-medium">{"{{firstName}}"}</code>{" "}
                         and{" "}
                         <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-900 font-mono text-[11px] font-medium">{"{{company}}"}</code>{" "}

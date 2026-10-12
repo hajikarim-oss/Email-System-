@@ -5,6 +5,7 @@ import { pgQuery, DatabaseUnavailableError } from "../../server/pg";
 import { scopeFor } from "../../server/scope";
 import { send } from "../../server/handlers/send";
 import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
+import { reconcileSmartleadCampaigns } from "../../server/smartleadSync";
 
 function deleteFromSmartlead(campaignId: string | number): Promise<boolean> {
     const keys = [smartleadPrimary(), smartleadSecondary()].filter(Boolean);
@@ -215,6 +216,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         }
 
         console.log(`[Campaigns API] User: ${user.email}, Role: ${user.role}, Master: ${scope.master}`);
+
+        // Automatically reconcile Smartlead campaigns so newly created campaigns register without manual sync
+        await reconcileSmartleadCampaigns().catch(() => {});
 
         let campaigns: any[] = [];
 

@@ -23,23 +23,11 @@ import useTeamMembers from "@/lib/api/hooks/app/unibox/useTeamMembers";
 import type { UniboxTeamMember } from "@/lib/api/client/app/unibox/getTeamMembers";
 
 export const UNIBOX_TEAM_MEMBERS: UniboxTeamMember[] = [
-    { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 5 },
-    { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master", mailboxIds: ["cmtlkufpi000o80qmmlfsfat7"], unread: 0 },
-    { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 1 },
-    { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach", mailboxIds: ["cmu6m31bv00033307zao17anp", "cmu6m31vx00053307frspcjkj"], unread: 0 },
-    { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 4 },
+    { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 0 },
 ];
-const FALLBACK_TEAM_MEMBERS = UNIBOX_TEAM_MEMBERS;
 
 export const UNIBOX_CAMPAIGNS = [
-    { id: "all", name: "All Campaigns", code: "All", leadCount: 679, unread: 5 },
-    { id: "3bdf7199-cc30-4461-873d-d9928b9c31ec", name: "Health Outreach Campaign", code: "Smartlead #4103333", leadCount: 381, unread: 2, memberId: "cmttwwhj5000ovdkr7ooyb6qt" },
-    { id: "cmv0x5vfu0001dynzwtnxg8ul", name: "Personal Care Snehal Campaign", code: "Smartlead #4111241", leadCount: 298, unread: 2, memberId: "cmttwwhj5000ovdkr7ooyb6qt" },
-    { id: "cmp_1790233732719_dvlj", name: "Q3 Campaign", code: "Th_camp_bewakoof_q3", leadCount: 50, unread: 1, memberId: "cmu6m304o00003307qj8ex6oa" },
-    { id: "cmp_1789718475256_g91f", name: "Q2 Reachout Mails", code: "Th_camp_q2_reachout", leadCount: 30, unread: 1, memberId: "cmu6m304o00003307qj8ex6oa" },
-    { id: "cmp_1789560721755", name: "Campaign 120", code: "Th_camp_120", leadCount: 45, unread: 0, memberId: "cmttwwhj5000ovdkr7ooyb6qt" },
-    { id: "cmtwmgdm00001sikkb3l1bc3r", name: "Pratik is testing", code: "Th_camp_pratik_test", leadCount: 15, unread: 0, memberId: "cmtr9pp8t0000cygeyjpsz5lt" },
-    { id: "cmtvl4lye0001tdcgjxhipix8", name: "Campaign 108", code: "Th_camp_108", leadCount: 20, unread: 0, memberId: "cmu6m31bv00033307zao17anp" },
+    { id: "all", name: "All Campaigns", code: "All", leadCount: 0, unread: 0 },
 ];
 
 export type UniboxDatePreset = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
@@ -101,31 +89,45 @@ export function UniboxHeader({
             map.set(c.id, c);
         }
         for (const c of flat) {
+            const anyC = c as any;
             const mapped = {
-                id: c.id,
-                name: c.name,
-                code: c.id?.length > 10 ? `#${c.id.slice(0, 8)}` : c.id,
-                leadCount: c.total_leads || c.totalLeads || c.leadsCount || 0,
-                unread: c.reply_count || c.replies || 0,
-                memberId: (c.userId || c.user_id || undefined) as string | undefined,
+                id: anyC.id,
+                name: anyC.name,
+                code: anyC.id?.length > 10 ? `#${anyC.id.slice(0, 8)}` : anyC.id,
+                leadCount: anyC.total_leads || anyC.totalLeads || anyC.leadsCount || 0,
+                unread: anyC.reply_count || anyC.replies || 0,
+                memberId: (anyC.userId || anyC.user_id || undefined) as string | undefined,
             };
-            if (map.has(c.id)) {
-                map.set(c.id, { ...map.get(c.id), ...mapped });
+            if (map.has(anyC.id)) {
+                map.set(anyC.id, { ...map.get(anyC.id), ...mapped });
             } else {
-                map.set(c.id, mapped);
+                map.set(anyC.id, mapped);
             }
         }
         return Array.from(map.values());
     }, [campaignsQuery.data]);
 
-    const currentMember = teamMembers.find((m) => m.id === selectedMemberId) || teamMembers[0];
-    const nonMasterMember = teamMembers.find(m => m.email.toLowerCase() === currentUser?.email?.toLowerCase()) || {
+    const currentMember = teamMembers.find((m) => m.id === selectedMemberId) || teamMembers[0] || {
+        id: "all",
+        name: "All Team Members",
+        email: "all",
+        role: "Overview",
+        mailboxIds: [],
+        unread: 0,
+    };
+    const nonMasterMember = teamMembers.find(m => m.email?.toLowerCase() === currentUser?.email?.toLowerCase()) || {
         name: currentUser?.name || "My Inbound",
         role: "Team Member",
         unread: 1,
     };
 
-    const currentCampaign = allCampaignsList.find((c) => c.id === selectedCampaignId) || allCampaignsList[0];
+    const currentCampaign = allCampaignsList.find((c) => c.id === selectedCampaignId) || allCampaignsList[0] || {
+        id: "all",
+        name: "All Campaigns",
+        code: "All",
+        leadCount: 0,
+        unread: 0,
+    };
 
     // Filter available campaigns for current user if not master, or for selected member if master
     const visibleCampaigns = React.useMemo(() => {
@@ -143,6 +145,12 @@ export function UniboxHeader({
                                 (c.name || "").toLowerCase().includes("health") || 
                                 (c.name || "").toLowerCase().includes("snehal") ||
                                 (c.name || "").toLowerCase().includes("personal care")
+                            )) ||
+                            (selectedMemberId === "cmu6m304o00003307qj8ex6oa" && (
+                                c.id === "cmp_1790233732719_dvlj" ||
+                                (c.name || "").toLowerCase().includes("vatsal") ||
+                                (c.name || "").toLowerCase().includes("q3") ||
+                                (c.name || "").toLowerCase().includes("bewakoof")
                             ))
                         )
                     )
@@ -150,7 +158,7 @@ export function UniboxHeader({
             }
             return allCampaignsList;
         }
-        const userMem = teamMembers.find(m => m.email.toLowerCase() === currentUser?.email?.toLowerCase());
+        const userMem = teamMembers.find(m => m.email?.toLowerCase() === currentUser?.email?.toLowerCase());
         if (!userMem) return allCampaignsList;
         return [
             allCampaignsList[0],
@@ -164,6 +172,12 @@ export function UniboxHeader({
                         (c.name || "").toLowerCase().includes("health") || 
                         (c.name || "").toLowerCase().includes("snehal") ||
                         (c.name || "").toLowerCase().includes("personal care")
+                    )) ||
+                    (userMem.id === "cmu6m304o00003307qj8ex6oa" && (
+                        c.id === "cmp_1790233732719_dvlj" ||
+                        (c.name || "").toLowerCase().includes("vatsal") ||
+                        (c.name || "").toLowerCase().includes("q3") ||
+                        (c.name || "").toLowerCase().includes("bewakoof")
                     ))
                 )
             )
@@ -202,16 +216,16 @@ export function UniboxHeader({
                     <PopoverMenuTrigger asChild>
                         <SelectButton
                             icon={<UsersIcon className="w-3.5 h-3.5 text-slate-900" />}
-                            label={currentMember.name}
+                            label={currentMember?.name || "All Team Members"}
                             className="h-7 text-xs font-medium w-[160px] justify-between shrink-0"
                         />
                     </PopoverMenuTrigger>
                     <PopoverMenuContent minWidth={290} className="w-[300px] p-1.5 shadow-xl border border-slate-200/90 rounded-xl bg-white z-50">
                         <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-slate-100 mb-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Team Members</span>
-                            <span className="text-[10px] text-slate-400 font-medium">{teamMembers.length - 1} members</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{Math.max(0, (teamMembers?.length || 1) - 1)} members</span>
                         </div>
-                        {teamMembers.map((member) => (
+                        {(teamMembers || []).map((member) => (
                             <PopoverMenuItem
                                 key={member.id}
                                 selected={selectedMemberId === member.id}
@@ -272,8 +286,8 @@ export function UniboxHeader({
                         )}
                     >
                         <LayersIcon className={cn("w-3.5 h-3.5", selectedCampaignId !== "all" ? "text-slate-900" : "text-slate-500")} />
-                        <span className="truncate max-w-[130px]">{currentCampaign.name}</span>
-                        {currentCampaign.unread > 0 && (
+                        <span className="truncate max-w-[130px]">{currentCampaign?.name || "All Campaigns"}</span>
+                        {(currentCampaign?.unread ?? 0) > 0 && (
                             <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#FFE600]/60/80 text-slate-900">
                                 {currentCampaign.unread}
                             </span>
@@ -283,7 +297,7 @@ export function UniboxHeader({
                 <PopoverMenuContent minWidth={320} className="w-[330px] p-1.5 shadow-xl border border-slate-200/90 rounded-xl bg-white z-50">
                     <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-slate-100 mb-1">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Filter by Campaign</span>
-                        <span className="text-[10px] text-slate-400 font-medium">{visibleCampaigns.length - 1} campaigns</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{Math.max(0, (visibleCampaigns?.length || 1) - 1)} campaigns</span>
                     </div>
                     {visibleCampaigns.map((camp) => (
                         <PopoverMenuItem
@@ -512,7 +526,7 @@ export function UniboxHeader({
                 />
                 <Stat
                     label="mailboxes"
-                    value={data?.mailboxes.length ?? 0}
+                    value={data?.mailboxes?.length ?? 0}
                     muted
                     className="hidden sm:inline-flex"
                 />

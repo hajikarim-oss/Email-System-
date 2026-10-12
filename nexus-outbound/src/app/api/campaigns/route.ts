@@ -67,6 +67,7 @@ export async function GET() {
         name: c.name,
         status: c.status.toLowerCase(),
         owner: c.user?.name || "",
+        userId: c.userId,
         leadsCount: c.leads.length,
         sent: slStats?.totalSent || c.leads.reduce((acc, l) => acc + l.lastStepSent, 0),
         opens: slStats?.totalOpened || c.leads.filter((l) => l.firstOpenAt != null).length,
@@ -110,7 +111,13 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, mailboxIds = [], sequence = [], leads = [], activeUserId } = body;
+    const { name, mailboxIds = [], sequence: seqField = [], leads = [], activeUserId, steps: stepsField } = body;
+    const sequence = seqField.length > 0 ? seqField : (Array.isArray(stepsField) ? stepsField.map((s: any, idx: number) => ({
+      stepNumber: idx + 1,
+      delayDays: s.wait_after ?? s.delayDays ?? 3,
+      subject: s.subject || "",
+      bodyHtml: s.body_html || s.bodyHtml || s.body_plain || "",
+    })) : []);
 
     // MASTER users can create campaigns on behalf of team members
     let userId = loggedUserId;

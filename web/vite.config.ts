@@ -18,6 +18,8 @@ import { resolveDatabaseUrl } from "../server/pg";
 import { checkBatch, checkContact } from "../server/checkBatch";
 import authHandler from "../server/handlers/auth";
 import organizationHandler from "../server/handlers/organization";
+import { handleUnibox } from "../server/unibox";
+import { reconcileSmartleadCampaigns, ensureImmediateSendingSchedule } from "../server/smartleadSync";
 
 const cjsRequire = createRequire(import.meta.url);
 
@@ -383,6 +385,14 @@ function smartleadApiPlugin() {
                 }
                 try {
                     const result = await apiCall(`/campaigns/${smartleadId}`, "GET", undefined, apiKeyParam);
+                    if (url.searchParams.get("sync") === "true") {
+                        try {
+                            const { reconcileCampaign } = await import("../server/reconcileCampaign");
+                            await reconcileCampaign(smartleadId, apiKeyParam);
+                        } catch (recErr) {
+                            console.warn("[Vite /api/smartlead/status] Reconcile error:", recErr);
+                        }
+                    }
                     res.writeHead(result.status, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(result.data));
                 } catch (err: any) {
@@ -408,6 +418,9 @@ function smartleadApiPlugin() {
                         console.log(`[Smartlead API] Creating campaign on Smartlead: "${campaignName}" for ${sender || 'default'}`);
 
                         const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
+                        if (createRes.status >= 200 && createRes.status < 300 && createRes.data?.id) {
+                            await reconcileSmartleadCampaigns(true).catch(() => {});
+                        }
                         res.writeHead(createRes.status, { "Content-Type": "application/json" });
                         res.end(JSON.stringify(createRes.data));
                     } catch (err: any) {
@@ -649,6 +662,25 @@ function smartleadApiPlugin() {
                         // 6. Start campaign in Smartlead
                         const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
 
+                        // 6.1 Force immediate sending window so Smartlead dispatches now instead of next day
+                        try {
+                            await ensureImmediateSendingSchedule(smartleadId, {
+                                timezone: parsed.timezone || "Asia/Kolkata",
+                                days: parsed.days,
+                                start_time: parsed.start_time || parsed.startTime,
+                                end_time: parsed.end_time || parsed.endTime,
+                                interval_minutes: Number(parsed.min_time_between_emails) || 3,
+                                daily_limit: dailyCap,
+                                apiKey: chosenKey,
+                            });
+                            console.log(`[Smartlead Vite Sync] Active window confirmed for campaign #${smartleadId}. Starting immediately.`);
+                        } catch (schedErr: any) {
+                            console.warn("[Smartlead Vite Sync] Immediate schedule activation warning:", schedErr.message);
+                        }
+
+                        // 6.2 Persist campaign and leads into PostgreSQL via auto-reconciliation
+                        await reconcileSmartleadCampaigns(true).catch(() => {});
+
                         // 7. Ensure Live Webhook is registered on Smartlead for this campaign
                         try {
                             const whRes = await apiCall(`/campaigns/${smartleadId}/webhooks`, "GET", undefined, chosenKey);
@@ -657,7 +689,7 @@ function smartleadApiPlugin() {
                             if (!hasWebhook) {
                                 await apiCall(`/campaigns/${smartleadId}/webhooks`, "POST", {
                                     name: "TheBoredMonkey Live Event Webhook",
-                                    webhook_url: "https://email-system-omega.vercel.app/api/webhooks/smartlead",
+                                    webhook_url: process.env.WEBHOOK_BASE_URL ? `${process.env.WEBHOOK_BASE_URL}/api/webhooks/smartlead` : "https://tbmoutreach.tech/api/webhooks/smartlead",
                                     event_types: [
                                         "EMAIL_OPEN",
                                         "EMAIL_SENT",
@@ -1542,6 +1574,337 @@ function databaseIntelligencePlugin() {
                         return;
                     }
 
+                    if (req.method === "POST") {
+                        const bodyParts: any[] = [];
+                        await new Promise((resolve) => {
+                            req.on("data", (chunk: any) => bodyParts.push(chunk));
+                            req.on("end", resolve);
+                        });
+                        const input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}");
+                        const campaignName = (input.name || `Campaign ${Date.now()}`).trim();
+                        if (!campaignName) {
+                            res.writeHead(400, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "campaign_name_required" }));
+                            return;
+                        }
+
+                        // Check duplicate name for this user
+                        const existing = await prisma.campaign.findFirst({
+                            where: { userId: scope.userId, name: campaignName },
+                        });
+                        if (existing) {
+                            res.writeHead(409, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "campaign_name_taken", name: campaignName }));
+                            return;
+                        }
+
+                        const created = await prisma.campaign.create({
+                            data: {
+                                name: campaignName,
+                                userId: scope.userId,
+                                status: (input.status || "DRAFT").toUpperCase(),
+                                sendTimezone: input.timezone || "Asia/Kolkata",
+                                preferredSendHour: input.start_time ? parseInt(input.start_time.split(":")[0]) : null,
+                                preferredSendDays: (Array.isArray(input.days) ? input.days : [1, 2, 3, 4, 5]).map(Number),
+                            },
+                        });
+
+                        // If steps are provided, save steps
+                        if (Array.isArray(input.steps) && input.steps.length > 0) {
+                            for (let i = 0; i < input.steps.length; i++) {
+                                const step = input.steps[i];
+                                await prisma.campaignStep.create({
+                                    data: {
+                                        campaignId: created.id,
+                                        stepNumber: i + 1,
+                                        delayDays: step.wait_after !== undefined ? Number(step.wait_after) : (i === 0 ? 0 : 3),
+                                        subject: (step.subject || `Step ${i + 1}`).slice(0, 255),
+                                        bodyTemplate: step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>",
+                                    },
+                                });
+                            }
+                        }
+
+                        // If mailboxes provided, link them
+                        if (Array.isArray(input.mailbox_ids) && input.mailbox_ids.length > 0) {
+                            for (const mbId of input.mailbox_ids) {
+                                try {
+                                    await prisma.campaignMailbox.create({
+                                        data: { campaignId: created.id, mailboxId: String(mbId) },
+                                    });
+                                } catch {}
+                            }
+                        }
+
+                        res.writeHead(201, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({
+                            ...created,
+                            status: (created.status || "draft").toLowerCase(),
+                            total_leads: 0,
+                            steps: input.steps || [],
+                        }));
+                        return;
+                    }
+
+                    // Subaction: /:id/steps (GET & PUT)
+                    const urlParts = (req.url || "").split("?")[0].split("/").filter(Boolean);
+                    const campIdParam = urlParts[0];
+                    const subAction = urlParts[1];
+
+                    if (campIdParam && subAction === "launch" && (req.method === "POST" || req.method === "PUT")) {
+                        const bodyParts: any[] = [];
+                        await new Promise((resolve) => {
+                            req.on("data", (chunk: any) => bodyParts.push(chunk));
+                            req.on("end", resolve);
+                        });
+                        let input: any = {};
+                        try { input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}"); } catch {}
+
+                        const camp = await prisma.campaign.findFirst({
+                            where: { OR: [{ id: campIdParam }, { providerCampaignId: campIdParam }] },
+                            include: {
+                                steps: { orderBy: { stepNumber: "asc" } },
+                                leads: { where: { status: "ACTIVE" }, take: 500 },
+                                mailboxes: { include: { mailbox: { include: { user: true } } } },
+                            },
+                        });
+                        if (!camp) {
+                            res.writeHead(404, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "campaign_not_found" }));
+                            return;
+                        }
+
+                        const leads = camp.leads || [];
+                        const steps = camp.steps || [];
+                        const senderEmail = camp.mailboxes?.[0]?.mailbox?.senderEmail || "";
+
+                        try {
+                            const syncBody = JSON.stringify({
+                                name: camp.name,
+                                smartlead_id: camp.providerCampaignId ? parseInt(camp.providerCampaignId) : undefined,
+                                steps: steps.map((s: any) => ({
+                                    subject: s.subject || "",
+                                    body_html: s.bodyTemplate || "",
+                                    wait_after: s.delayDays ?? 0,
+                                })),
+                                leads: leads.map((l: any) => ({
+                                    email: l.email,
+                                    first_name: l.firstName || "",
+                                    last_name: l.lastName || "",
+                                    company: (l.customData as any)?.company || "",
+                                    title: (l.customData as any)?.title || "",
+                                })),
+                                sender_email: senderEmail,
+                                mailbox_ids: camp.mailboxes?.map((mb: any) => mb.mailbox?.providerMailboxId).filter(Boolean),
+                                timezone: camp.sendTimezone || "Asia/Kolkata",
+                                days: camp.preferredSendDays || [1, 2, 3, 4, 5],
+                                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
+                                end_time: "18:00",
+                                daily_limit: 200,
+                                stop_on_reply: true,
+                                open_tracking: true,
+                                link_tracking: true,
+                            });
+
+                            const syncRes = await new Promise<{ status: number; data: any }>((resolve) => {
+                                const syncReq = require("http").request("http://localhost:5173/api/smartlead/sync-and-start", {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        "Content-Length": Buffer.byteLength(syncBody),
+                                        ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+                                    },
+                                }, (syncR: any) => {
+                                    let text = "";
+                                    syncR.on("data", (c: any) => { text += c; });
+                                    syncR.on("end", () => {
+                                        try { resolve({ status: syncR.statusCode, data: JSON.parse(text) }); }
+                                        catch { resolve({ status: syncR.statusCode, data: { raw: text } }); }
+                                    });
+                                });
+                                syncReq.on("error", (e: any) => resolve({ status: 500, data: { error: e.message } }));
+                                syncReq.write(syncBody);
+                                syncReq.end();
+                            });
+
+                            if (syncRes.data?.smartlead_id) {
+                                await prisma.campaign.update({
+                                    where: { id: camp.id },
+                                    data: {
+                                        status: "ACTIVE",
+                                        providerCampaignId: String(syncRes.data.smartlead_id),
+                                    },
+                                });
+                            } else {
+                                await prisma.campaign.update({
+                                    where: { id: camp.id },
+                                    data: { status: "ACTIVE" },
+                                });
+                            }
+
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({
+                                success: true,
+                                campaignId: camp.id,
+                                providerCampaignId: syncRes.data?.smartlead_id ? String(syncRes.data.smartlead_id) : camp.providerCampaignId,
+                                status: "ACTIVE",
+                            }));
+                        } catch (launchErr: any) {
+                            console.error("[Vite Campaign Launch] Error:", launchErr);
+                            await prisma.campaign.update({
+                                where: { id: camp.id },
+                                data: { status: "ACTIVE" },
+                            }).catch(() => {});
+                            res.writeHead(500, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: launchErr.message }));
+                        }
+                        return;
+                    }
+
+                    if (campIdParam && subAction === "steps") {
+                        if (req.method === "GET") {
+                            const steps = await prisma.campaignStep.findMany({
+                                where: { OR: [{ campaignId: campIdParam }, { campaign: { providerCampaignId: campIdParam } }] },
+                                orderBy: { stepNumber: "asc" },
+                            });
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify(steps.map((s: any) => ({
+                                id: s.id,
+                                stepNumber: s.stepNumber,
+                                position: s.stepNumber,
+                                name: s.stepNumber === 1 ? "First email" : `Follow-up ${s.stepNumber - 1}`,
+                                subject: s.subject || "",
+                                body_plain: (s.bodyTemplate || "").replace(/<[^>]+>/g, ""),
+                                body_html: s.bodyTemplate || "",
+                                wait_after: s.delayDays || (s.stepNumber === 1 ? 0 : 3),
+                            }))));
+                            return;
+                        }
+
+                        if (req.method === "PUT" || req.method === "POST") {
+                            const bodyParts: any[] = [];
+                            await new Promise((resolve) => {
+                                req.on("data", (chunk: any) => bodyParts.push(chunk));
+                                req.on("end", resolve);
+                            });
+                            const parsed = JSON.parse(Buffer.concat(bodyParts).toString() || "{}");
+                            const stepsData = Array.isArray(parsed) ? parsed : (parsed.steps || []);
+
+                            const targetCamp = await prisma.campaign.findFirst({
+                                where: { OR: [{ id: campIdParam }, { providerCampaignId: campIdParam }] },
+                            });
+                            if (targetCamp) {
+                                await prisma.campaignStep.deleteMany({ where: { campaignId: targetCamp.id } });
+                                const createdSteps = [];
+                                for (let i = 0; i < stepsData.length; i++) {
+                                    const s = stepsData[i];
+                                    const stepNum = i + 1;
+                                    const stepHtml = s.body_html || (s.body_plain ? `<div>${s.body_plain.replace(/\n/g, "<br/>")}</div>` : "<p></p>");
+                                    const created = await prisma.campaignStep.create({
+                                        data: {
+                                            campaignId: targetCamp.id,
+                                            stepNumber: stepNum,
+                                            subject: s.subject || "",
+                                            bodyTemplate: stepHtml,
+                                            delayDays: s.wait_after !== undefined ? Number(s.wait_after) : (stepNum === 1 ? 0 : 3),
+                                        },
+                                    });
+                                    createdSteps.push({
+                                        id: created.id,
+                                        stepNumber: created.stepNumber,
+                                        position: created.stepNumber,
+                                        name: created.stepNumber === 1 ? "First email" : `Follow-up ${created.stepNumber - 1}`,
+                                        subject: created.subject,
+                                        body_plain: created.bodyTemplate.replace(/<[^>]+>/g, ""),
+                                        body_html: created.bodyTemplate,
+                                        wait_after: created.delayDays,
+                                    });
+                                }
+                                res.writeHead(200, { "Content-Type": "application/json" });
+                                res.end(JSON.stringify(createdSteps));
+                                return;
+                            }
+                        }
+                    }
+
+                    // Single campaign GET: /:id
+                    const rawCampId = (req.url || "").split("?")[0].replace(/^\//, "").trim();
+                    if (rawCampId && rawCampId !== "" && !["stats", "steps", "analytics", "logs"].includes(rawCampId)) {
+                        const camp = await prisma.campaign.findFirst({
+                            where: {
+                                OR: [
+                                    { id: rawCampId },
+                                    { providerCampaignId: rawCampId },
+                                    { name: { contains: rawCampId, mode: "insensitive" } },
+                                ],
+                            },
+                            include: {
+                                steps: { orderBy: { stepNumber: "asc" } },
+                                mailboxes: { include: { mailbox: true } },
+                                _count: { select: { leads: true } },
+                            },
+                        });
+
+                        if (camp) {
+                            const mappedCamp = {
+                                id: camp.id,
+                                userId: camp.userId,
+                                user_id: camp.userId,
+                                name: camp.name,
+                                description: "Outreach sequence",
+                                status: (camp.status || "draft").toLowerCase(),
+                                kind: "sequence",
+                                stop_on_reply: true,
+                                open_tracking: true,
+                                link_tracking: true,
+                                utm_tracking: false,
+                                text_only: false,
+                                daily_limit: 200,
+                                unsubscribe_header: true,
+                                risky_emails: false,
+                                unsubscribe_mode: "inherit",
+                                cc: [],
+                                bcc: [],
+                                start_date: camp.createdAt,
+                                end_date: null,
+                                timezone: camp.sendTimezone || "Asia/Kolkata",
+                                days: camp.preferredSendDays || [1, 2, 3, 4, 5],
+                                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
+                                end_time: "18:00",
+                                total_leads: camp._count?.leads || 0,
+                                lead_count: camp._count?.leads || 0,
+                                sent_count: camp.sent || 0,
+                                open_count: camp.opens || 0,
+                                reply_count: camp.replies || 0,
+                                bounce_count: camp.bounces || 0,
+                                open_rate: camp.sent > 0 ? Number(((camp.opens / camp.sent) * 100).toFixed(1)) : 0,
+                                reply_rate: camp.sent > 0 ? Number(((camp.replies / camp.sent) * 100).toFixed(1)) : 0,
+                                bounce_rate: camp.sent > 0 ? Number(((camp.bounces / camp.sent) * 100).toFixed(1)) : 0,
+                                smartlead_id: camp.providerCampaignId ? parseInt(camp.providerCampaignId) : undefined,
+                                smartlead_status: camp.status === "ACTIVE" ? "ACTIVE" : "PAUSED",
+                                steps: (camp.steps || []).map((s: any) => ({
+                                    id: s.id,
+                                    stepNumber: s.stepNumber,
+                                    position: s.stepNumber,
+                                    name: `Step ${s.stepNumber}`,
+                                    subject: s.subject || "",
+                                    body_plain: s.bodyTemplate || "",
+                                    body_html: s.bodyTemplate || "",
+                                    wait_after: s.delayDays ?? (s.stepNumber === 1 ? 0 : 3),
+                                })),
+                                mailboxes: (camp.mailboxes || []).map((mb: any) => mb.mailbox),
+                                created_at: camp.createdAt,
+                                updated_at: camp.updatedAt,
+                            };
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify(mappedCamp));
+                            return;
+                        }
+                    }
+
+                    // Always auto-reconcile with Smartlead so newly created campaigns register without manual sync
+                    await reconcileSmartleadCampaigns().catch(() => {});
+
                     let allowedUserIds = [scope.userId];
                     try {
                         const userTeams = await prisma.userTeam.findMany({ where: { userId: scope.userId }, select: { teamId: true } });
@@ -1580,6 +1943,14 @@ function databaseIntelligencePlugin() {
             server.middlewares.use("/api/v1/campaigns", handleCampaignsRoute);
             server.middlewares.use("/v1/campaigns", handleCampaignsRoute);
             server.middlewares.use("/campaigns", handleCampaignsRoute);
+
+            // Unibox endpoints: live PostgreSQL data for Master and dedicated Team Member inboxes
+            const handleUniboxMiddleware = (req: any, res: any) => {
+                handleUnibox(req, res);
+            };
+            server.middlewares.use("/api/v1/unibox", handleUniboxMiddleware);
+            server.middlewares.use("/api/unibox", handleUniboxMiddleware);
+            server.middlewares.use("/unibox", handleUniboxMiddleware);
 
             // 9. Live database mailboxes query, including each mailbox's real
             // "sent today" / lifetime counters derived from EmailEvent rows.

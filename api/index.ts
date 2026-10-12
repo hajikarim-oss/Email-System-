@@ -29,6 +29,7 @@ import chat from "./chat";
 import { assistantHandler } from "./assistant";
 import { automationHandler } from "./automation";
 import { agentSessionsHandler } from "./agentSessions";
+import { handleUnibox } from "../server/unibox";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
 
@@ -68,6 +69,18 @@ const routes: Record<string, Handler> = {
     "/v1/auth/config": auth,
     "/auth/config": auth,
     "/api/chat": chat,
+    "/api/v1/unibox": handleUnibox,
+    "/api/v1/unibox/overview": handleUnibox,
+    "/api/v1/unibox/team": handleUnibox,
+    "/api/v1/unibox/thread": handleUnibox,
+    "/api/v1/unibox/seen": handleUnibox,
+    "/api/unibox": handleUnibox,
+    "/api/unibox/overview": handleUnibox,
+    "/api/unibox/team": handleUnibox,
+    "/api/unibox/thread": handleUnibox,
+    "/api/unibox/seen": handleUnibox,
+    "/v1/unibox": handleUnibox,
+    "/unibox": handleUnibox,
     "/api/assistant/health": assistantHandler,
     "/api/assistant/query": assistantHandler,
     "/api/assistant/docs": assistantHandler,
@@ -124,6 +137,10 @@ const prefixes: [string, Handler][] = [
     ["/v1/auth/", auth],
     ["/auth/", auth],
     ["/api/organization", organization],
+    ["/api/v1/unibox", handleUnibox],
+    ["/api/unibox", handleUnibox],
+    ["/v1/unibox", handleUnibox],
+    ["/unibox", handleUnibox],
     ["/api/campaigns/", intelligenceCampaigns],
     ["/api/smartlead/campaigns/", smartleadCampaigns],
     ["/api/v1/campaigns", intelligenceCampaigns],

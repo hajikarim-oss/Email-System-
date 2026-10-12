@@ -263,10 +263,10 @@ export function ScopeRail({ scope, onChange }: ScopeRailProps) {
         )}
       />
 
-      {data && data.categories && data.categories.length > 0 && (
+      {Boolean(data?.categories && data.categories.length > 0) && (
         <CollapsibleSection
           label="Categories"
-          items={data.categories}
+          items={data?.categories ?? []}
           emptyText="No categories yet."
           searchPlaceholder="Filter categories…"
           getSearchKey={(c) => c.title}
@@ -290,10 +290,10 @@ export function ScopeRail({ scope, onChange }: ScopeRailProps) {
         />
       )}
 
-      {data && data.tags.length > 0 && (
+      {Boolean(data?.tags && data.tags.length > 0) && (
         <CollapsibleSection
           label="Tags"
-          items={data.tags}
+          items={data?.tags ?? []}
           emptyText="No tags yet."
           searchPlaceholder="Filter tags…"
           getSearchKey={(t) => t.title}
@@ -322,30 +322,31 @@ export function ScopeRail({ scope, onChange }: ScopeRailProps) {
 
 function CollapsibleSection<T extends { id: string }>({
   label,
-  items,
+  items = [],
   emptyText,
   searchPlaceholder,
   getSearchKey,
   renderItem,
 }: {
   label: string;
-  items: T[];
+  items?: T[];
   emptyText: string;
   searchPlaceholder: string;
   getSearchKey: (item: T) => string;
   renderItem: (item: T) => React.ReactNode;
 }) {
+  const safeItems = items ?? [];
   const [search, setSearch] = React.useState("");
   const [expanded, setExpanded] = React.useState(false);
   const [sectionOpen, setSectionOpen] = React.useState(true);
 
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) => getSearchKey(it).toLowerCase().includes(q));
-  }, [items, search, getSearchKey]);
+    if (!q) return safeItems;
+    return safeItems.filter((it) => getSearchKey(it).toLowerCase().includes(q));
+  }, [safeItems, search, getSearchKey]);
 
-  const showSearch = items.length > COLLAPSE_THRESHOLD;
+  const showSearch = safeItems.length > COLLAPSE_THRESHOLD;
   const showCollapse = filtered.length > COLLAPSE_THRESHOLD;
   const visible =
     showCollapse && !expanded ? filtered.slice(0, COLLAPSED_VISIBLE) : filtered;
@@ -367,7 +368,7 @@ function CollapsibleSection<T extends { id: string }>({
           {label}
         </span>
         <span className="ml-auto font-mono text-[10px] text-slate-400 tabular-nums">
-          {items.length}
+          {safeItems.length}
         </span>
       </button>
 

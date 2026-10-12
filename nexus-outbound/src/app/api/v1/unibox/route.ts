@@ -79,6 +79,9 @@ export async function GET(req: Request) {
 
     if (since) {
       leadWhere.updatedAt = { ...(leadWhere.updatedAt || {}), gte: new Date(since) };
+    } else {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      leadWhere.updatedAt = { ...(leadWhere.updatedAt || {}), gte: sevenDaysAgo };
     }
     if (until) {
       leadWhere.updatedAt = { ...(leadWhere.updatedAt || {}), lte: new Date(until + "T23:59:59.999Z") };
@@ -91,7 +94,7 @@ export async function GET(req: Request) {
     const leads = await prisma.lead.findMany({
       where: leadWhere,
       include: {
-        campaign: { select: { id: true, name: true, userId: true } },
+        campaign: { select: { id: true, name: true, userId: true, mailboxes: { select: { mailbox: { select: { id: true, senderEmail: true } } }, take: 1 } } },
         events: {
           where: { eventType: { in: ["sent", "replied"] } },
           orderBy: { createdAt: "desc" },
@@ -122,9 +125,10 @@ export async function GET(req: Request) {
         raw.reply_text || raw.body || raw.email_body || raw.snippet || "";
       const snippet = String(snippetRaw).replace(/<[^>]*>/g, "").slice(0, 300);
 
-      const fromEmail = latestEvent?.fromEmail || "";
-      const fromAddr = isReply ? [lead.email] : [fromEmail || "outreach@theboredmonkey.com"];
-      const toAddr = isReply ? [fromEmail || "outreach@theboredmonkey.com"] : [lead.email];
+      const campaignMailbox = (lead.campaign as any)?.mailboxes?.[0]?.mailbox;
+      const fromEmail = latestEvent?.fromEmail || campaignMailbox?.senderEmail || "";
+      const fromAddr = isReply ? [lead.email] : [fromEmail];
+      const toAddr = isReply ? [fromEmail] : [lead.email];
 
       const hasUnread = lead.status === "REPLIED";
       const messageCount = (lead.totalOutbound || 0) + (lead.totalInbound || 0) || 1;
@@ -140,7 +144,7 @@ export async function GET(req: Request) {
 
       return {
         id: `msg_${lead.id}`,
-        email_id: "mb_default",
+        email_id: campaignMailbox?.id || lead.campaignId || "",
         thread_id: `th_${lead.id}`,
         from_addr: fromAddr,
         to_addr: toAddr,

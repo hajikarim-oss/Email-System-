@@ -9,20 +9,24 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const contacts = Array.isArray(body) ? body : body.contacts ? body.contacts : [body];
+    const targetCampaignId = body.campaign_id || (Array.isArray(body.campaigns) && body.campaigns[0]) || null;
 
-    // Find default campaign to assign leads to
-    const defaultCampaign = await prisma.campaign.findFirst({
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (!defaultCampaign) {
-      return jsonErr("No campaign available to attach contacts", 400);
+    let fallbackCampaignId = targetCampaignId;
+    if (!fallbackCampaignId) {
+      const defaultCampaign = await prisma.campaign.findFirst({
+        orderBy: { createdAt: "desc" },
+      });
+      if (!defaultCampaign) {
+        return jsonErr("No campaign available to attach contacts", 400);
+      }
+      fallbackCampaignId = defaultCampaign.id;
     }
 
     const created = [];
     for (const c of contacts) {
       if (!c.email) continue;
       const email = c.email.trim().toLowerCase();
+      const campId = c.campaign_id || (Array.isArray(c.campaigns) && c.campaigns[0]) || fallbackCampaignId;
 
       const lead = await prisma.lead.upsert({
         where: { id: c.id || "non_existent_id" },
@@ -32,7 +36,7 @@ export async function POST(req: Request) {
           customData: c.custom_fields || c.customData || {},
         },
         create: {
-          campaignId: c.campaign_id || defaultCampaign.id,
+          campaignId: campId,
           email,
           firstName: c.first_name || c.firstName,
           lastName: c.last_name || c.lastName,

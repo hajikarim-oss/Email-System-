@@ -102,7 +102,7 @@ export async function GET(req: Request) {
       guardrail_reply_rate_min: 1,
       guardrail_min_sample: 20,
       guardrail_window_days: 7,
-      tracking_domain: "track.theboredmonkey.com",
+      tracking_domain: "",
       tracking_domain_verified: true,
       utm_tracking: false,
       utm_source: "nexus",
