@@ -4324,6 +4324,24 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         });
     const allSentRows = [...cleanSentRecords, ...defaultSentRows];
 
+    if (pathWithoutQuery === "/unibox/team") {
+        try {
+            const teamRes = await safeFetch("/api/v1/unibox/team", { headers: authHeaders() });
+            if (teamRes.ok) {
+                const teamData = await teamRes.json();
+                if (Array.isArray(teamData)) return res(teamData);
+                if (Array.isArray(teamData?.data)) return res(teamData.data);
+            }
+        } catch {}
+        return res([
+            { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 0 },
+            { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master", mailboxIds: ["cmtlkufpi000o80qmmlfsfat7"], unread: 0 },
+            { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 0 },
+            { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach", mailboxIds: ["cmu6m31bv00033307zao17anp", "cmu6m31vx00053307frspcjkj"], unread: 0 },
+            { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 1 },
+        ]);
+    }
+
     if (pathWithoutQuery === "/unibox/count") {
         const unreadCount = allInboxRows.filter(r => !r.seen || r.has_unread).length;
         return res({ unseen: unreadCount });

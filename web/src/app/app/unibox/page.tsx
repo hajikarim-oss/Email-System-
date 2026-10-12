@@ -57,7 +57,11 @@ export default function UniboxPage() {
   const { user } = useUserProfile();
   const isMaster = user?.is_admin || (user as any)?.role === "owner" || (user?.roles && user.roles.includes("owner"));
   const teamQuery = useTeamMembers();
-  const teamMembers = teamQuery.data && teamQuery.data.length > 0 ? teamQuery.data : UNIBOX_TEAM_MEMBERS;
+  const teamMembers = React.useMemo(() => {
+    if (Array.isArray(teamQuery.data) && teamQuery.data.length > 0) return teamQuery.data;
+    if (Array.isArray((teamQuery.data as any)?.data) && (teamQuery.data as any).data.length > 0) return (teamQuery.data as any).data;
+    return UNIBOX_TEAM_MEMBERS;
+  }, [teamQuery.data]);
   const userTeamMember = React.useMemo(() => {
     return teamMembers.find((m) => m.email.toLowerCase() === user?.email?.toLowerCase());
   }, [user, teamMembers]);

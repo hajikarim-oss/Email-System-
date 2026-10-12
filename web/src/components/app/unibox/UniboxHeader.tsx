@@ -24,6 +24,10 @@ import type { UniboxTeamMember } from "@/lib/api/client/app/unibox/getTeamMember
 
 export const UNIBOX_TEAM_MEMBERS: UniboxTeamMember[] = [
     { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 0 },
+    { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master", mailboxIds: ["cmtlkufpi000o80qmmlfsfat7"], unread: 0 },
+    { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 0 },
+    { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach", mailboxIds: ["cmu6m31bv00033307zao17anp", "cmu6m31vx00053307frspcjkj"], unread: 0 },
+    { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 1 },
 ];
 const FALLBACK_TEAM_MEMBERS = UNIBOX_TEAM_MEMBERS;
 
@@ -81,7 +85,11 @@ export function UniboxHeader({
     const data = overview.data;
 
     const teamQuery = useTeamMembers();
-    const teamMembers = teamQuery.data || UNIBOX_TEAM_MEMBERS;
+    const teamMembers: UniboxTeamMember[] = React.useMemo(() => {
+        if (Array.isArray(teamQuery.data) && teamQuery.data.length > 0) return teamQuery.data;
+        if (Array.isArray((teamQuery.data as any)?.data) && (teamQuery.data as any).data.length > 0) return (teamQuery.data as any).data;
+        return UNIBOX_TEAM_MEMBERS;
+    }, [teamQuery.data]);
 
     const campaignsQuery = useCampaigns({ query: "", folder: "all" });
     const allCampaignsList = React.useMemo(() => {
