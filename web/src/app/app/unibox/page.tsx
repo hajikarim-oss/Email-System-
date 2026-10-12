@@ -21,7 +21,8 @@ import { ScheduledList } from "@/components/app/unibox/ScheduledList";
 import { ThreadView } from "@/components/app/unibox/ThreadView";
 import { ScopeRail, scopeKey, type UniboxScope } from "@/components/app/unibox/ScopeRail";
 import { ScopeSheet } from "@/components/app/unibox/ScopeSheet";
-import { UniboxHeader, type UniboxDatePreset, type UniboxDateFilterState } from "@/components/app/unibox/UniboxHeader";
+import { UniboxHeader, UNIBOX_TEAM_MEMBERS, type UniboxDatePreset, type UniboxDateFilterState } from "@/components/app/unibox/UniboxHeader";
+import useTeamMembers from "@/lib/api/hooks/app/unibox/useTeamMembers";
 import useFeatureAccess from "@/hooks/useFeatureAccess";
 import { LockedSurface } from "@/components/layout/LockedSurface";
 import { NoAccess } from "@/components/layout/NoAccess";
@@ -55,9 +56,11 @@ export default function UniboxPage() {
 
   const { user } = useUserProfile();
   const isMaster = user?.is_admin || (user as any)?.role === "owner" || (user?.roles && user.roles.includes("owner"));
+  const teamQuery = useTeamMembers();
+  const teamMembers = teamQuery.data && teamQuery.data.length > 0 ? teamQuery.data : UNIBOX_TEAM_MEMBERS;
   const userTeamMember = React.useMemo(() => {
-    return UNIBOX_TEAM_MEMBERS.find((m) => m.email.toLowerCase() === user?.email?.toLowerCase());
-  }, [user]);
+    return teamMembers.find((m) => m.email.toLowerCase() === user?.email?.toLowerCase());
+  }, [user, teamMembers]);
 
   // Master starts at "all"; individual team members are locked to their own profile
   const [selectedMemberId, setSelectedMemberId] = React.useState<string>(() => {

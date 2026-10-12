@@ -81,7 +81,7 @@ export function UniboxHeader({
     const data = overview.data;
 
     const teamQuery = useTeamMembers();
-    const UNIBOX_TEAM_MEMBERS = teamQuery.data || FALLBACK_TEAM_MEMBERS;
+    const teamMembers = teamQuery.data || UNIBOX_TEAM_MEMBERS;
 
     const campaignsQuery = useCampaigns({ query: "", folder: "all" });
     const allCampaignsList = React.useMemo(() => {
@@ -101,8 +101,8 @@ export function UniboxHeader({
         return all;
     }, [campaignsQuery.data]);
 
-    const currentMember = UNIBOX_TEAM_MEMBERS.find((m) => m.id === selectedMemberId) || UNIBOX_TEAM_MEMBERS[0];
-    const nonMasterMember = UNIBOX_TEAM_MEMBERS.find(m => m.email.toLowerCase() === currentUser?.email?.toLowerCase()) || {
+    const currentMember = teamMembers.find((m) => m.id === selectedMemberId) || teamMembers[0];
+    const nonMasterMember = teamMembers.find(m => m.email.toLowerCase() === currentUser?.email?.toLowerCase()) || {
         name: currentUser?.name || "My Inbound",
         role: "Team Member",
         unread: 1,
@@ -113,13 +113,13 @@ export function UniboxHeader({
     // Filter available campaigns for current user if not master
     const visibleCampaigns = React.useMemo(() => {
         if (isMaster) return allCampaignsList;
-        const userMem = UNIBOX_TEAM_MEMBERS.find(m => m.email.toLowerCase() === currentUser?.email?.toLowerCase());
+        const userMem = teamMembers.find(m => m.email.toLowerCase() === currentUser?.email?.toLowerCase());
         if (!userMem) return allCampaignsList;
         return [
             allCampaignsList[0],
             ...allCampaignsList.filter(c => c.id !== "all" && (!c.memberId || c.memberId === userMem.id || c.id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" || (c.name || "").toLowerCase().includes("health")))
         ];
-    }, [isMaster, currentUser, allCampaignsList]);
+    }, [isMaster, currentUser, allCampaignsList, teamMembers]);
 
     const [customFrom, setCustomFrom] = React.useState(dateFilter.customStart || "");
     const [customTo, setCustomTo] = React.useState(dateFilter.customEnd || "");
@@ -160,9 +160,9 @@ export function UniboxHeader({
                     <PopoverMenuContent minWidth={290} className="w-[300px] p-1.5 shadow-xl border border-slate-200/90 rounded-xl bg-white z-50">
                         <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-slate-100 mb-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Team Members</span>
-                            <span className="text-[10px] text-slate-400 font-medium">{UNIBOX_TEAM_MEMBERS.length - 1} members</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{teamMembers.length - 1} members</span>
                         </div>
-                        {UNIBOX_TEAM_MEMBERS.map((member) => (
+                        {teamMembers.map((member) => (
                             <PopoverMenuItem
                                 key={member.id}
                                 selected={selectedMemberId === member.id}
