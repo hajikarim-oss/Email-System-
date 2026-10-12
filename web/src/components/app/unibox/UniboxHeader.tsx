@@ -23,18 +23,19 @@ import useTeamMembers from "@/lib/api/hooks/app/unibox/useTeamMembers";
 import type { UniboxTeamMember } from "@/lib/api/client/app/unibox/getTeamMembers";
 
 export const UNIBOX_TEAM_MEMBERS: UniboxTeamMember[] = [
-    { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 0 },
+    { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 5 },
     { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master", mailboxIds: ["cmtlkufpi000o80qmmlfsfat7"], unread: 0 },
-    { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 0 },
+    { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 1 },
     { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach", mailboxIds: ["cmu6m31bv00033307zao17anp", "cmu6m31vx00053307frspcjkj"], unread: 0 },
-    { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 1 },
+    { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 4 },
 ];
 const FALLBACK_TEAM_MEMBERS = UNIBOX_TEAM_MEMBERS;
 
 export const UNIBOX_CAMPAIGNS = [
-    { id: "all", name: "All Campaigns", code: "All", leadCount: 381, unread: 1 },
-    { id: "3bdf7199-cc30-4461-873d-d9928b9c31ec", name: "Health Outreach Campaign", code: "Smartlead #4103333", leadCount: 381, unread: 1, memberId: "cmttwwhj5000ovdkr7ooyb6qt" },
-    { id: "cmp_1790233732719_dvlj", name: "Q3 Campaign", code: "Th_camp_bewakoof_q3", leadCount: 50, unread: 2, memberId: "cmu6m304o00003307qj8ex6oa" },
+    { id: "all", name: "All Campaigns", code: "All", leadCount: 679, unread: 5 },
+    { id: "3bdf7199-cc30-4461-873d-d9928b9c31ec", name: "Health Outreach Campaign", code: "Smartlead #4103333", leadCount: 381, unread: 2, memberId: "cmttwwhj5000ovdkr7ooyb6qt" },
+    { id: "cmv0x5vfu0001dynzwtnxg8ul", name: "Personal Care Snehal Campaign", code: "Smartlead #4111241", leadCount: 298, unread: 2, memberId: "cmttwwhj5000ovdkr7ooyb6qt" },
+    { id: "cmp_1790233732719_dvlj", name: "Q3 Campaign", code: "Th_camp_bewakoof_q3", leadCount: 50, unread: 1, memberId: "cmu6m304o00003307qj8ex6oa" },
     { id: "cmp_1789718475256_g91f", name: "Q2 Reachout Mails", code: "Th_camp_q2_reachout", leadCount: 30, unread: 1, memberId: "cmu6m304o00003307qj8ex6oa" },
     { id: "cmp_1789560721755", name: "Campaign 120", code: "Th_camp_120", leadCount: 45, unread: 0, memberId: "cmttwwhj5000ovdkr7ooyb6qt" },
     { id: "cmtwmgdm00001sikkb3l1bc3r", name: "Pratik is testing", code: "Th_camp_pratik_test", leadCount: 15, unread: 0, memberId: "cmtr9pp8t0000cygeyjpsz5lt" },
@@ -95,18 +96,26 @@ export function UniboxHeader({
     const allCampaignsList = React.useMemo(() => {
         const pages = campaignsQuery.data?.pages || [];
         const flat = pages.flatMap((p) => p.data || []);
-        const all = [
-            { id: "all", name: "All Campaigns", code: "All", leadCount: 0, unread: 0, memberId: undefined as string | undefined },
-            ...flat.map((c: any) => ({
+        const map = new Map<string, any>();
+        for (const c of UNIBOX_CAMPAIGNS) {
+            map.set(c.id, c);
+        }
+        for (const c of flat) {
+            const mapped = {
                 id: c.id,
                 name: c.name,
-                code: c.id.length > 10 ? `#${c.id.slice(0, 8)}` : c.id,
+                code: c.id?.length > 10 ? `#${c.id.slice(0, 8)}` : c.id,
                 leadCount: c.total_leads || c.totalLeads || c.leadsCount || 0,
                 unread: c.reply_count || c.replies || 0,
                 memberId: (c.userId || c.user_id || undefined) as string | undefined,
-            })),
-        ];
-        return all;
+            };
+            if (map.has(c.id)) {
+                map.set(c.id, { ...map.get(c.id), ...mapped });
+            } else {
+                map.set(c.id, mapped);
+            }
+        }
+        return Array.from(map.values());
     }, [campaignsQuery.data]);
 
     const currentMember = teamMembers.find((m) => m.id === selectedMemberId) || teamMembers[0];
@@ -118,16 +127,48 @@ export function UniboxHeader({
 
     const currentCampaign = allCampaignsList.find((c) => c.id === selectedCampaignId) || allCampaignsList[0];
 
-    // Filter available campaigns for current user if not master
+    // Filter available campaigns for current user if not master, or for selected member if master
     const visibleCampaigns = React.useMemo(() => {
-        if (isMaster) return allCampaignsList;
+        if (isMaster) {
+            if (selectedMemberId && selectedMemberId !== "all") {
+                return [
+                    allCampaignsList[0],
+                    ...allCampaignsList.filter(c => 
+                        c.id !== "all" && (
+                            !c.memberId || 
+                            c.memberId === selectedMemberId || 
+                            (selectedMemberId === "cmttwwhj5000ovdkr7ooyb6qt" && (
+                                c.id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" || 
+                                c.id === "cmv0x5vfu0001dynzwtnxg8ul" || 
+                                (c.name || "").toLowerCase().includes("health") || 
+                                (c.name || "").toLowerCase().includes("snehal") ||
+                                (c.name || "").toLowerCase().includes("personal care")
+                            ))
+                        )
+                    )
+                ];
+            }
+            return allCampaignsList;
+        }
         const userMem = teamMembers.find(m => m.email.toLowerCase() === currentUser?.email?.toLowerCase());
         if (!userMem) return allCampaignsList;
         return [
             allCampaignsList[0],
-            ...allCampaignsList.filter(c => c.id !== "all" && (!c.memberId || c.memberId === userMem.id || c.id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" || (c.name || "").toLowerCase().includes("health")))
+            ...allCampaignsList.filter(c => 
+                c.id !== "all" && (
+                    !c.memberId || 
+                    c.memberId === userMem.id || 
+                    (userMem.id === "cmttwwhj5000ovdkr7ooyb6qt" && (
+                        c.id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" || 
+                        c.id === "cmv0x5vfu0001dynzwtnxg8ul" || 
+                        (c.name || "").toLowerCase().includes("health") || 
+                        (c.name || "").toLowerCase().includes("snehal") ||
+                        (c.name || "").toLowerCase().includes("personal care")
+                    ))
+                )
+            )
         ];
-    }, [isMaster, currentUser, allCampaignsList, teamMembers]);
+    }, [isMaster, currentUser, allCampaignsList, teamMembers, selectedMemberId]);
 
     const [customFrom, setCustomFrom] = React.useState(dateFilter.customStart || "");
     const [customTo, setCustomTo] = React.useState(dateFilter.customEnd || "");

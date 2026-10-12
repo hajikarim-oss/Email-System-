@@ -4087,6 +4087,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         id: "msg_reply_rupesh_health",
         email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
         shared_email_ids: ["cmu6m304o00003307qj8ex6oa", "cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
+        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
         thread_id: "th_camp_rupesh_health",
         campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
         campaign_name: "Health Outreach Campaign",
@@ -4106,6 +4107,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         id: "sent_init_rupesh_health",
         email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
         shared_email_ids: ["cmu6m304o00003307qj8ex6oa", "cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
+        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
         thread_id: "th_camp_rupesh_health",
         campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
         campaign_name: "Health Outreach Campaign",
@@ -4121,9 +4123,134 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
     };
 
+    // Smartlead Health Outreach Campaign (Campaign #4103333) Sukhdev Gehlot reply
+    const velnikHealthRepliedRow = {
+        id: "msg_reply_velnik_health",
+        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
+        shared_email_ids: ["cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
+        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
+        thread_id: "th_camp_velnik_health",
+        campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
+        campaign_name: "Health Outreach Campaign",
+        from_addr: ["Velnik India <customercare@velnik.com>"],
+        to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
+        subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
+        snippet: "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours...",
+        internal_date: "2026-10-09T10:46:01.000Z",
+        seen: false,
+        message_count: 2,
+        has_unread: true,
+        folder: "inbox",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    const velnikHealthSentRow = {
+        id: "sent_init_velnik_health",
+        email_id: "cmtu07q0i00011wxajyd2ehui",
+        shared_email_ids: ["cmtlkufpi000o80qmmlfsfat7", "cmttwwhj5000ovdkr7ooyb6qt"],
+        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
+        thread_id: "th_camp_velnik_health",
+        campaign_id: "3bdf7199-cc30-4461-873d-d9928b9c31ec",
+        campaign_name: "Health Outreach Campaign",
+        from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
+        to_addr: ["Sukhdev Gehlot <sukhdev.gehlot@velnik.com>"],
+        subject: "Diwali Influencer Marketing Partnership — TheBoredMonkey",
+        snippet: "Hi Sukhdev. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...",
+        internal_date: "2026-10-09T10:45:58.613Z",
+        seen: true,
+        message_count: 2,
+        has_unread: false,
+        folder: "sent",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    // Smartlead Personal Care Snehal Campaign replies (Campaign #4111241)
+    const bhoomiRepliedRow = {
+        id: "msg_reply_bhoomi_salt",
+        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
+        shared_email_ids: ["cmttwwhj5000ovdkr7ooyb6qt"],
+        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
+        thread_id: "th_camp_bhoomi_salt",
+        campaign_id: "cmv0x5vfu0001dynzwtnxg8ul",
+        campaign_name: "Personal Care Snehal Campaign",
+        from_addr: ["Bhoomi <bhoomi@saltoralcare.com>"],
+        to_addr: ["Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>"],
+        subject: "Re: Diwali Production Partnership | TheBoredMonkey",
+        snippet: "Thank you for your email. Please note that Bhoomi is no longer associated with Salt Oral Care. Going forward, all marketing-related communication should be directed to: Vaishnavi Sikarwar Head of Marketing vaishnavi@saltoralcare.com...",
+        internal_date: "2026-10-09T11:49:51.000Z",
+        seen: false,
+        message_count: 2,
+        has_unread: true,
+        folder: "inbox",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    const bhoomiSentRow = {
+        id: "sent_init_bhoomi_salt",
+        email_id: "cmtu07q0i00011wxajyd2ehui",
+        shared_email_ids: ["cmttwwhj5000ovdkr7ooyb6qt"],
+        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
+        thread_id: "th_camp_bhoomi_salt",
+        campaign_id: "cmv0x5vfu0001dynzwtnxg8ul",
+        campaign_name: "Personal Care Snehal Campaign",
+        from_addr: ["Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>"],
+        to_addr: ["Bhoomi <bhoomi@saltoralcare.com>"],
+        subject: "Diwali Production Partnership | TheBoredMonkey",
+        snippet: "Hi Bhoomi, A good personal care film shouldn’t just make the product look good. It should make the consumer believe something they weren’t sure about before. Would love to explore what that could look like for Salt Oral Care...",
+        internal_date: "2026-10-09T11:45:54.784Z",
+        seen: true,
+        message_count: 2,
+        has_unread: false,
+        folder: "sent",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    const velnikRepliedRow = {
+        id: "msg_reply_velnik_sukhdev",
+        email_id: "cmtu07q0i00011wxajyd2ehui", // Snehal Maurya's mailbox
+        shared_email_ids: ["cmttwwhj5000ovdkr7ooyb6qt"],
+        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
+        thread_id: "th_camp_velnik_sukhdev",
+        campaign_id: "cmv0x5vfu0001dynzwtnxg8ul",
+        campaign_name: "Personal Care Snehal Campaign",
+        from_addr: ["Velnik India <customercare@velnik.com>"],
+        to_addr: ["Simran D <simran.d@theboredmonkey.com>"],
+        subject: "Re: Diwali Production Partnership | TheBoredMonkey",
+        snippet: "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours...",
+        internal_date: "2026-10-10T06:15:41.000Z",
+        seen: false,
+        message_count: 2,
+        has_unread: true,
+        folder: "inbox",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
+    const velnikSentRow = {
+        id: "sent_init_velnik_sukhdev",
+        email_id: "cmtu07q0i00011wxajyd2ehui",
+        shared_email_ids: ["cmttwwhj5000ovdkr7ooyb6qt"],
+        member_id: "cmttwwhj5000ovdkr7ooyb6qt",
+        thread_id: "th_camp_velnik_sukhdev",
+        campaign_id: "cmv0x5vfu0001dynzwtnxg8ul",
+        campaign_name: "Personal Care Snehal Campaign",
+        from_addr: ["Simran D <simran.d@theboredmonkey.com>"],
+        to_addr: ["Sukhdev Gehlot <sukhdev.gehlot@velnik.com>"],
+        subject: "Diwali Production Partnership | TheBoredMonkey",
+        snippet: "Hi Sukhdev, Would love to explore creator-led production and video frameworks for Velnik this festive season...",
+        internal_date: "2026-10-09T11:45:54.784Z",
+        seen: true,
+        message_count: 2,
+        has_unread: false,
+        folder: "sent",
+        labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+    };
+
     // Complete real conversations mapped across all team members
     const defaultInboxRows = [
         rupeshRepliedRow,
+        velnikHealthRepliedRow,
+        bhoomiRepliedRow,
+        velnikRepliedRow,
         rajdeepRepliedRow,
         snehalReachout101Row,
         surajFrameworkRow,
@@ -4177,6 +4304,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     const defaultSentRows = [
         rupeshSentRow,
+        velnikHealthSentRow,
+        bhoomiSentRow,
+        velnikSentRow,
         {
             id: "sent_init_jayant_missmosa",
             email_id: "cmu6m304o00003307qj8ex6oa", // Vatsal Vadecha
@@ -4334,11 +4464,11 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
         } catch {}
         return res([
-            { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 0 },
+            { id: "all", name: "All Team Members", email: "all", role: "Overview", mailboxIds: [], unread: 5 },
             { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master", mailboxIds: ["cmtlkufpi000o80qmmlfsfat7"], unread: 0 },
-            { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 0 },
+            { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth", mailboxIds: ["cmu6m304o00003307qj8ex6oa", "cmu6m30qk00023307x29a9x30"], unread: 1 },
             { id: "cmu6m31bv00033307zao17anp", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach", mailboxIds: ["cmu6m31bv00033307zao17anp", "cmu6m31vx00053307frspcjkj"], unread: 0 },
-            { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 1 },
+            { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns", mailboxIds: ["cmtu07q0i00011wxajyd2ehui", "cmttwwhj5000ovdkr7ooyb6qt"], unread: 4 },
         ]);
     }
 
@@ -4412,18 +4542,51 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             pool = pool.filter(r => 
                 targetMailboxIds.includes(r.email_id) || 
                 (r.shared_email_ids && r.shared_email_ids.some((id: string) => targetMailboxIds.includes(id))) ||
-                (r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec")
+                (r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec") ||
+                (r.campaign_id === "cmv0x5vfu0001dynzwtnxg8ul")
             );
         }
 
-        // 1b. Campaign filtering
+        // 1b. Team Member filtering
+        const memberFilter = queryParams.get("member_id") || queryParams.get("memberId") || "";
+        if (memberFilter && memberFilter !== "all") {
+            pool = pool.filter(r => 
+                r.member_id === memberFilter ||
+                (r.memberId && r.memberId === memberFilter) ||
+                (memberFilter === "cmttwwhj5000ovdkr7ooyb6qt" && (
+                    r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" ||
+                    r.campaign_id === "cmv0x5vfu0001dynzwtnxg8ul" ||
+                    r.campaign_id === "4103333" ||
+                    r.campaign_id === "4111241" ||
+                    r.email_id === "cmtu07q0i00011wxajyd2ehui" ||
+                    r.email_id === "cmttwwhj5000ovdkr7ooyb6qt" ||
+                    (r.campaign_name && (r.campaign_name.toLowerCase().includes("health") || r.campaign_name.toLowerCase().includes("snehal") || r.campaign_name.toLowerCase().includes("personal care")))
+                )) ||
+                (memberFilter === "cmu6m304o00003307qj8ex6oa" && (
+                    r.campaign_id === "cmp_1790233732719_dvlj" ||
+                    r.campaign_id === "cmp_1789718475256_g91f" ||
+                    r.email_id === "cmu6m304o00003307qj8ex6oa"
+                )) ||
+                (memberFilter === "cmtr9pp8t0000cygeyjpsz5lt" && (
+                    r.email_id === "cmtlkufpi000o80qmmlfsfat7"
+                )) ||
+                (memberFilter === "cmu6m31bv00033307zao17anp" && (
+                    r.campaign_id === "cmtvl4lye0001tdcgjxhipix8" ||
+                    r.email_id === "cmu6m31bv00033307zao17anp"
+                ))
+            );
+        }
+
+        // 1c. Campaign filtering
         const campaignFilter = queryParams.get("campaign_id") || queryParams.get("campaignId") || "";
         if (campaignFilter && campaignFilter !== "all") {
             pool = pool.filter(r => 
                 r.campaign_id === campaignFilter || 
                 r.campaignId === campaignFilter ||
                 (campaignFilter === "3bdf7199-cc30-4461-873d-d9928b9c31ec" && (r.campaign_name === "Health Outreach Campaign" || r.campaign_id === "4103333")) ||
-                (campaignFilter === "4103333" && (r.campaign_name === "Health Outreach Campaign" || r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec"))
+                (campaignFilter === "4103333" && (r.campaign_name === "Health Outreach Campaign" || r.campaign_id === "3bdf7199-cc30-4461-873d-d9928b9c31ec")) ||
+                (campaignFilter === "cmv0x5vfu0001dynzwtnxg8ul" && (r.campaign_name === "Personal Care Snehal Campaign" || r.campaign_id === "4111241")) ||
+                (campaignFilter === "4111241" && (r.campaign_name === "Personal Care Snehal Campaign" || r.campaign_id === "cmv0x5vfu0001dynzwtnxg8ul"))
             );
         }
 
@@ -4500,6 +4663,81 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
                     snippet: "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability so we can set up a time to connect. Thanks, Rupesh",
                     internal_date: "2026-10-09T04:53:04.000Z",
+                    seen: false,
+                }
+            ];
+        } else if (threadId === "th_camp_bhoomi_salt" || threadId.includes("bhoomi") || threadId.includes("salt")) {
+            threadMessages = [
+                {
+                    id: "sent_init_bhoomi_salt",
+                    email_id: "cmtu07q0i00011wxajyd2ehui",
+                    thread_id: threadId,
+                    from_addr: ["Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>"],
+                    to_addr: ["Bhoomi <bhoomi@saltoralcare.com>"],
+                    subject: "Diwali Production Partnership | TheBoredMonkey",
+                    snippet: "Hi Bhoomi, A good personal care film shouldn’t just make the product look good. It should make the consumer believe something they weren’t sure about before. Would love to explore what that could look like for Salt Oral Care...",
+                    internal_date: "2026-10-09T11:45:54.784Z",
+                    seen: true,
+                },
+                {
+                    id: "msg_reply_bhoomi_salt",
+                    email_id: "cmtu07q0i00011wxajyd2ehui",
+                    thread_id: threadId,
+                    from_addr: ["Bhoomi <bhoomi@saltoralcare.com>"],
+                    to_addr: ["Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>"],
+                    subject: "Re: Diwali Production Partnership | TheBoredMonkey",
+                    snippet: "Thank you for your email. Please note that Bhoomi is no longer associated with Salt Oral Care. Going forward, all marketing-related communication should be directed to: Vaishnavi Sikarwar Head of Marketing vaishnavi@saltoralcare.com...",
+                    internal_date: "2026-10-09T11:49:51.000Z",
+                    seen: false,
+                }
+            ];
+        } else if (threadId === "th_camp_velnik_health" || (threadId.includes("velnik") && threadId.includes("health"))) {
+            threadMessages = [
+                {
+                    id: "sent_init_velnik_health",
+                    email_id: "cmtu07q0i00011wxajyd2ehui",
+                    thread_id: threadId,
+                    from_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
+                    to_addr: ["Sukhdev Gehlot <sukhdev.gehlot@velnik.com>"],
+                    subject: "Diwali Influencer Marketing Partnership — TheBoredMonkey",
+                    snippet: "Hi Sukhdev. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey. 4,000+ regional creators...",
+                    internal_date: "2026-10-09T10:45:58.613Z",
+                    seen: true,
+                },
+                {
+                    id: "msg_reply_velnik_health",
+                    email_id: "cmtu07q0i00011wxajyd2ehui",
+                    thread_id: threadId,
+                    from_addr: ["Velnik India <customercare@velnik.com>"],
+                    to_addr: ["Haji Karim <haji.karim@theboredmonkey.com>"],
+                    subject: "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey",
+                    snippet: "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours...",
+                    internal_date: "2026-10-09T10:46:01.000Z",
+                    seen: false,
+                }
+            ];
+        } else if (threadId === "th_camp_velnik_sukhdev" || threadId.includes("velnik") || threadId.includes("sukhdev")) {
+            threadMessages = [
+                {
+                    id: "sent_init_velnik_sukhdev",
+                    email_id: "cmtu07q0i00011wxajyd2ehui",
+                    thread_id: threadId,
+                    from_addr: ["Simran D <simran.d@theboredmonkey.com>"],
+                    to_addr: ["Sukhdev Gehlot <sukhdev.gehlot@velnik.com>"],
+                    subject: "Diwali Production Partnership | TheBoredMonkey",
+                    snippet: "Hi Sukhdev, Would love to explore creator-led production and video frameworks for Velnik this festive season...",
+                    internal_date: "2026-10-09T11:45:54.784Z",
+                    seen: true,
+                },
+                {
+                    id: "msg_reply_velnik_sukhdev",
+                    email_id: "cmtu07q0i00011wxajyd2ehui",
+                    thread_id: threadId,
+                    from_addr: ["Velnik India <customercare@velnik.com>"],
+                    to_addr: ["Simran D <simran.d@theboredmonkey.com>"],
+                    subject: "Re: Diwali Production Partnership | TheBoredMonkey",
+                    snippet: "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours...",
+                    internal_date: "2026-10-10T06:15:41.000Z",
                     seen: false,
                 }
             ];
@@ -4785,6 +5023,137 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     date: isReply ? "2026-10-09T04:53:04.000Z" : "2026-10-08T12:27:45.534Z",
                     is_seen: !isReply,
                     thread_id: "th_camp_rupesh_health",
+                    account_id: "cmtu07q0i00011wxajyd2ehui",
+                    body_plain: snippet,
+                    body_html: html,
+                    body_truncated: false,
+                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+                });
+            }
+
+            if (emailMsgId.includes("bhoomi") || emailMsgId.includes("salt")) {
+                const isReply = emailMsgId.includes("reply");
+                const fromAddr = isReply ? "Bhoomi <bhoomi@saltoralcare.com>" : "Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>";
+                const toAddr = isReply ? "Tamanna Ranawat <tamanna.ranawat@theboredmonkey.com>" : "Bhoomi <bhoomi@saltoralcare.com>";
+                const subject = isReply ? "Re: Diwali Production Partnership | TheBoredMonkey" : "Diwali Production Partnership | TheBoredMonkey";
+                const snippet = isReply
+                    ? "Thank you for your email. Please note that Bhoomi is no longer associated with Salt Oral Care. Going forward, all marketing-related communication should be directed to: Vaishnavi Sikarwar Head of Marketing vaishnavi@saltoralcare.com..."
+                    : "Hi Bhoomi, A good personal care film shouldn’t just make the product look good. It should make the consumer believe something they weren’t sure about before. Would love to explore what that could look like for Salt Oral Care.";
+                const html = isReply
+                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Thank you for your email.</p>
+                        <p style="margin: 0 0 14px 0;">Please note that Bhoomi is no longer associated with Salt Oral Care. Going forward, all marketing-related communication should be directed to:</p>
+                        <p style="margin: 0 0 14px 0;"><strong>Vaishnavi Sikarwar</strong><br/>Head of Marketing<br/><a href="mailto:vaishnavi@saltoralcare.com" style="color: #0284c7;">vaishnavi@saltoralcare.com</a></p>
+                        <p style="margin: 0 0 14px 0;">Kindly note that this email ID will remain active only until <strong>30th October 2026</strong>, after which it will be deactivated.</p>
+                        <p style="margin: 0;">Thank you for your understanding.<br/><strong>Salt Oral Care | Manor Rama Care Private Limited</strong></p>
+                    </div>`
+                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Hi Bhoomi,</p>
+                        <p style="margin: 0 0 14px 0;">A good personal care film shouldn’t just make the product look good. It should make the consumer believe something they weren’t sure about before.</p>
+                        <p style="margin: 0 0 14px 0;">We run creator-led production and video frameworks for consumer brands. Would love to explore what a high-impact festive film could look like for Salt Oral Care.</p>
+                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
+                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
+                            <p style="margin: 0 0 2px 0;"><strong>Tamanna Ranawat</strong> | Brand Partnerships</p>
+                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
+                        </div>
+                    </div>`;
+
+                return res({
+                    id: emailMsgId,
+                    from: fromAddr,
+                    to: toAddr,
+                    subject: subject,
+                    snippet: snippet,
+                    date: isReply ? "2026-10-09T11:49:51.000Z" : "2026-10-09T11:45:54.784Z",
+                    is_seen: !isReply,
+                    thread_id: "th_camp_bhoomi_salt",
+                    account_id: "cmtu07q0i00011wxajyd2ehui",
+                    body_plain: snippet,
+                    body_html: html,
+                    body_truncated: false,
+                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+                });
+            }
+
+            if (emailMsgId.includes("velnik_health")) {
+                const isReply = emailMsgId.includes("reply");
+                const fromAddr = isReply ? "Velnik India <customercare@velnik.com>" : "Haji Karim <haji.karim@theboredmonkey.com>";
+                const toAddr = isReply ? "Haji Karim <haji.karim@theboredmonkey.com>" : "Sukhdev Gehlot <sukhdev.gehlot@velnik.com>";
+                const subject = isReply ? "Re: Diwali Influencer Marketing Partnership — TheBoredMonkey" : "Diwali Influencer Marketing Partnership — TheBoredMonkey";
+                const snippet = isReply
+                    ? "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours..."
+                    : "Hi Sukhdev. With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result. We are TheBoredMonkey...";
+                const html = isReply
+                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Hello,</p>
+                        <p style="margin: 0 0 14px 0;">Thank you for your email.</p>
+                        <p style="margin: 0 0 14px 0;">We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours.</p>
+                        <p style="margin: 0 0 14px 0;">If you do not get any response, feel free to contact us between Monday to Saturday, 9:30 AM to 6:30 PM IST at our Customer Care Number +917509282828, 0731 - 6669000, 0731 - 3339000.</p>
+                        <p style="margin: 0;">Have a Great Day!!!!!<br/>Best Wishes,<br/><strong>Velnik India Limited</strong></p>
+                    </div>`
+                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Hi Sukhdev,</p>
+                        <p style="margin: 0 0 14px 0;">With Diwali around the corner, most brands are about to run the same campaign. Same creators, same hooks, same result.</p>
+                        <p style="margin: 0 0 14px 0;">We are TheBoredMonkey. 4,000+ regional creators across Tamil, Telugu, Kannada, and Malayalam.</p>
+                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
+                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
+                            <p style="margin: 0 0 2px 0;"><strong>Haji Karim</strong> | Brand Partnerships</p>
+                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
+                        </div>
+                    </div>`;
+
+                return res({
+                    id: emailMsgId,
+                    from: fromAddr,
+                    to: toAddr,
+                    subject: subject,
+                    snippet: snippet,
+                    date: isReply ? "2026-10-09T10:46:01.000Z" : "2026-10-09T10:45:58.613Z",
+                    is_seen: !isReply,
+                    thread_id: "th_camp_velnik_health",
+                    account_id: "cmtu07q0i00011wxajyd2ehui",
+                    body_plain: snippet,
+                    body_html: html,
+                    body_truncated: false,
+                    labels: [{ id: "cat_1", title: "Interested", color: "#10b981" }],
+                });
+            }
+
+            if (emailMsgId.includes("velnik") || emailMsgId.includes("sukhdev")) {
+                const isReply = emailMsgId.includes("reply");
+                const fromAddr = isReply ? "Velnik India <customercare@velnik.com>" : "Simran D <simran.d@theboredmonkey.com>";
+                const toAddr = isReply ? "Simran D <simran.d@theboredmonkey.com>" : "Sukhdev Gehlot <sukhdev.gehlot@velnik.com>";
+                const subject = isReply ? "Re: Diwali Production Partnership | TheBoredMonkey" : "Diwali Production Partnership | TheBoredMonkey";
+                const snippet = isReply
+                    ? "Hello, Thank you for your email. We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours..."
+                    : "Hi Sukhdev, Would love to explore creator-led production and video frameworks for Velnik this festive season.";
+                const html = isReply
+                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Hello,</p>
+                        <p style="margin: 0 0 14px 0;">Thank you for your email.</p>
+                        <p style="margin: 0 0 14px 0;">We are working on your email. Our concerned Department/Team will revert to you within 24 - 48 hours.</p>
+                        <p style="margin: 0 0 14px 0;">If you do not get any response, feel free to contact us between Monday to Saturday, 9:30 AM to 6:30 PM IST at our Customer Care Number +917509282828, 0731 - 6669000, 0731 - 3339000.</p>
+                        <p style="margin: 0;">Have a Great Day!!!!!<br/>Best Wishes,<br/><strong>Velnik India Limited</strong></p>
+                    </div>`
+                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        <p style="margin: 0 0 14px 0;">Hi Sukhdev,</p>
+                        <p style="margin: 0 0 14px 0;">Would love to explore creator-led production and video frameworks for Velnik this festive season.</p>
+                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 14px; color: #475569; font-size: 13px; line-height: 1.5;">
+                            <p style="margin: 0 0 4px 0;">Kind Regards,</p>
+                            <p style="margin: 0 0 2px 0;"><strong>Simran D</strong> | Outreach Team</p>
+                            <p style="margin: 0 0 2px 0;">TheBoredMonkey</p>
+                        </div>
+                    </div>`;
+
+                return res({
+                    id: emailMsgId,
+                    from: fromAddr,
+                    to: toAddr,
+                    subject: subject,
+                    snippet: snippet,
+                    date: isReply ? "2026-10-10T06:15:41.000Z" : "2026-10-09T11:45:54.784Z",
+                    is_seen: !isReply,
+                    thread_id: "th_camp_velnik_sukhdev",
                     account_id: "cmtu07q0i00011wxajyd2ehui",
                     body_plain: snippet,
                     body_html: html,
