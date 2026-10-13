@@ -37,6 +37,7 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+.claude/
 
 # Python & Databases
 __pycache__/

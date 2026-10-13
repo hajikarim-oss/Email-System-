@@ -3742,39 +3742,14 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery === "/unibox/seen") {
-        const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data || {};
-        const emailIds: string[] = body.email_ids || body.ids || [];
-        const threadId = body.threadId || body.thread_id;
-        const folder = body.folder;
-        const seen = body.seen !== false;
-
-        // 1. Update unibox_inbox_messages
-        const currentInbox = loadStorage<any[]>("unibox_inbox_messages", defaultInboxRows);
-        const updatedInbox = currentInbox.map(r => {
-            const matches = (threadId && (r.thread_id === threadId || r.id === threadId)) || 
-                            (folder && (folder === "all" || r.folder === folder)) ||
-                            emailIds.includes(r.id) || 
-                            emailIds.includes(r.email_id) || 
-                            (r.thread_id && emailIds.includes(r.thread_id));
-            if (matches) {
-                return { ...r, seen, has_unread: !seen };
-            }
-            return r;
-        });
-        saveStorage("unibox_inbox_messages", updatedInbox);
-
-        // 2. Mark corresponding notifications in app_notifications_feed as read
-        const currentNotifs = loadStorage<any[]>("app_notifications_feed", DEFAULT_NOTIFICATIONS);
-        const updatedNotifs = currentNotifs.map(n => {
-            const matchesThread = threadId && n.link?.includes(threadId);
-            const matchesId = emailIds.some(id => n.link?.includes(id));
-            if (matchesThread || matchesId || (folder && (folder === "all" || folder === "inbox"))) {
-                return { ...n, read_at: seen ? new Date().toISOString() : null };
-            }
-            return n;
-        });
-        saveStorage("app_notifications_feed", updatedNotifs);
-
+        try {
+            const seenRes = await safeFetch("/api/v1/unibox/seen", {
+                method: "POST",
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: typeof config.data === "string" ? config.data : JSON.stringify(config.data || {}),
+            });
+            if (seenRes.ok) return res(await seenRes.json());
+        } catch {}
         return res({ status: "ok", updated: true });
     }
 

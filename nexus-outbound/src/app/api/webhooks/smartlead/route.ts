@@ -38,7 +38,8 @@ export async function POST(req: Request) {
     const eventType = payload.event_type || payload.type || "unknown";
     const email = payload.email || payload.lead_email || payload.to_email || "";
     const campaignId = payload.email_campaign_id || payload.campaign_id;
-    const providerEventId = payload.event_id || payload.id || `sl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const providerEventId = payload.event_id || payload.id || payload.message_id || payload.webhook_id
+      || `sl:${eventType}:${email}:${campaignId || ""}:${payload.timestamp ?? payload.created_at ?? payload.sent_at ?? ""}`;
     const providerLeadId = payload.lead_id || payload.provider_lead_id;
 
     // Map Smartlead event types to our internal types
@@ -70,10 +71,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, note: "duplicate" });
     }
 
-    // Find lead by email or provider lead ID
+    // Find lead by provider lead ID, then by email scoped to campaign, then by email globally
     let lead = null;
     if (providerLeadId) {
       lead = await prisma.lead.findFirst({ where: { providerLeadId: String(providerLeadId) } });
+    }
+    if (!lead && email && campaignId) {
+      const camp = await prisma.campaign.findFirst({
+        where: { OR: [{ providerCampaignId: String(campaignId) }, { id: String(campaignId) }] },
+        select: { id: true },
+      });
+      if (camp) {
+        lead = await prisma.lead.findFirst({ where: { email: email.toLowerCase(), campaignId: camp.id } });
+      }
     }
     if (!lead && email) {
       lead = await prisma.lead.findFirst({ where: { email: email.toLowerCase() } });
@@ -111,10 +121,41 @@ export async function POST(req: Request) {
         }
       }
 
-      // For other events, just log and return
-      console.warn(`Smartlead webhook: lead not found for email=${email}, leadId=${providerLeadId}, event=${eventType}`);
-      console.warn(`Full payload for lead_not_found:`, JSON.stringify(payload, null, 2));
-      return NextResponse.json({ received: true, note: "lead_not_found", debug: { email, providerLeadId, eventType } });
+      // Auto-enroll: if a lead doesn't exist but we know the campaign, create the lead
+      // so events are never silently dropped
+      if (campaignId) {
+        const campaign = await prisma.campaign.findFirst({
+          where: { OR: [{ providerCampaignId: String(campaignId) }, { id: String(campaignId) }] },
+          select: { id: true, userId: true },
+        });
+        if (campaign) {
+          const firstName = String(payload.first_name || payload.lead?.first_name || email.split("@")[0] || "").slice(0, 100);
+          const lastName = String(payload.last_name || payload.lead?.last_name || "").slice(0, 100);
+          try {
+            lead = await prisma.lead.create({
+              data: {
+                campaignId: campaign.id,
+                email: email.toLowerCase(),
+                firstName: firstName || null,
+                lastName: lastName || null,
+                providerLeadId: providerLeadId ? String(providerLeadId) : null,
+                source: "smartlead",
+                status: "ACTIVE",
+              },
+            });
+            console.log(`[Webhook] Auto-enrolled lead ${email} into campaign ${campaign.id}`);
+          } catch {
+            lead = await prisma.lead.findFirst({
+              where: { email: email.toLowerCase(), campaignId: campaign.id },
+            });
+          }
+        }
+      }
+
+      if (!lead) {
+        console.warn(`Smartlead webhook: lead not found for email=${email}, leadId=${providerLeadId}, event=${eventType}`);
+        return NextResponse.json({ received: true, note: "lead_not_found", debug: { email, providerLeadId, eventType } });
+      }
     }
 
     // Safety: if lead is still null for any reason, don't crash
@@ -123,17 +164,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, note: "lead_null_safety" });
     }
 
+    // Sync providerLeadId if we have it and the lead doesn't
+    if (providerLeadId && !lead.providerLeadId) {
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: { providerLeadId: String(providerLeadId) },
+      }).catch(() => {});
+    }
+
     // Store the event with fromEmail for live tracking
     const fromEmail = payload.from_email || payload.sender_email || payload.from || "";
-    await prisma.emailEvent.create({
-      data: {
-        leadId: lead.id,
-        eventType: internalEventType,
-        providerEventId,
-        fromEmail: fromEmail || null,
-        rawPayload: payload,
-      },
-    });
+    try {
+      await prisma.emailEvent.create({
+        data: {
+          leadId: lead.id,
+          eventType: internalEventType,
+          providerEventId,
+          fromEmail: fromEmail || null,
+          rawPayload: payload,
+        },
+      });
+    } catch (e: any) {
+      if (e?.code === "P2002") {
+        return NextResponse.json({ received: true, note: "duplicate" });
+      }
+      throw e;
+    }
 
     // Update lead status based on event type
     const now = new Date();
