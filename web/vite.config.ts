@@ -1342,18 +1342,37 @@ function databaseIntelligencePlugin() {
                             const domain = email.split("@")[1] || "";
                             const company = item.company || item.company_name || "";
 
-                            const existing = campId
+                            const existingInCamp = campId
                                 ? await prisma.lead.findFirst({ where: { email, campaignId: campId } })
-                                : await prisma.lead.findFirst({ where: { email } });
-                            if (existing) {
+                                : null;
+                            const existingAny = existingInCamp || await prisma.lead.findFirst({ where: { email } });
+
+                            if (existingInCamp) {
                                 await prisma.lead.update({
-                                    where: { id: existing.id },
+                                    where: { id: existingInCamp.id },
                                     data: {
-                                        ...(firstName && !existing.firstName ? { firstName } : {}),
-                                        ...(lastName && !existing.lastName ? { lastName } : {}),
-                                        domain: existing.domain || domain,
+                                        status: "ACTIVE",
+                                        ...(firstName && !existingInCamp.firstName ? { firstName } : {}),
+                                        ...(lastName && !existingInCamp.lastName ? { lastName } : {}),
+                                        domain: existingInCamp.domain || domain,
                                         customData: {
-                                            ...(typeof existing.customData === "object" ? existing.customData : {}),
+                                            ...(typeof existingInCamp.customData === "object" ? existingInCamp.customData : {}),
+                                            ...(item.custom_fields || {}),
+                                            ...(company ? { company } : {}),
+                                        },
+                                    },
+                                });
+                            } else if (existingAny && (!existingAny.campaignId || existingAny.campaignId === campId)) {
+                                await prisma.lead.update({
+                                    where: { id: existingAny.id },
+                                    data: {
+                                        campaignId: campId || existingAny.campaignId,
+                                        status: "ACTIVE",
+                                        ...(firstName && !existingAny.firstName ? { firstName } : {}),
+                                        ...(lastName && !existingAny.lastName ? { lastName } : {}),
+                                        domain: existingAny.domain || domain,
+                                        customData: {
+                                            ...(typeof existingAny.customData === "object" ? existingAny.customData : {}),
                                             ...(item.custom_fields || {}),
                                             ...(company ? { company } : {}),
                                         },
@@ -1989,26 +2008,43 @@ function databaseIntelligencePlugin() {
                                 const lastName = item.last_name || item.lastName || "";
                                 const company = item.company || item.company_name || "";
                                 try {
-                                    const existing = await prisma.lead.findFirst({ where: { email, campaignId: created.id } });
-                                    if (!existing) {
-                                        await prisma.lead.create({
-                                            data: {
-                                                email,
-                                                firstName,
-                                                lastName,
-                                                campaignId: created.id,
-                                                domain: email.split("@")[1] || "",
-                                                status: "ACTIVE",
-                                                outreachState: "NEVER_REACHED",
-                                                customData: {
-                                                    ...(company ? { company } : {}),
-                                                    ...(item.custom_fields || {}),
-                                                },
-                                            },
-                                        });
+                                    const existingInCamp = await prisma.lead.findFirst({ where: { email, campaignId: created.id } });
+                                    if (existingInCamp) {
                                         leadCount++;
+                                    } else {
+                                        const unassigned = await prisma.lead.findFirst({ where: { email, campaignId: null } });
+                                        if (unassigned) {
+                                            await prisma.lead.update({
+                                                where: { id: unassigned.id },
+                                                data: {
+                                                    campaignId: created.id,
+                                                    status: "ACTIVE",
+                                                    ...(company ? { customData: { ...(typeof unassigned.customData === "object" && unassigned.customData ? unassigned.customData : {}), company } } : {})
+                                                }
+                                            });
+                                            leadCount++;
+                                        } else {
+                                            await prisma.lead.create({
+                                                data: {
+                                                    email,
+                                                    firstName,
+                                                    lastName,
+                                                    campaignId: created.id,
+                                                    domain: email.split("@")[1] || "",
+                                                    status: "ACTIVE",
+                                                    outreachState: "NEVER_REACHED",
+                                                    customData: {
+                                                        ...(company ? { company } : {}),
+                                                        ...(item.custom_fields || {}),
+                                                    },
+                                                },
+                                            });
+                                            leadCount++;
+                                        }
                                     }
-                                } catch {}
+                                } catch (e) {
+                                    console.warn("Failed to persist lead during campaign create:", email, e);
+                                }
                             }
                         }
 

@@ -146,6 +146,14 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const [warnFilter, setWarnFilter] = React.useState<"all" | "sent" | "not_sent" | "quarantined">("all");
     const [warnSearch, setWarnSearch] = React.useState("");
 
+    const syncSelection = React.useCallback((pending: ContactDraftItem[], ignored: Set<string>) => {
+        if (!pending || pending.length === 0) return;
+        const kept = pending.filter(c => !ignored.has(c.email.toLowerCase().trim()));
+        const pendingEmails = new Set(pending.map(c => c.email.toLowerCase().trim()));
+        const base = selectedContactsRef.current.filter(c => !pendingEmails.has(c.email.toLowerCase().trim()));
+        onChangeSelected(deduplicateContacts([...base, ...kept]));
+    }, [onChangeSelected]);
+
     const sentWarnings = React.useMemo(() => historyWarnings.filter(w => w.hasSent && !w.quarantined), [historyWarnings]);
     const notSentWarnings = React.useMemo(() => historyWarnings.filter(w => !w.hasSent && !w.quarantined), [historyWarnings]);
     const quarWarnings = React.useMemo(() => historyWarnings.filter(w => w.quarantined), [historyWarnings]);
@@ -153,7 +161,8 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const skipAllSent = () => {
         setIgnoredEmails(prev => {
             const next = new Set(prev);
-            sentWarnings.forEach(w => next.add(w.email.toLowerCase()));
+            sentWarnings.forEach(w => next.add(w.email.toLowerCase().trim()));
+            syncSelection(pendingContacts, next);
             return next;
         });
         toast(`Ignored ${sentWarnings.length} contacts with sent emails`);
@@ -162,7 +171,8 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const skipAllNotSent = () => {
         setIgnoredEmails(prev => {
             const next = new Set(prev);
-            notSentWarnings.forEach(w => next.add(w.email.toLowerCase()));
+            notSentWarnings.forEach(w => next.add(w.email.toLowerCase().trim()));
+            syncSelection(pendingContacts, next);
             return next;
         });
         toast(`Ignored ${notSentWarnings.length} uncontacted / not-sent contacts`);
@@ -171,7 +181,8 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const selectAllSent = () => {
         setIgnoredEmails(prev => {
             const next = new Set(prev);
-            sentWarnings.forEach(w => next.delete(w.email.toLowerCase()));
+            sentWarnings.forEach(w => next.delete(w.email.toLowerCase().trim()));
+            syncSelection(pendingContacts, next);
             return next;
         });
         toast.success(`Selected ${sentWarnings.length} sent contacts`);
@@ -180,7 +191,8 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const selectAllNotSent = () => {
         setIgnoredEmails(prev => {
             const next = new Set(prev);
-            notSentWarnings.forEach(w => next.delete(w.email.toLowerCase()));
+            notSentWarnings.forEach(w => next.delete(w.email.toLowerCase().trim()));
+            syncSelection(pendingContacts, next);
             return next;
         });
         toast.success(`Selected ${notSentWarnings.length} not-sent contacts`);
@@ -254,7 +266,8 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 checkedAt: new Date(),
             });
 
-            setPendingContacts(deduplicateContacts(toAdd));
+            const dedupedToAdd = deduplicateContacts(toAdd);
+            setPendingContacts(dedupedToAdd);
 
             if (all.length > 0) {
                 setHistoryWarnings(all);
@@ -262,11 +275,12 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 const preIgnored = new Set<string>(quar.map(q => q.email.toLowerCase().trim()));
                 setIgnoredEmails(preIgnored);
                 setShowWarn(true);
+                // Auto-enrol clean + non-quarantined contacts immediately so continuing in wizard never loses them!
+                syncSelection(dedupedToAdd, preIgnored);
                 toast(`⚠️ Auto-check: ${all.length} of ${toAdd.length} contacts have prior history`, { id: "outreach-check-toast" });
             } else {
                 setHistoryWarnings([]);
-                const nextSelected = deduplicateContacts([...selectedContactsRef.current, ...toAdd]);
-                onChangeSelected(nextSelected);
+                syncSelection(dedupedToAdd, new Set());
                 toast.success(`✓ Auto-check passed! All ${toAdd.length} clean contacts automatically queued.`, { id: "outreach-check-toast" });
             }
         } catch (err: any) {
@@ -275,7 +289,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
         } finally {
             setChecking(false);
         }
-    }, [onChangeSelected]);
+    }, [onChangeSelected, syncSelection]);
 
     const toggleIgnore = (email: string) => {
         const key = email.toLowerCase().trim();
@@ -283,31 +297,40 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
             const next = new Set(prev);
             if (next.has(key)) next.delete(key);
             else next.add(key);
+            syncSelection(pendingContacts, next);
             return next;
         });
     };
 
     const skipAllFlagged = () => {
-        setIgnoredEmails(new Set(historyWarnings.map(w => w.email.toLowerCase().trim())));
+        const next = new Set(historyWarnings.map(w => w.email.toLowerCase().trim()));
+        setIgnoredEmails(next);
+        syncSelection(pendingContacts, next);
         toast("All flagged contacts skipped");
     };
 
     const selectAllFlagged = () => {
-        setIgnoredEmails(new Set());
+        const next = new Set<string>();
+        setIgnoredEmails(next);
+        syncSelection(pendingContacts, next);
         toast.success("All flagged contacts selected");
     };
 
     const confirmWarn = () => {
-        const kept = pendingContacts.filter(c => !ignoredEmails.has(c.email.toLowerCase().trim()));
-        onChangeSelected(deduplicateContacts([...selectedContactsRef.current, ...kept]));
-        const sk = pendingContacts.length - kept.length;
-        if (kept.length) toast.success(`Added ${kept.length}${sk ? `, skipped ${sk}` : ""}`); else toast(`Skipped ${sk}`);
+        syncSelection(pendingContacts, ignoredEmails);
+        const keptCount = pendingContacts.filter(c => !ignoredEmails.has(c.email.toLowerCase().trim())).length;
+        const sk = pendingContacts.length - keptCount;
+        if (keptCount) toast.success(`Enrolled ${keptCount} contacts${sk ? `, skipped ${sk}` : ""}`); else toast(`Skipped ${sk}`);
         setShowWarn(false);
     };
 
     const cancelWarn = () => {
+        const pendingEmails = new Set(pendingContacts.map(c => c.email.toLowerCase().trim()));
+        onChangeSelected(selectedContactsRef.current.filter(c => !pendingEmails.has(c.email.toLowerCase().trim())));
+        setPendingContacts([]);
         setShowWarn(false);
     };
+
 
     const toggleDb = async (c: NormalizedContact) => {
         if (isSel(c.email)) { onChangeSelected(selectedContacts.filter(s => s.email.toLowerCase() !== c.email.toLowerCase())); return; }

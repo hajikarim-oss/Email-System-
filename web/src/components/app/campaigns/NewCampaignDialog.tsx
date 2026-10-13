@@ -486,6 +486,8 @@ export function NewCampaignDialog({ open, onClose }: Props) {
             steps: buildSteps(),
             start_date: startDateIso,
             end_date: endDateIso,
+            contacts: draft.selectedContacts,
+            leads: draft.selectedContacts,
         };
 
         if (draft.kind === "sequence") {
@@ -507,6 +509,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                                 email: c.email,
                                 company: cleanC,
                                 phone: "",
+                                campaign_id: created.id,
                                 campaigns: [created.id],
                                 custom_fields: (c.role ? { role: c.role, company: cleanC } : { company: cleanC }) as Record<string, string>,
                                 source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
@@ -582,6 +585,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                             email: c.email,
                             company: cleanC,
                             phone: "",
+                            campaign_id: created.id,
                             campaigns: [created.id],
                             custom_fields: (c.role ? { role: c.role, company: cleanC } : { company: cleanC }) as Record<string, string>,
                             source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
