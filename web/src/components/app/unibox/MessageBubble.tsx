@@ -170,7 +170,10 @@ export function MessageBubble({
                 </div>
             ) : (
                 <>
-                    <EmailBody html={body.data?.body_html} plain={body.data?.body_plain} />
+                    <EmailBody
+                        html={body.data?.body_html || (email as any).body_html}
+                        plain={body.data?.body_plain || (email as any).body_plain || email.snippet}
+                    />
                     {body.data?.body_truncated && (
                         <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-amber-700">
                             <AlertCircleIcon className="w-3.5 h-3.5 shrink-0" />

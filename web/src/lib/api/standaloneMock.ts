@@ -3791,8 +3791,12 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const emailMsgId = pathWithoutQuery.replace("/unibox/", "");
         if (emailMsgId && !emailMsgId.includes("/")) {
             try {
-                const msgRes = await safeFetch(`/api/v1/emails/${encodeURIComponent(emailMsgId)}`, { headers: authHeaders() });
+                const msgRes = await safeFetch(`/api/v1/unibox/message?id=${encodeURIComponent(emailMsgId)}`, { headers: authHeaders() });
                 if (msgRes.ok) return res(await msgRes.json());
+            } catch {}
+            try {
+                const msgRes2 = await safeFetch(`/api/v1/emails/${encodeURIComponent(emailMsgId)}`, { headers: authHeaders() });
+                if (msgRes2.ok) return res(await msgRes2.json());
             } catch {}
             return res({ id: emailMsgId, error: "not_found" }, 404);
         }

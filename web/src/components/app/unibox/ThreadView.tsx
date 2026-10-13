@@ -81,7 +81,9 @@ function toUniboxEmail(m: UniboxThreadMessage): UniboxEmail {
     is_seen: m.seen,
     thread_id: m.thread_id,
     account_id: m.email_id,
-  };
+    body_html: (m as any).body_html,
+    body_plain: (m as any).body_plain,
+  } as any;
 }
 
 const SNOOZE_PRESETS: { label: string; until: () => Date }[] = [

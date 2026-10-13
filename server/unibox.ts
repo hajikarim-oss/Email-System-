@@ -207,6 +207,53 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             return;
         }
 
+        // Route: /api/v1/unibox/message or /api/v1/unibox/email (Single Message Detail with Body)
+        if (pathname.endsWith("/message") || pathname.endsWith("/email") || pathname.includes("/emails/")) {
+            let msgId = searchParams.get("id") || "";
+            if (!msgId) {
+                const parts = pathname.split("/");
+                msgId = parts[parts.length - 1];
+            }
+            const cleanMsgId = msgId.replace(/^msg_/, "");
+            const evRows = await pgQuery<any>(
+                `SELECT e.id, e."leadId", e."eventType", e."fromEmail", e."rawPayload", e."createdAt",
+                        l.email as "leadEmail", l."campaignId", c.name as "campaignName"
+                 FROM "EmailEvent" e
+                 JOIN "Lead" l ON l.id = e."leadId"
+                 LEFT JOIN "Campaign" c ON c.id = l."campaignId"
+                 WHERE e.id = $1 OR e."providerEventId" = $1 LIMIT 1`,
+                [cleanMsgId]
+            );
+
+            if (!evRows || evRows.length === 0) {
+                send(res, 404, { error: "message_not_found" });
+                return;
+            }
+
+            const ev = evRows[0];
+            const raw = (ev.rawPayload || {}) as Record<string, any>;
+            const isReply = ev.eventType === "replied";
+            const bodyHtml = raw.reply_text || raw.reply_body || raw.email_body || raw.body || raw.custom_email_message || raw.sent_message_body || "";
+            const bodyPlain = String(raw.snippet || bodyHtml).replace(/<[^>]*>/g, "").trim();
+            const subject = raw.subject || raw.email_subject || (isReply ? `Re: ${ev.campaignName || "Outreach"}` : `Outreach: ${ev.campaignName || "Partnership"}`);
+            const fromAddr = ev.fromEmail || raw.from_email || (isReply ? ev.leadEmail : "haji.karim@theboredmonkey.com");
+            const toAddr = isReply ? "haji.karim@theboredmonkey.com" : ev.leadEmail;
+
+            send(res, 200, {
+                id: `msg_${ev.id}`,
+                from: fromAddr,
+                to: toAddr,
+                subject,
+                date: ev.createdAt,
+                body_html: bodyHtml,
+                body_plain: bodyPlain,
+                snippet: bodyPlain.slice(0, 300),
+                account_id: ev.campaignId || "",
+                is_seen: true,
+            }, 0);
+            return;
+        }
+
         // Route: /api/v1/unibox/thread (Single Thread Message History)
         if (pathname.endsWith("/thread")) {
             const threadId = searchParams.get("thread_id") || "";
@@ -244,7 +291,7 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             }
 
             // Fetch events for this lead
-            const events = await pgQuery<any>(
+            let events = await pgQuery<any>(
                 `SELECT e.id, e."eventType", e."fromEmail", e."rawPayload", e."createdAt"
                  FROM "EmailEvent" e
                  WHERE e."leadId" = $1 AND e."eventType" IN ('sent', 'replied')
@@ -252,15 +299,34 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 [targetLead.id]
             );
 
-            const messages = events.map((event: any, idx: number) => {
+            // If reply events are missing body or no events exist, sync message history from Smartlead API
+            const hasEmptyReply = events.some((e: any) => e.eventType === "replied" && (!e.rawPayload || !e.rawPayload.email_body));
+            if (events.length === 0 || hasEmptyReply) {
+                try {
+                    const { syncLeadMessageHistory } = await import("./smartleadRepliesSync");
+                    await syncLeadMessageHistory(targetLead.id);
+                    events = await pgQuery<any>(
+                        `SELECT e.id, e."eventType", e."fromEmail", e."rawPayload", e."createdAt"
+                         FROM "EmailEvent" e
+                         WHERE e."leadId" = $1 AND e."eventType" IN ('sent', 'replied')
+                         ORDER BY e."createdAt" ASC`,
+                        [targetLead.id]
+                    );
+                } catch (syncErr) {
+                    console.warn("[unibox/thread] Auto-sync message history warning:", syncErr);
+                }
+            }
+
+            const messages = events.map((event: any) => {
                 const raw = (event.rawPayload || {}) as Record<string, any>;
                 const isReply = event.eventType === "replied";
                 const subject = raw.subject || raw.email_subject || (isReply ? `Re: ${targetLead.campaignName || "Outreach"}` : `Outreach: ${targetLead.campaignName || "Partnership"}`);
-                const body = raw.reply_text || raw.body || raw.email_body || raw.snippet || "";
-                const snippet = String(body).replace(/<[^>]*>/g, "").slice(0, 2000);
-                const senderEmail = event.fromEmail || "haji.karim@theboredmonkey.com";
-                const fromAddr = isReply ? [targetLead.email] : [senderEmail];
-                const toAddr = isReply ? [senderEmail] : [targetLead.email];
+                const bodyHtml = raw.reply_text || raw.reply_body || raw.email_body || raw.body || raw.custom_email_message || raw.sent_message_body || "";
+                const bodyPlain = String(raw.snippet || bodyHtml).replace(/<[^>]*>/g, "").trim();
+                const snippet = bodyPlain.slice(0, 2000);
+                const senderEmail = event.fromEmail || raw.from_email || raw.from || (isReply ? targetLead.email : "haji.karim@theboredmonkey.com");
+                const fromAddr = isReply ? [senderEmail] : [senderEmail];
+                const toAddr = isReply ? ["haji.karim@theboredmonkey.com"] : [targetLead.email];
 
                 return {
                     id: `msg_${event.id}`,
@@ -270,6 +336,8 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                     to_addr: toAddr,
                     subject,
                     snippet,
+                    body_html: bodyHtml,
+                    body_plain: bodyPlain,
                     internal_date: event.createdAt,
                     seen: true,
                 };
