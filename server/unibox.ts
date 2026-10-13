@@ -102,18 +102,8 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 conditions.push(`c."userId" = $${pIdx++}`);
                 params.push(scope.userId);
             } else if (memberId && memberId !== "all") {
-                if (memberId === SNEHAL_USER_ID) {
-                    conditions.push(`(c."userId" = $${pIdx} OR lower(c.name) LIKE '%snehal%' OR lower(c.name) LIKE '%health%' OR lower(c.name) LIKE '%personal care%')`);
-                    params.push(memberId);
-                    pIdx++;
-                } else if (memberId === VATSAL_USER_ID) {
-                    conditions.push(`(c."userId" = $${pIdx} OR lower(c.name) LIKE '%vatsal%' OR lower(c.name) LIKE '%q3%' OR lower(c.name) LIKE '%bewakoof%')`);
-                    params.push(memberId);
-                    pIdx++;
-                } else {
-                    conditions.push(`c."userId" = $${pIdx++}`);
-                    params.push(memberId);
-                }
+                conditions.push(`c."userId" = $${pIdx++}`);
+                params.push(memberId);
             }
 
             if (campaignId && campaignId !== "all") {
@@ -376,25 +366,13 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const params: any[] = [];
             let pIdx = 1;
 
-            // 1. Team access scoping
+            // 1. Team access scoping — strict userId match
             if (!isMaster) {
-                // Dedicated inbox for team member
                 conditions.push(`c."userId" = $${pIdx++}`);
                 params.push(scope.userId);
             } else if (memberId && memberId !== "all") {
-                // Master filtered by specific team member (Vatsal, Snehal, Preeti, etc.)
-                if (memberId === SNEHAL_USER_ID) {
-                    conditions.push(`(c."userId" = $${pIdx} OR lower(c.name) LIKE '%snehal%' OR lower(c.name) LIKE '%health%' OR lower(c.name) LIKE '%personal care%')`);
-                    params.push(memberId);
-                    pIdx++;
-                } else if (memberId === VATSAL_USER_ID) {
-                    conditions.push(`(c."userId" = $${pIdx} OR lower(c.name) LIKE '%vatsal%' OR lower(c.name) LIKE '%q3%' OR lower(c.name) LIKE '%bewakoof%')`);
-                    params.push(memberId);
-                    pIdx++;
-                } else {
-                    conditions.push(`c."userId" = $${pIdx++}`);
-                    params.push(memberId);
-                }
+                conditions.push(`c."userId" = $${pIdx++}`);
+                params.push(memberId);
             }
 
             // 2. Campaign filter
