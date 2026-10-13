@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertCircleIcon, CheckIcon, ClockIcon, DatabaseIcon, FileSpreadsheetIcon, Loader2Icon, MessageSquareIcon, PlusIcon, SearchIcon, ShieldAlertIcon, SkipForwardIcon, SlidersHorizontalIcon, Trash2Icon, UploadCloudIcon, UserPlusIcon, UsersIcon, XIcon } from "lucide-react";
+import { AlertCircleIcon, CheckIcon, ClockIcon, DatabaseIcon, FileSpreadsheetIcon, Loader2Icon, MessageSquareIcon, PlusIcon, RefreshCwIcon, SearchIcon, ShieldAlertIcon, SkipForwardIcon, SlidersHorizontalIcon, Trash2Icon, UploadCloudIcon, UserPlusIcon, UsersIcon, XIcon } from "lucide-react";
 import Papa from "papaparse";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -50,6 +50,11 @@ function deduplicateContacts(contacts: ContactDraftItem[]): ContactDraftItem[] {
 }
 
 export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsStepProps) {
+    const selectedContactsRef = React.useRef(selectedContacts);
+    React.useEffect(() => {
+        selectedContactsRef.current = selectedContacts;
+    }, [selectedContacts]);
+
     // Clean up any existing duplicate bloat on mount
     const cleanedUpBloatRef = React.useRef(false);
     React.useEffect(() => {
@@ -206,7 +211,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 headers: { "Content-Type": "application/json", ...authHeaders() }, 
                 body: JSON.stringify({ emails: toAdd.map(c => c.email) }) 
             });
-            if (!r.ok) throw new Error();
+            if (!r.ok) throw new Error("Database check failed");
             const j = await r.json();
             const dupes: HistoryWarning[] = (j.duplicates || []).map((d: any) => ({
                 email: d.email,
@@ -240,23 +245,37 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 lastContactedAt: null,
             }));
             const all = [...dupes, ...quar];
+            setLastCheckStats({
+                totalChecked: toAdd.length,
+                historyCount: dupes.length,
+                sentCount: dupes.filter(d => d.hasSent).length,
+                quarantinedCount: quar.length,
+                cleanCount: Math.max(0, toAdd.length - (dupes.length + quar.length)),
+                checkedAt: new Date(),
+            });
+
+            setPendingContacts(deduplicateContacts(toAdd));
+
             if (all.length > 0) {
                 setHistoryWarnings(all);
-                setPendingContacts(deduplicateContacts(toAdd));
                 // Pre-ignore quarantined leads by default to safeguard sender deliverability
                 const preIgnored = new Set<string>(quar.map(q => q.email.toLowerCase().trim()));
                 setIgnoredEmails(preIgnored);
                 setShowWarn(true);
+                toast(`⚠️ Auto-check: ${all.length} of ${toAdd.length} contacts have prior history`, { id: "outreach-check-toast" });
             } else {
-                onChangeSelected(deduplicateContacts([...selectedContacts, ...toAdd]));
-                toast.success(`Added ${toAdd.length} contact${toAdd.length !== 1 ? "s" : ""}`);
+                setHistoryWarnings([]);
+                const nextSelected = deduplicateContacts([...selectedContactsRef.current, ...toAdd]);
+                onChangeSelected(nextSelected);
+                toast.success(`✓ Auto-check passed! All ${toAdd.length} clean contacts automatically queued.`, { id: "outreach-check-toast" });
             }
-        } catch {
-            onChangeSelected(deduplicateContacts([...selectedContacts, ...toAdd]));
-            toast.success(`Added ${toAdd.length} contact${toAdd.length !== 1 ? "s" : ""}`);
+        } catch (err: any) {
+            console.error("Batch check error:", err);
+            toast.error("Database cross-check error. Click Re-check to try again.");
+        } finally {
+            setChecking(false);
         }
-        finally { setChecking(false); }
-    }, [selectedContacts, onChangeSelected]);
+    }, [onChangeSelected]);
 
     const toggleIgnore = (email: string) => {
         const key = email.toLowerCase().trim();
@@ -280,20 +299,14 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
 
     const confirmWarn = () => {
         const kept = pendingContacts.filter(c => !ignoredEmails.has(c.email.toLowerCase().trim()));
-        onChangeSelected(deduplicateContacts([...selectedContacts, ...kept]));
+        onChangeSelected(deduplicateContacts([...selectedContactsRef.current, ...kept]));
         const sk = pendingContacts.length - kept.length;
         if (kept.length) toast.success(`Added ${kept.length}${sk ? `, skipped ${sk}` : ""}`); else toast(`Skipped ${sk}`);
         setShowWarn(false);
-        setHistoryWarnings([]);
-        setPendingContacts([]);
-        setIgnoredEmails(new Set());
     };
 
     const cancelWarn = () => {
         setShowWarn(false);
-        setHistoryWarnings([]);
-        setPendingContacts([]);
-        setIgnoredEmails(new Set());
     };
 
     const toggleDb = async (c: NormalizedContact) => {
@@ -330,6 +343,14 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const [csvError, setCsvError] = React.useState("");
     const [isDragging, setIsDragging] = React.useState(false);
     const [showMappingEditor, setShowMappingEditor] = React.useState(false);
+    const [lastCheckStats, setLastCheckStats] = React.useState<{
+        totalChecked: number;
+        historyCount: number;
+        sentCount: number;
+        quarantinedCount: number;
+        cleanCount: number;
+        checkedAt: Date;
+    } | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
     const cleanHeaderKey = (h: string) => (h || "").toLowerCase().trim().replace(/[\s\-_.]+/g, "");
@@ -486,15 +507,17 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const processCsvFile = (file: File) => {
         setCsvFile(file);
         setCsvError("");
+        setChecking(true);
         Papa.parse<string[]>(file, {
             skipEmptyLines: "greedy",
-            complete: (results) => {
+            complete: async (results) => {
                 const data = results.data;
                 if (!data || data.length < 1) {
                     setCsvError("The selected CSV file appears to be empty.");
                     setCsvRows([]);
                     setCsvHeaders([]);
                     setCsvRawData([]);
+                    setChecking(false);
                     return;
                 }
 
@@ -539,14 +562,16 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 if (!detectedMap.email) {
                     setCsvError("Could not automatically identify an email column. Please pick the Email column below.");
                     setShowMappingEditor(true);
+                    setChecking(false);
                 } else if (parsed.length === 0) {
                     setCsvError("Found column '" + detectedMap.email + "', but no valid email addresses were found in rows.");
                     setShowMappingEditor(true);
+                    setChecking(false);
                 } else {
                     setCsvError("");
-                    // Automatically pre-check against existing database and prior outreach history
-                    const ex = new Set((selectedRef.current || selectedContacts).map(s => s.email.toLowerCase()));
-                    const toAdd = parsed.filter(row => !ex.has(row.email.toLowerCase())).map(row => ({
+                    // AUTOMATIC CROSS-CHECK:
+                    // Immediately cross-check all contacts against database outreach & suppression history
+                    const toAdd: ContactDraftItem[] = parsed.map(row => ({
                         email: row.email,
                         first_name: row.first_name || "",
                         last_name: row.last_name || "",
@@ -554,14 +579,13 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                         role: row.role || "",
                         source: "csv" as const,
                     }));
-                    if (toAdd.length > 0) {
-                        batchCheck(toAdd);
-                    }
+                    await batchCheck(toAdd);
                 }
             },
             error: (err) => {
                 setCsvError(`Failed to parse CSV: ${err.message}`);
                 setCsvRows([]);
+                setChecking(false);
             }
         });
     };
@@ -574,16 +598,44 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
         if (field === "email") {
             if (value && nextRows.length > 0) {
                 setCsvError("");
+                const toAdd: ContactDraftItem[] = nextRows.map(r => ({
+                    email: r.email,
+                    first_name: r.first_name || "",
+                    last_name: r.last_name || "",
+                    company: r.company || "",
+                    role: r.role || "",
+                    source: "csv" as const
+                }));
+                batchCheck(toAdd);
             } else if (!value) {
                 setCsvError("Please select an Email column.");
             }
         }
     };
 
-    const importCsv = () => {
+    // Auto-check on mount or state restoration if CSV rows exist but haven't been cross-checked yet
+    const autoCheckedCsvRef = React.useRef<string | null>(null);
+    React.useEffect(() => {
+        if (subTab === "csv" && csvFile && csvRows.length > 0 && !checking && !lastCheckStats) {
+            const key = `${csvFile.name}:${csvRows.length}`;
+            if (autoCheckedCsvRef.current !== key) {
+                autoCheckedCsvRef.current = key;
+                const toAdd: ContactDraftItem[] = csvRows.map(r => ({
+                    email: r.email,
+                    first_name: r.first_name || "",
+                    last_name: r.last_name || "",
+                    company: r.company || "",
+                    role: r.role || "",
+                    source: "csv" as const
+                }));
+                batchCheck(toAdd);
+            }
+        }
+    }, [subTab, csvFile, csvRows, checking, lastCheckStats, batchCheck]);
+
+    const crossCheckCsv = () => {
         if (!csvRows.length) return;
-        const ex = new Set(selectedContacts.map(s => s.email.toLowerCase()));
-        const toAdd = csvRows.filter(r => !ex.has(r.email.toLowerCase())).map(r => ({
+        const toAdd: ContactDraftItem[] = csvRows.map(r => ({
             email: r.email,
             first_name: r.first_name || "",
             last_name: r.last_name || "",
@@ -591,11 +643,11 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
             role: r.role || "",
             source: "csv" as const
         }));
-        if (!toAdd.length) {
-            toast("All contacts in CSV are already queued");
-            return;
-        }
         batchCheck(toAdd);
+    };
+
+    const importCsv = () => {
+        crossCheckCsv();
     };
 
     const [mEmail, setMEmail] = React.useState(""); const [mFirst, setMFirst] = React.useState(""); const [mLast, setMLast] = React.useState(""); const [mCo, setMCo] = React.useState(""); const [mRole, setMRole] = React.useState("");
@@ -1145,20 +1197,122 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                                 )}
 
                                 {csvRows.length > 0 && (
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between text-[11.5px] text-slate-600">
+                                    <div className="space-y-2.5">
+                                        {checking && (
+                                            <div className="rounded-lg border border-amber-300 bg-amber-50/90 p-3 flex items-center gap-3 text-[11.5px] text-amber-950 shadow-xs animate-pulse">
+                                                <Loader2Icon className="w-4 h-4 animate-spin text-amber-700 shrink-0"/>
+                                                <div>
+                                                    <p className="font-semibold text-amber-900">
+                                                        Auto Cross-Checking {csvRows.length} Contacts with Database...
+                                                    </p>
+                                                    <p className="text-[10.5px] text-amber-800/80 mt-0.5">
+                                                        Scanning prior campaigns, message history, reply states, and suppressions
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {!checking && lastCheckStats && (
+                                            <div className={cn(
+                                                "rounded-lg border p-3 flex items-center justify-between gap-3 text-[11.5px] transition-all",
+                                                lastCheckStats.historyCount > 0 || lastCheckStats.quarantinedCount > 0
+                                                    ? "bg-amber-50/80 border-amber-200 text-amber-950"
+                                                    : "bg-emerald-50/80 border-emerald-200 text-emerald-950"
+                                            )}>
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <div className={cn(
+                                                        "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border",
+                                                        lastCheckStats.historyCount > 0 || lastCheckStats.quarantinedCount > 0
+                                                            ? "bg-amber-100 border-amber-300 text-amber-800"
+                                                            : "bg-emerald-100 border-emerald-300 text-emerald-800"
+                                                    )}>
+                                                        {lastCheckStats.historyCount > 0 || lastCheckStats.quarantinedCount > 0 ? (
+                                                            <ShieldAlertIcon className="w-4 h-4"/>
+                                                        ) : (
+                                                            <CheckIcon className="w-4 h-4"/>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-semibold">
+                                                            {lastCheckStats.historyCount > 0 || lastCheckStats.quarantinedCount > 0
+                                                                ? `Auto-Check: ${lastCheckStats.historyCount + lastCheckStats.quarantinedCount} of ${lastCheckStats.totalChecked} contacts have previous history`
+                                                                : `Auto-Check: All ${lastCheckStats.totalChecked} contacts are clean with no prior history`}
+                                                        </p>
+                                                        <p className="text-[10.5px] opacity-80 mt-0.5">
+                                                            {lastCheckStats.cleanCount} clean contacts · {lastCheckStats.sentCount} previously sent · {lastCheckStats.quarantinedCount} quarantined
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {(lastCheckStats.historyCount > 0 || lastCheckStats.quarantinedCount > 0) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowWarn(true)}
+                                                            className="h-7 px-2.5 rounded text-[11px] font-semibold bg-white border border-amber-300 text-amber-900 hover:bg-amber-100/60 cursor-pointer transition-colors shadow-xs"
+                                                        >
+                                                            Review Flagged ({lastCheckStats.historyCount + lastCheckStats.quarantinedCount})
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={crossCheckCsv}
+                                                        disabled={checking}
+                                                        className="h-7 px-2 rounded text-[11px] font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 cursor-pointer transition-colors inline-flex items-center gap-1 shadow-xs"
+                                                        title="Re-run database cross-check"
+                                                    >
+                                                        <RefreshCwIcon className={cn("w-3 h-3 text-slate-500", checking && "animate-spin")}/>
+                                                        Re-check
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center justify-between text-[11.5px] text-slate-600 gap-2 flex-wrap">
                                             <span>
-                                                Preview: <strong>{csvRows.length} contacts</strong> ready to queue
+                                                Preview: <strong>{csvRows.length} contacts</strong> detected in file
                                             </span>
-                                            <button
-                                                type="button"
-                                                onClick={importCsv}
-                                                disabled={checking}
-                                                className="h-7 px-3 rounded bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer font-medium inline-flex items-center gap-1.5 disabled:opacity-60"
-                                            >
-                                                {checking ? <Loader2Icon className="w-3.5 h-3.5 animate-spin"/> : <CheckIcon className="w-3.5 h-3.5"/>}
-                                                Queue {csvRows.length} Contacts
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                {checking ? (
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-amber-100/80 border border-amber-200 text-amber-900 font-semibold text-[11px]">
+                                                        <Loader2Icon className="w-3.5 h-3.5 animate-spin"/>
+                                                        Auto-checking database...
+                                                    </span>
+                                                ) : csvCnt > 0 ? (
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[11px]">
+                                                        <CheckIcon className="w-3.5 h-3.5 text-emerald-600"/>
+                                                        {csvCnt} Contacts Queued
+                                                    </span>
+                                                ) : historyWarnings.length > 0 ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowWarn(true)}
+                                                        className="h-7 px-3 rounded bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer inline-flex items-center gap-1.5 transition-colors"
+                                                    >
+                                                        <ShieldAlertIcon className="w-3.5 h-3.5"/>
+                                                        Review Prior History ({historyWarnings.length})
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={crossCheckCsv}
+                                                        disabled={checking}
+                                                        className="h-7 px-3 rounded bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                                                    >
+                                                        <CheckIcon className="w-3.5 h-3.5"/>
+                                                        Queue {csvRows.length} Contacts
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={crossCheckCsv}
+                                                    disabled={checking}
+                                                    className="h-7 px-2.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-medium shadow-xs cursor-pointer inline-flex items-center gap-1 transition-colors disabled:opacity-60"
+                                                    title="Re-run database cross-check"
+                                                >
+                                                    <RefreshCwIcon className={cn("w-3 h-3 text-slate-600", checking && "animate-spin")}/>
+                                                    Re-check
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="border border-slate-200 rounded-md overflow-hidden bg-white text-[11.5px]">
                                             <table className="w-full text-left">
