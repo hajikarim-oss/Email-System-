@@ -2035,8 +2035,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 const liveRes = await safeFetch(`/api/campaigns/${encodeURIComponent(campId)}`, { headers: authHeaders() });
                 if (liveRes.ok) {
                     const liveCamp = await liveRes.json();
-                    if (liveCamp && liveCamp.id && !liveCamp.error) {
-                        return res(liveCamp);
+                    const target = Array.isArray(liveCamp)
+                        ? liveCamp.find((c: any) => (c.id || "").toLowerCase() === campIdLower || (c.name || "").toLowerCase().includes(campIdLower))
+                        : liveCamp;
+                    if (target && target.id && !target.error) {
+                        const existingIdx = campaigns.findIndex((c: any) => (c.id || "").toLowerCase() === campIdLower);
+                        if (existingIdx >= 0) {
+                            campaigns[existingIdx] = { ...campaigns[existingIdx], ...target };
+                        } else {
+                            campaigns.unshift(target);
+                        }
+                        saveStorage("campaigns", campaigns);
+                        return res(target);
                     }
                 }
             } catch (e) {

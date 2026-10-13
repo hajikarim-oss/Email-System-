@@ -33,7 +33,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const email = (item.email || "").toLowerCase().trim();
             if (!email || !email.includes("@")) continue;
 
-            const campId = item.campaign_id || (Array.isArray(item.campaigns) ? item.campaigns[0] : null);
+            const campId = item.campaign_id || item.campaignId || (Array.isArray(item.campaigns) ? item.campaigns[0] : null) || (parsed as any).campaign_id || (parsed as any).campaignId || null;
             const firstName = item.first_name || item.firstName || (item.name ? item.name.split(" ")[0] : "") || "";
             const lastName = item.last_name || item.lastName || (item.name ? item.name.split(" ").slice(1).join(" ") : "") || "";
             const domain = email.split("@")[1] || "";

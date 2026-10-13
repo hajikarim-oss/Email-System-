@@ -14,6 +14,7 @@ import intelligenceSuppressions from "./intelligence/suppressions";
 import intelligenceSuppressContacts from "./intelligence/suppress-contacts";
 import intelligenceDeleteContacts from "./intelligence/delete-contacts";
 import intelligenceSegments from "./intelligence/segments";
+import intelligenceAddContacts from "./intelligence/add-contacts";
 import campaignSteps from "./campaigns/steps";
 import campaignLogs from "./campaigns/logs";
 import organization from "../server/handlers/organization";
@@ -49,6 +50,9 @@ const routes: Record<string, Handler> = {
     "/api/intelligence/suppressions": intelligenceSuppressions,
     "/api/intelligence/suppress-contacts": intelligenceSuppressContacts,
     "/api/intelligence/delete-contacts": intelligenceDeleteContacts,
+    "/api/intelligence/add-contacts": intelligenceAddContacts,
+    "/intelligence/add-contacts": intelligenceAddContacts,
+    "/api/campaigns/add-contacts": intelligenceAddContacts,
     "/api/intelligence/segments": intelligenceSegments,
     "/api/campaigns/steps": campaignSteps,
     "/api/campaigns/logs": campaignLogs,

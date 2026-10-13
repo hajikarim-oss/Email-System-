@@ -21,6 +21,7 @@ import {
     MailIcon,
     MegaphoneIcon,
     PencilLineIcon,
+    PlayIcon,
     PlusIcon,
     SendIcon,
     Trash2Icon,
@@ -455,7 +456,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
             });
     }
 
-    async function submit() {
+    async function submit(startImmediately = false) {
         if (isPending) return;
         for (let i = 0; i < steps.length; i++) {
             if (stepIssue(steps[i].key, draft)) {
@@ -537,14 +538,28 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                             localStorage.setItem(`tbm_core_data_v5_campaign_leads_${created.id}`, JSON.stringify(leadsCache));
                         } catch {}
                         await addContactsMutation.mutateAsync(toAdd);
-                        toast.success(`Campaign created with ${toAdd.length} contact${toAdd.length === 1 ? "" : "s"} enrolled.`);
                     } catch (cErr) {
                         console.warn("Could not auto-enrol contacts:", cErr);
-                        toast.success("Campaign created. Add contacts, then launch it.");
+                    }
+                }
+
+                if (startImmediately) {
+                    try {
+                        await start.mutateAsync({ id: created.id });
+                        if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: created.id } }));
+                        }
+                        toast.success("Campaign created & started! Sending now.");
+                    } catch (sErr) {
+                        console.warn("Could not auto-start campaign:", sErr);
+                        toast.success("Campaign created as draft. Start it from the header.");
                     }
                 } else {
-                    toast.success("Campaign created. Add contacts, then launch it.");
+                    toast.success(draft.selectedContacts.length > 0 
+                        ? `Campaign created with ${draft.selectedContacts.length} contact${draft.selectedContacts.length === 1 ? "" : "s"} enrolled.`
+                        : "Campaign created as draft.");
                 }
+
                 try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
                 onClose();
                 if (created?.id) navigate(`/app/campaigns/${created.id}`);
@@ -725,19 +740,21 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                                     ? draft.sendMode === "later"
                                         ? "Schedule"
                                         : "Send now"
-                                    : "Create campaign"
+                                    : "Create & launch"
                             }
                             submitIcon={
                                 draft.kind === "one_time"
                                     ? draft.sendMode === "later"
                                         ? CalendarClockIcon
                                         : SendIcon
-                                    : PlusIcon
+                                    : PlayIcon
                             }
+                            secondarySubmitLabel={draft.kind === "sequence" ? "Save as draft" : undefined}
+                            onSecondarySubmit={draft.kind === "sequence" ? () => submit(false) : undefined}
                             issue={nudged ? issue : null}
                             onBack={() => goTo(step - 1)}
                             onNext={next}
-                            onSubmit={submit}
+                            onSubmit={() => submit(true)}
                             isPending={isPending}
                         />
                     </motion.div>
@@ -876,6 +893,8 @@ function Footer({
     autoSaved,
     submitLabel,
     submitIcon: SubmitIcon,
+    secondarySubmitLabel,
+    onSecondarySubmit,
     issue,
     onBack,
     onNext,
@@ -887,6 +906,8 @@ function Footer({
     autoSaved?: boolean;
     submitLabel: string;
     submitIcon: typeof PlusIcon;
+    secondarySubmitLabel?: string;
+    onSecondarySubmit?: () => void;
     issue: string | null;
     onBack: () => void;
     onNext: () => void;
@@ -939,15 +960,27 @@ function Footer({
                         <ChevronRightIcon className="w-3 h-3" />
                     </button>
                 ) : (
-                    <button
-                        type="button"
-                        onClick={onSubmit}
-                        disabled={isPending}
-                        className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shrink-0"
-                    >
-                        {isPending ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <SubmitIcon className="w-3 h-3" />}
-                        {submitLabel}
-                    </button>
+                    <>
+                        {secondarySubmitLabel && onSecondarySubmit && (
+                            <button
+                                type="button"
+                                onClick={onSecondarySubmit}
+                                disabled={isPending}
+                                className="h-7 px-2.5 rounded-md bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[12px] font-medium inline-flex items-center gap-1 transition-colors disabled:opacity-60 shrink-0 cursor-pointer"
+                            >
+                                {secondarySubmitLabel}
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={onSubmit}
+                            disabled={isPending}
+                            className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shrink-0"
+                        >
+                            {isPending ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <SubmitIcon className="w-3 h-3" />}
+                            {submitLabel}
+                        </button>
+                    </>
                 )}
             </div>
         </div>

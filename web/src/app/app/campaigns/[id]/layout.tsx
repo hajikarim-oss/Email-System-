@@ -111,7 +111,7 @@ export default function CampaignLayout() {
     }
 
     const campaign = campaignData.data;
-    const status = campaign.status;
+    const status = (campaign.status ?? "draft").toLowerCase();
     const pill = isIdleCampaign(campaign) ? STATUS_PILL.idle : (STATUS_PILL[status] ?? STATUS_PILL.draft);
 
     const isActive = status === "active";

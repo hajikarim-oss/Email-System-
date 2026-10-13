@@ -48,29 +48,42 @@ function readBody(req: IncomingMessage): Promise<string> {
     });
 }
 
-async function generateCuid(): Promise<string> {
-    return await pgQuery<any>(`SELECT gen_random_uuid()::text as id`).then(rows => rows?.[0]?.id || "");
-}
-
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {
         const user = await requireUser(req, res);
         if (!user) return;
         const scope = scopeFor(user);
 
+        const parsedUrl = new URL(req.url || "", "http://localhost:3000");
+        const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
+
+        let campIdParam: string | null = null;
+        let subAction: string | null = null;
+
+        const campaignsIdx = pathParts.findIndex((p) => p === "campaigns");
+        if (campaignsIdx >= 0 && pathParts.length > campaignsIdx + 1) {
+            campIdParam = pathParts[campaignsIdx + 1];
+            if (pathParts.length > campaignsIdx + 2) {
+                subAction = pathParts[campaignsIdx + 2];
+            }
+        } else if (pathParts.length > 0) {
+            const last = pathParts[pathParts.length - 1];
+            if (!["campaigns", "intelligence", "v1", "api"].includes(last)) {
+                campIdParam = last;
+            }
+        }
+
+        if (!campIdParam || ["campaigns", "intelligence", "v1", "api"].includes(campIdParam)) {
+            campIdParam = parsedUrl.searchParams.get("id") || parsedUrl.searchParams.get("campaignId");
+        }
+
+        if (campIdParam && ["stats", "steps", "analytics", "logs"].includes(campIdParam)) {
+            campIdParam = null;
+        }
+
         // Handle DELETE campaign (both live DB and Smartlead)
         if (req.method === "DELETE") {
-            const parsedUrl = new URL(req.url || "", "http://localhost");
-            const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
-            let campId = parsedUrl.searchParams.get("id") || parsedUrl.searchParams.get("campaignId");
-            
-            // Extract from path if /campaigns/:id or /api/campaigns/:id
-            if (!campId && pathParts.length > 0) {
-                const last = pathParts[pathParts.length - 1];
-                if (last !== "campaigns" && last !== "intelligence") {
-                    campId = last;
-                }
-            }
+            let campId = campIdParam;
 
             if (!campId) {
                 const rawBody = await readBody(req);
@@ -85,8 +98,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return;
             }
 
-            // Find campaign in DB (workspace check added after migration)
-            // TODO: After workspace migration, add: AND "workspaceId" = $2
+            // Find campaign in DB
             const existing = await pgQuery<any>(
                 `SELECT id, "userId", "providerCampaignId", name FROM "Campaign" WHERE id = $1 OR "providerCampaignId" = $1 LIMIT 1`,
                 [campId]
@@ -116,7 +128,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
                 console.log(`[Campaigns DELETE] ✓ Campaign deleted successfully`);
             } else {
-                // If not in DB, it might still be a Smartlead ID directly
                 if (/^\d+$/.test(campId)) {
                     await deleteFromSmartlead(campId);
                 }
@@ -126,8 +137,52 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             return;
         }
 
+        // Handle POST / PUT campaign launch or start
+        if (campIdParam && (subAction === "launch" || subAction === "start") && (req.method === "POST" || req.method === "PUT")) {
+            const existing = await pgQuery<any>(
+                `SELECT id, name, status, "userId", "providerCampaignId", "sendTimezone", "preferredSendHour", "preferredSendDays"
+                 FROM "Campaign"
+                 WHERE id = $1 OR "providerCampaignId" = $1 LIMIT 1`,
+                [campIdParam]
+            );
+
+            if (!existing || existing.length === 0) {
+                send(res, 404, { error: "campaign_not_found" });
+                return;
+            }
+
+            const camp = existing[0];
+            if (!scope.master && camp.userId !== scope.userId) {
+                send(res, 403, { error: "unauthorized" });
+                return;
+            }
+
+            // Update status in PostgreSQL to ACTIVE
+            await pgQuery(
+                `UPDATE "Campaign" SET status = 'ACTIVE', "updatedAt" = NOW() WHERE id = $1`,
+                [camp.id]
+            );
+
+            const leadsCount = await pgQuery<{ count: number }>(
+                `SELECT COUNT(*)::int as count FROM "Lead" WHERE "campaignId" = $1`,
+                [camp.id]
+            );
+
+            // Reconcile with Smartlead in background
+            reconcileSmartleadCampaigns().catch(() => {});
+
+            send(res, 200, {
+                ok: true,
+                id: camp.id,
+                status: "ACTIVE",
+                name: camp.name,
+                leads_count: leadsCount?.[0]?.count || 0,
+            });
+            return;
+        }
+
         // Handle POST campaign creation
-        if (req.method === "POST") {
+        if (req.method === "POST" && (!subAction || subAction === "create")) {
             const rawBody = await readBody(req);
             try {
                 const input = JSON.parse(rawBody || "{}");
@@ -150,8 +205,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     return;
                 }
 
-                // Create campaign in database (will use workspaceId after migration)
-                // NOTE: workspaceId column added via migration, will be populated in post-migration version
+                // Create campaign in database
                 const campaign = await pgQuery<any>(
                     `INSERT INTO "Campaign" (id, "userId", name, status, "sendTimezone", "preferredSendHour", "preferredSendDays", "createdAt", "updatedAt")
                      VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, NOW(), NOW())
@@ -177,7 +231,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 if (Array.isArray(input.steps) && input.steps.length > 0) {
                     for (let i = 0; i < input.steps.length; i++) {
                         const step = input.steps[i];
-                        // Validate subject and body length
                         const subject = (step.subject || `Step ${i + 1}`).slice(0, 255);
                         const body = (step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>").slice(0, 65535);
 
@@ -196,7 +249,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
 
                 // NO CACHE on campaign creation - devices must sync immediately
-                send(res, 201, campaign[0], 0);
+                send(res, 201, {
+                    ...campaign[0],
+                    status: (campaign[0].status || "draft").toLowerCase(),
+                }, 0);
                 return;
             } catch (err: any) {
                 if (err instanceof DatabaseUnavailableError) {
@@ -206,6 +262,118 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 send(res, 500, { error: err?.message || "Campaign creation failed" });
                 return;
             }
+        }
+
+        // Single campaign GET: /:id
+        if (req.method === "GET" && campIdParam && !subAction) {
+            const campRows = await pgQuery<any>(
+                `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
+                        c."sendTimezone", c."preferredSendHour", c."preferredSendDays",
+                        COUNT(l.id)::int AS lead_count
+                 FROM "Campaign" c
+                 LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                 WHERE c.id = $1 OR c."providerCampaignId" = $1 OR lower(c.name) = lower($1)
+                 GROUP BY c.id
+                 LIMIT 1`,
+                [campIdParam]
+            );
+
+            if (!campRows || campRows.length === 0) {
+                send(res, 404, { error: "campaign_not_found" });
+                return;
+            }
+
+            const camp = campRows[0];
+
+            // Authorization check: master or same team
+            if (!scope.master && camp.userId !== scope.userId) {
+                const userTeams = await pgQuery<{ teamId: string }>(
+                    `SELECT DISTINCT "teamId" FROM "UserTeam" WHERE "userId" = $1`,
+                    [scope.userId]
+                );
+                const teamIds = userTeams.map((t: any) => t.teamId).filter(Boolean);
+                let authorized = false;
+                if (teamIds.length > 0) {
+                    const teamUsers = await pgQuery<{ userId: string }>(
+                        `SELECT DISTINCT "userId" FROM "UserTeam" WHERE "teamId" = ANY($1::text[])`,
+                        [teamIds]
+                    );
+                    authorized = teamUsers.some((u: any) => u.userId === camp.userId);
+                }
+                if (!authorized) {
+                    send(res, 403, { error: "unauthorized" });
+                    return;
+                }
+            }
+
+            const stepRows = await pgQuery<any>(
+                `SELECT id, "stepNumber", "delayDays", subject, "bodyTemplate", "createdAt", "updatedAt"
+                 FROM "CampaignStep"
+                 WHERE "campaignId" = $1
+                 ORDER BY "stepNumber" ASC`,
+                [camp.id]
+            );
+
+            const mailboxRows = await pgQuery<any>(
+                `SELECT cm."campaignId", cm."mailboxId", m."senderEmail", m."providerMailboxId"
+                 FROM "CampaignMailbox" cm
+                 JOIN "Mailbox" m ON m.id = cm."mailboxId"
+                 WHERE cm."campaignId" = $1`,
+                [camp.id]
+            );
+
+            const mappedCamp = {
+                id: camp.id,
+                userId: camp.userId,
+                user_id: camp.userId,
+                name: camp.name,
+                description: "Outreach sequence",
+                status: (camp.status || "draft").toLowerCase(),
+                kind: "sequence",
+                stop_on_reply: true,
+                open_tracking: true,
+                link_tracking: true,
+                utm_tracking: false,
+                text_only: false,
+                daily_limit: 200,
+                unsubscribe_header: true,
+                risky_emails: false,
+                unsubscribe_mode: "inherit",
+                cc: [],
+                bcc: [],
+                start_date: camp.createdAt,
+                end_date: null,
+                timezone: camp.sendTimezone || "Asia/Kolkata",
+                days: camp.preferredSendDays || [1, 2, 3, 4, 5],
+                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
+                end_time: "18:00",
+                total_leads: Number(camp.lead_count || 0),
+                lead_count: Number(camp.lead_count || 0),
+                _count: { leads: Number(camp.lead_count || 0) },
+                smartlead_id: camp.providerCampaignId ? parseInt(camp.providerCampaignId) : undefined,
+                smartlead_status: (camp.status || "").toUpperCase() === "ACTIVE" ? "ACTIVE" : "PAUSED",
+                steps: stepRows.map((s: any) => ({
+                    id: s.id,
+                    stepNumber: s.stepNumber,
+                    position: s.stepNumber,
+                    name: `Step ${s.stepNumber}`,
+                    subject: s.subject || "",
+                    body_plain: s.bodyTemplate || "",
+                    body_html: s.bodyTemplate || "",
+                    wait_after: s.delayDays ?? (s.stepNumber === 1 ? 0 : 3),
+                })),
+                mailboxes: mailboxRows.map((mb: any) => ({
+                    id: mb.mailboxId,
+                    senderEmail: mb.senderEmail,
+                    senderName: (mb.senderEmail || "").split("@")[0],
+                    providerMailboxId: mb.providerMailboxId,
+                })),
+                created_at: camp.createdAt ? new Date(camp.createdAt).toISOString() : new Date().toISOString(),
+                updated_at: camp.updatedAt ? new Date(camp.updatedAt).toISOString() : new Date().toISOString(),
+            };
+
+            send(res, 200, mappedCamp, 0);
+            return;
         }
 
         // GET campaigns - Team-based visibility
@@ -224,7 +392,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
         if (scope.master) {
             // Master sees all campaigns
-            console.log(`[Campaigns API] Master user ${user.email} querying all campaigns`);
             campaigns = await pgQuery<any>(
                 `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                         COUNT(l.id)::int AS lead_count
@@ -233,45 +400,30 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                  GROUP BY c.id
                  ORDER BY c."createdAt" DESC`
             );
-            console.log(`[Campaigns API] Master query returned ${campaigns.length} campaigns`);
         } else {
             // Team member sees campaigns from their team members + their own
-            console.log(`[Campaigns API] Team member ${user.email} (${scope.userId}) querying team campaigns`);
-
-            // First check what teams they belong to
-            const userTeams = await pgQuery<{ teamId: string }>(
-                `SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1`,
-                [scope.userId]
-            );
-            console.log(`[Campaigns API] User belongs to ${userTeams.length} teams:`, userTeams.map(t => t.teamId));
-
             campaigns = await pgQuery<any>(
                 `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                         COUNT(l.id)::int AS lead_count
                  FROM "Campaign" c
                  LEFT JOIN "Lead" l ON l."campaignId" = c.id
                  WHERE c."userId" IN (
-                   -- Get all users in the same teams as current user
-                   SELECT DISTINCT ut."userId"
-                   FROM "UserTeam" ut
-                   WHERE ut."teamId" IN (
-                     -- Get all teams the current user belongs to
-                     SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1
-                   )
-                   UNION ALL
-                   -- Also include own campaigns (in case user has no teams)
-                   SELECT $1 as "userId"
+                    SELECT DISTINCT ut."userId"
+                    FROM "UserTeam" ut
+                    WHERE ut."teamId" IN (
+                      SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1
+                    )
+                    UNION ALL
+                    SELECT $1 as "userId"
                  )
                  GROUP BY c.id
                  ORDER BY c."createdAt" DESC`,
                 [scope.userId]
             );
-            console.log(`[Campaigns API] Team member query returned ${campaigns.length} campaigns`);
         }
 
         // Verify authorization
         if (!scope.master && campaigns.length > 0) {
-            // Check if user has access to campaigns (via team membership)
             const userTeams = await pgQuery<{ teamId: string }>(
                 `SELECT DISTINCT "teamId" FROM "UserTeam" WHERE "userId" = $1`,
                 [scope.userId]
@@ -288,13 +440,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             const unauthorizedCampaigns = campaigns.filter((c: any) => !authorizedUserIds.has(c.userId));
             if (unauthorizedCampaigns.length > 0) {
-                console.error(`[SECURITY] User ${scope.userId} attempted to access unauthorized campaigns:`, unauthorizedCampaigns.map((c: any) => c.id));
                 campaigns = campaigns.filter((c: any) => authorizedUserIds.has(c.userId));
             }
         }
 
         const formatted = campaigns.map((c: any) => ({
             ...c,
+            status: (c.status || "draft").toLowerCase(),
             created_at: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
             updated_at: c.updatedAt ? new Date(c.updatedAt).toISOString() : new Date().toISOString(),
             user_id: c.userId || "",

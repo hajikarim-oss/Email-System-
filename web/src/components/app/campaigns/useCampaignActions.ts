@@ -23,7 +23,7 @@ export interface CampaignLike {
 const STARTABLE = new Set(["draft", "paused", "paused_no_accounts", "paused_guardrail", "paused_undeliverable", "completed"]);
 
 export function canStartCampaign(status: string | null | undefined): boolean {
-    return STARTABLE.has(status ?? "draft");
+    return STARTABLE.has((status ?? "draft").toLowerCase());
 }
 
 // The confirmation spells out what is removed and, for a running campaign,

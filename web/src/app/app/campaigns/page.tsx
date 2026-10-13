@@ -642,7 +642,7 @@ export default function CampaignsPage() {
                 ) : (
                     <div className="divide-y divide-slate-200/60">
                         {filtered.map((c) => {
-                            const cstatus = c.status ?? "draft";
+                            const cstatus = (c.status ?? "draft").toLowerCase();
                             const stateLabel = campaignDisplayLabel(c);
                             const StateIcon =
                                 cstatus === "active" ? PauseIcon : PlayIcon;
@@ -719,7 +719,12 @@ export default function CampaignsPage() {
                                             (cstatus === "active" && stopCampaign.isPending) ||
                                             (cstatus !== "active" && startCampaign.isPending)
                                         }
-                                        className="size-6 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30 cursor-pointer"
+                                        className={cn(
+                                            "size-6 rounded flex items-center justify-center transition-all shrink-0 disabled:opacity-30 cursor-pointer",
+                                            cstatus === "active"
+                                                ? "text-slate-400 hover:text-slate-900 hover:bg-slate-100 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                                                : "text-slate-700 bg-amber-50 hover:bg-[#FFE600] hover:text-slate-950 border border-amber-200/60 opacity-100 shadow-2xs"
+                                        )}
                                         aria-label={
                                             cstatus === "active" ? "Pause campaign" : "Start campaign"
                                         }
