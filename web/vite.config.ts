@@ -1677,7 +1677,7 @@ function databaseIntelligencePlugin() {
                                 link_tracking: true,
                             });
 
-                            const syncRes = await fetch("http://localhost:5173/api/smartlead/sync-and-start", {
+                            const syncRes: { status: number; data: any } = await fetch("http://localhost:5173/api/smartlead/sync-and-start", {
                                 method: "POST",
                                 headers: {
                                     "Content-Type": "application/json",
@@ -1686,10 +1686,10 @@ function databaseIntelligencePlugin() {
                                 body: syncBody,
                             }).then(async (r) => ({
                                 status: r.status,
-                                data: await r.json().catch(() => ({})),
+                                data: (await r.json().catch(() => ({}))) as any,
                             })).catch((e: any) => ({
                                 status: 500,
-                                data: { error: e.message },
+                                data: { error: e.message } as any,
                             }));
 
                             if (syncRes.data?.smartlead_id) {

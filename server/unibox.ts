@@ -293,7 +293,7 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const hasEmptyReply = events.some((e: any) => e.eventType === "replied" && (!e.rawPayload || !e.rawPayload.email_body));
             if (events.length === 0 || hasEmptyReply) {
                 try {
-                    const { syncLeadMessageHistory } = await import("./smartleadRepliesSync");
+                    const { syncLeadMessageHistory } = await import("./smartleadRepliesSync.js");
                     await syncLeadMessageHistory(targetLead.id);
                     events = await pgQuery<any>(
                         `SELECT e.id, e."eventType", e."fromEmail", e."rawPayload", e."createdAt"
