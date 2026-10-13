@@ -38,13 +38,12 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
     const isActive = (campaign.status || "").toLowerCase() === "active";
     const smartleadId = (campaign as any).providerCampaignId
         || (campaign as any).provider_campaign_id
-        || ((campaign as any).smartlead_id && (campaign as any).smartlead_id !== 3980068 ? (campaign as any).smartlead_id : null)
-        || (campaign.id?.includes("1789718475256") || campaign.name?.includes("Q2 Reachout")
-            ? 3980868
-            : (campaign.name?.includes("116") || campaign.id?.includes("116") ? 3967633 : 3959417));
+        || (campaign as any).smartlead_id
+        || null;
 
     // Fetch live Smartlead status on mount or refresh
     const fetchSmartleadStatus = React.useCallback(async (showToast = false) => {
+        if (!smartleadId) return;
         setIsSyncing(true);
         try {
             const res = await fetch(`/api/smartlead/status?id=${smartleadId}${showToast ? "&sync=true" : ""}`);
@@ -80,19 +79,6 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
         return () => clearInterval(interval);
     }, [fetchSmartleadStatus, queryClient, campaign.id]);
 
-    // Automatic Queue Dispatcher: continuously rotates dispatches across the 4 mailboxes while active
-    React.useEffect(() => {
-        if (!isActive) return;
-        const autoRunner = setInterval(async () => {
-            try {
-                await fetch(`/campaigns/${campaign.id}/start`, { method: "POST" });
-            } catch (err) {
-                console.warn("[CampaignQueueMonitor] Auto-dispatch tick:", err);
-            }
-        }, 12000);
-        return () => clearInterval(autoRunner);
-    }, [isActive, campaign.id]);
-
     // Listen for queue run events
     React.useEffect(() => {
         const handler = () => {
@@ -107,22 +93,17 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
 
     const handleImmediateDispatch = async () => {
         setIsDispatching(true);
-        toast.loading("Rotating next dispatch batch across mailboxes...", { id: "dispatch" });
+        toast.loading("Syncing dispatch queue with Smartlead...", { id: "dispatch" });
         try {
-            const res = await fetch(`/campaigns/${campaign.id}/start`, { method: "POST" });
-            if (res.ok) {
-                await fetchSmartleadStatus();
-                await Promise.all([
-                    queryClient.invalidateQueries({ queryKey: ["contacts"] }),
-                    queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
-                    queryClient.invalidateQueries({ queryKey: ["analytics"] }),
-                ]);
-                toast.success("Batch dispatched! 4 leads sent across rotated mailboxes: Vatsal, Preeti, Haji, Snehal", { id: "dispatch" });
-            } else {
-                toast.dismiss("dispatch");
-            }
+            await fetchSmartleadStatus(true);
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["contacts"] }),
+                queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
+                queryClient.invalidateQueries({ queryKey: ["analytics"] }),
+            ]);
+            toast.success("Dispatch queue synced with Smartlead engine", { id: "dispatch" });
         } catch (e) {
-            toast.error("Dispatch error occurred", { id: "dispatch" });
+            toast.error("Sync error occurred", { id: "dispatch" });
         } finally {
             setIsDispatching(false);
         }
@@ -169,19 +150,25 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                         </span>
                     </div>
 
-                    <div className="hidden sm:flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-200">
-                        <ZapIcon className="w-3 h-3 text-slate-900" />
-                        <span className="text-[11px] text-slate-500">Smartlead:</span>
-                        <a
-                            href="https://app.smartlead.ai/campaigns"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-slate-900 hover:text-black cursor-pointer bg-[#FFF9DB] hover:bg-[#FFF3B0]/80 border border-amber-200/60 px-1.5 py-0.5 rounded transition-colors"
-                        >
-                            #{smartleadId} ({isActive ? "ACTIVE ROTATION" : (smartleadData?.status || "DRAFT")})
-                            <ExternalLinkIcon className="w-2.5 h-2.5" />
-                        </a>
-                    </div>
+                    {smartleadId ? (
+                        <div className="hidden sm:flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-200">
+                            <ZapIcon className="w-3 h-3 text-slate-900" />
+                            <span className="text-[11px] text-slate-500">Smartlead:</span>
+                            <a
+                                href="https://app.smartlead.ai/campaigns"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-slate-900 hover:text-black cursor-pointer bg-[#FFF9DB] hover:bg-[#FFF3B0]/80 border border-amber-200/60 px-1.5 py-0.5 rounded transition-colors"
+                            >
+                                #{smartleadId} ({isActive ? "ACTIVE ROTATION" : (smartleadData?.status || "DRAFT")})
+                                <ExternalLinkIcon className="w-2.5 h-2.5" />
+                            </a>
+                        </div>
+                    ) : (
+                        <div className="hidden sm:flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-200 text-slate-400 text-[11px]">
+                            Smartlead: Ready to sync
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-2">

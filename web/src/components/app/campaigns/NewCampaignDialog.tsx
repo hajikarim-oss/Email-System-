@@ -543,22 +543,9 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                     }
                 }
 
-                if (startImmediately) {
-                    try {
-                        await start.mutateAsync({ id: created.id });
-                        if (typeof window !== "undefined") {
-                            window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: created.id } }));
-                        }
-                        toast.success("Campaign created & started! Sending now.");
-                    } catch (sErr) {
-                        console.warn("Could not auto-start campaign:", sErr);
-                        toast.success("Campaign created as draft. Start it from the header.");
-                    }
-                } else {
-                    toast.success(draft.selectedContacts.length > 0 
-                        ? `Campaign created with ${draft.selectedContacts.length} contact${draft.selectedContacts.length === 1 ? "" : "s"} enrolled.`
-                        : "Campaign created as draft.");
-                }
+                toast.success(draft.selectedContacts.length > 0
+                    ? `Campaign created with ${draft.selectedContacts.length} contact${draft.selectedContacts.length === 1 ? "" : "s"}. Start it from the campaign page.`
+                    : "Campaign created as draft. Start it from the campaign page.");
 
                 try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
                 onClose();
@@ -740,21 +727,19 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                                     ? draft.sendMode === "later"
                                         ? "Schedule"
                                         : "Send now"
-                                    : "Create & launch"
+                                    : "Create Campaign"
                             }
                             submitIcon={
                                 draft.kind === "one_time"
                                     ? draft.sendMode === "later"
                                         ? CalendarClockIcon
                                         : SendIcon
-                                    : PlayIcon
+                                    : PlusIcon
                             }
-                            secondarySubmitLabel={draft.kind === "sequence" ? "Save as draft" : undefined}
-                            onSecondarySubmit={draft.kind === "sequence" ? () => submit(false) : undefined}
                             issue={nudged ? issue : null}
                             onBack={() => goTo(step - 1)}
                             onNext={next}
-                            onSubmit={() => submit(true)}
+                            onSubmit={() => submit(draft.kind === "one_time")}
                             isPending={isPending}
                         />
                     </motion.div>
@@ -893,8 +878,6 @@ function Footer({
     autoSaved,
     submitLabel,
     submitIcon: SubmitIcon,
-    secondarySubmitLabel,
-    onSecondarySubmit,
     issue,
     onBack,
     onNext,
@@ -906,8 +889,6 @@ function Footer({
     autoSaved?: boolean;
     submitLabel: string;
     submitIcon: typeof PlusIcon;
-    secondarySubmitLabel?: string;
-    onSecondarySubmit?: () => void;
     issue: string | null;
     onBack: () => void;
     onNext: () => void;
@@ -961,16 +942,6 @@ function Footer({
                     </button>
                 ) : (
                     <>
-                        {secondarySubmitLabel && onSecondarySubmit && (
-                            <button
-                                type="button"
-                                onClick={onSecondarySubmit}
-                                disabled={isPending}
-                                className="h-7 px-2.5 rounded-md bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[12px] font-medium inline-flex items-center gap-1 transition-colors disabled:opacity-60 shrink-0 cursor-pointer"
-                            >
-                                {secondarySubmitLabel}
-                            </button>
-                        )}
                         <button
                             type="button"
                             onClick={onSubmit}

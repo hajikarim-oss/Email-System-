@@ -36,10 +36,10 @@ export async function POST(req: Request) {
 
     // Smartlead event types map to our internal event types
     const eventType = payload.event_type || payload.type || "unknown";
-    const email = payload.email || payload.lead_email || payload.to_email || "";
+    const email = payload.email || payload.lead_email || payload.to_email || payload.lead?.email || payload.recipient_email || "";
     const campaignId = payload.email_campaign_id || payload.campaign_id;
     const providerEventId = payload.event_id || payload.id || payload.message_id || payload.webhook_id
-      || `sl:${eventType}:${email}:${campaignId || ""}:${payload.timestamp ?? payload.created_at ?? payload.sent_at ?? ""}`;
+      || `sl:${eventType}:${email}:${campaignId || ""}:${payload.timestamp ?? payload.created_at ?? payload.sent_at ?? Date.now()}`;
     const providerLeadId = payload.lead_id || payload.provider_lead_id;
 
     // Map Smartlead event types to our internal types

@@ -2740,14 +2740,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 saveStorage("contacts", contacts);
                 saveStorage("campaigns", campaigns);
 
-                // Sync unique contacts securely to PostgreSQL database
+                // Sync contacts to PostgreSQL database (awaited so leads exist before campaign starts)
                 try {
-                    safeFetch("/api/intelligence/add-contacts", {
+                    const syncRes = await safeFetch("/api/intelligence/add-contacts", {
                         method: "POST",
-                        headers: authHeaders(),
+                        headers: { ...authHeaders(), "Content-Type": "application/json" },
                         body: JSON.stringify(body),
-                    }).catch(() => {});
-                } catch {}
+                    });
+                    if (!syncRes.ok) {
+                        const errText = await syncRes.text().catch(() => "");
+                        console.error("[standaloneMock] add-contacts DB sync failed:", syncRes.status, errText);
+                    }
+                } catch (syncErr) {
+                    console.error("[standaloneMock] add-contacts DB sync error:", syncErr);
+                }
 
                 return res(addedList);
             } else {
@@ -2820,14 +2826,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 saveStorage("contacts", contacts);
                 saveStorage("campaigns", campaigns);
 
-                // Sync unique contact securely to PostgreSQL database
+                // Sync contact to PostgreSQL database (awaited so lead exists before campaign starts)
                 try {
-                    fetch("/api/intelligence/add-contacts", {
+                    const syncRes = await safeFetch("/api/intelligence/add-contacts", {
                         method: "POST",
-                        headers: authHeaders(),
+                        headers: { ...authHeaders(), "Content-Type": "application/json" },
                         body: JSON.stringify([body]),
-                    }).catch(() => {});
-                } catch {}
+                    });
+                    if (!syncRes.ok) {
+                        const errText = await syncRes.text().catch(() => "");
+                        console.error("[standaloneMock] add-contacts single sync failed:", syncRes.status, errText);
+                    }
+                } catch (syncErr) {
+                    console.error("[standaloneMock] add-contacts single sync error:", syncErr);
+                }
 
                 return res(finalContact);
             }

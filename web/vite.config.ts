@@ -578,7 +578,10 @@ function smartleadApiPlugin() {
                                 smartleadId = createRes.data.id;
                                 console.log(`[Smartlead API] Created campaign #${smartleadId} ("${campaignName}")`);
                             } else {
-                                smartleadId = 3967633;
+                                console.error(`[Smartlead API] Failed to create campaign: ${JSON.stringify(createRes.data)}`);
+                                res.writeHead(502, { "Content-Type": "application/json" });
+                                res.end(JSON.stringify({ error: "smartlead_campaign_creation_failed", detail: createRes.data }));
+                                return;
                             }
                         }
 
@@ -595,24 +598,37 @@ function smartleadApiPlugin() {
                             email_account_ids: mailboxIds,
                         }, chosenKey);
 
-                        // 3. Add sequence steps with normalized merge tags and exact delay_in_days
-                        const seqSteps = (parsed.steps && parsed.steps.length > 0)
-                            ? parsed.steps.map((s: any, idx: number) => ({
-                                seq_number: idx + 1,
-                                seq_delay_details: { delay_in_days: idx === 0 ? 0 : (s.wait_after !== undefined ? Number(s.wait_after) : 3) },
-                                subject: normalizeToSmartleadTemplate(s.subject || (idx === 0 ? `Outreach: ${campaignName}` : "")),
-                                email_body: normalizeToSmartleadTemplate(s.body_html || s.body_plain || "<p>Hello {{first_name}}, reaching out from TheBoredMonkey.</p>"),
-                            }))
-                            : [
-                                {
-                                    seq_number: 1,
-                                    seq_delay_details: { delay_in_days: 0 },
-                                    subject: `Discussion regarding partnership | ${campaignName}`,
-                                    email_body: "<p>Hey {{first_name}},</p><p>Wanted to connect regarding our enterprise solutions.</p><p>Best,<br/>Haji Karim | TheBoredMonkey</p>",
-                                },
-                            ];
+                        // 3. Add sequence steps if not already created
+                        let existingSeqs: any[] = [];
+                        try {
+                            const seqCheck = await apiCall(`/campaigns/${smartleadId}/sequences`, "GET", undefined, chosenKey);
+                            if (Array.isArray(seqCheck.data)) {
+                                existingSeqs = seqCheck.data;
+                            }
+                        } catch {}
 
-                        await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
+                        if (existingSeqs.length === 0) {
+                            const seqSteps = (parsed.steps && parsed.steps.length > 0)
+                                ? parsed.steps.map((s: any, idx: number) => ({
+                                    seq_number: idx + 1,
+                                    seq_delay_details: { delay_in_days: idx === 0 ? 0 : (s.wait_after !== undefined ? Number(s.wait_after) : 3) },
+                                    subject: normalizeToSmartleadTemplate(s.subject || (idx === 0 ? `Outreach: ${campaignName}` : "")),
+                                    email_body: normalizeToSmartleadTemplate(s.body_html || s.body_plain || "<p>Hello {{first_name}}, reaching out from TheBoredMonkey.</p>"),
+                                }))
+                                : [
+                                    {
+                                        seq_number: 1,
+                                        seq_delay_details: { delay_in_days: 0 },
+                                        subject: `Discussion regarding partnership | ${campaignName}`,
+                                        email_body: "<p>Hey {{first_name}},</p><p>Wanted to connect regarding our enterprise solutions.</p><p>Best,<br/>Haji Karim | TheBoredMonkey</p>",
+                                    },
+                                ];
+
+                            await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
+                            console.log(`[Smartlead Vite Sync] Created ${seqSteps.length} initial sequence steps for #${smartleadId}`);
+                        } else {
+                            console.log(`[Smartlead Vite Sync] Campaign #${smartleadId} already has ${existingSeqs.length} sequences. Skipping sequence creation to prevent duplicate sends.`);
+                        }
 
                         // 4. Save schedule (Timezone, Days of week bitmask/array, sending window)
                         // Smartlead format: 0=Sunday, 1=Monday, ..., 6=Saturday
@@ -669,10 +685,21 @@ function smartleadApiPlugin() {
                             console.warn("[Smartlead Vite Sync] Settings update warning:", settingsErr.message);
                         }
 
-                        // 5. Add leads to Smartlead campaign with robust variable mapping
+                        // 5. Add leads to Smartlead campaign (deduplicate against existing)
+                        let existingLeadEmails = new Set<string>();
+                        try {
+                            const leadCheck = await apiCall(`/campaigns/${smartleadId}/leads?limit=500&offset=0`, "GET", undefined, chosenKey);
+                            const existingData = Array.isArray(leadCheck.data?.data) ? leadCheck.data.data : [];
+                            for (const el of existingData) {
+                                const em = ((el.lead || el).email || "").toLowerCase().trim();
+                                if (em) existingLeadEmails.add(em);
+                            }
+                        } catch {}
+
                         const rawLeads = parsed.leads || [];
-                        if (rawLeads.length > 0) {
-                            const leadList = rawLeads.map((l: any) => {
+                        const newLeads = rawLeads.filter((l: any) => !existingLeadEmails.has((l.email || "").toLowerCase().trim()));
+                        if (newLeads.length > 0) {
+                            const leadList = newLeads.map((l: any) => {
                                 const fName = l.first_name || l.firstName || (l.name ? l.name.split(" ")[0] : "") || (l.email ? l.email.split("@")[0] : "Prospect");
                                 const lName = l.last_name || l.lastName || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
                                 const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
@@ -693,7 +720,13 @@ function smartleadApiPlugin() {
                                     },
                                 };
                             });
-                            await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, chosenKey);
+                            for (let i = 0; i < leadList.length; i += 50) {
+                                const batch = leadList.slice(i, i + 50);
+                                await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: batch }, chosenKey);
+                            }
+                            console.log(`[Smartlead Vite Sync] Uploaded ${leadList.length} new leads to #${smartleadId} (${existingLeadEmails.size} already existed)`);
+                        } else if (rawLeads.length > 0) {
+                            console.log(`[Smartlead Vite Sync] All ${rawLeads.length} leads already exist in campaign #${smartleadId}`);
                         }
 
                         // 6. Start campaign in Smartlead
@@ -1277,7 +1310,7 @@ function databaseIntelligencePlugin() {
             });
 
             // 7b. Securely store and enroll unique contacts into live database
-            server.middlewares.use("/api/intelligence/add-contacts", async (req: any, res: any) => {
+            const handleAddContacts = async (req: any, res: any) => {
                 if (req.method !== "POST") {
                     res.statusCode = 405;
                     res.end(JSON.stringify({ error: "Method not allowed" }));
@@ -1291,12 +1324,14 @@ function databaseIntelligencePlugin() {
                         if (!scope) return;
                         const prisma = getPrisma();
                         if (!prisma) {
+                            console.warn("[add-contacts] Prisma not connected, skipping DB write");
                             res.writeHead(200, { "Content-Type": "application/json" });
                             res.end(JSON.stringify({ success: true, count: 0, note: "database_not_connected" }));
                             return;
                         }
                         const parsed = JSON.parse(body || "[]");
                         const items: any[] = Array.isArray(parsed) ? parsed : (parsed.contacts || [parsed]);
+                        console.log(`[add-contacts] Received ${items.length} items, body length=${body.length}`);
                         let count = 0;
                         for (const item of items) {
                             const email = (item.email || "").toLowerCase().trim();
@@ -1307,12 +1342,13 @@ function databaseIntelligencePlugin() {
                             const domain = email.split("@")[1] || "";
                             const company = item.company || item.company_name || "";
 
-                            const existing = await prisma.lead.findFirst({ where: { email } });
+                            const existing = campId
+                                ? await prisma.lead.findFirst({ where: { email, campaignId: campId } })
+                                : await prisma.lead.findFirst({ where: { email } });
                             if (existing) {
                                 await prisma.lead.update({
                                     where: { id: existing.id },
                                     data: {
-                                        ...(campId ? { campaignId: campId } : {}),
                                         ...(firstName && !existing.firstName ? { firstName } : {}),
                                         ...(lastName && !existing.lastName ? { lastName } : {}),
                                         domain: existing.domain || domain,
@@ -1343,13 +1379,25 @@ function databaseIntelligencePlugin() {
                             count++;
                         }
 
+                        console.log(`[add-contacts] Persisted ${count} leads to database`);
                         res.writeHead(200, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ success: true, count }));
                     } catch (err: any) {
+                        console.error("[add-contacts] Error persisting leads:", err);
                         res.writeHead(500, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({ error: err.message }));
                     }
                 });
+            };
+
+            server.middlewares.use("/api/intelligence/add-contacts", handleAddContacts);
+            server.middlewares.use("/contacts", (req: any, res: any, next: any) => {
+                if (req.method === "POST") return handleAddContacts(req, res);
+                next();
+            });
+            server.middlewares.use("/api/contacts", (req: any, res: any, next: any) => {
+                if (req.method === "POST") return handleAddContacts(req, res);
+                next();
             });
 
             // 8. Live database campaigns query
@@ -1629,7 +1677,7 @@ function databaseIntelligencePlugin() {
                             where: { OR: [{ id: campIdParam }, { providerCampaignId: campIdParam }] },
                             include: {
                                 steps: { orderBy: { stepNumber: "asc" } },
-                                leads: { where: { status: "ACTIVE" }, take: 500 },
+                                leads: { where: { status: "ACTIVE" } },
                                 mailboxes: { include: { mailbox: { include: { user: true } } } },
                             },
                         });
@@ -1639,14 +1687,90 @@ function databaseIntelligencePlugin() {
                             return;
                         }
 
-                        const leads = camp.leads || [];
+                        // 1. Guard against re-starting an already active campaign with leads
+                        if (camp.status === "ACTIVE" && camp.providerCampaignId && camp.leads.length > 0) {
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({
+                                success: true,
+                                message: "Campaign is already active in Smartlead",
+                                smartlead_id: Number(camp.providerCampaignId),
+                            }));
+                            return;
+                        }
+
+                        // 2. If campaign is already linked to Smartlead AND already has leads enrolled, simply resume it
+                        if (camp.providerCampaignId && camp.leads.length > 0) {
+                            const slId = camp.providerCampaignId;
+                            const sender = (camp.mailboxes?.[0]?.mailbox?.senderEmail || "").toLowerCase();
+                            const isPreeti = sender.includes("preeti");
+                            const chosenKey = isPreeti ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY;
+                            await apiCall(`/campaigns/${slId}/status`, "POST", { status: "START" }, chosenKey).catch(() => {});
+                            await prisma.campaign.update({
+                                where: { id: camp.id },
+                                data: { status: "ACTIVE" },
+                            });
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({
+                                success: true,
+                                message: "Campaign resumed in Smartlead",
+                                smartlead_id: Number(slId),
+                            }));
+                            return;
+                        }
+
+                        // 3. Collect leads: if database has leads, use them; otherwise persist input.leads
+                        let leads = camp.leads || [];
+                        if (leads.length === 0 && Array.isArray(input.leads) && input.leads.length > 0) {
+                            for (const item of input.leads) {
+                                const email = (item.email || "").toLowerCase().trim();
+                                if (!email || !email.includes("@")) continue;
+                                const firstName = item.first_name || item.firstName || (item.name ? item.name.split(" ")[0] : "") || "";
+                                const lastName = item.last_name || item.lastName || (item.name ? item.name.split(" ").slice(1).join(" ") : "") || "";
+                                const company = item.company || item.company_name || "";
+                                try {
+                                    const existing = await prisma.lead.findFirst({ where: { email, campaignId: camp.id } });
+                                    if (existing) {
+                                        await prisma.lead.update({
+                                            where: { id: existing.id },
+                                            data: {
+                                                status: "ACTIVE",
+                                                ...(company ? { customData: { ...(typeof existing.customData === "object" ? existing.customData : {}), company } } : {})
+                                            }
+                                        });
+                                    } else {
+                                        await prisma.lead.create({
+                                            data: {
+                                                email,
+                                                firstName,
+                                                lastName,
+                                                campaignId: camp.id,
+                                                domain: email.split("@")[1] || "",
+                                                status: "ACTIVE",
+                                                outreachState: "NEVER_REACHED",
+                                                customData: company ? { company } : {},
+                                            }
+                                        });
+                                    }
+                                } catch (e) {
+                                    console.warn("Failed to persist lead on launch:", email, e);
+                                }
+                            }
+                            leads = await prisma.lead.findMany({ where: { campaignId: camp.id, status: "ACTIVE" } });
+                        }
+
                         const steps = camp.steps || [];
-                        const senderEmail = camp.mailboxes?.[0]?.mailbox?.senderEmail || "";
+                        const senderEmail = camp.mailboxes?.[0]?.mailbox?.senderEmail || (camp.name.toLowerCase().includes("vatsal") ? "vatsal.vadecha@theboredmonkey.com" : "");
 
                         let mailboxIds = (camp.mailboxes || []).map((mb: any) => mb.mailbox?.providerMailboxId).filter(Boolean);
                         if (mailboxIds.length === 0) {
-                            const activeMbs = await prisma.mailbox.findMany({ select: { providerMailboxId: true } });
-                            mailboxIds = activeMbs.map((m: any) => m.providerMailboxId).filter(Boolean);
+                            if (camp.name.toLowerCase().includes("vatsal")) {
+                                mailboxIds = ["24259777"];
+                            } else if (camp.name.toLowerCase().includes("preeti")) {
+                                mailboxIds = ["23458016"];
+                            } else {
+                                const activeMbs = await prisma.mailbox.findMany({ where: { status: "ACTIVE" }, select: { providerMailboxId: true } });
+                                mailboxIds = activeMbs.map((m: any) => m.providerMailboxId).filter(Boolean);
+                            }
                         }
 
                         try {
@@ -1854,11 +1978,45 @@ function databaseIntelligencePlugin() {
                             }
                         }
 
+                        // If contacts/leads provided, save them now
+                        let leadCount = 0;
+                        const leadsInput = input.contacts || input.leads || [];
+                        if (Array.isArray(leadsInput) && leadsInput.length > 0) {
+                            for (const item of leadsInput) {
+                                const email = (item.email || "").toLowerCase().trim();
+                                if (!email || !email.includes("@")) continue;
+                                const firstName = item.first_name || item.firstName || "";
+                                const lastName = item.last_name || item.lastName || "";
+                                const company = item.company || item.company_name || "";
+                                try {
+                                    const existing = await prisma.lead.findFirst({ where: { email, campaignId: created.id } });
+                                    if (!existing) {
+                                        await prisma.lead.create({
+                                            data: {
+                                                email,
+                                                firstName,
+                                                lastName,
+                                                campaignId: created.id,
+                                                domain: email.split("@")[1] || "",
+                                                status: "ACTIVE",
+                                                outreachState: "NEVER_REACHED",
+                                                customData: {
+                                                    ...(company ? { company } : {}),
+                                                    ...(item.custom_fields || {}),
+                                                },
+                                            },
+                                        });
+                                        leadCount++;
+                                    }
+                                } catch {}
+                            }
+                        }
+
                         res.writeHead(201, { "Content-Type": "application/json" });
                         res.end(JSON.stringify({
                             ...created,
                             status: (created.status || "draft").toLowerCase(),
-                            total_leads: 0,
+                            total_leads: leadCount,
                             steps: input.steps || [],
                         }));
                         return;

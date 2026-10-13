@@ -53,7 +53,7 @@ export function mapSmartleadEventType(raw: unknown): string | null {
 function deriveProviderEventId(payload: Record<string, any>, eventType: string, email: string): string {
     const explicit = payload.event_id || payload.id || payload.message_id || payload.webhook_id;
     if (explicit) return String(explicit);
-    const ts = payload.timestamp ?? payload.created_at ?? payload.sent_at ?? "";
+    const ts = payload.timestamp ?? payload.created_at ?? payload.sent_at ?? Date.now();
     return `sl:${eventType}:${email}:${payload.email_campaign_id || payload.campaign_id || ""}:${ts}`;
 }
 

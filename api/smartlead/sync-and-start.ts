@@ -289,13 +289,25 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     },
                 ];
 
-            const seqRes = await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
-            if (seqRes.status < 200 || seqRes.status >= 300) {
-                console.error(`[Smartlead Sync] CRITICAL: Failed to create sequences for campaign ${smartleadId}`);
-                console.error(`   Status: ${seqRes.status}, Response:`, seqRes.data);
-                throw new Error(`Sequence creation failed: ${seqRes.status}`);
+            let existingSeqs: any[] = [];
+            try {
+                const seqCheck = await apiCall(`/campaigns/${smartleadId}/sequences`, "GET", undefined, chosenKey);
+                if (Array.isArray(seqCheck.data)) {
+                    existingSeqs = seqCheck.data;
+                }
+            } catch {}
+
+            if (existingSeqs.length === 0) {
+                const seqRes = await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps }, chosenKey);
+                if (seqRes.status < 200 || seqRes.status >= 300) {
+                    console.error(`[Smartlead Sync] CRITICAL: Failed to create sequences for campaign ${smartleadId}`);
+                    console.error(`   Status: ${seqRes.status}, Response:`, seqRes.data);
+                    throw new Error(`Sequence creation failed: ${seqRes.status}`);
+                }
+                console.log(`[Smartlead Sync] ✅ Created ${seqSteps.length} sequences for campaign ${smartleadId}`);
+            } else {
+                console.log(`[Smartlead Sync] Campaign #${smartleadId} already has ${existingSeqs.length} sequences. Skipping sequence creation to prevent duplicate sends.`);
             }
-            console.log(`[Smartlead Sync] ✅ Created ${seqSteps.length} sequences for campaign ${smartleadId}`);
 
             // 4. Decode Schedule (Timezone, Days of week bitmask/array, sending window)
             // Smartlead expects 0=Sunday, 1=Monday, ..., 6=Saturday
@@ -414,13 +426,23 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         },
                     };
                 });
-                const leadsRes = await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, chosenKey);
-                if (leadsRes.status < 200 || leadsRes.status >= 300) {
-                    console.error(`[Smartlead Sync] CRITICAL: Failed to add leads to campaign ${smartleadId}`);
-                    console.error(`   Status: ${leadsRes.status}, Response:`, leadsRes.data);
-                    throw new Error(`Lead import failed: ${leadsRes.status}`);
+                let existingLeadCount = 0;
+                try {
+                    const leadCheck = await apiCall(`/campaigns/${smartleadId}/leads?limit=1`, "GET", undefined, chosenKey);
+                    existingLeadCount = Number(leadCheck.data?.total_leads) || (Array.isArray(leadCheck.data?.data) ? leadCheck.data.data.length : 0);
+                } catch {}
+
+                if (existingLeadCount === 0) {
+                    const leadsRes = await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, chosenKey);
+                    if (leadsRes.status < 200 || leadsRes.status >= 300) {
+                        console.error(`[Smartlead Sync] CRITICAL: Failed to add leads to campaign ${smartleadId}`);
+                        console.error(`   Status: ${leadsRes.status}, Response:`, leadsRes.data);
+                        throw new Error(`Lead import failed: ${leadsRes.status}`);
+                    }
+                    console.log(`[Smartlead Sync] ✅ Added ${leadList.length} leads to campaign ${smartleadId}`);
+                } else {
+                    console.log(`[Smartlead Sync] Campaign #${smartleadId} already has ${existingLeadCount} leads enrolled. Skipping duplicate lead upload.`);
                 }
-                console.log(`[Smartlead Sync] ✅ Added ${leadList.length} leads to campaign ${smartleadId}`);
             }
 
             // 6. Start campaign - CRITICAL: Validate success before continuing
