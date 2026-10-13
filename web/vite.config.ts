@@ -420,9 +420,23 @@ function smartleadApiPlugin() {
                         }
                         const sender = (parsed.sender_email || "").toLowerCase();
                         const chosenKey = parsed.api_key || (sender.includes("preeti") ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY);
-                        console.log(`[Smartlead API] Creating campaign on Smartlead: "${campaignName}" for ${sender || 'default'}`);
+                        console.log(`[Smartlead API] Checking or creating campaign on Smartlead: "${campaignName}" for ${sender || 'default'}`);
 
-                        const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
+                        let createRes: any = null;
+                        try {
+                            const existingList = await apiCall("/campaigns", "GET", undefined, chosenKey);
+                            if (Array.isArray(existingList.data)) {
+                                const found = existingList.data.find((c: any) => c.name?.trim().toLowerCase() === campaignName.toLowerCase());
+                                if (found?.id) {
+                                    createRes = { status: 200, data: found };
+                                    console.log(`[Smartlead API] Reusing existing campaign #${found.id} ("${campaignName}")`);
+                                }
+                            }
+                        } catch {}
+
+                        if (!createRes) {
+                            createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
+                        }
                         if (createRes.status >= 200 && createRes.status < 300 && createRes.data?.id) {
                             await reconcileSmartleadCampaigns(true).catch(() => {});
                         }
@@ -543,7 +557,20 @@ function smartleadApiPlugin() {
                             smartleadId = null;
                         }
 
-                        // 1. Create campaign if not already linked
+                        // 1. Check if campaign already exists or create if not already linked
+                        if (!smartleadId) {
+                            try {
+                                const existingList = await apiCall("/campaigns", "GET", undefined, chosenKey);
+                                if (Array.isArray(existingList.data)) {
+                                    const found = existingList.data.find((c: any) => c.name?.trim().toLowerCase() === campaignName.toLowerCase());
+                                    if (found?.id) {
+                                        smartleadId = found.id;
+                                        console.log(`[Smartlead API] Reusing existing campaign #${smartleadId} ("${campaignName}")`);
+                                    }
+                                }
+                            } catch {}
+                        }
+
                         if (!smartleadId) {
                             console.log(`[Smartlead API] Creating brand new campaign for: "${campaignName}" (Account: ${isPreeti ? 'Preeti' : 'Vatsal'})`);
                             const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
@@ -1584,84 +1611,12 @@ function databaseIntelligencePlugin() {
                         return;
                     }
 
-                    if (req.method === "POST") {
-                        const bodyParts: any[] = [];
-                        await new Promise((resolve) => {
-                            req.on("data", (chunk: any) => bodyParts.push(chunk));
-                            req.on("end", resolve);
-                        });
-                        const input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}");
-                        const campaignName = (input.name || "").trim();
-                        if (!campaignName) {
-                            res.writeHead(400, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({ error: "campaign_name_required" }));
-                            return;
-                        }
-
-                        // Check duplicate name for this user
-                        const existing = await prisma.campaign.findFirst({
-                            where: { userId: scope.userId, name: campaignName },
-                        });
-                        if (existing) {
-                            res.writeHead(409, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({ error: "campaign_name_taken", name: campaignName }));
-                            return;
-                        }
-
-                        const created = await prisma.campaign.create({
-                            data: {
-                                name: campaignName,
-                                userId: scope.userId,
-                                status: (input.status || "DRAFT").toUpperCase(),
-                                sendTimezone: input.timezone || "Asia/Kolkata",
-                                preferredSendHour: input.start_time ? parseInt(input.start_time.split(":")[0]) : null,
-                                preferredSendDays: (Array.isArray(input.days) ? input.days : [1, 2, 3, 4, 5]).map(Number),
-                            },
-                        });
-
-                        // If steps are provided, save steps
-                        if (Array.isArray(input.steps) && input.steps.length > 0) {
-                            for (let i = 0; i < input.steps.length; i++) {
-                                const step = input.steps[i];
-                                await prisma.campaignStep.create({
-                                    data: {
-                                        campaignId: created.id,
-                                        stepNumber: i + 1,
-                                        delayDays: step.wait_after !== undefined ? Number(step.wait_after) : (i === 0 ? 0 : 3),
-                                        subject: (step.subject || `Step ${i + 1}`).slice(0, 255),
-                                        bodyTemplate: step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>",
-                                    },
-                                });
-                            }
-                        }
-
-                        // If mailboxes provided, link them
-                        if (Array.isArray(input.mailbox_ids) && input.mailbox_ids.length > 0) {
-                            for (const mbId of input.mailbox_ids) {
-                                try {
-                                    await prisma.campaignMailbox.create({
-                                        data: { campaignId: created.id, mailboxId: String(mbId) },
-                                    });
-                                } catch {}
-                            }
-                        }
-
-                        res.writeHead(201, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({
-                            ...created,
-                            status: (created.status || "draft").toLowerCase(),
-                            total_leads: 0,
-                            steps: input.steps || [],
-                        }));
-                        return;
-                    }
-
-                    // Subaction: /:id/steps (GET & PUT)
+                    // Subaction: /:id/launch, /:id/start, /:id/steps
                     const urlParts = (req.url || "").split("?")[0].split("/").filter(Boolean);
                     const campIdParam = urlParts[0];
                     const subAction = urlParts[1];
 
-                    if (campIdParam && subAction === "launch" && (req.method === "POST" || req.method === "PUT")) {
+                    if (campIdParam && (subAction === "launch" || subAction === "start") && (req.method === "POST" || req.method === "PUT")) {
                         const bodyParts: any[] = [];
                         await new Promise((resolve) => {
                             req.on("data", (chunk: any) => bodyParts.push(chunk));
@@ -1688,6 +1643,12 @@ function databaseIntelligencePlugin() {
                         const steps = camp.steps || [];
                         const senderEmail = camp.mailboxes?.[0]?.mailbox?.senderEmail || "";
 
+                        let mailboxIds = (camp.mailboxes || []).map((mb: any) => mb.mailbox?.providerMailboxId).filter(Boolean);
+                        if (mailboxIds.length === 0) {
+                            const activeMbs = await prisma.mailbox.findMany({ select: { providerMailboxId: true } });
+                            mailboxIds = activeMbs.map((m: any) => m.providerMailboxId).filter(Boolean);
+                        }
+
                         try {
                             const syncBody = JSON.stringify({
                                 name: camp.name,
@@ -1705,7 +1666,7 @@ function databaseIntelligencePlugin() {
                                     title: (l.customData as any)?.title || "",
                                 })),
                                 sender_email: senderEmail,
-                                mailbox_ids: camp.mailboxes?.map((mb: any) => mb.mailbox?.providerMailboxId).filter(Boolean),
+                                mailbox_ids: mailboxIds,
                                 timezone: camp.sendTimezone || "Asia/Kolkata",
                                 days: camp.preferredSendDays || [1, 2, 3, 4, 5],
                                 start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
@@ -1716,26 +1677,20 @@ function databaseIntelligencePlugin() {
                                 link_tracking: true,
                             });
 
-                            const syncRes = await new Promise<{ status: number; data: any }>((resolve) => {
-                                const syncReq = require("http").request("http://localhost:5173/api/smartlead/sync-and-start", {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                        "Content-Length": Buffer.byteLength(syncBody),
-                                        ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
-                                    },
-                                }, (syncR: any) => {
-                                    let text = "";
-                                    syncR.on("data", (c: any) => { text += c; });
-                                    syncR.on("end", () => {
-                                        try { resolve({ status: syncR.statusCode, data: JSON.parse(text) }); }
-                                        catch { resolve({ status: syncR.statusCode, data: { raw: text } }); }
-                                    });
-                                });
-                                syncReq.on("error", (e: any) => resolve({ status: 500, data: { error: e.message } }));
-                                syncReq.write(syncBody);
-                                syncReq.end();
-                            });
+                            const syncRes = await fetch("http://localhost:5173/api/smartlead/sync-and-start", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+                                },
+                                body: syncBody,
+                            }).then(async (r) => ({
+                                status: r.status,
+                                data: await r.json().catch(() => ({})),
+                            })).catch((e: any) => ({
+                                status: 500,
+                                data: { error: e.message },
+                            }));
 
                             if (syncRes.data?.smartlead_id) {
                                 await prisma.campaign.update({
@@ -1835,6 +1790,78 @@ function databaseIntelligencePlugin() {
                                 return;
                             }
                         }
+                    }
+
+                    if (req.method === "POST") {
+                        const bodyParts: any[] = [];
+                        await new Promise((resolve) => {
+                            req.on("data", (chunk: any) => bodyParts.push(chunk));
+                            req.on("end", resolve);
+                        });
+                        const input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}");
+                        const campaignName = (input.name || "").trim();
+                        if (!campaignName) {
+                            res.writeHead(400, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "campaign_name_required" }));
+                            return;
+                        }
+
+                        // Check duplicate name for this user
+                        const existing = await prisma.campaign.findFirst({
+                            where: { userId: scope.userId, name: campaignName },
+                        });
+                        if (existing) {
+                            res.writeHead(409, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "campaign_name_taken", name: campaignName }));
+                            return;
+                        }
+
+                        const created = await prisma.campaign.create({
+                            data: {
+                                name: campaignName,
+                                userId: scope.userId,
+                                status: (input.status || "DRAFT").toUpperCase(),
+                                sendTimezone: input.timezone || "Asia/Kolkata",
+                                preferredSendHour: input.start_time ? parseInt(input.start_time.split(":")[0]) : null,
+                                preferredSendDays: (Array.isArray(input.days) ? input.days : [1, 2, 3, 4, 5]).map(Number),
+                            },
+                        });
+
+                        // If steps are provided, save steps
+                        if (Array.isArray(input.steps) && input.steps.length > 0) {
+                            for (let i = 0; i < input.steps.length; i++) {
+                                const step = input.steps[i];
+                                await prisma.campaignStep.create({
+                                    data: {
+                                        campaignId: created.id,
+                                        stepNumber: i + 1,
+                                        delayDays: step.wait_after !== undefined ? Number(step.wait_after) : (i === 0 ? 0 : 3),
+                                        subject: (step.subject || `Step ${i + 1}`).slice(0, 255),
+                                        bodyTemplate: step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>",
+                                    },
+                                });
+                            }
+                        }
+
+                        // If mailboxes provided, link them
+                        if (Array.isArray(input.mailbox_ids) && input.mailbox_ids.length > 0) {
+                            for (const mbId of input.mailbox_ids) {
+                                try {
+                                    await prisma.campaignMailbox.create({
+                                        data: { campaignId: created.id, mailboxId: String(mbId) },
+                                    });
+                                } catch {}
+                            }
+                        }
+
+                        res.writeHead(201, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify({
+                            ...created,
+                            status: (created.status || "draft").toLowerCase(),
+                            total_leads: 0,
+                            steps: input.steps || [],
+                        }));
+                        return;
                     }
 
                     // Single campaign GET: /:id

@@ -15,7 +15,7 @@ const SELECT_COLUMNS = `
     "recencyBucket", "daysSinceLastContact", "firstContactedAt", "lastContactedAt",
     "lastSubject", "lastBodyHook", "lastSender", "lastCampaign", "lastOutcome", "lastMessageId",
     "totalMessages", "totalReplied", "totalOutbound", "openCount", "clickCount",
-    "campaignId", "leadCategory", "createdAt", "updatedAt"
+    "campaignId", "leadCategory", "createdAt", "updatedAt", "lastStepSent", "bounceCount"
 `;
 
 interface Where {
@@ -175,17 +175,32 @@ function mapLead(l: any, campaignScoped: boolean) {
     const isDispatched =
         (l.totalOutbound && l.totalOutbound > 0) || l.lastContactedAt !== null || isReplied || l.status === "COMPLETED";
 
-    const rawStepNum = Math.max(0, l.totalOutbound || 0);
-    const stepNum = rawStepNum > 0 ? rawStepNum : (l.lastContactedAt !== null || isDispatched || isReplied) ? 1 : 0;
+    const stepNum = (l.lastStepSent !== null && l.lastStepSent !== undefined && l.lastStepSent > 0)
+        ? Number(l.lastStepSent)
+        : (isDispatched || isReplied ? 1 : 0);
     const stepLabel = (n: number): string => {
         if (n <= 0) return "Ready for delivery";
         if (n === 1) return "Step 1 (First Mail)";
         return `Step ${n} (Follow-up ${n - 1})`;
     };
 
+    const isBounced = l.status === "BOUNCED" || (l.bounceCount && l.bounceCount > 0);
+    const isUnsub = l.status === "UNSUBSCRIBED";
+    const leadCampaignStatus = isBounced
+        ? "bounced"
+        : isUnsub
+          ? "unsubscribed"
+          : isReplied
+            ? "replied"
+            : l.status === "COMPLETED"
+              ? "completed"
+              : isDispatched
+                ? "active"
+                : "pending";
+
     const campaignLead = campaignScoped
         ? {
-              status: isReplied ? "replied" : isDispatched ? "completed" : "pending",
+              status: leadCampaignStatus,
               sent: isDispatched || isReplied ? Math.max(1, stepNum) : 0,
               opened: l.openCount || 0,
               machine_opened: 0,
@@ -337,10 +352,11 @@ async function readLeadCounts(query: QueryFn, campaignIds: string[], scope: Data
     const rows = await query(
         `SELECT
             count(*)::int AS total,
-            count(*) FILTER (WHERE "totalOutbound" = 0 AND "lastContactedAt" IS NULL)::int AS queued,
-            count(*) FILTER (WHERE "totalOutbound" > 0 OR "lastContactedAt" IS NOT NULL)::int AS completed,
+            count(*) FILTER (WHERE "totalOutbound" = 0 AND "lastContactedAt" IS NULL AND status::text NOT IN ('BOUNCED', 'UNSUBSCRIBED'))::int AS queued,
+            count(*) FILTER (WHERE ("totalOutbound" > 0 OR "lastContactedAt" IS NOT NULL) AND status::text = 'ACTIVE' AND ("totalReplied" = 0 OR "totalReplied" IS NULL))::int AS processing,
+            count(*) FILTER (WHERE status::text = 'COMPLETED')::int AS completed,
             count(*) FILTER (WHERE "totalOutbound" > 0 OR "lastContactedAt" IS NOT NULL)::int AS contacted,
-            count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL)::int AS replied,
+            count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL OR status::text = 'REPLIED')::int AS replied,
             count(*) FILTER (WHERE status::text = 'BOUNCED' OR "bounceCount" > 0 OR "totalBounced" > 0)::int AS bounced,
             count(*) FILTER (WHERE status::text = 'UNSUBSCRIBED')::int AS unsubscribed,
             count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL)::int AS opened,
@@ -353,7 +369,7 @@ async function readLeadCounts(query: QueryFn, campaignIds: string[], scope: Data
     return {
         total: r.total || 0,
         queued: r.queued || 0,
-        processing: 0,
+        processing: r.processing || 0,
         completed: r.completed || 0,
         contacted: r.contacted || 0,
         replied: r.replied || 0,

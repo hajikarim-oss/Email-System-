@@ -271,7 +271,7 @@ export async function recordSmartleadEvent(payload: Record<string, any>): Promis
             lead = byCampaignAndEmail[0];
         }
 
-        if (!lead) {
+        if (!lead && !providerCampaignId) {
             const byEmail = await pgQuery<{ id: string; bounceCount: number }>(
                 `SELECT id, "bounceCount" FROM "Lead" WHERE lower("email") = $1 ORDER BY "createdAt" DESC LIMIT 1`,
                 [email],
