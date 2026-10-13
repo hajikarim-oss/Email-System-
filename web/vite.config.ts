@@ -412,7 +412,12 @@ function smartleadApiPlugin() {
                 req.on("end", async () => {
                     try {
                         const parsed = JSON.parse(body || "{}");
-                        const campaignName = parsed.name || `Campaign ${Date.now()}`;
+                        const campaignName = (parsed.name || "").trim();
+                        if (!campaignName) {
+                            res.writeHead(400, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "campaign_name_required" }));
+                            return;
+                        }
                         const sender = (parsed.sender_email || "").toLowerCase();
                         const chosenKey = parsed.api_key || (sender.includes("preeti") ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY);
                         console.log(`[Smartlead API] Creating campaign on Smartlead: "${campaignName}" for ${sender || 'default'}`);
@@ -518,7 +523,12 @@ function smartleadApiPlugin() {
                 req.on("end", async () => {
                     try {
                         const parsed = JSON.parse(body || "{}");
-                        const campaignName = parsed.name || `Campaign ${Date.now()}`;
+                        const campaignName = (parsed.name || "").trim();
+                        if (!campaignName) {
+                            res.writeHead(400, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "campaign_name_required" }));
+                            return;
+                        }
                         let smartleadId = parsed.smartlead_id;
 
                         // Resolve active account & key from sender or mailbox
@@ -1581,7 +1591,7 @@ function databaseIntelligencePlugin() {
                             req.on("end", resolve);
                         });
                         const input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}");
-                        const campaignName = (input.name || `Campaign ${Date.now()}`).trim();
+                        const campaignName = (input.name || "").trim();
                         if (!campaignName) {
                             res.writeHead(400, { "Content-Type": "application/json" });
                             res.end(JSON.stringify({ error: "campaign_name_required" }));

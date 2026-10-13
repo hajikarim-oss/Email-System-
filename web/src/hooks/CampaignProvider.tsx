@@ -201,10 +201,15 @@ export const CampaignProvider = ({ children }: { children: React.ReactNode }) =>
 
     const newCampaign = async () => {
         if (!newLoad){
+            const trimmed = name.trim();
+            if (trimmed.length < 3) {
+                setError("Campaign name must be at least 3 characters.");
+                return;
+            }
             try {
                 setNewLoad(true)
                 const campaign: CampaignRaw = await Call(`/campaigns`, "POST", {
-                    name,
+                    name: trimmed,
                     description,
                 })
                 setCampaigns(bef => bef ? [parseCampaign(campaign), ...bef]:[parseCampaign(campaign)])
@@ -279,9 +284,10 @@ export const CampaignProvider = ({ children }: { children: React.ReactNode }) =>
                         </div>
                     </div>
                     <div className="flex gap-x-4 gap-y-2 flex-wrap mb-4">
-                        <button 
-                            className={`ripple px-3 py-2 text-lg w-36 flex justify-center items-center cursor-pointer text-slate-50 transition bg-blue-500 ${!newLoad && "hover:bg-blue-600"} rounded-lg`}
+                        <button
+                            className={`ripple px-3 py-2 text-lg w-36 flex justify-center items-center text-slate-50 transition rounded-lg ${!newLoad && name.trim().length >= 3 ? "cursor-pointer bg-blue-500 hover:bg-blue-600" : "cursor-not-allowed bg-blue-300"}`}
                             onClick={newCampaign}
+                            disabled={newLoad || name.trim().length < 3}
                         >
                             {newLoad ? <Loading className="h-5"/>:"Save Changes"}
                         </button>

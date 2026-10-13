@@ -1,5 +1,6 @@
 import React from "react";
-import { CheckIcon, ClockIcon, DatabaseIcon, FileSpreadsheetIcon, Loader2Icon, MessageSquareIcon, PlusIcon, SearchIcon, ShieldAlertIcon, SkipForwardIcon, UploadCloudIcon, UserPlusIcon, UsersIcon, XIcon } from "lucide-react";
+import { AlertCircleIcon, CheckIcon, ClockIcon, DatabaseIcon, FileSpreadsheetIcon, Loader2Icon, MessageSquareIcon, PlusIcon, SearchIcon, ShieldAlertIcon, SkipForwardIcon, SlidersHorizontalIcon, Trash2Icon, UploadCloudIcon, UserPlusIcon, UsersIcon, XIcon } from "lucide-react";
+import Papa from "papaparse";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { authHeaders } from "@/lib/api/standaloneMock";
@@ -35,7 +36,32 @@ function OBadge({ state }: { state: string | null }) {
     return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold" style={{ color: m.color, background: m.bg }}>{m.label}</span>;
 }
 
+function deduplicateContacts(contacts: ContactDraftItem[]): ContactDraftItem[] {
+    const seen = new Set<string>();
+    const out: ContactDraftItem[] = [];
+    for (const c of contacts) {
+        const k = (c.email || "").toLowerCase().trim();
+        if (k && !seen.has(k)) {
+            seen.add(k);
+            out.push(c);
+        }
+    }
+    return out;
+}
+
 export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsStepProps) {
+    // Clean up any existing duplicate bloat on mount
+    const cleanedUpBloatRef = React.useRef(false);
+    React.useEffect(() => {
+        if (!cleanedUpBloatRef.current && selectedContacts.length > 0) {
+            cleanedUpBloatRef.current = true;
+            const deduped = deduplicateContacts(selectedContacts);
+            if (deduped.length !== selectedContacts.length) {
+                onChangeSelected(deduped);
+            }
+        }
+    }, [selectedContacts, onChangeSelected]);
+
     const [subTab, setSubTab] = React.useState<"database" | "csv" | "manual">("database");
     const [dbContacts, setDbContacts] = React.useState<NormalizedContact[]>([]);
     const [dbTotal, setDbTotal] = React.useState(0);
@@ -216,59 +242,59 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
             const all = [...dupes, ...quar];
             if (all.length > 0) {
                 setHistoryWarnings(all);
-                setPendingContacts(toAdd);
+                setPendingContacts(deduplicateContacts(toAdd));
                 // Pre-ignore quarantined leads by default to safeguard sender deliverability
-                const preIgnored = new Set<string>(quar.map(q => q.email.toLowerCase()));
+                const preIgnored = new Set<string>(quar.map(q => q.email.toLowerCase().trim()));
                 setIgnoredEmails(preIgnored);
                 setShowWarn(true);
             } else {
-                onChangeSelected([...selectedContacts, ...toAdd]);
+                onChangeSelected(deduplicateContacts([...selectedContacts, ...toAdd]));
                 toast.success(`Added ${toAdd.length} contact${toAdd.length !== 1 ? "s" : ""}`);
             }
         } catch {
-            onChangeSelected([...selectedContacts, ...toAdd]);
+            onChangeSelected(deduplicateContacts([...selectedContacts, ...toAdd]));
             toast.success(`Added ${toAdd.length} contact${toAdd.length !== 1 ? "s" : ""}`);
         }
         finally { setChecking(false); }
     }, [selectedContacts, onChangeSelected]);
 
-    const pendingRef = React.useRef(pendingContacts);
-    const ignoredRef = React.useRef(ignoredEmails);
-    const showWarnRef = React.useRef(showWarn);
-    const selectedRef = React.useRef(selectedContacts);
-    pendingRef.current = pendingContacts;
-    ignoredRef.current = ignoredEmails;
-    showWarnRef.current = showWarn;
-    selectedRef.current = selectedContacts;
+    const toggleIgnore = (email: string) => {
+        const key = email.toLowerCase().trim();
+        setIgnoredEmails(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
 
-    React.useEffect(() => {
-        return () => {
-            if (showWarnRef.current && pendingRef.current.length > 0) {
-                const kept = pendingRef.current.filter(c => !ignoredRef.current.has(c.email.toLowerCase()));
-                if (kept.length > 0) {
-                    onChangeSelected([...selectedRef.current, ...kept]);
-                }
-            }
-        };
-    }, [onChangeSelected]);
-
-    const toggleIgnore = (email: string) => setIgnoredEmails(prev => { const n = new Set(prev); if (n.has(email)) n.delete(email); else n.add(email); return n; });
     const skipAllFlagged = () => {
-        setIgnoredEmails(new Set(historyWarnings.map(w => w.email.toLowerCase())));
+        setIgnoredEmails(new Set(historyWarnings.map(w => w.email.toLowerCase().trim())));
         toast("All flagged contacts skipped");
     };
+
     const selectAllFlagged = () => {
         setIgnoredEmails(new Set());
         toast.success("All flagged contacts selected");
     };
+
     const confirmWarn = () => {
-        const kept = pendingContacts.filter(c => !ignoredEmails.has(c.email.toLowerCase()));
-        onChangeSelected([...selectedContacts, ...kept]);
+        const kept = pendingContacts.filter(c => !ignoredEmails.has(c.email.toLowerCase().trim()));
+        onChangeSelected(deduplicateContacts([...selectedContacts, ...kept]));
         const sk = pendingContacts.length - kept.length;
         if (kept.length) toast.success(`Added ${kept.length}${sk ? `, skipped ${sk}` : ""}`); else toast(`Skipped ${sk}`);
-        setShowWarn(false); setHistoryWarnings([]); setPendingContacts([]); setIgnoredEmails(new Set());
+        setShowWarn(false);
+        setHistoryWarnings([]);
+        setPendingContacts([]);
+        setIgnoredEmails(new Set());
     };
-    const cancelWarn = () => { setShowWarn(false); setHistoryWarnings([]); setPendingContacts([]); setIgnoredEmails(new Set()); };
+
+    const cancelWarn = () => {
+        setShowWarn(false);
+        setHistoryWarnings([]);
+        setPendingContacts([]);
+        setIgnoredEmails(new Set());
+    };
 
     const toggleDb = async (c: NormalizedContact) => {
         if (isSel(c.email)) { onChangeSelected(selectedContacts.filter(s => s.email.toLowerCase() !== c.email.toLowerCase())); return; }
@@ -280,57 +306,280 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
         else { const ex = new Set(selectedContacts.map(s => s.email.toLowerCase())); batchCheck(dbContacts.filter(c => !ex.has(c.email.toLowerCase())).map(c => ({ id: c.id, email: c.email, first_name: c.first_name, last_name: c.last_name, company: c.company, role: c.role, source: "database" as const }))); }
     };
 
+    interface CsvColumnMapping {
+        email: string;
+        firstName: string;
+        lastName: string;
+        fullName: string;
+        company: string;
+        role: string;
+    }
+
     const [csvFile, setCsvFile] = React.useState<File | null>(null);
+    const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
+    const [csvRawData, setCsvRawData] = React.useState<string[][]>([]);
+    const [csvMapping, setCsvMapping] = React.useState<CsvColumnMapping>({
+        email: "",
+        firstName: "",
+        lastName: "",
+        fullName: "",
+        company: "",
+        role: "",
+    });
     const [csvRows, setCsvRows] = React.useState<Array<{ email: string; first_name?: string; last_name?: string; company?: string; role?: string }>>([]);
     const [csvError, setCsvError] = React.useState("");
-    const parseCsv = (text: string) => {
-        try {
-            const lines = text.split(/\r\n|\n/).filter(l => l.trim());
-            if (lines.length < 2) { setCsvError("CSV must have a header and at least one contact."); return []; }
-            const hdrs = lines[0].split(",").map(h => h.trim().replace(/^["']|["']$/g, "").toLowerCase());
-            const eIdx = hdrs.findIndex(h => h.includes("email") || h.includes("mail"));
-            if (eIdx === -1) { setCsvError("No email column found."); return []; }
-            const fnIdx = hdrs.findIndex(h => h.includes("first") || h === "name");
-            const lnIdx = hdrs.findIndex(h => h.includes("last"));
-            const coIdx = hdrs.findIndex(h => h.includes("company") || h.includes("org"));
-            const rIdx = hdrs.findIndex(h => h.includes("role") || h.includes("title") || h.includes("position"));
-            const parsed: typeof csvRows = [];
-            for (let i = 1; i < lines.length; i++) {
-                const vals: string[] = []; let inQ = false, cur = "";
-                for (const ch of lines[i]) { if (ch === '"' || ch === "'") { inQ = !inQ; } else if (ch === "," && !inQ) { vals.push(cur.trim()); cur = ""; } else { cur += ch; } }
-                vals.push(cur.trim());
-                const email = (vals[eIdx] || "").replace(/^["']|["']$/g, "");
-                if (email && email.includes("@")) parsed.push({ email, first_name: fnIdx !== -1 ? (vals[fnIdx] || "").replace(/^["']|["']$/g, "") : "", last_name: lnIdx !== -1 ? (vals[lnIdx] || "").replace(/^["']|["']$/g, "") : "", company: coIdx !== -1 ? (vals[coIdx] || "").replace(/^["']|["']$/g, "") : "", role: rIdx !== -1 ? (vals[rIdx] || "").replace(/^["']|["']$/g, "") : "" });
-            }
-            if (!parsed.length) { setCsvError("No valid emails found."); return []; }
-            setCsvRows(parsed); setCsvError("");
-            return parsed;
-        } catch (e) { setCsvError(`Parse error: ${(e as Error).message}`); return []; }
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [showMappingEditor, setShowMappingEditor] = React.useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+    const cleanHeaderKey = (h: string) => (h || "").toLowerCase().trim().replace(/[\s\-_.]+/g, "");
+
+    const extractEmailAddress = (val: string): string => {
+        const trimmed = (val || "").trim();
+        const match = trimmed.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        return match ? match[0].toLowerCase() : "";
     };
-    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const f = e.target.files?.[0];
-        if (!f) return;
-        setCsvFile(f);
-        const r = new FileReader();
-        r.onload = ev => {
-            const parsed = parseCsv(ev.target?.result as string);
-            if (parsed && parsed.length > 0) {
-                const ex = new Set(selectedContacts.map(s => s.email.toLowerCase()));
-                const toAdd = parsed.filter(row => !ex.has(row.email.toLowerCase())).map(row => ({
-                    email: row.email,
-                    first_name: row.first_name || "",
-                    last_name: row.last_name || "",
-                    company: row.company || "",
-                    role: row.role || "",
-                    source: "csv" as const,
-                }));
-                if (toAdd.length > 0) {
-                    batchCheck(toAdd);
+
+    const splitFullName = (raw: string): { first: string; last: string } => {
+        const trimmed = (raw || "").trim();
+        if (!trimmed) return { first: "", last: "" };
+        if (trimmed.includes(",")) {
+            const parts = trimmed.split(",").map(p => p.trim()).filter(Boolean);
+            if (parts.length >= 2) return { first: parts[1], last: parts[0] };
+        }
+        const clean = trimmed.replace(/^(mr|mrs|ms|dr|prof)\.?\s+/i, "");
+        const parts = clean.split(/\s+/).filter(Boolean);
+        if (parts.length <= 1) return { first: parts[0] || "", last: "" };
+        return { first: parts[0], last: parts.slice(1).join(" ") };
+    };
+
+    const detectMapping = (headers: string[], rows: string[][]): CsvColumnMapping => {
+        const mapping: CsvColumnMapping = {
+            email: "",
+            firstName: "",
+            lastName: "",
+            fullName: "",
+            company: "",
+            role: "",
+        };
+
+        // 1. Email detection - prioritized header names
+        const emailPrio = [
+            (c: string) => c === "toemail" || c === "leademail" || c === "contactemail" || c === "workemail" || c === "primaryemail",
+            (c: string) => c === "email" || c === "emailaddress" || c === "recipientemail" || c === "corporateemail" || c === "businessemail",
+            (c: string) => c.includes("email"),
+            (c: string) => c === "mail" || c === "mailto" || c === "mailid" || c === "directemail",
+            (c: string) => c.includes("mail") && !c.includes("mailbox") && !c.includes("domain") && !c.includes("status"),
+            (c: string) => c === "fromemail" || c === "from_email",
+        ];
+
+        for (const test of emailPrio) {
+            const idx = headers.findIndex(h => test(cleanHeaderKey(h)));
+            if (idx !== -1) {
+                mapping.email = headers[idx];
+                break;
+            }
+        }
+
+        // Content-based email detection if header not found
+        if (!mapping.email && rows.length > 0) {
+            let bestCol = -1;
+            let maxEmails = 0;
+            const sampleLimit = Math.min(rows.length, 100);
+            for (let c = 0; c < headers.length; c++) {
+                let emailCount = 0;
+                for (let r = 0; r < sampleLimit; r++) {
+                    const cell = rows[r]?.[c] || "";
+                    if (extractEmailAddress(cell)) emailCount++;
+                }
+                if (emailCount > maxEmails) {
+                    maxEmails = emailCount;
+                    bestCol = c;
                 }
             }
-        };
-        r.readAsText(f);
+            if (bestCol !== -1 && maxEmails > 0) {
+                mapping.email = headers[bestCol];
+            }
+        }
+
+        // 2. First Name
+        const fnIdx = headers.findIndex(h => {
+            const c = cleanHeaderKey(h);
+            return c === "firstname" || c === "fname" || c === "first" || c === "givenname" || c === "forename" || (c.includes("first") && c.includes("name"));
+        });
+        if (fnIdx !== -1) mapping.firstName = headers[fnIdx];
+
+        // 3. Last Name
+        const lnIdx = headers.findIndex(h => {
+            const c = cleanHeaderKey(h);
+            return c === "lastname" || c === "lname" || c === "last" || c === "surname" || c === "familyname" || (c.includes("last") && c.includes("name"));
+        });
+        if (lnIdx !== -1) mapping.lastName = headers[lnIdx];
+
+        // 4. Full Name (fallback if no first name)
+        const nameIdx = headers.findIndex(h => {
+            const c = cleanHeaderKey(h);
+            return c === "name" || c === "fullname" || c === "contactname" || c === "leadname" || c === "toname" || c === "prospectname" || c === "personname" || c === "displayname" || c === "prospect";
+        });
+        if (nameIdx !== -1) mapping.fullName = headers[nameIdx];
+
+        // 5. Company
+        const coIdx = headers.findIndex(h => {
+            const c = cleanHeaderKey(h);
+            return c === "company" || c === "companyname" || c === "organization" || c === "org" || c === "organizationname" || c === "business" || c === "businessname" || c === "account" || c === "accountname" || c === "firm" || c === "employer" || c === "brand" || c === "brandname";
+        });
+        if (coIdx !== -1) mapping.company = headers[coIdx];
+
+        // 6. Role / Title
+        const rIdx = headers.findIndex(h => {
+            const c = cleanHeaderKey(h);
+            return c === "role" || c === "title" || c === "jobtitle" || c === "position" || c === "job" || c === "designation" || c === "headline" || c === "occupation" || c === "worktitle" || c === "seniority";
+        });
+        if (rIdx !== -1) mapping.role = headers[rIdx];
+
+        return mapping;
     };
+
+    const buildContactsFromMapping = (
+        headers: string[],
+        rows: string[][],
+        mapping: CsvColumnMapping
+    ): Array<{ email: string; first_name?: string; last_name?: string; company?: string; role?: string }> => {
+        if (!mapping.email) return [];
+        const eIdx = headers.indexOf(mapping.email);
+        if (eIdx === -1) return [];
+
+        const fnIdx = mapping.firstName ? headers.indexOf(mapping.firstName) : -1;
+        const lnIdx = mapping.lastName ? headers.indexOf(mapping.lastName) : -1;
+        const nameIdx = mapping.fullName ? headers.indexOf(mapping.fullName) : -1;
+        const coIdx = mapping.company ? headers.indexOf(mapping.company) : -1;
+        const rIdx = mapping.role ? headers.indexOf(mapping.role) : -1;
+
+        const seenEmails = new Set<string>();
+        const results: Array<{ email: string; first_name?: string; last_name?: string; company?: string; role?: string }> = [];
+
+        for (const row of rows) {
+            const rawEmail = row[eIdx] || "";
+            const email = extractEmailAddress(rawEmail);
+            if (!email || seenEmails.has(email)) continue;
+            seenEmails.add(email);
+
+            let first_name = fnIdx !== -1 ? (row[fnIdx] || "").trim() : "";
+            let last_name = lnIdx !== -1 ? (row[lnIdx] || "").trim() : "";
+
+            if (!first_name && !last_name && nameIdx !== -1) {
+                const split = splitFullName(row[nameIdx] || "");
+                first_name = split.first;
+                last_name = split.last;
+            } else if (!first_name && nameIdx !== -1) {
+                first_name = (row[nameIdx] || "").trim();
+            }
+
+            const company = coIdx !== -1 ? (row[coIdx] || "").trim() : "";
+            const role = rIdx !== -1 ? (row[rIdx] || "").trim() : "";
+
+            results.push({ email, first_name, last_name, company, role });
+        }
+        return results;
+    };
+
+    const processCsvFile = (file: File) => {
+        setCsvFile(file);
+        setCsvError("");
+        Papa.parse<string[]>(file, {
+            skipEmptyLines: "greedy",
+            complete: (results) => {
+                const data = results.data;
+                if (!data || data.length < 1) {
+                    setCsvError("The selected CSV file appears to be empty.");
+                    setCsvRows([]);
+                    setCsvHeaders([]);
+                    setCsvRawData([]);
+                    return;
+                }
+
+                // Check whether row 0 is header or data
+                let headerRowIdx = 0;
+                const row0Emails = data[0].filter(c => extractEmailAddress(c)).length;
+                let detectedHeaders: string[] = [];
+                let dataRows: string[][] = [];
+
+                if (row0Emails > 0 && !data[0].some(c => cleanHeaderKey(c).includes("email") || cleanHeaderKey(c).includes("name"))) {
+                    // Headerless CSV
+                    detectedHeaders = data[0].map((_, i) => `Column ${i + 1}`);
+                    dataRows = data;
+                } else {
+                    for (let r = 0; r < Math.min(data.length, 5); r++) {
+                        const matchCount = data[r].filter(c => {
+                            const k = cleanHeaderKey(c);
+                            return k.includes("email") || k.includes("mail") || k.includes("name") || k.includes("company") || k.includes("title") || k.includes("role");
+                        }).length;
+                        if (matchCount > 0) {
+                            headerRowIdx = r;
+                            break;
+                        }
+                    }
+
+                    detectedHeaders = data[headerRowIdx].map((h, i) => {
+                        const t = (h || "").trim();
+                        return t || `Column ${i + 1}`;
+                    });
+                    dataRows = data.slice(headerRowIdx + 1);
+                }
+
+                setCsvHeaders(detectedHeaders);
+                setCsvRawData(dataRows);
+
+                const detectedMap = detectMapping(detectedHeaders, dataRows);
+                setCsvMapping(detectedMap);
+
+                const parsed = buildContactsFromMapping(detectedHeaders, dataRows, detectedMap);
+                setCsvRows(parsed);
+
+                if (!detectedMap.email) {
+                    setCsvError("Could not automatically identify an email column. Please pick the Email column below.");
+                    setShowMappingEditor(true);
+                } else if (parsed.length === 0) {
+                    setCsvError("Found column '" + detectedMap.email + "', but no valid email addresses were found in rows.");
+                    setShowMappingEditor(true);
+                } else {
+                    setCsvError("");
+                    // Automatically pre-check against existing database and prior outreach history
+                    const ex = new Set((selectedRef.current || selectedContacts).map(s => s.email.toLowerCase()));
+                    const toAdd = parsed.filter(row => !ex.has(row.email.toLowerCase())).map(row => ({
+                        email: row.email,
+                        first_name: row.first_name || "",
+                        last_name: row.last_name || "",
+                        company: row.company || "",
+                        role: row.role || "",
+                        source: "csv" as const,
+                    }));
+                    if (toAdd.length > 0) {
+                        batchCheck(toAdd);
+                    }
+                }
+            },
+            error: (err) => {
+                setCsvError(`Failed to parse CSV: ${err.message}`);
+                setCsvRows([]);
+            }
+        });
+    };
+
+    const handleMappingChange = (field: keyof CsvColumnMapping, value: string) => {
+        const nextMap = { ...csvMapping, [field]: value };
+        setCsvMapping(nextMap);
+        const nextRows = buildContactsFromMapping(csvHeaders, csvRawData, nextMap);
+        setCsvRows(nextRows);
+        if (field === "email") {
+            if (value && nextRows.length > 0) {
+                setCsvError("");
+            } else if (!value) {
+                setCsvError("Please select an Email column.");
+            }
+        }
+    };
+
     const importCsv = () => {
         if (!csvRows.length) return;
         const ex = new Set(selectedContacts.map(s => s.email.toLowerCase()));
@@ -645,14 +894,22 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                     {/* Footer */}
                     <div className="px-4 py-3 border-t border-amber-200 bg-amber-50/60 flex items-center justify-between gap-3">
                         <div>
-                            <p className="text-[12px] font-semibold text-slate-900">
-                                {pendingContacts.length - ignoredEmails.size} of {pendingContacts.length} contacts will be added
-                            </p>
-                            {ignoredEmails.size > 0 && (
-                                <p className="text-[10.5px] text-rose-600 font-medium">
-                                    {ignoredEmails.size} contact{ignoredEmails.size !== 1 ? "s" : ""} will be skipped
-                                </p>
-                            )}
+                            {(() => {
+                                const willAdd = pendingContacts.filter(c => !ignoredEmails.has(c.email.toLowerCase().trim())).length;
+                                const willSkip = pendingContacts.length - willAdd;
+                                return (
+                                    <>
+                                        <p className="text-[12px] font-semibold text-slate-900">
+                                            {willAdd} of {pendingContacts.length} contacts will be added
+                                        </p>
+                                        {willSkip > 0 && (
+                                            <p className="text-[10.5px] text-rose-600 font-medium">
+                                                {willSkip} contact{willSkip !== 1 ? "s" : ""} will be skipped
+                                            </p>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
                         <div className="flex items-center gap-2">
                             <button
@@ -714,23 +971,226 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
 
                 {subTab==="csv"&&(
                     <div className="space-y-3">
-                        <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-slate-900 transition-colors bg-slate-50/50">
-                            <UploadCloudIcon className="w-8 h-8 text-slate-400 mx-auto mb-2"/>
-                            <label className="cursor-pointer"><span className="text-[12.5px] font-semibold text-slate-900 hover:text-black">Click to select CSV file</span><span className="text-[12px] text-slate-500"> or drag and drop</span><input type="file" accept=".csv" onChange={handleFile} className="hidden"/></label>
-                            <p className="text-[11px] text-slate-400 mt-1">Columns auto-detected: email, first_name, last_name, company, role</p>
-                        </div>
-                        {csvError&&<p className="text-[11.5px] text-rose-600 font-medium">{csvError}</p>}
-                        {csvRows.length>0&&(
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between text-[11.5px] text-slate-600">
-                                    <span>Ready to import <strong>{csvRows.length} contacts</strong> from <code className="font-mono text-slate-800">{csvFile?.name}</code></span>
-                                    <button type="button" onClick={importCsv} disabled={checking} className="h-7 px-3 rounded bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer font-medium inline-flex items-center gap-1 disabled:opacity-60">{checking?<Loader2Icon className="w-3.5 h-3.5 animate-spin"/>:<CheckIcon className="w-3.5 h-3.5"/>}Import Contacts</button>
+                        {!csvFile ? (
+                            <div 
+                                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                                onDragLeave={() => setIsDragging(false)}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    setIsDragging(false);
+                                    const f = e.dataTransfer.files?.[0];
+                                    if (f) processCsvFile(f);
+                                }}
+                                onClick={() => fileInputRef.current?.click()}
+                                className={cn(
+                                    "border-2 border-dashed rounded-lg p-7 text-center transition-all bg-slate-50/50 cursor-pointer select-none",
+                                    isDragging ? "border-slate-900 bg-[#FFF9DB]/40 ring-2 ring-[#FFE600]" : "border-slate-200 hover:border-slate-900"
+                                )}
+                            >
+                                <UploadCloudIcon className="w-8 h-8 text-slate-400 mx-auto mb-2"/>
+                                <span className="text-[12.5px] font-semibold text-slate-900 hover:text-black">Click to select CSV file</span>
+                                <span className="text-[12px] text-slate-500"> or drag and drop</span>
+                                <input 
+                                    ref={fileInputRef} 
+                                    type="file" 
+                                    accept=".csv,text/csv,application/vnd.ms-excel,text/plain" 
+                                    onChange={(e) => { const f = e.target.files?.[0]; if (f) processCsvFile(f); }} 
+                                    className="hidden"
+                                />
+                                <p className="text-[11px] text-slate-400 mt-1.5">
+                                    Columns auto-detected: email (required), first_name, last_name, company, role / title
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="border border-slate-200 rounded-lg bg-white p-3.5 space-y-3 shadow-xs">
+                                <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-slate-100 flex-wrap">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                                            <FileSpreadsheetIcon className="w-4 h-4"/>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[12.5px] font-semibold text-slate-900 truncate">
+                                                {csvFile.name}
+                                            </p>
+                                            <p className="text-[11px] text-slate-400">
+                                                {(csvFile.size / 1024).toFixed(1)} KB · {csvRawData.length} row{csvRawData.length === 1 ? "" : "s"} · <span className="text-emerald-700 font-semibold">{csvRows.length} valid contact{csvRows.length === 1 ? "" : "s"} detected</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowMappingEditor(!showMappingEditor)}
+                                            className={cn(
+                                                "h-7 px-2.5 rounded text-[11px] font-medium border inline-flex items-center gap-1.5 transition-colors cursor-pointer",
+                                                showMappingEditor ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                            )}
+                                        >
+                                            <SlidersHorizontalIcon className="w-3 h-3"/>
+                                            {showMappingEditor ? "Hide Columns" : "Map Columns"}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCsvFile(null);
+                                                setCsvRows([]);
+                                                setCsvHeaders([]);
+                                                setCsvRawData([]);
+                                                setCsvError("");
+                                                if (fileInputRef.current) fileInputRef.current.value = "";
+                                            }}
+                                            className="h-7 px-2 rounded text-[11px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded transition-colors cursor-pointer inline-flex items-center gap-1"
+                                            title="Remove file"
+                                        >
+                                            <Trash2Icon className="w-3 h-3"/>
+                                            Change
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="border border-slate-200 rounded-md overflow-hidden bg-white text-[11.5px]">
-                                    <table className="w-full text-left"><thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200"><tr><th className="px-2.5 py-1.5">Email</th><th className="px-2.5 py-1.5">First Name</th><th className="px-2.5 py-1.5">Company</th><th className="px-2.5 py-1.5">Role</th></tr></thead>
-                                    <tbody className="divide-y divide-slate-100">{csvRows.slice(0,4).map((r,i)=><tr key={i} className="hover:bg-slate-50/50"><td className="px-2.5 py-1 font-medium text-slate-900">{r.email}</td><td className="px-2.5 py-1 text-slate-600">{r.first_name||"-"}</td><td className="px-2.5 py-1 text-slate-600">{r.company||"-"}</td><td className="px-2.5 py-1 text-slate-600">{r.role||"-"}</td></tr>)}</tbody></table>
-                                    {csvRows.length>4&&<div className="px-2.5 py-1 text-[10.5px] text-slate-400 bg-slate-50/40 border-t border-slate-100">+ {csvRows.length-4} more contacts in CSV</div>}
-                                </div>
+
+                                {showMappingEditor && (
+                                    <div className="p-3 bg-slate-50/70 border border-slate-200 rounded-md space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[11.5px] font-semibold text-slate-900">Map CSV Columns</p>
+                                            <span className="text-[10.5px] text-slate-500">Match columns from your file to contact fields</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+                                            <div>
+                                                <label className="block font-medium text-slate-700 mb-0.5">Email Address *</label>
+                                                <select
+                                                    value={csvMapping.email}
+                                                    onChange={(e) => handleMappingChange("email", e.target.value)}
+                                                    className="w-full h-7 px-2 rounded border border-slate-200 bg-white text-slate-800 focus:outline-none"
+                                                >
+                                                    <option value="">-- Select Email Column --</option>
+                                                    {csvHeaders.map((h, i) => (
+                                                        <option key={i} value={h}>{h}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block font-medium text-slate-700 mb-0.5">First Name</label>
+                                                <select
+                                                    value={csvMapping.firstName}
+                                                    onChange={(e) => handleMappingChange("firstName", e.target.value)}
+                                                    className="w-full h-7 px-2 rounded border border-slate-200 bg-white text-slate-800 focus:outline-none"
+                                                >
+                                                    <option value="">-- None / Auto-Split --</option>
+                                                    {csvHeaders.map((h, i) => (
+                                                        <option key={i} value={h}>{h}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block font-medium text-slate-700 mb-0.5">Last Name</label>
+                                                <select
+                                                    value={csvMapping.lastName}
+                                                    onChange={(e) => handleMappingChange("lastName", e.target.value)}
+                                                    className="w-full h-7 px-2 rounded border border-slate-200 bg-white text-slate-800 focus:outline-none"
+                                                >
+                                                    <option value="">-- None --</option>
+                                                    {csvHeaders.map((h, i) => (
+                                                        <option key={i} value={h}>{h}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block font-medium text-slate-700 mb-0.5">Full Name (Auto-Split)</label>
+                                                <select
+                                                    value={csvMapping.fullName}
+                                                    onChange={(e) => handleMappingChange("fullName", e.target.value)}
+                                                    className="w-full h-7 px-2 rounded border border-slate-200 bg-white text-slate-800 focus:outline-none"
+                                                >
+                                                    <option value="">-- None --</option>
+                                                    {csvHeaders.map((h, i) => (
+                                                        <option key={i} value={h}>{h}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block font-medium text-slate-700 mb-0.5">Company</label>
+                                                <select
+                                                    value={csvMapping.company}
+                                                    onChange={(e) => handleMappingChange("company", e.target.value)}
+                                                    className="w-full h-7 px-2 rounded border border-slate-200 bg-white text-slate-800 focus:outline-none"
+                                                >
+                                                    <option value="">-- None --</option>
+                                                    {csvHeaders.map((h, i) => (
+                                                        <option key={i} value={h}>{h}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block font-medium text-slate-700 mb-0.5">Role / Job Title</label>
+                                                <select
+                                                    value={csvMapping.role}
+                                                    onChange={(e) => handleMappingChange("role", e.target.value)}
+                                                    className="w-full h-7 px-2 rounded border border-slate-200 bg-white text-slate-800 focus:outline-none"
+                                                >
+                                                    <option value="">-- None --</option>
+                                                    {csvHeaders.map((h, i) => (
+                                                        <option key={i} value={h}>{h}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {csvError && (
+                                    <div className="flex items-center gap-2 p-2.5 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[11.5px] font-medium">
+                                        <AlertCircleIcon className="w-4 h-4 shrink-0"/>
+                                        <span>{csvError}</span>
+                                    </div>
+                                )}
+
+                                {csvRows.length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-[11.5px] text-slate-600">
+                                            <span>
+                                                Preview: <strong>{csvRows.length} contacts</strong> ready to queue
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={importCsv}
+                                                disabled={checking}
+                                                className="h-7 px-3 rounded bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer font-medium inline-flex items-center gap-1.5 disabled:opacity-60"
+                                            >
+                                                {checking ? <Loader2Icon className="w-3.5 h-3.5 animate-spin"/> : <CheckIcon className="w-3.5 h-3.5"/>}
+                                                Queue {csvRows.length} Contacts
+                                            </button>
+                                        </div>
+                                        <div className="border border-slate-200 rounded-md overflow-hidden bg-white text-[11.5px]">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                                                    <tr>
+                                                        <th className="px-2.5 py-1.5">Email</th>
+                                                        <th className="px-2.5 py-1.5">First Name</th>
+                                                        <th className="px-2.5 py-1.5">Last Name</th>
+                                                        <th className="px-2.5 py-1.5">Company</th>
+                                                        <th className="px-2.5 py-1.5">Role</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {csvRows.slice(0, 5).map((r, i) => (
+                                                        <tr key={i} className="hover:bg-slate-50/50">
+                                                            <td className="px-2.5 py-1 font-medium text-slate-900">{r.email}</td>
+                                                            <td className="px-2.5 py-1 text-slate-600">{r.first_name || "-"}</td>
+                                                            <td className="px-2.5 py-1 text-slate-600">{r.last_name || "-"}</td>
+                                                            <td className="px-2.5 py-1 text-slate-600">{r.company || "-"}</td>
+                                                            <td className="px-2.5 py-1 text-slate-600">{r.role || "-"}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                            {csvRows.length > 5 && (
+                                                <div className="px-2.5 py-1 text-[10.5px] text-slate-400 bg-slate-50/40 border-t border-slate-100">
+                                                    + {csvRows.length - 5} more contacts in CSV
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

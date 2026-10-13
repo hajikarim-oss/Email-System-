@@ -141,7 +141,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     req.on("end", async () => {
         try {
             const parsed = JSON.parse(body || "{}");
-            let campaignName = (parsed.name || `Campaign ${Date.now()}`).trim();
+            let campaignName = (parsed.name || "").trim();
+            if (!campaignName) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "campaign_name_required" }));
+                return;
+            }
 
             // Validate campaign name (max 255 chars, no null bytes)
             if (!campaignName || campaignName.length > 255) {

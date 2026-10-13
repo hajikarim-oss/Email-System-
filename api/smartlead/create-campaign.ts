@@ -71,7 +71,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     req.on("end", async () => {
         try {
             const parsed = JSON.parse(body || "{}");
-            const campaignName = parsed.name || `Campaign ${Date.now()}`;
+            const campaignName = (parsed.name || "").trim();
+            if (!campaignName) {
+                res.writeHead(400, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "campaign_name_required" }));
+                return;
+            }
             const sender = (parsed.sender_email || "").toLowerCase();
             const chosenKey = smartleadKeyForSender(sender, parsed.api_key);
 
