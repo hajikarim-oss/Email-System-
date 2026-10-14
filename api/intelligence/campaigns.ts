@@ -5,7 +5,42 @@ import { pgQuery, DatabaseUnavailableError } from "../../server/pg";
 import { scopeFor } from "../../server/scope";
 import { send } from "../../server/handlers/send";
 import { smartleadPrimary, smartleadSecondary } from "../../server/smartleadKeys";
-import { reconcileSmartleadCampaigns } from "../../server/smartleadSync";
+import { reconcileSmartleadCampaigns, ensureImmediateSendingSchedule } from "../../server/smartleadSync";
+
+const SL_BASE = "https://server.smartlead.ai/api/v1";
+
+function slApiCall(endpoint: string, method: string, body?: any, apiKey?: string): Promise<{ status: number; data: any }> {
+    const key = apiKey || smartleadPrimary();
+    if (!key) return Promise.resolve({ status: 503, data: { error: "no_api_key" } });
+    return new Promise((resolve, reject) => {
+        const sep = endpoint.includes("?") ? "&" : "?";
+        const url = `${SL_BASE}${endpoint}${sep}api_key=${key}`;
+        const payload = body ? JSON.stringify(body) : "";
+        const req = https.request(url, {
+            method,
+            headers: { "Content-Type": "application/json", ...(body ? { "Content-Length": String(Buffer.byteLength(payload)) } : {}) },
+        }, (res) => {
+            let text = "";
+            res.on("data", (c: any) => { text += c; });
+            res.on("end", () => {
+                try { resolve({ status: res.statusCode || 200, data: JSON.parse(text) }); }
+                catch { resolve({ status: res.statusCode || 200, data: text }); }
+            });
+        });
+        req.on("error", reject);
+        if (payload) req.write(payload);
+        req.end();
+    });
+}
+
+function normalizeTemplate(text: string): string {
+    if (!text) return "";
+    return text
+        .replace(/\{\{\s*firstName\s*\}\}/g, "{{first_name}}")
+        .replace(/\{\{\s*lastName\s*\}\}/g, "{{last_name}}")
+        .replace(/\{\{\s*CompanyName\s*\}\}/g, "{{company_name}}")
+        .replace(/\{\{\s*JobTitle\s*\}\}/g, "{{title}}");
+}
 
 function deleteFromSmartlead(campaignId: string | number): Promise<boolean> {
     const keys = [smartleadPrimary(), smartleadSecondary()].filter(Boolean);
@@ -157,26 +192,164 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return;
             }
 
-            // Update status in PostgreSQL to ACTIVE
+            const apiKey = smartleadPrimary();
+            if (!apiKey) {
+                send(res, 500, { error: "smartlead_api_key_not_configured" });
+                return;
+            }
+
+            const tz = camp.sendTimezone || "Asia/Kolkata";
+            const days = Array.isArray(camp.preferredSendDays) && camp.preferredSendDays.length > 0
+                ? camp.preferredSendDays : [1, 2, 3, 4, 5];
+
+            // If already synced to Smartlead, re-start it
+            if (camp.providerCampaignId) {
+                await pgQuery(`UPDATE "Campaign" SET status = 'ACTIVE', "updatedAt" = NOW() WHERE id = $1`, [camp.id]);
+                try {
+                    await ensureImmediateSendingSchedule(camp.providerCampaignId, { timezone: tz, days, apiKey });
+                } catch (e: any) { console.warn("[Launch] Re-start schedule warning:", e.message); }
+                const leadsCount = await pgQuery<{ count: number }>(
+                    `SELECT COUNT(*)::int as count FROM "Lead" WHERE "campaignId" = $1`, [camp.id]
+                );
+                send(res, 200, {
+                    ok: true, id: camp.id, status: "ACTIVE", name: camp.name,
+                    smartlead_id: camp.providerCampaignId,
+                    leads_count: leadsCount?.[0]?.count || 0,
+                    message: "Campaign re-launched on Smartlead",
+                });
+                return;
+            }
+
+            // --- First launch: create campaign on Smartlead and sync everything ---
+            const steps = await pgQuery<any>(
+                `SELECT "stepNumber", "delayDays", subject, "bodyTemplate"
+                 FROM "CampaignStep" WHERE "campaignId" = $1 ORDER BY "stepNumber" ASC`, [camp.id]
+            );
+            const leads = await pgQuery<any>(
+                `SELECT email, "firstName", "lastName", "customData"
+                 FROM "Lead" WHERE "campaignId" = $1 AND status = 'ACTIVE'`, [camp.id]
+            );
+            if (leads.length === 0) {
+                send(res, 400, { error: "no_active_leads", message: "Campaign has no active leads" });
+                return;
+            }
+
+            // Get linked mailbox Smartlead IDs
+            const mailboxRows = await pgQuery<any>(
+                `SELECT m."providerMailboxId" FROM "CampaignMailbox" cm
+                 JOIN "Mailbox" m ON m.id = cm."mailboxId"
+                 WHERE cm."campaignId" = $1`, [camp.id]
+            );
+            let slMailboxIds: number[] = mailboxRows
+                .map((m: any) => parseInt(m.providerMailboxId, 10))
+                .filter((id: number) => !isNaN(id) && id > 0);
+
+            // If no mailboxes linked locally, fetch all from Smartlead
+            if (slMailboxIds.length === 0) {
+                try {
+                    const mbRes = await slApiCall("/email-accounts", "GET", undefined, apiKey);
+                    if (Array.isArray(mbRes.data)) {
+                        slMailboxIds = mbRes.data.map((m: any) => m.id).filter(Boolean);
+                    }
+                } catch {}
+            }
+            if (slMailboxIds.length === 0) {
+                send(res, 400, { error: "no_mailboxes_available" });
+                return;
+            }
+
+            // 1. Create campaign on Smartlead
+            const createRes = await slApiCall("/campaigns/create", "POST", { name: camp.name }, apiKey);
+            if (!createRes.data?.id) {
+                send(res, 502, { error: "smartlead_campaign_creation_failed", detail: createRes.data });
+                return;
+            }
+            const smartleadId = String(createRes.data.id);
+            console.log(`[Launch] Created Smartlead campaign #${smartleadId} for "${camp.name}"`);
+
+            // Save providerCampaignId immediately
             await pgQuery(
-                `UPDATE "Campaign" SET status = 'ACTIVE', "updatedAt" = NOW() WHERE id = $1`,
-                [camp.id]
+                `UPDATE "Campaign" SET "providerCampaignId" = $1, status = 'ACTIVE', "updatedAt" = NOW() WHERE id = $2`,
+                [smartleadId, camp.id]
             );
 
-            const leadsCount = await pgQuery<{ count: number }>(
-                `SELECT COUNT(*)::int as count FROM "Lead" WHERE "campaignId" = $1`,
-                [camp.id]
-            );
+            // 2. Add sequences
+            if (steps.length > 0) {
+                const sequences = steps.map((s: any, idx: number) => ({
+                    seq_number: idx + 1,
+                    seq_delay_details: { delay_in_days: s.delayDays || (idx === 0 ? 0 : 3) },
+                    subject: normalizeTemplate(s.subject || `Step ${idx + 1}`),
+                    email_body: normalizeTemplate(s.bodyTemplate || ""),
+                }));
+                const seqRes = await slApiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences }, apiKey);
+                if (seqRes.status >= 300) console.error("[Launch] Sequences error:", seqRes.data);
+            }
 
-            // Reconcile with Smartlead in background
-            reconcileSmartleadCampaigns().catch(() => {});
+            // 3. Link mailboxes
+            const mbLinkRes = await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
+                email_account_ids: slMailboxIds,
+            }, apiKey);
+            if (mbLinkRes.status >= 300) console.error("[Launch] Mailbox link error:", mbLinkRes.data);
+
+            // 4. Upload leads in batches
+            for (let i = 0; i < leads.length; i += 50) {
+                const batch = leads.slice(i, i + 50);
+                const leadList = batch.map((l: any) => {
+                    const custom = (typeof l.customData === "object" && l.customData) ? l.customData : {};
+                    return {
+                        email: l.email,
+                        first_name: l.firstName || l.email.split("@")[0],
+                        last_name: l.lastName || "",
+                        company_name: custom.company || "",
+                        title: custom.title || "",
+                    };
+                });
+                const lRes = await slApiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, apiKey);
+                if (lRes.status >= 300) console.error("[Launch] Leads upload error:", lRes.data);
+            }
+
+            // 5. Set schedule with today's date
+            let today: string;
+            try { today = new Date().toLocaleDateString("en-CA", { timeZone: tz }); }
+            catch { today = new Date().toISOString().slice(0, 10); }
+
+            await slApiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
+                timezone: tz,
+                days_of_the_week: days,
+                start_hour: "09:00",
+                end_hour: "18:00",
+                min_time_btw_emails: 3,
+                max_new_leads_per_day: 50 * slMailboxIds.length,
+                start_date: today,
+            }, apiKey);
+
+            // 6. Start campaign
+            await slApiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, apiKey);
+
+            // 7. Ensure immediate sending window
+            try {
+                await ensureImmediateSendingSchedule(smartleadId, { timezone: tz, days, apiKey });
+            } catch {}
+
+            // 8. Register webhook
+            const webhookUrl = process.env.WEBHOOK_URL || "https://tbmoutreach.tech/api/webhooks/smartlead";
+            await slApiCall(`/campaigns/${smartleadId}/webhooks`, "POST", {
+                name: "TBM Webhook",
+                webhook_url: webhookUrl,
+                event_types: ["EMAIL_OPEN", "EMAIL_SENT", "EMAIL_REPLY", "EMAIL_BOUNCE", "EMAIL_LINK_CLICK", "LEAD_UNSUBSCRIBED"],
+            }, apiKey).catch(() => {});
+
+            console.log(`[Launch] Campaign "${camp.name}" fully synced to Smartlead #${smartleadId} (${leads.length} leads, ${slMailboxIds.length} mailboxes)`);
 
             send(res, 200, {
                 ok: true,
                 id: camp.id,
                 status: "ACTIVE",
                 name: camp.name,
-                leads_count: leadsCount?.[0]?.count || 0,
+                smartlead_id: smartleadId,
+                leads_count: leads.length,
+                mailboxes_linked: slMailboxIds.length,
+                message: `Campaign launched on Smartlead (ID: ${smartleadId}). ${leads.length} leads queued.`,
             });
             return;
         }
@@ -247,6 +420,19 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         );
                     }
                 }
+
+                // Auto-assign all active mailboxes so the campaign is ready to launch
+                try {
+                    const activeMbs = await pgQuery<any>(
+                        `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE'`
+                    );
+                    for (const mb of activeMbs) {
+                        await pgQuery(
+                            `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                            [campaignId, mb.id]
+                        ).catch(() => {});
+                    }
+                } catch {}
 
                 // NO CACHE on campaign creation - devices must sync immediately
                 send(res, 201, {
