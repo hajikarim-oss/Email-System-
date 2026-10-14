@@ -66,6 +66,9 @@ async function probeTally() {
     console.log(`✅ SUCCESS: Tally Prime is OPEN and RESPONDING on port ${TALLY_PORT}!\n`);
 
     const company = TallyXmlParser.parseCompanyDetails(result.data || '');
+    if (!company) {
+        console.log('DEBUG: Raw response snippet:', (result.data || '').slice(0, 400));
+    }
     if (company) {
         console.log('🏢 ACTIVE TALLY COMPANY DETAILS:');
         console.log(`   • Company Name : ${company.companyName}`);

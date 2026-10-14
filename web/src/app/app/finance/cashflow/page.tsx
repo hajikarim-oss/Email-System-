@@ -22,19 +22,19 @@ import { cn } from "@/lib/utils";
 export default function CashFlowPage() {
     const [selectedPeriod, setSelectedPeriod] = useState("Full FY 2025-26");
 
-    const openingCash = 1850000;
-    const collections = 12000000;
-    const otherIncome = 180000;
+    const openingCash = 35285279;
+    const collections = 118648587;
+    const otherIncome = 0;
     const totalInflows = collections + otherIncome;
 
-    const creatorPayments = 5840000;
-    const officeExpenses = 1438000;
-    const salaryPayments = 1850000;
-    const statutoryDeposits = 1280000;
-    const totalOutflows = creatorPayments + officeExpenses + salaryPayments + statutoryDeposits;
+    const creatorPayments = 68420000;
+    const officeExpenses = 32872478;
+    const salaryPayments = 14500000;
+    const statutoryDeposits = 7400000;
+    const totalOutflows = 123192478;
 
     const netCashFlow = totalInflows - totalOutflows;
-    const closingCash = openingCash + netCashFlow;
+    const closingCash = 30741388;
 
     return (
         <Page>
@@ -211,10 +211,10 @@ export default function CashFlowPage() {
                                 {/* CLOSING */}
                                 <tr className="bg-slate-900 text-white font-bold">
                                     <td className="py-3 px-4 text-[12.5px]">CLOSING CASH &amp; BANK BALANCE</td>
-                                    <td className="py-3 px-4 text-slate-300 font-normal">Reconciled Bank Accounts</td>
-                                    <td className="py-3 px-4 text-right font-mono text-slate-200">₹1,21,80,000</td>
-                                    <td className="py-3 px-4 text-right font-mono text-slate-200">-₹1,04,08,000</td>
-                                    <td className="py-3 px-4 text-right font-mono text-[14px] text-[#FFE600]">₹36,22,000</td>
+                                    <td className="py-3 px-4 text-slate-300 font-normal">Reconciled Tally Bank Accounts</td>
+                                    <td className="py-3 px-4 text-right font-mono text-emerald-400">₹11,86,48,587</td>
+                                    <td className="py-3 px-4 text-right font-mono text-rose-400">-₹12,31,92,478</td>
+                                    <td className="py-3 px-4 text-right font-mono text-[14px] text-[#FFE600]">₹3,07,41,388</td>
                                 </tr>
                             </tbody>
                         </table>

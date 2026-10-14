@@ -102,12 +102,21 @@ export class TallyXmlParser {
         const validation = this.validateEnvelope(xml);
         if (!validation.isValid) return null;
 
-        const companyName = this.extractTag(xml, 'COMPANYNAME') || 
-                            this.extractTag(xml, 'SVCURRENTCOMPANY') || 
+        const currentCmpMatch = xml.match(/<SVCURRENTCOMPANY[^>]*>([^<]+)<\/SVCURRENTCOMPANY>/i);
+        const remoteCmpNameMatch = xml.match(/<REMOTECMPNAME[^>]*>([^<]+)<\/REMOTECMPNAME>/i);
+        const guidMatch = xml.match(/<REMOTECMPINFO\.LIST[^>]*>[\s\S]*?<NAME>([^<]+)<\/NAME>/i) ||
+                          xml.match(/<GUID[^>]*>([^<]+)<\/GUID>/i);
+
+        const companyName = currentCmpMatch?.[1]?.trim() || 
+                            remoteCmpNameMatch?.[1]?.trim() || 
+                            this.extractTag(xml, 'COMPANYNAME') || 
                             this.extractTag(xml, 'NAME');
-        const companyGuid = this.extractTag(xml, 'GUID') || 
+
+        const companyGuid = guidMatch?.[1]?.trim() || 
+                            this.extractTag(xml, 'GUID') || 
                             this.extractTag(xml, 'COMPANYNUMBER') || 
                             'tally-company-default';
+
         const startingFrom = this.extractTag(xml, 'STARTINGFROM');
         const booksFrom = this.extractTag(xml, 'BOOKSFROM');
         const formalName = this.extractTag(xml, 'FORMALNAME');

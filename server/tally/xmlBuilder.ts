@@ -10,17 +10,25 @@ export class TallyXmlBuilder {
     static buildCompanyDetailsRequest(): string {
         return `<ENVELOPE>
   <HEADER>
-    <TALLYREQUEST>Export Data</TALLYREQUEST>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Collection</TYPE>
+    <ID>CompanyCollection</ID>
   </HEADER>
   <BODY>
-    <EXPORTDATA>
-      <REQUESTDESC>
-        <REPORTNAME>Company Details</REPORTNAME>
-        <STATICVARIABLES>
-          <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        </STATICVARIABLES>
-      </REQUESTDESC>
-    </EXPORTDATA>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+      <TDL>
+        <TDLMESSAGE>
+          <COLLECTION NAME="CompanyCollection">
+            <TYPE>Company</TYPE>
+            <FETCH>Name, Guid, BooksFrom, StartingFrom, StateName</FETCH>
+          </COLLECTION>
+        </TDLMESSAGE>
+      </TDL>
+    </DESC>
   </BODY>
 </ENVELOPE>`;
     }
@@ -37,35 +45,37 @@ export class TallyXmlBuilder {
         const fromDateTag = params.fromDate ? `<SVFROMDATE>${params.fromDate}</SVFROMDATE>` : '';
         const toDateTag = params.toDate ? `<SVTODATE>${params.toDate}</SVTODATE>` : '';
         const vchTypeTag = params.voucherType ? `<VOUCHERTYPENAME>${params.voucherType}</VOUCHERTYPENAME>` : '';
+        const filterTag = params.lastAlterId > 0 ? `<FILTER>AlterIdFilter</FILTER>` : '';
+        const formulaTag = params.lastAlterId > 0 
+            ? `<SYSTEM TYPE="Formulae" NAME="AlterIdFilter">$ALTERID &gt; ${params.lastAlterId}</SYSTEM>` 
+            : '';
 
         return `<ENVELOPE>
   <HEADER>
-    <TALLYREQUEST>Export Data</TALLYREQUEST>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Collection</TYPE>
+    <ID>SyncVouchers</ID>
   </HEADER>
   <BODY>
-    <EXPORTDATA>
-      <REQUESTDESC>
-        <REPORTNAME>Voucher Register</REPORTNAME>
-        <STATICVARIABLES>
-          <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-          ${fromDateTag}
-          ${toDateTag}
-          ${vchTypeTag}
-        </STATICVARIABLES>
-        <TDL>
-          <TDLMESSAGE>
-            <COLLECTION NAME="SyncVouchers">
-              <TYPE>Voucher</TYPE>
-              <FETCH>*, ALLLEDGERENTRIES.*, LEDGERENTRIES.*</FETCH>
-              <FILTER>AlterIdFilter</FILTER>
-            </COLLECTION>
-            <SYSTEM TYPE="Formulae" NAME="AlterIdFilter">
-              $ALTERID &gt; ${params.lastAlterId}
-            </SYSTEM>
-          </TDLMESSAGE>
-        </TDL>
-      </REQUESTDESC>
-    </EXPORTDATA>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        ${fromDateTag}
+        ${toDateTag}
+        ${vchTypeTag}
+      </STATICVARIABLES>
+      <TDL>
+        <TDLMESSAGE>
+          <COLLECTION NAME="SyncVouchers">
+            <TYPE>Voucher</TYPE>
+            <FETCH>Date, VoucherNumber, VoucherTypeName, PartyLedgerName, Amount, AlterId, Narration, AllLedgerEntries.*</FETCH>
+            ${filterTag}
+          </COLLECTION>
+          ${formulaTag}
+        </TDLMESSAGE>
+      </TDL>
+    </DESC>
   </BODY>
 </ENVELOPE>`;
     }
@@ -74,37 +84,34 @@ export class TallyXmlBuilder {
      * Builds request to export all master ledgers and opening/closing balances
      */
     static buildLedgersRequest(lastAlterId: number = 0): string {
-        const filterBlock = lastAlterId > 0 
-            ? `<FILTER>LedgerAlterIdFilter</FILTER>`
-            : '';
+        const filterBlock = lastAlterId > 0 ? `<FILTER>LedgerAlterIdFilter</FILTER>` : '';
         const formulaBlock = lastAlterId > 0 
             ? `<SYSTEM TYPE="Formulae" NAME="LedgerAlterIdFilter">$ALTERID &gt; ${lastAlterId}</SYSTEM>`
             : '';
 
         return `<ENVELOPE>
   <HEADER>
-    <TALLYREQUEST>Export Data</TALLYREQUEST>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Collection</TYPE>
+    <ID>SyncLedgers</ID>
   </HEADER>
   <BODY>
-    <EXPORTDATA>
-      <REQUESTDESC>
-        <REPORTNAME>List of Accounts</REPORTNAME>
-        <STATICVARIABLES>
-          <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-          <ACCOUNTTYPE>All Ledgers</ACCOUNTTYPE>
-        </STATICVARIABLES>
-        <TDL>
-          <TDLMESSAGE>
-            <COLLECTION NAME="SyncLedgers">
-              <TYPE>Ledger</TYPE>
-              <FETCH>NAME, PARENT, OPENINGBALANCE, CLOSINGBALANCE, GUID, ALTERID</FETCH>
-              ${filterBlock}
-            </COLLECTION>
-            ${formulaBlock}
-          </TDLMESSAGE>
-        </TDL>
-      </REQUESTDESC>
-    </EXPORTDATA>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+      <TDL>
+        <TDLMESSAGE>
+          <COLLECTION NAME="SyncLedgers">
+            <TYPE>Ledger</TYPE>
+            <FETCH>Name, Parent, OpeningBalance, ClosingBalance, AlterId, TaxType, Guid</FETCH>
+            ${filterBlock}
+          </COLLECTION>
+          ${formulaBlock}
+        </TDLMESSAGE>
+      </TDL>
+    </DESC>
   </BODY>
 </ENVELOPE>`;
     }

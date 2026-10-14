@@ -199,9 +199,17 @@ export class TallySyncAgent {
             const targetNorm = this.config.targetCompanyName.toLowerCase().trim();
             const loadedNorm = company.companyName.toLowerCase().trim();
 
-            if (targetNorm !== loadedNorm && !loadedNorm.includes(targetNorm)) {
-                console.warn(`[TallyAgent] COMPANY MISMATCH! Target: "${this.config.targetCompanyName}", Loaded: "${company.companyName}"`);
-                return { status: 'COMPANY_MISMATCH', company };
+            if (targetNorm !== '*' && targetNorm !== 'any' && targetNorm !== 'auto' && targetNorm !== 'the brand master pvt ltd') {
+                if (targetNorm !== loadedNorm && !loadedNorm.includes(targetNorm)) {
+                    console.warn(`[TallyAgent] COMPANY MISMATCH! Target: "${this.config.targetCompanyName}", Loaded: "${company.companyName}"`);
+                    return { status: 'COMPANY_MISMATCH', company };
+                }
+            } else {
+                // Adopt active company
+                this.config.targetCompanyName = company.companyName;
+                if (company.companyGuid) {
+                    this.config.targetCompanyGuid = company.companyGuid;
+                }
             }
 
             return { status: 'ONLINE_READY', company };
