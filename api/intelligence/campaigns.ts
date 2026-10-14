@@ -354,6 +354,37 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             return;
         }
 
+        // Handle POST campaign pause / stop
+        if (campIdParam && (subAction === "pause" || subAction === "stop") && (req.method === "POST" || req.method === "PUT")) {
+            const existing = await pgQuery<any>(
+                `SELECT id, name, "userId", "providerCampaignId"
+                 FROM "Campaign" WHERE id = $1 OR "providerCampaignId" = $1 LIMIT 1`,
+                [campIdParam]
+            );
+            if (!existing || existing.length === 0) {
+                send(res, 404, { error: "campaign_not_found" });
+                return;
+            }
+            const camp = existing[0];
+            if (!scope.master && camp.userId !== scope.userId) {
+                send(res, 403, { error: "unauthorized" });
+                return;
+            }
+
+            await pgQuery(`UPDATE "Campaign" SET status = 'PAUSED', "updatedAt" = NOW() WHERE id = $1`, [camp.id]);
+
+            if (camp.providerCampaignId) {
+                const apiKey = smartleadPrimary();
+                if (apiKey) {
+                    await slApiCall(`/campaigns/${camp.providerCampaignId}/status`, "POST", { status: "PAUSED" }, apiKey).catch(() => {});
+                    console.log(`[Pause] Paused Smartlead campaign #${camp.providerCampaignId} ("${camp.name}")`);
+                }
+            }
+
+            send(res, 200, { ok: true, id: camp.id, status: "PAUSED", name: camp.name });
+            return;
+        }
+
         // Handle POST campaign creation
         if (req.method === "POST" && (!subAction || subAction === "create")) {
             const rawBody = await readBody(req);

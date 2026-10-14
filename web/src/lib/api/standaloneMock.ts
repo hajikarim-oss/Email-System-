@@ -2202,7 +2202,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     if (match) {
                         match.status = "active";
                         match.smartlead_status = "ACTIVE";
-                        if (launchData.providerCampaignId) match.smartlead_id = launchData.providerCampaignId;
+                        if (launchData.smartlead_id) match.smartlead_id = launchData.smartlead_id;
+                        else if (launchData.providerCampaignId) match.smartlead_id = launchData.providerCampaignId;
                         match.updated_at = new Date().toISOString();
                         saveStorage("campaigns", campaigns);
                     }
@@ -2382,15 +2383,19 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             }
             saveStorage("campaigns", campaigns);
 
-            // Instantly sync pause to Smartlead
-            const smId = target?.smartlead_id || (targetId === "cmp_1789718475256_g91f" ? 3980868 : targetId === "cmp_1790233732719_dvlj" ? 4015596 : null);
-            if (smId) {
-                fetch(`/api/smartlead/status?id=${smId}`, {
+            // Persist pause to production DB + Smartlead via the server-side handler
+            try {
+                const pauseRes = await safeFetch(`/api/campaigns/${campId}/pause`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "PAUSED" }),
-                }).catch(() => {});
+                    headers: { ...authHeaders(), "Content-Type": "application/json" },
+                });
+                if (!pauseRes.ok) {
+                    console.error("[standaloneMock] pause DB sync failed:", pauseRes.status);
+                }
+            } catch (e) {
+                console.error("[standaloneMock] pause DB sync error:", e);
             }
+
             if (typeof window !== "undefined") {
                 window.dispatchEvent(new CustomEvent("TBM_CAMPAIGN_QUEUE_RUN", { detail: { campaignId: targetId, status: "paused" } }));
             }
