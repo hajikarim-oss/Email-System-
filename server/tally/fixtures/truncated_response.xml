@@ -1,0 +1,11 @@
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Export Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <EXPORTDATA>
+      <VOUCHER>
+        <GUID>VCH-TRUNCATED-001</GUID>
+        <VOUCHERNUMBER>INV/PARTIAL/001</VOUCHERNUMBER>
+        <AMOUNT>50000.00</AMOUNT>
+        <!-- Truncated midway through network stream -->

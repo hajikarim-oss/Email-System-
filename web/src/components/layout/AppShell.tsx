@@ -29,6 +29,7 @@ import { CommandPalette } from "@/components/shared/CommandPalette";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { GlobalCursorsProvider } from "@/components/app/presence/GlobalCursors";
 import AgentPanel from "@/components/app/agent/AgentPanel";
+import { FinanceSidePanel } from "@/components/app/finance/FinanceSidePanel";
 import { useRouteKey } from "@/hooks/useRouteKey";
 
 export function AppShell() {
@@ -101,6 +102,8 @@ export function AppShell() {
             <CommandPalette />
             {/* Right-side AI assistant, persistent across routes. */}
             <AgentPanel />
+            {/* Right-side Tally Prime & Finance sync inspector */}
+            <FinanceSidePanel />
         </div>
     );
 }

@@ -1,0 +1,10 @@
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Export Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <DATA>
+      <LINEERROR>Cannot find collection 'NonExistentCollection' in Company 'The Brand Master Pvt Ltd'</LINEERROR>
+    </DATA>
+  </BODY>
+</ENVELOPE>

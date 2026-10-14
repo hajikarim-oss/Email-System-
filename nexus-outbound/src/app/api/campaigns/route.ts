@@ -111,13 +111,18 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, mailboxIds = [], sequence: seqField = [], leads = [], activeUserId, steps: stepsField } = body;
+    const { name, mailboxIds: rawMailboxIds = [], sequence: seqField = [], leads = [], activeUserId, steps: stepsField } = body;
     const sequence = seqField.length > 0 ? seqField : (Array.isArray(stepsField) ? stepsField.map((s: any, idx: number) => ({
       stepNumber: idx + 1,
       delayDays: s.wait_after ?? s.delayDays ?? 3,
       subject: s.subject || "",
       bodyHtml: s.body_html || s.bodyHtml || s.body_plain || "",
     })) : []);
+    let mailboxIds = rawMailboxIds as string[];
+    if (mailboxIds.length === 0) {
+      const activeMbs = await prisma.mailbox.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
+      mailboxIds = activeMbs.map((m) => m.id);
+    }
 
     // MASTER users can create campaigns on behalf of team members
     let userId = loggedUserId;

@@ -30,6 +30,8 @@ import {
     LockIcon,
     XIcon,
     ZapIcon,
+    ReceiptIcon,
+    LandmarkIcon,
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { useAppStore } from "@/stores";
@@ -161,6 +163,20 @@ const sections: NavSection[] = [
             { title: "Deals", requires: "subscription", url: "/app/crm/deals", icon: CircleDollarSignIcon, indicator: "deals", permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
             { title: "Tasks", requires: "subscription", url: "/app/crm/tasks", icon: CheckSquareIcon, indicator: "tasks", permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
             { title: "Meetings", requires: "subscription", url: "/app/crm/meetings", icon: CalendarClockIcon, indicator: "meetings", permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
+        ],
+    },
+    {
+        label: "Finance & Accounts",
+        items: [
+            { title: "CFO Overview", url: "/app/finance/dashboard", icon: LayoutDashboardIcon, indicator: "analytics" },
+            { title: "P&L Statement", url: "/app/finance/pl", icon: BarChart3Icon },
+            { title: "Receivables", url: "/app/finance/receivables", icon: CircleDollarSignIcon, indicator: "tasks" },
+            { title: "Creator Payouts", url: "/app/finance/creators", icon: UsersIcon },
+            { title: "Expenses", url: "/app/finance/expenses", icon: ReceiptIcon },
+            { title: "Taxes & GST", url: "/app/finance/taxes", icon: ShieldCheckIcon },
+            { title: "Fixed Assets", url: "/app/finance/assets", icon: LandmarkIcon },
+            { title: "Cash Flow", url: "/app/finance/cashflow", icon: CircleDollarSignIcon },
+            { title: "Tally Reconcile", url: "/app/finance/reconcile", icon: CableIcon, indicator: "integrations" },
         ],
     },
     {

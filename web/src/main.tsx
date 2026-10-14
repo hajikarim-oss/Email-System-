@@ -71,6 +71,15 @@ import SendingSettingsPage from './app/app/settings/sending/page';
 import WebsiteTrackingSettingsPage from './app/app/settings/tracking/page';
 import RolesSettingsPage from './app/app/settings/roles/page';
 import UniboxPage from './app/app/unibox/page';
+import CfoDashboardPage from './app/app/finance/dashboard/page';
+import ReceivablesPage from './app/app/finance/receivables/page';
+import TallyReconciliationPage from './app/app/finance/reconcile/page';
+import CreatorInvoicesPage from './app/app/finance/creators/page';
+import ExpensesPage from './app/app/finance/expenses/page';
+import TaxesPage from './app/app/finance/taxes/page';
+import ProfitAndLossPage from './app/app/finance/pl/page';
+import AssetsPage from './app/app/finance/assets/page';
+import CashFlowPage from './app/app/finance/cashflow/page';
 import DashboardNotFound from './app/app/not-found';
 import NotFound from './app/not-found';
 
@@ -433,6 +442,22 @@ const router = createBrowserRouter([
             // Legacy /app/team entry points → the Members settings section.
             path: "team",
             element: <Navigate to="/app/settings/members" replace />,
+          },
+          {
+            path: "finance",
+            element: <Outlet />,
+            children: [
+              { index: true, element: <Navigate to="/app/finance/dashboard" replace /> },
+              { path: "dashboard", element: <CfoDashboardPage /> },
+              { path: "receivables", element: <ReceivablesPage /> },
+              { path: "creators", element: <CreatorInvoicesPage /> },
+              { path: "expenses", element: <ExpensesPage /> },
+              { path: "taxes", element: <TaxesPage /> },
+              { path: "pl", element: <ProfitAndLossPage /> },
+              { path: "assets", element: <AssetsPage /> },
+              { path: "cashflow", element: <CashFlowPage /> },
+              { path: "reconcile", element: <TallyReconciliationPage /> },
+            ]
           },
           {
             path: "*",

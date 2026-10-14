@@ -49,7 +49,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     if (campaign.mailboxes.length === 0) {
-      return NextResponse.json({ error: "Campaign has no mailboxes assigned" }, { status: 400 });
+      const activeMbs = await prisma.mailbox.findMany({
+        where: { status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (activeMbs.length === 0) {
+        return NextResponse.json({ error: "No active mailboxes available" }, { status: 400 });
+      }
+      await prisma.campaignMailbox.createMany({
+        data: activeMbs.map((m) => ({ campaignId: id, mailboxId: m.id })),
+        skipDuplicates: true,
+      });
+      const refreshed = await prisma.campaign.findUnique({
+        where: { id },
+        include: {
+          steps: { orderBy: { stepNumber: "asc" } },
+          leads: { where: { status: "ACTIVE" } },
+          mailboxes: {
+            include: {
+              mailbox: {
+                include: {
+                  user: { select: { smartleadApiKey: true, email: true, name: true } },
+                },
+              },
+            },
+          },
+          user: { select: { smartleadApiKey: true, email: true } },
+        },
+      });
+      if (refreshed) {
+        Object.assign(campaign, refreshed);
+      }
     }
 
     // Use the FIRST selected mailbox owner's Smartlead API key

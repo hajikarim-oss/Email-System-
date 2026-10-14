@@ -31,6 +31,7 @@ import { assistantHandler } from "./assistant";
 import { automationHandler } from "./automation";
 import { agentSessionsHandler } from "./agentSessions";
 import { handleUnibox } from "../server/unibox";
+import { handleTallyApi } from "../server/tally/apiHandler";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
 
@@ -154,6 +155,7 @@ const prefixes: [string, Handler][] = [
     ["/api/v1/campaigns", intelligenceCampaigns],
     ["/campaigns", intelligenceCampaigns],
     ["/v1/campaigns", intelligenceCampaigns],
+    ["/api/tally", handleTallyApi],
 ];
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

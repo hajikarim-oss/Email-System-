@@ -20,6 +20,7 @@ import authHandler from "../server/handlers/auth";
 import organizationHandler from "../server/handlers/organization";
 import { handleUnibox } from "../server/unibox";
 import { reconcileSmartleadCampaigns, ensureImmediateSendingSchedule } from "../server/smartleadSync";
+import { handleTallyApi } from "../server/tally/apiHandler";
 
 const cjsRequire = createRequire(import.meta.url);
 
@@ -1986,15 +1987,20 @@ function databaseIntelligencePlugin() {
                             }
                         }
 
-                        // If mailboxes provided, link them
-                        if (Array.isArray(input.mailbox_ids) && input.mailbox_ids.length > 0) {
-                            for (const mbId of input.mailbox_ids) {
-                                try {
-                                    await prisma.campaignMailbox.create({
-                                        data: { campaignId: created.id, mailboxId: String(mbId) },
-                                    });
-                                } catch {}
-                            }
+                        // Link mailboxes: use provided list, otherwise auto-assign all active mailboxes
+                        let mbIds: string[] = Array.isArray(input.mailbox_ids) && input.mailbox_ids.length > 0
+                            ? input.mailbox_ids.map(String)
+                            : (Array.isArray(input.mailboxIds) && input.mailboxIds.length > 0 ? input.mailboxIds.map(String) : []);
+                        if (mbIds.length === 0) {
+                            const activeMbs = await prisma.mailbox.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
+                            mbIds = activeMbs.map((m: any) => m.id);
+                        }
+                        for (const mbId of mbIds) {
+                            try {
+                                await prisma.campaignMailbox.create({
+                                    data: { campaignId: created.id, mailboxId: mbId },
+                                });
+                            } catch {}
                         }
 
                         // If contacts/leads provided, save them now
@@ -2258,6 +2264,22 @@ function authApiPlugin() {
     };
 }
 
+function tallyApiPlugin() {
+    return {
+        name: "local-tally-api-plugin",
+        configureServer(server: any) {
+            server.middlewares.use((req: any, res: any, next: any) => {
+                const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
+                if (path === "/api/tally" || path.startsWith("/api/tally/")) {
+                    handleTallyApi(req, res);
+                    return;
+                }
+                next();
+            });
+        },
+    };
+}
+
 export default defineConfig({
     plugins: [
         react(),
@@ -2266,6 +2288,7 @@ export default defineConfig({
         smartleadApiPlugin(),
         databaseIntelligencePlugin(),
         authApiPlugin(),
+        tallyApiPlugin(),
         ...sentryPlugins,
     ],
     build: {

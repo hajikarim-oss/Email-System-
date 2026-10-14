@@ -1,0 +1,51 @@
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Export Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <EXPORTDATA>
+      <LEDGER>
+        <NAME>Sundry Debtors</NAME>
+        <PARENT>Current Assets</PARENT>
+        <CLOSINGBALANCE>-1250000.00</CLOSINGBALANCE>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      </LEDGER>
+      <LEDGER>
+        <NAME>Salary &amp; Wages</NAME>
+        <PARENT>Indirect Expenses</PARENT>
+        <CLOSINGBALANCE>450000.00</CLOSINGBALANCE>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      </LEDGER>
+      <LEDGER>
+        <NAME>Office Rent</NAME>
+        <PARENT>Indirect Expenses</PARENT>
+        <CLOSINGBALANCE>85000.00</CLOSINGBALANCE>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      </LEDGER>
+      <LEDGER>
+        <NAME>Depreciation</NAME>
+        <PARENT>Indirect Expenses</PARENT>
+        <CLOSINGBALANCE>62500.00</CLOSINGBALANCE>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      </LEDGER>
+      <LEDGER>
+        <NAME>Bank Charges</NAME>
+        <PARENT>Indirect Expenses</PARENT>
+        <CLOSINGBALANCE>4200.00</CLOSINGBALANCE>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      </LEDGER>
+      <LEDGER>
+        <NAME>Fixed Assets</NAME>
+        <PARENT>Fixed Assets</PARENT>
+        <CLOSINGBALANCE>980000.00</CLOSINGBALANCE>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      </LEDGER>
+      <LEDGER>
+        <NAME>HDFC Current A/c - 50200012345</NAME>
+        <PARENT>Bank Accounts</PARENT>
+        <CLOSINGBALANCE>1840000.00</CLOSINGBALANCE>
+        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+      </LEDGER>
+    </EXPORTDATA>
+  </BODY>
+</ENVELOPE>
