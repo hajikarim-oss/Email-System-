@@ -1870,6 +1870,41 @@ function databaseIntelligencePlugin() {
                         return;
                     }
 
+                    // Pause / Stop campaign
+                    if (campIdParam && (subAction === "pause" || subAction === "stop") && (req.method === "POST" || req.method === "PUT")) {
+                        try {
+                            const camp = await prisma.campaign.findFirst({
+                                where: { OR: [{ id: campIdParam }, { providerCampaignId: campIdParam }] },
+                            });
+                            if (!camp) {
+                                res.writeHead(404, { "Content-Type": "application/json" });
+                                res.end(JSON.stringify({ error: "campaign_not_found" }));
+                                return;
+                            }
+                            await prisma.campaign.update({
+                                where: { id: camp.id },
+                                data: { status: "PAUSED" },
+                            });
+                            if (camp.providerCampaignId) {
+                                const slKey = process.env.SMARTLEAD_API_KEY || "";
+                                if (slKey) {
+                                    await fetch(
+                                        `https://server.smartlead.ai/api/v1/campaigns/${camp.providerCampaignId}/status?api_key=${slKey}`,
+                                        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "PAUSED" }) }
+                                    ).catch(() => {});
+                                    console.log(`[Vite] Paused Smartlead campaign #${camp.providerCampaignId}`);
+                                }
+                            }
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ ok: true, id: camp.id, status: "PAUSED", name: camp.name }));
+                        } catch (err: any) {
+                            console.error("[Vite Campaign Pause] Error:", err);
+                            res.writeHead(500, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: err.message }));
+                        }
+                        return;
+                    }
+
                     if (campIdParam && subAction === "steps") {
                         if (req.method === "GET") {
                             const steps = await prisma.campaignStep.findMany({
