@@ -2,6 +2,7 @@
 title Tally Prime Continuous Sync Bridge - TBM CFO
 color 0A
 cd /d "%~dp0"
+set CLOUD_API_URL=https://tbmoutreach.tech
 
 echo ==============================================================================
 echo       TALLY PRIME 5.0 / 4.x - CONTINUOUS SYNC BRIDGE (WINDOWS)

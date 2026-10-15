@@ -31,6 +31,7 @@ import { assistantHandler } from "./assistant";
 import { automationHandler } from "./automation";
 import { agentSessionsHandler } from "./agentSessions";
 import { handleUnibox } from "../server/unibox";
+import { handleNotifications } from "../server/notifications";
 import { handleTallyApi } from "../server/tally/apiHandler";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
@@ -90,6 +91,10 @@ const routes: Record<string, Handler> = {
     "/api/unibox/seen": handleUnibox,
     "/v1/unibox": handleUnibox,
     "/unibox": handleUnibox,
+    "/api/v1/notifications": handleNotifications,
+    "/api/notifications": handleNotifications,
+    "/api/auth/me/notifications": handleNotifications,
+    "/auth/me/notifications": handleNotifications,
     "/api/assistant/health": assistantHandler,
     "/api/assistant/query": assistantHandler,
     "/api/assistant/docs": assistantHandler,
@@ -146,6 +151,10 @@ const prefixes: [string, Handler][] = [
     ["/v1/auth/", auth],
     ["/auth/", auth],
     ["/api/organization", organization],
+    ["/api/auth/me/notifications", handleNotifications],
+    ["/auth/me/notifications", handleNotifications],
+    ["/api/v1/notifications", handleNotifications],
+    ["/api/notifications/", handleNotifications],
     ["/api/v1/unibox", handleUnibox],
     ["/api/unibox", handleUnibox],
     ["/v1/unibox", handleUnibox],

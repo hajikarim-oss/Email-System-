@@ -289,14 +289,20 @@ export default function UniboxPage() {
     (sortBy: UniboxSearchParams["sortBy"]): UniboxSearchParams => {
       const next: UniboxSearchParams = { sortBy: sortBy ?? "newest" };
       switch (scope.kind) {
+        case "all":
+          next.folder = "inbox";
+          break;
         case "unread":
           next.unseen = true;
+          next.folder = "inbox";
           break;
         case "today":
           next.since = startOfToday();
+          next.folder = "inbox";
           break;
         case "week":
           next.since = startOfWeek();
+          next.folder = "inbox";
           break;
         case "awaiting":
           next.awaitingReply = true;
@@ -312,6 +318,7 @@ export default function UniboxPage() {
           break;
         case "mailbox":
           next.accountIds = [scope.mailboxId];
+          next.folder = "inbox";
           break;
         case "tag":
           // Tag→mailbox membership resolves through the store's

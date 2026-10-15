@@ -3,6 +3,16 @@ import { pgQuery } from "./pg";
 import { requireUser } from "./handlers/auth";
 import { scopeFor } from "./scope";
 import { send } from "./handlers/send";
+import { syncLeadMessageHistory } from "./smartleadRepliesSync";
+import { cleanSnippetText } from "./report";
+
+function extractReplyMessage(raw: Record<string, any>) {
+    const replyMsg = raw.reply_message || {};
+    const bodyHtml = replyMsg.html || replyMsg.text || raw.reply_text || raw.reply_body || raw.email_body || raw.body || raw.custom_email_message || raw.sent_message_body || "";
+    const plainCand = replyMsg.text || raw.snippet || replyMsg.html || raw.reply_text || raw.reply_body || raw.email_body || raw.body || "";
+    const bodyPlain = cleanSnippetText(plainCand, raw.subject || "Inbound prospect reply");
+    return { bodyHtml, bodyPlain };
+}
 
 // Helper to extract JSON body
 function readBody(req: IncomingMessage): Promise<string> {
@@ -46,10 +56,12 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
 
             // Group reply counts per campaign owner
             const replyCounts = await pgQuery<any>(
-                `SELECT c."userId", COUNT(l.id)::int as unread
+                `SELECT c."userId", COUNT(DISTINCT l.id)::int as unread
                  FROM "Lead" l
                  JOIN "Campaign" c ON c.id = l."campaignId"
-                 WHERE l.status = 'REPLIED'
+                 WHERE (l.status = 'REPLIED' OR EXISTS (
+                     SELECT 1 FROM "EmailEvent" ev WHERE ev."leadId" = l.id AND ev."eventType" = 'replied'
+                 ))
                  GROUP BY c."userId"`
             );
 
@@ -117,7 +129,9 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const counts = await pgQuery<any>(
                 `SELECT
                     COUNT(DISTINCT l.id)::int AS total_leads,
-                    COUNT(DISTINCT CASE WHEN l.status = 'REPLIED' THEN l.id END)::int AS replied_leads,
+                    COUNT(DISTINCT CASE WHEN (l.status = 'REPLIED' OR EXISTS (
+                        SELECT 1 FROM "EmailEvent" ev WHERE ev."leadId" = l.id AND ev."eventType" = 'replied'
+                    )) THEN l.id END)::int AS replied_leads,
                     COUNT(DISTINCT CASE WHEN l.status = 'ACTIVE' AND l."totalOutbound" > 0 THEN l.id END)::int AS awaiting_reply,
                     COUNT(DISTINCT CASE WHEN l.status = 'BOUNCED' THEN l.id END)::int AS bounced_leads
                  FROM "Lead" l
@@ -126,11 +140,11 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 params
             );
 
-            // Events today and last 7 days
+            // Reply events today and this week (only count leads with actual replies)
             const eventCounts = await pgQuery<any>(
                 `SELECT
-                    COUNT(DISTINCT CASE WHEN e."createdAt" >= CURRENT_DATE THEN e.id END)::int AS today_events,
-                    COUNT(DISTINCT CASE WHEN e."createdAt" >= NOW() - INTERVAL '7 days' THEN e.id END)::int AS week_events,
+                    COUNT(DISTINCT CASE WHEN e."createdAt" >= CURRENT_DATE AND e."eventType" = 'replied' THEN e."leadId" END)::int AS today_replies,
+                    COUNT(DISTINCT CASE WHEN e."createdAt" >= NOW() - INTERVAL '7 days' AND e."eventType" = 'replied' THEN e."leadId" END)::int AS week_replies,
                     COUNT(DISTINCT CASE WHEN e."eventType" = 'sent' THEN e.id END)::int AS total_sent
                  FROM "EmailEvent" e
                  JOIN "Lead" l ON l.id = e."leadId"
@@ -161,18 +175,20 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 total: m.total || 0,
             }));
 
+            const repliedCount = cData.replied_leads || 0;
+
             const overview = {
-                total: cData.total_leads || 0,
-                unread: cData.replied_leads || 0,
-                today: eData.today_events || 0,
-                week: eData.week_events || 0,
+                total: repliedCount,
+                unread: repliedCount,
+                today: eData.today_replies || 0,
+                week: eData.week_replies || 0,
                 snoozed: 0,
                 awaiting_reply: cData.awaiting_reply || 0,
                 awaiting_agent_draft: 0,
                 scheduled_pending: 0,
                 scheduled_pending_max: 500,
                 folders: [
-                    { folder: "inbox", unread: cData.replied_leads || 0, total: cData.total_leads || 0 },
+                    { folder: "inbox", unread: repliedCount, total: repliedCount },
                     { folder: "sent", unread: 0, total: eData.total_sent || 0 },
                     { folder: "drafts", unread: 0, total: 0 },
                     { folder: "archive", unread: 0, total: 0 },
@@ -223,8 +239,7 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const ev = evRows[0];
             const raw = (ev.rawPayload || {}) as Record<string, any>;
             const isReply = ev.eventType === "replied";
-            const bodyHtml = raw.reply_text || raw.reply_body || raw.email_body || raw.body || raw.custom_email_message || raw.sent_message_body || "";
-            const bodyPlain = String(raw.snippet || bodyHtml).replace(/<[^>]*>/g, "").trim();
+            const { bodyHtml, bodyPlain } = extractReplyMessage(raw);
             const subject = raw.subject || raw.email_subject || (isReply ? `Re: ${ev.campaignName || "Outreach"}` : `Outreach: ${ev.campaignName || "Partnership"}`);
             const fromAddr = ev.fromEmail || raw.from_email || (isReply ? ev.leadEmail : "haji.karim@theboredmonkey.com");
             const toAddr = isReply ? "haji.karim@theboredmonkey.com" : ev.leadEmail;
@@ -293,7 +308,6 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const hasEmptyReply = events.some((e: any) => e.eventType === "replied" && (!e.rawPayload || !e.rawPayload.email_body));
             if (events.length === 0 || hasEmptyReply) {
                 try {
-                    const { syncLeadMessageHistory } = await import("./smartleadRepliesSync.js");
                     await syncLeadMessageHistory(targetLead.id);
                     events = await pgQuery<any>(
                         `SELECT e.id, e."eventType", e."fromEmail", e."rawPayload", e."createdAt"
@@ -311,8 +325,7 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 const raw = (event.rawPayload || {}) as Record<string, any>;
                 const isReply = event.eventType === "replied";
                 const subject = raw.subject || raw.email_subject || (isReply ? `Re: ${targetLead.campaignName || "Outreach"}` : `Outreach: ${targetLead.campaignName || "Partnership"}`);
-                const bodyHtml = raw.reply_text || raw.reply_body || raw.email_body || raw.body || raw.custom_email_message || raw.sent_message_body || "";
-                const bodyPlain = String(raw.snippet || bodyHtml).replace(/<[^>]*>/g, "").trim();
+                const { bodyHtml, bodyPlain } = extractReplyMessage(raw);
                 const snippet = bodyPlain.slice(0, 2000);
                 const senderEmail = event.fromEmail || raw.from_email || raw.from || (isReply ? targetLead.email : "haji.karim@theboredmonkey.com");
                 const fromAddr = isReply ? [senderEmail] : [senderEmail];
@@ -381,26 +394,26 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 params.push(campaignId);
             }
 
-            // 3. Folder filter (inbox shows replies, sent shows sent)
-            if (folder === "inbox") {
-                conditions.push(`(l.status = 'REPLIED' OR l."totalReplied" > 0 OR EXISTS (
+            // 3. Folder filter: inbox and default "all" only show reply conversations
+            if (folder === "sent") {
+                conditions.push(`l."totalOutbound" > 0`);
+            } else {
+                // inbox / all / any non-sent folder: ONLY show leads with genuine inbound replies!
+                conditions.push(`(l.status = 'REPLIED' OR EXISTS (
                     SELECT 1 FROM "EmailEvent" ev WHERE ev."leadId" = l.id AND ev."eventType" = 'replied'
                 ))`);
-            } else if (folder === "sent") {
-                conditions.push(`l."totalOutbound" > 0`);
             }
 
             if (unseen) {
                 conditions.push(`l.status = 'REPLIED'`);
             }
 
-            // 4. Time filter: KEEP 7 DAYS OLD DATA by default or use explicit since/until
+            // 4. Time filter: 30-day default window for reply conversations
             if (since) {
                 conditions.push(`l."updatedAt" >= $${pIdx++}::timestamptz`);
                 params.push(since);
             } else {
-                // Default: keep 7 days old data
-                conditions.push(`l."updatedAt" >= (NOW() - INTERVAL '7 days')`);
+                conditions.push(`l."updatedAt" >= (NOW() - INTERVAL '30 days')`);
             }
 
             if (until) {
@@ -414,13 +427,20 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 `SELECT l.id, l.email, l."firstName", l."lastName", l."campaignId", l.status,
                         l."leadCategory", l."totalOutbound", l."totalInbound", l."updatedAt",
                         c.name as "campaignName", c."userId" as "campaignOwner",
-                        (SELECT e."fromEmail" FROM "EmailEvent" e WHERE e."leadId" = l.id ORDER BY e."createdAt" DESC LIMIT 1) as "fromEmail",
-                        (SELECT e."eventType" FROM "EmailEvent" e WHERE e."leadId" = l.id ORDER BY e."createdAt" DESC LIMIT 1) as "latestEventType",
-                        (SELECT e."rawPayload" FROM "EmailEvent" e WHERE e."leadId" = l.id ORDER BY e."createdAt" DESC LIMIT 1) as "latestPayload"
+                        coalesce(
+                            (SELECT e."fromEmail" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'sent' ORDER BY e."createdAt" DESC LIMIT 1),
+                            'haji.karim@theboredmonkey.com'
+                        ) as "fromEmail",
+                        (SELECT e."fromEmail" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'replied' ORDER BY e."createdAt" DESC LIMIT 1) as "replyFromEmail",
+                        (SELECT e."createdAt" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'replied' ORDER BY e."createdAt" DESC LIMIT 1) as "replyCreatedAt",
+                        (SELECT e."rawPayload" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'replied' ORDER BY e."createdAt" DESC LIMIT 1) as "replyPayload"
                  FROM "Lead" l
                  LEFT JOIN "Campaign" c ON c.id = l."campaignId"
                  ${whereClause}
-                 ORDER BY l."updatedAt" DESC
+                 ORDER BY coalesce(
+                     (SELECT e."createdAt" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'replied' ORDER BY e."createdAt" DESC LIMIT 1),
+                     l."updatedAt"
+                 ) DESC
                  LIMIT ${limit + 1}`,
                 params
             );
@@ -429,20 +449,23 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const items = hasMore ? rows.slice(0, limit) : rows;
 
             const threadData = items.map((lead: any) => {
-                const isReply = lead.status === "REPLIED" || lead.latestEventType === "replied";
-                const payload = (lead.latestPayload || {}) as Record<string, any>;
-                const snippetRaw = payload.reply_text || payload.body || payload.email_body || payload.snippet || "";
-                const snippet = String(snippetRaw).replace(/<[^>]*>/g, "").slice(0, 300) || (isReply ? "Interested in discussing further." : "Initial outreach sent.");
-                const subject = payload.subject || (isReply ? `Re: ${lead.campaignName || "Partnership"}` : `Outreach: ${lead.campaignName || "Partnership"}`);
+                const payload = (lead.replyPayload || {}) as Record<string, any>;
+                const replyMsg = payload.reply_message || {};
+                const snippetRaw = replyMsg.text || replyMsg.html || payload.reply_text || payload.reply_body || payload.snippet || payload.body || payload.email_body || payload.text || "";
+                const subject = payload.subject || payload.email_subject || (lead.campaignName ? `Re: ${lead.campaignName}` : "Partnership Discussion");
+                const snippet = cleanSnippetText(snippetRaw, subject);
 
-                const fromEmail = lead.fromEmail || "haji.karim@theboredmonkey.com";
-                const fromAddr = isReply ? [lead.email] : [fromEmail];
-                const toAddr = isReply ? [fromEmail] : [lead.email];
+                // In the Inbox, the sender displayed is the PROSPECT who replied
+                const leadDisplayName = [lead.firstName, lead.lastName].filter(Boolean).join(" ");
+                const fromDisplay = leadDisplayName ? `${leadDisplayName} <${lead.email}>` : lead.email;
+                const fromAddr = [lead.email];
+                const toAddr = [lead.fromEmail || "haji.karim@theboredmonkey.com"];
 
-                const labels: { id: string; title: string; color: string }[] = [];
-                if (isReply) {
-                    labels.push({ id: "cat_interested", title: "Interested", color: "#10b981" });
-                }
+                const labels: { id: string; title: string; color: string }[] = [
+                    { id: "cat_interested", title: "Interested", color: "#10b981" }
+                ];
+
+                const eventTime = lead.replyCreatedAt || lead.updatedAt;
 
                 return {
                     id: `th_camp_${lead.id}`,
@@ -450,13 +473,14 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                     thread_id: `th_camp_${lead.id}`,
                     from_addr: fromAddr,
                     to_addr: toAddr,
+                    from: fromDisplay,
                     subject,
                     snippet,
-                    internal_date: lead.updatedAt,
+                    internal_date: eventTime,
                     seen: lead.status !== "REPLIED",
-                    message_count: (lead.totalOutbound || 0) + (lead.totalInbound || 0) || 1,
+                    message_count: Math.max(2, (lead.totalOutbound || 0) + (lead.totalInbound || 0)),
                     has_unread: lead.status === "REPLIED",
-                    folder: isReply ? "inbox" : "sent",
+                    folder: "inbox",
                     campaign_id: lead.campaignId,
                     campaign_name: lead.campaignName,
                     labels,

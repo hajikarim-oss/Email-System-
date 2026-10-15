@@ -294,9 +294,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             console.log(`[Launch] Campaign #${smartleadId} has ${slTotalLeads} leads in Smartlead, ${leads.length} in DB`);
             if (slTotalLeads < leads.length) {
-                for (let i = 0; i < leads.length; i += 50) {
-                    const batch = leads.slice(i, i + 50);
-                    const leadList = batch.map((l: any) => {
+                const BATCH_SIZE = 100;
+                for (let i = 0; i < leads.length; i += BATCH_SIZE * 2) {
+                    const b1 = leads.slice(i, i + BATCH_SIZE);
+                    const b2 = leads.slice(i + BATCH_SIZE, i + BATCH_SIZE * 2);
+                    
+                    const formatLead = (l: any) => {
                         const custom = (typeof l.customData === "object" && l.customData) ? l.customData : {};
                         const companyName = custom.company || custom.company_name || l.company || l.company_name || "";
                         const title = custom.title || custom.role || l.title || l.role || "";
@@ -317,10 +320,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                                 ...custom,
                             },
                         };
-                    });
-                    const lRes = await slApiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, apiKey);
-                    if (lRes.status >= 300) {
-                        console.error(`[Launch] Leads upload error for #${smartleadId} (batch ${i}..${i + batch.length}):`, lRes.data);
+                    };
+
+                    const tasks = [slApiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: b1.map(formatLead) }, apiKey)];
+                    if (b2.length > 0) {
+                        tasks.push(slApiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: b2.map(formatLead) }, apiKey));
+                    }
+                    const results = await Promise.all(tasks);
+                    for (const r of results) {
+                        if (r.status >= 300) console.error(`[Launch] Leads upload error for #${smartleadId}:`, r.data);
                     }
                 }
             }

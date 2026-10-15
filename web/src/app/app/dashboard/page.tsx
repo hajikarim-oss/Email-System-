@@ -58,6 +58,7 @@ import useDeleteCampaign from "@/lib/api/hooks/app/campaigns/useDeleteCampaign";
 import useEmails from "@/lib/api/hooks/app/emails/useEmails";
 import useDashboard from "@/lib/api/hooks/app/analytics/useDashboard";
 import useReport from "@/lib/api/hooks/app/analytics/useReport";
+import { useNotifications } from "@/lib/api/hooks/app/notifications/useNotifications";
 import { useUserProfile } from "@/hooks/context/user";
 import useTeamMembers from "@/lib/api/hooks/app/unibox/useTeamMembers";
 import { ChevronDownIcon } from "lucide-react";
@@ -83,6 +84,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import DashboardInspectorModal, { type InspectorPayload } from "@/components/app/dashboard/DashboardInspectorModal";
+import RepliesHubModal, { RepliesHubView } from "@/components/app/dashboard/RepliesHubModal";
 
 type Range = "7d" | "30d" | "90d" | "custom";
 type Metric = "sent" | "opens" | "replies" | "bounces";
@@ -242,6 +244,8 @@ export default function DashboardPage() {
     }, [teamMembersRaw]);
     const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
     const [inspectorData, setInspectorData] = useState<InspectorPayload | null>(null);
+    const [isRepliesHubOpen, setIsRepliesHubOpen] = useState(false);
+    const [dashboardView, setDashboardView] = useState<"overview" | "replies">("overview");
 
 
     // Chart telemetry controls
@@ -481,6 +485,20 @@ export default function DashboardPage() {
             : 0;
     const latestReply = recentReplies[0];
     const recentActivity = dashData.data?.recent_activity ?? [];
+
+    // Live alerts from database for the dashboard alert panel
+    const alertsQuery = useNotifications();
+    const alertItems = alertsQuery.data?.notifications ?? [];
+    const alertUnread = alertsQuery.data?.unread ?? 0;
+    const criticalAlerts = alertItems.filter((n: any) => !n.read_at && (
+        n.category === "health_bounce" ||
+        n.category === "health_complaint" ||
+        n.category === "campaign_paused" ||
+        n.category === "health_domain_auth" ||
+        n.category === "health_worker_downtime" ||
+        n.category === "billing_alert"
+    ));
+    const replyAlerts = alertItems.filter((n: any) => !n.read_at && n.category === "inbound_reply");
 
     // MultiTrend chart telemetry
     const toggleMetric = (k: Metric) =>
@@ -849,6 +867,18 @@ export default function DashboardPage() {
                 </button>
                 <button
                     type="button"
+                    onClick={() => setIsRepliesHubOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer shadow-2xs"
+                    title="View Inbound Replies"
+                >
+                    <ReplyIcon className="w-3.5 h-3.5 text-slate-900" />
+                    <span>Replies</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#FFE600] text-slate-950 border border-black/10">
+                        {reportData?.recent_replies?.length ?? 0}
+                    </span>
+                </button>
+                <button
+                    type="button"
                     onClick={() => setIsExportModalOpen(true)}
                     className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-stone-200/90 bg-white hover:bg-stone-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer shadow-2xs"
                 >
@@ -880,7 +910,49 @@ export default function DashboardPage() {
                             Run your outreach and prospecting pipeline in TheBoredMonkey, or sync live data with your mailbox pool, CRM, and sequence telemetry.
                         </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {/* Dashboard View Tabs */}
+                        <div className="inline-flex p-0.5 rounded-lg border border-slate-200/90 bg-stone-100/90">
+                            <button
+                                type="button"
+                                onClick={() => setDashboardView("overview")}
+                                className={cn(
+                                    "px-3 py-1 rounded-md text-[12px] font-medium transition-all cursor-pointer",
+                                    dashboardView === "overview"
+                                        ? "bg-white text-slate-900 shadow-2xs font-semibold"
+                                        : "text-slate-600 hover:text-slate-900"
+                                )}
+                            >
+                                Overview
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDashboardView("replies")}
+                                className={cn(
+                                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[12px] font-medium transition-all cursor-pointer",
+                                    dashboardView === "replies"
+                                        ? "bg-slate-900 text-white shadow-2xs font-semibold"
+                                        : "text-slate-600 hover:text-slate-900"
+                                )}
+                            >
+                                <ReplyIcon className="w-3 h-3" />
+                                <span>Replies</span>
+                                <span className={cn(
+                                    "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                                    dashboardView === "replies" ? "bg-[#FFE600] text-slate-950" : "bg-stone-200 text-slate-700"
+                                )}>
+                                    {reportData?.recent_replies?.length ?? 0}
+                                </span>
+                            </button>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsRepliesHubOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-3.5 h-8 rounded-lg border border-slate-900 bg-white hover:bg-slate-900 hover:text-white text-slate-900 text-[12px] font-medium transition-colors shadow-2xs cursor-pointer"
+                        >
+                            <ReplyIcon className="w-3.5 h-3.5" />
+                            <span>Inbound Replies</span>
+                        </button>
                         <Link
                             to="/app/campaigns"
                             className="inline-flex items-center gap-2 px-3.5 h-8 rounded-lg bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 text-[12px] font-semibold border border-black/10 shadow-xs transition-colors cursor-pointer"
@@ -898,6 +970,57 @@ export default function DashboardPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Embedded Inbound Replies Section when 'replies' tab is active */}
+            {dashboardView === "replies" && (
+                <div className="px-4 sm:px-6 pt-2 pb-4">
+                    <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-[#FFE600] text-slate-950 flex items-center justify-center border border-black/10 shrink-0 shadow-2xs">
+                                    <ReplyIcon className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-[13px] font-bold text-slate-900 tracking-tight">
+                                            Inbound Replies Radar
+                                        </h3>
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-[#FFF9DB] text-slate-900 border border-amber-200/70">
+                                            {reportData?.recent_replies?.length ?? 0} Verified Replies
+                                        </span>
+                                    </div>
+                                    <p className="text-[11.5px] text-slate-500">
+                                        Live prospect replies across Master &amp; Team Member campaigns · click any conversation to view and respond
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setDashboardView("overview")}
+                                    className="text-[12px] font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <span>Back to Overview</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate("/app/unibox/all")}
+                                    className="text-[12px] font-semibold text-slate-900 hover:text-black flex items-center gap-1 transition-colors shrink-0 cursor-pointer ml-2"
+                                >
+                                    <span>All Inbox</span>
+                                    <ArrowUpRightIcon className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                        <RepliesHubView
+                            replies={reportData?.recent_replies ?? []}
+                            teamMembers={TEAM_MEMBERS}
+                            selectedMemberId={selectedMemberId}
+                            onSelectMember={setSelectedMemberId}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* HERO METRICS DECK: Refined, Calm Human-Crafted Intelligence */}
             <div className="px-4 sm:px-6 pt-3 pb-2">
@@ -1053,33 +1176,7 @@ export default function DashboardPage() {
 
                     {/* 4. Reply Rate */}
                     <div
-                        onClick={() =>
-                            setInspectorData({
-                                type: "metric",
-                                title: "Prospect Replies & Inbound Sentiment",
-                                subtitle: "Conversion and response telemetry recorded across all active campaigns",
-                                badge: "Conversion",
-                                badgeColor: "emerald",
-                                primaryMetric: {
-                                    label: "Effective Reply Rate",
-                                    value: periodReplyRate,
-                                    sub: `${formatNum(periodRepliesCount)} replies in ${chartWindowLabel}`,
-                                    trend: { delta: "+2.3%", isPositive: true },
-                                },
-                                breakdown: [
-                                    { label: "Total Replies", value: formatNum(periodRepliesCount), color: "#10b981" },
-                                    { label: "High Intent (Interested)", value: formatNum(lifetime?.interested_replies || 0), pct: 64, color: "#059669" },
-                                    { label: "Timing / Follow-up Later", value: "22%", pct: 22, color: "#f59e0b" },
-                                    { label: "Opt-outs", value: "1.2%", pct: 1.2, color: "#ef4444" },
-                                ],
-                                insights: [
-                                    "64% of replies are categorized as High Intent with meeting requests.",
-                                    "Average time to reply: 4 hours 12 minutes from initial dispatch.",
-                                ],
-                                actionLabel: "View Unibox Replies",
-                                onAction: () => navigate("/app/unibox"),
-                            })
-                        }
+                        onClick={() => setIsRepliesHubOpen(true)}
                         className="group relative rounded-xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-2xs hover:shadow-sm hover:border-slate-300 dark:hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between"
                     >
                         <div>
@@ -1088,7 +1185,7 @@ export default function DashboardPage() {
                                     Reply Rate
                                 </span>
                                 <span className="w-6 h-6 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 flex items-center justify-center">
-                                    <FlameIcon className="w-3.5 h-3.5" />
+                                    <ReplyIcon className="w-3.5 h-3.5" />
                                 </span>
                             </div>
                             <div className="flex items-baseline gap-2 my-1">
@@ -1096,13 +1193,13 @@ export default function DashboardPage() {
                                     {periodReplyRate}
                                 </span>
                                 <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                                    64% intent
+                                    {formatNum(periodRepliesCount)} replies
                                 </span>
                             </div>
                         </div>
                         <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
                             <span className="truncate">
-                                {formatNum(periodRepliesCount)} replies · {chartWindowLabel}
+                                View replies radar · {chartWindowLabel}
                             </span>
                             <span className="text-slate-400 group-hover:text-slate-900 dark:group-hover:text-zinc-200 transition-colors ml-1 shrink-0 font-medium">
                                 ↗
@@ -1219,6 +1316,7 @@ export default function DashboardPage() {
             </div>
 
             <PageBody className="space-y-6 pb-16">
+
                 {/* OUTREACH BY COMPANY CATEGORY: which categories we contact, and their response */}
                 <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
@@ -1473,7 +1571,11 @@ export default function DashboardPage() {
                                         return (
                                             <div
                                                 key={row.key}
-                                                onClick={() =>
+                                                onClick={() => {
+                                                    if (row.key === "replies") {
+                                                        setIsRepliesHubOpen(true);
+                                                        return;
+                                                    }
                                                     setInspectorData({
                                                         type: "metric",
                                                         title: `${row.label} Window Comparison`,
@@ -1504,8 +1606,8 @@ export default function DashboardPage() {
                                                                 ? `Positive acceleration: ${row.label} trending favorably compared to the previous timeframe.`
                                                                 : `Noticeable delta in ${row.label}. Adjust daily quotas or subject copy to realign performance.`,
                                                         ],
-                                                    })
-                                                }
+                                                    });
+                                                }}
                                                 className="p-4 space-y-1.5 hover:bg-slate-50/90 dark:hover:bg-zinc-800/40 transition-all cursor-pointer group"
                                             >
                                                 <div className="flex items-center justify-between text-[11.5px] font-semibold text-slate-700 dark:text-slate-300">
@@ -3309,6 +3411,16 @@ export default function DashboardPage() {
             <DashboardInspectorModal
                 payload={inspectorData}
                 onClose={() => setInspectorData(null)}
+            />
+
+            {/* Inbound Replies Intelligence Hub Modal */}
+            <RepliesHubModal
+                open={isRepliesHubOpen}
+                onClose={() => setIsRepliesHubOpen(false)}
+                replies={reportData?.recent_replies ?? []}
+                teamMembers={TEAM_MEMBERS}
+                selectedMemberId={selectedMemberId}
+                onSelectMember={setSelectedMemberId}
             />
         </Page>
     );

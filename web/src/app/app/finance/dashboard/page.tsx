@@ -72,24 +72,23 @@ import { cn } from "@/lib/utils";
 import DashboardInspectorModal, { type InspectorPayload } from "@/components/app/dashboard/DashboardInspectorModal";
 
 type Range = "full" | "q1" | "q2" | "q3" | "q4" | "custom";
-type CategoryFilter = "all" | "new_business" | "influencer_marketing" | "studio" | "talent";
+type CategoryFilter = "all" | "export_sales" | "gst_sales" | "incentives";
 type MetricFilter = "revenue" | "gp" | "ebitda" | "pbt";
 
 const CATEGORY_LABELS: Record<CategoryFilter, string> = {
-    all: "All Verticals",
-    new_business: "New Business",
-    influencer_marketing: "Influencer Mkt",
-    studio: "Studio Production",
-    talent: "Talent Management",
+    all: "All Revenue Streams",
+    export_sales: "Export Sales (Global)",
+    gst_sales: "Domestic GST Invoices",
+    incentives: "Duty Drawback Incentives",
 };
 
 const RANGE_LABELS: Record<Range, string> = {
-    full: "Full FY 25-26",
+    full: "Full FY 2023-24 (Active Books)",
     q1: "Q1 (Apr - Jun)",
     q2: "Q2 (Jul - Sep)",
     q3: "Q3 (Oct - Dec)",
     q4: "Q4 (Jan - Mar)",
-    custom: "Custom Date Range",
+    custom: "Custom Period",
 };
 
 const METRIC_LABELS: Record<MetricFilter, string> = {
@@ -183,20 +182,44 @@ export default function CfoDashboardPage() {
     // Live Cross-Check State with Tally Bridge
     const [crossCheckData, setCrossCheckData] = useState({
         tallyRevenue: 45733421,
-        tallyDebtors: 36411397,
-        tallyCreditors: 19573598,
-        tallyTreasury: 30741388,
-        tallyPurchases: 50247968,
+        tallyDebtors: 12250362,
+        tallyCreditors: 29288841,
+        tallyTreasury: 10908271,
+        tallyPurchases: 51269355,
         tallyPayments: 123192478,
         tallyReceipts: 118648587,
+        tallyFixedAssets: 14602573,
+        tallyClosingStock: 58209646,
+        tallyOperatingOpex: 9128206,
+        tallyEbitda: 4328912,
+        tallyPbt: 3908912,
         tallyDepreciation: 420000,
         agentStatus: "ONLINE_READY",
-        machineName: "Neola",
+        machineName: "Neola-Desktop",
         loadedCompany: "International Footsteps - (From 1-2017 - (from 1-Apr-2019)",
         lastSyncMin: 0,
         unreconciledCount: 0,
         lastSyncTimestamp: "Just now",
         alterId: "#156556",
+        quarters: {
+            q1: { sales: 33383046, purchases: 23125428, directCost: 23125428, grossProfit: 10257618, opex: 4564103, ebitda: 5693515, receipts: 94521390, payments: 72866756, vouchers: 1058 },
+            q2: { sales: 12350374, purchases: 28143926, directCost: 28143926, grossProfit: -15793552, opex: 4564103, ebitda: -20357655, receipts: 24127197, payments: 50325721, vouchers: 793 },
+            q3: { sales: 0, purchases: 0, directCost: 0, grossProfit: 0, opex: 0, ebitda: 0, receipts: 0, payments: 0, vouchers: 0 },
+            q4: { sales: 0, purchases: 0, directCost: 0, grossProfit: 0, opex: 0, ebitda: 0, receipts: 0, payments: 0, vouchers: 0 },
+        } as Record<string, any>,
+        months: {
+            "2023-04": { sales: 28285214, purchases: 8031046, receipts: 23021784, payments: 23607770, vouchers: 392 },
+            "2023-05": { sales: 1284349, purchases: 6417462, receipts: 56736491, payments: 38259191, vouchers: 377 },
+            "2023-06": { sales: 3813484, purchases: 8676920, receipts: 14763114, payments: 10999796, vouchers: 289 },
+            "2023-07": { sales: 2069532, purchases: 7521908, receipts: 17433999, payments: 15613144, vouchers: 319 },
+            "2023-08": { sales: 7758800, purchases: 9592551, receipts: 6443198, payments: 12854656, vouchers: 311 },
+            "2023-09": { sales: 2522043, purchases: 11029467, receipts: 250000, payments: 21857921, vouchers: 163 },
+        } as Record<string, any>,
+        categories: {
+            export_sales: { name: "Export Sales (Global)", revenue: 38290661, share: 83.7 },
+            gst_sales: { name: "Domestic GST Invoices", revenue: 7442760, share: 16.3 },
+            incentives: { name: "Duty Drawback Incentives", revenue: 1857622, share: 4.1 },
+        } as Record<string, any>,
     });
 
     const fetchLiveTallyStatus = async () => {
@@ -211,7 +234,7 @@ export default function CfoDashboardPage() {
                 setCrossCheckData((prev) => ({
                     ...prev,
                     agentStatus: sData.agent?.status || "ONLINE_READY",
-                    machineName: sData.agent?.machineName || "Neola",
+                    machineName: sData.agent?.machineName || "Neola-Desktop",
                     loadedCompany: sData.agent?.loadedCompany || "International Footsteps - (From 1-2017 - (from 1-Apr-2019)",
                     lastSyncMin: sData.minutesSinceLastSync ?? 0,
                     unreconciledCount: sData.backlog?.unreconciledDiscrepancies ?? 0,
@@ -231,7 +254,15 @@ export default function CfoDashboardPage() {
                         tallyPurchases: cData.tallyPurchases || prev.tallyPurchases,
                         tallyPayments: cData.tallyPayments || prev.tallyPayments,
                         tallyReceipts: cData.tallyReceipts || prev.tallyReceipts,
+                        tallyFixedAssets: cData.tallyFixedAssets || prev.tallyFixedAssets,
+                        tallyClosingStock: cData.tallyClosingStock || prev.tallyClosingStock,
+                        tallyOperatingOpex: cData.tallyOperatingOpex || prev.tallyOperatingOpex,
+                        tallyEbitda: cData.tallyEbitda || prev.tallyEbitda,
+                        tallyPbt: cData.tallyPbt || prev.tallyPbt,
                         tallyDepreciation: cData.tallyDepreciation || prev.tallyDepreciation,
+                        quarters: cData.quarters || prev.quarters,
+                        months: cData.months || prev.months,
+                        categories: cData.categories || prev.categories,
                     }));
                 }
             }
@@ -270,99 +301,125 @@ export default function CfoDashboardPage() {
     // Category multipliers & financial data
     const categoryConfigs = useMemo(() => [
         {
-            key: "new_business",
-            name: "New Business",
-            dcRatio: 0.48,
-            grossMarginPct: 52,
-            revenue: Math.round(45733421 * 0.286),
-            directCost: Math.round(45733421 * 0.286 * 0.48),
-            grossProfit: Math.round(45733421 * 0.286 * 0.52),
-            ebitda: Math.round(45733421 * 0.286 * 0.28),
-            share: 28.6,
+            key: "export_sales",
+            name: "Export Sales (Global)",
+            dcRatio: 0.55,
+            grossMarginPct: 45,
+            revenue: crossCheckData.categories?.export_sales?.revenue || 38290661,
+            directCost: Math.round(38290661 * 0.55),
+            grossProfit: Math.round(38290661 * 0.45),
+            ebitda: Math.round(38290661 * 0.25),
+            share: 83.7,
             color: "#3b82f6",
             accentBg: "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200/70 dark:border-blue-800/40",
         },
         {
-            key: "influencer_marketing",
-            name: "Existing Influencer Marketing",
-            dcRatio: 0.58,
-            grossMarginPct: 42,
-            revenue: Math.round(45733421 * 0.392),
-            directCost: Math.round(45733421 * 0.392 * 0.58),
-            grossProfit: Math.round(45733421 * 0.392 * 0.42),
-            ebitda: Math.round(45733421 * 0.392 * 0.22),
-            share: 39.2,
+            key: "gst_sales",
+            name: "Domestic GST Invoices",
+            dcRatio: 0.52,
+            grossMarginPct: 48,
+            revenue: crossCheckData.categories?.gst_sales?.revenue || 7442760,
+            directCost: Math.round(7442760 * 0.52),
+            grossProfit: Math.round(7442760 * 0.48),
+            ebitda: Math.round(7442760 * 0.22),
+            share: 16.3,
             color: "#10b981",
             accentBg: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/70 dark:border-emerald-800/40",
         },
         {
-            key: "studio",
-            name: "Existing Studio Production",
-            dcRatio: 0.52,
-            grossMarginPct: 48,
-            revenue: Math.round(45733421 * 0.180),
-            directCost: Math.round(45733421 * 0.180 * 0.52),
-            grossProfit: Math.round(45733421 * 0.180 * 0.48),
-            ebitda: Math.round(45733421 * 0.180 * 0.24),
-            share: 18.0,
-            color: "#8b5cf6",
-            accentBg: "bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border-violet-200/70 dark:border-violet-800/40",
-        },
-        {
-            key: "talent",
-            name: "Talent Management",
-            dcRatio: 0.38,
-            grossMarginPct: 62,
-            revenue: Math.round(45733421 * 0.142),
-            directCost: Math.round(45733421 * 0.142 * 0.38),
-            grossProfit: Math.round(45733421 * 0.142 * 0.62),
-            ebitda: Math.round(45733421 * 0.142 * 0.38),
-            share: 14.2,
+            key: "incentives",
+            name: "Duty Drawback Incentives",
+            dcRatio: 0.0,
+            grossMarginPct: 100,
+            revenue: crossCheckData.categories?.incentives?.revenue || 1857622,
+            directCost: 0,
+            grossProfit: 1857622,
+            ebitda: 1857622,
+            share: 4.1,
             color: "#f59e0b",
             accentBg: "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/70 dark:border-amber-800/40",
         },
-    ], []);
+    ], [crossCheckData]);
 
     // Filter-scoped metrics
     const activeMetrics = useMemo(() => {
-        let baseRev = crossCheckData.tallyRevenue > 1000000 ? crossCheckData.tallyRevenue : 45733421;
-        let baseDc = Math.round(baseRev * 0.52);
-        let baseGp = baseRev - baseDc;
-        let baseOpex = Math.round(baseRev * 0.22);
-        let baseEbitda = baseGp - baseOpex;
-        let baseDep = 420000;
-        let baseFinance = 150000;
-        let basePbt = baseEbitda - baseDep - baseFinance;
-        let baseDebtors = crossCheckData.tallyDebtors || 36411397;
+        let rev = crossCheckData.tallyRevenue || 45733421;
+        let dc = crossCheckData.tallyPurchases || 51269355;
+        let gp = 4289119;
+        let opex = crossCheckData.tallyOperatingOpex || 9128206;
+        let eb = crossCheckData.tallyEbitda || 4328912;
+        let dep = crossCheckData.tallyDepreciation || 420000;
+        let fin = 150000;
+        let pbt = crossCheckData.tallyPbt || (eb - dep - fin);
+        let debtors = crossCheckData.tallyDebtors || 12250362;
+        let creditors = crossCheckData.tallyCreditors || 29288841;
+        let treasury = crossCheckData.tallyTreasury || 10908271;
 
-        if (selectedCategory !== "all") {
-            const cat = categoryConfigs.find(c => c.key === selectedCategory);
-            if (cat) {
-                baseRev = cat.revenue;
-                baseDc = cat.directCost;
-                baseGp = cat.grossProfit;
-                baseEbitda = cat.ebitda;
-                baseOpex = baseGp - baseEbitda;
-                baseDep = Math.round(420000 * (cat.share / 100));
-                baseFinance = Math.round(150000 * (cat.share / 100));
-                basePbt = baseEbitda - baseDep - baseFinance;
+        // Apply authentic Quarter filter from Tally
+        if (selectedRange === "q1") {
+            const q = crossCheckData.quarters?.q1 || { sales: 33383046, purchases: 23125428, directCost: 23125428, grossProfit: 10257618, opex: 4564103, ebitda: 5693515 };
+            rev = q.sales;
+            dc = q.purchases;
+            gp = q.grossProfit;
+            opex = q.opex;
+            eb = q.ebitda;
+            dep = Math.round(dep / 4);
+            fin = Math.round(fin / 4);
+            pbt = eb - dep - fin;
+        } else if (selectedRange === "q2") {
+            const q = crossCheckData.quarters?.q2 || { sales: 12350374, purchases: 28143926, directCost: 28143926, grossProfit: -15793552, opex: 4564103, ebitda: -20357655 };
+            rev = q.sales;
+            dc = q.purchases;
+            gp = q.grossProfit;
+            opex = q.opex;
+            eb = q.ebitda;
+            dep = Math.round(dep / 4);
+            fin = Math.round(fin / 4);
+            pbt = eb - dep - fin;
+        } else if (selectedRange === "q3" || selectedRange === "q4") {
+            rev = 0;
+            dc = 0;
+            gp = 0;
+            opex = 0;
+            eb = 0;
+            dep = 0;
+            fin = 0;
+            pbt = 0;
+        } else if (selectedRange === "custom") {
+            const fromMonth = chartFrom.slice(0, 7);
+            const toMonth = chartTo.slice(0, 7);
+            let cRev = 0;
+            let cDc = 0;
+            if (crossCheckData.months) {
+                for (const [m, d] of Object.entries(crossCheckData.months)) {
+                    if (m >= fromMonth && m <= toMonth) {
+                        cRev += d.sales;
+                        cDc += d.purchases;
+                    }
+                }
+            }
+            if (cRev > 0 || cDc > 0) {
+                rev = cRev;
+                dc = cDc;
+                gp = rev - dc;
+                opex = Math.round(9128206 * 0.25);
+                eb = gp - opex;
+                pbt = eb - 100000;
             }
         }
 
-        // Apply range scale factor
-        let factor = 1.0;
-        if (selectedRange === "q1" || selectedRange === "q2" || selectedRange === "q3" || selectedRange === "q4") {
-            factor = 0.25;
+        // Apply Category filter
+        if (selectedCategory !== "all") {
+            const cat = categoryConfigs.find(c => c.key === selectedCategory);
+            if (cat) {
+                rev = cat.revenue;
+                dc = cat.directCost;
+                gp = cat.grossProfit;
+                eb = cat.ebitda;
+                opex = Math.max(0, gp - eb);
+                pbt = eb - Math.round(dep * (cat.share / 100));
+            }
         }
-
-        const rev = Math.round(baseRev * factor);
-        const dc = Math.round(baseDc * factor);
-        const gp = Math.round(baseGp * factor);
-        const opex = Math.round(baseOpex * factor);
-        const eb = Math.round(baseEbitda * factor);
-        const dep = Math.round(baseDep * factor);
-        const fin = Math.round(baseFinance * factor);
-        const pbt = eb - dep - fin;
 
         return {
             revenue: rev,
@@ -373,16 +430,16 @@ export default function CfoDashboardPage() {
             depreciation: dep,
             financeCosts: fin,
             pbt: pbt,
-            receivables: baseDebtors,
-            creditors: crossCheckData.tallyCreditors || 19573598,
-            treasury: crossCheckData.tallyTreasury || 30741388,
+            receivables: debtors,
+            creditors: creditors,
+            treasury: treasury,
             outputGst: Math.round(rev * 0.18),
-            inputGst: Math.round(rev * 0.08),
-            netGstPayable: Math.round(rev * 0.10),
+            inputGst: Math.round(dc * 0.12),
+            netGstPayable: Math.max(0, Math.round(rev * 0.18 - dc * 0.12)),
             gstHold: 185000,
             tdsReceivable: Math.round(rev * 0.02),
         };
-    }, [selectedCategory, selectedRange, categoryConfigs, crossCheckData]);
+    }, [selectedCategory, selectedRange, chartFrom, chartTo, categoryConfigs, crossCheckData]);
 
     // Variance calculations
     const tallyRev = crossCheckData.tallyRevenue > 1000000 ? crossCheckData.tallyRevenue : 14820000;
@@ -392,33 +449,50 @@ export default function CfoDashboardPage() {
     const pbtVariance = Math.abs(activeMetrics.pbt - tallyPbt);
     const pbtVariancePct = ((pbtVariance / tallyPbt) * 100).toFixed(2);
 
-    // MultiTrend Chart Data
+    // MultiTrend Chart Data (Dynamically rendered from Tally)
     const chartTrend = useMemo(() => {
-        const labels = MONTHS_FY.map((m) => `2025-${m === "Jan" || m === "Feb" || m === "Mar" ? "2026" : "2025"}-15`);
+        const monthKeys = ["2023-04", "2023-05", "2023-06", "2023-07", "2023-08", "2023-09"];
+        const labels = monthKeys.map((m) => `${m}-15`);
+        const mData = crossCheckData.months || {};
+
+        const revValues = monthKeys.map((m) => mData[m]?.sales ?? 0);
+        const dcValues = monthKeys.map((m) => mData[m]?.purchases ?? 0);
+        const receiptValues = monthKeys.map((m) => mData[m]?.receipts ?? 0);
+        const paymentValues = monthKeys.map((m) => mData[m]?.payments ?? 0);
+        const opexMonthly = Math.round((crossCheckData.tallyOperatingOpex || 9128206) / 6);
+        const opexValues = monthKeys.map(() => opexMonthly);
+        const ebValues = monthKeys.map((m, i) => revValues[i] - dcValues[i] - opexValues[i]);
+
         const allSeries: TrendSeries[] = [
             {
                 key: "revenue",
-                label: "Revenue Invoiced",
+                label: "Revenue Invoiced (Sales)",
                 tone: "emerald",
-                values: [1150000, 1220000, 1280000, 1190000, 1240000, 1310000, 1260000, 1350000, 1180000, 1090000, 1140000, 1040000],
+                values: revValues,
             },
             {
                 key: "direct_costs",
-                label: "Direct Creator & Studio Costs",
+                label: "Direct Purchases & Costs",
                 tone: "rose",
-                values: [598000, 634400, 665600, 618800, 644800, 681200, 655200, 702000, 613600, 566800, 592800, 540800],
+                values: dcValues,
             },
             {
-                key: "opex",
-                label: "Operating Overheads & Salaries",
+                key: "receipts",
+                label: "Bank Collections (Receipts)",
+                tone: "sky",
+                values: receiptValues,
+            },
+            {
+                key: "payments",
+                label: "Vendor Outflows (Payments)",
                 tone: "amber",
-                values: [265000, 270000, 280000, 268000, 275000, 290000, 282000, 295000, 270000, 260000, 265000, 258000],
+                values: paymentValues,
             },
             {
                 key: "ebitda",
-                label: "Net Operating EBITDA",
-                tone: "sky",
-                values: [287000, 315600, 334400, 303200, 320200, 338800, 322800, 353000, 296400, 263200, 282200, 241200],
+                label: "Operating EBITDA",
+                tone: "violet",
+                values: ebValues,
             },
         ];
 
@@ -426,7 +500,7 @@ export default function CfoDashboardPage() {
             labels,
             series: allSeries.filter((s) => !hiddenSeries.includes(s.key)),
         };
-    }, [hiddenSeries]);
+    }, [crossCheckData, hiddenSeries]);
 
     const toggleSeries = (key: string) => {
         setHiddenSeries((prev) =>
@@ -434,73 +508,73 @@ export default function CfoDashboardPage() {
         );
     };
 
-    // Top Revenue Clients & Commercial Deals (Verified Tally Debtors)
+    // Top Revenue Clients & Commercial Deals (Authentic Tally Debtors)
     const topBrands = useMemo(() => [
         {
-            brand: "Amani B.V.",
-            category: "Existing Influencer Marketing",
-            invoiced: 15906664,
-            collected: 14200000,
-            outstanding: 1706664,
-            status: "Partially Paid",
-            terms: "60 Days",
-            dueIn: "Due in 15 days",
-            tone: "emerald",
-        },
-        {
             brand: "RNA Resources Group Ltd.",
-            category: "New Business Growth",
-            invoiced: 2582434,
-            collected: 2200000,
-            outstanding: 382434,
+            category: "Export Sales (Global)",
+            invoiced: 9357235,
+            collected: 6774801,
+            outstanding: 2582434,
             status: "Partially Paid",
-            terms: "45 Days",
-            dueIn: "Due in 8 days",
-            tone: "emerald",
-        },
-        {
-            brand: "Melluso Calzature",
-            category: "Existing Studio Production",
-            invoiced: 2119973,
-            collected: 2119973,
-            outstanding: 0,
-            status: "Fully Paid",
-            terms: "45 Days",
-            dueIn: "Settled via Tally Receipt",
-            tone: "emerald",
-        },
-        {
-            brand: "Chaussure Maniet S.A., Belgium",
-            category: "New Business Growth",
-            invoiced: 1666180,
-            collected: 1200000,
-            outstanding: 466180,
-            status: "Partially Paid",
-            terms: "30 Days",
-            dueIn: "Due in 5 days",
-            tone: "emerald",
-        },
-        {
-            brand: "S.A. Chaussures Maniet",
-            category: "Talent Management",
-            invoiced: 1638490,
-            collected: 1638490,
-            outstanding: 0,
-            status: "Fully Paid",
-            terms: "30 Days",
-            dueIn: "Settled via Tally Receipt",
-            tone: "emerald",
-        },
-        {
-            brand: "Flipkart Internet Pvt Ltd",
-            category: "Talent Management",
-            invoiced: 1250000,
-            collected: 890000,
-            outstanding: 360000,
-            status: "Due Soon",
             terms: "60 Days",
-            dueIn: "Due in 4 days",
-            tone: "blue",
+            dueIn: "Active Balance in Tally",
+            tone: "emerald",
+        },
+        {
+            brand: "Calzature Pittarello G.L. G. SRL",
+            category: "Export Sales (Global)",
+            invoiced: 8852964,
+            collected: 8420483,
+            outstanding: 432481,
+            status: "Partially Paid",
+            terms: "45 Days",
+            dueIn: "Active Balance in Tally",
+            tone: "emerald",
+        },
+        {
+            brand: "Telstra Telecommunications Pvt. Ltd",
+            category: "Domestic GST Invoices",
+            invoiced: 7442760,
+            collected: 4995270,
+            outstanding: 2447490,
+            status: "Deposit Recd",
+            terms: "30 Days",
+            dueIn: "₹49.95L Deposit Held",
+            tone: "amber",
+        },
+        {
+            brand: "Itsegroup Sl",
+            category: "Export Sales (Global)",
+            invoiced: 3980669,
+            collected: 3920941,
+            outstanding: 59728,
+            status: "Partially Paid",
+            terms: "45 Days",
+            dueIn: "Pending Clearance",
+            tone: "emerald",
+        },
+        {
+            brand: "Noi Due O Doni Andrea",
+            category: "Export Sales (Global)",
+            invoiced: 3874208,
+            collected: 3874208,
+            outstanding: 0,
+            status: "Fully Paid",
+            terms: "45 Days",
+            dueIn: "Settled via Tally Receipt",
+            tone: "emerald",
+        },
+        {
+            brand: "Wojas S A",
+            category: "Export Sales (Global)",
+            invoiced: 3026230,
+            collected: 3015408,
+            outstanding: 10822,
+            status: "Settled",
+            terms: "30 Days",
+            dueIn: "₹10.8k Residual",
+            tone: "emerald",
         },
     ], []);
 

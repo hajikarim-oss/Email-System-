@@ -932,77 +932,27 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }, 200);
     }
 
-    const DEFAULT_NOTIFICATIONS = [
-        {
-            id: "notif_reply_rupesh_health",
-            user_id: "cmttwwhj5000ovdkr7ooyb6qt",
-            category: "inbound_reply",
-            title: "New reply from Rupesh Raut (Atreya Innovations)",
-            body: "Hi Vatsal, Thank you for reaching out. I would like to schedule a 15-minute call with you. Please share your availability.",
-            link: "/app/unibox/all/th_camp_3bdf7199-cc30-4461-873d-d9928b9c31ec",
-            read_at: "2026-10-09T08:00:00.000Z",
-            created_at: "2026-10-08T23:23:51.602Z",
-        },
-        {
-            id: "notif_reply_bhoomi_salt",
-            user_id: "cmttwwhj5000ovdkr7ooyb6qt",
-            category: "inbound_reply",
-            title: "New reply from Bhoomi (Salt Oral Care)",
-            body: "Thank you for your email. Please note that marketing communication should be directed to: Vaishnavi Sikarwar Head of Marketing.",
-            link: "/app/unibox/all/th_camp_cmv0x5vfu0001dynzwtnxg8ul",
-            read_at: "2026-10-09T12:00:00.000Z",
-            created_at: "2026-10-09T06:19:51.000Z",
-        },
-        {
-            id: "notif_reply_sukhdev_velnik",
-            user_id: "cmttwwhj5000ovdkr7ooyb6qt",
-            category: "inbound_reply",
-            title: "New reply from Sukhdev Gehlot (Velnik)",
-            body: "Please share case studies of previous FMCG and hair care creator campaigns executed by TheBoredMonkey.",
-            link: "/app/unibox/all/th_camp_cmv0x5vfu0001dynzwtnxg8ul",
-            read_at: null,
-            created_at: "2026-10-10T00:45:41.000Z",
-        },
-    ];
-
+    // Live notifications from database via API proxy
     if (pathWithoutQuery === "/auth/me/notifications" || pathWithoutQuery.startsWith("/auth/me/notifications/")) {
-        const defaultNotifications = DEFAULT_NOTIFICATIONS;
-
-        // Mark all as read
-        if (config.method?.toLowerCase() === "put" && pathWithoutQuery === "/auth/me/notifications") {
-            const list = loadStorage<any[]>("app_notifications_feed", defaultNotifications);
-            const updated = list.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() }));
-            saveStorage("app_notifications_feed", updated);
-            return res({ status: "ok" }, 200);
+        try {
+            const notifUrl = `/api${pathWithoutQuery}${queryString ? `?${queryString}` : ""}`;
+            const notifRes = await safeFetch(notifUrl, {
+                method,
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: config.data ? (typeof config.data === "string" ? config.data : JSON.stringify(config.data)) : undefined,
+            });
+            if (notifRes.ok) {
+                const notifData = await notifRes.json();
+                return res(notifData, notifRes.status);
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] /api/auth/me/notifications proxy error:", e);
         }
-
-        // Clear read notifications
-        if (config.method?.toLowerCase() === "delete" && pathWithoutQuery === "/auth/me/notifications") {
-            const list = loadStorage<any[]>("app_notifications_feed", defaultNotifications);
-            const unreadOnly = list.filter((n) => !n.read_at);
-            saveStorage("app_notifications_feed", unreadOnly);
-            return res({ status: "ok", cleared: true }, 200);
+        // Fallback: empty state so the bell renders without errors
+        if (method === "GET") {
+            return res({ notifications: [], unread: 0 }, 200);
         }
-
-        // Mark single as read
-        if (config.method?.toLowerCase() === "post" && pathWithoutQuery.endsWith("/read")) {
-            const parts = pathWithoutQuery.split("/");
-            const notifId = parts[parts.length - 2];
-            const list = loadStorage<any[]>("app_notifications_feed", defaultNotifications);
-            const updated = list.map((n) => (n.id === notifId ? { ...n, read_at: new Date().toISOString() } : n));
-            saveStorage("app_notifications_feed", updated);
-            return res({ status: "ok" }, 200);
-        }
-
-        // GET notifications
-        const list = loadStorage<any[]>("app_notifications_feed", defaultNotifications);
-        const unreadOnly = queryParams.get("unread") === "1";
-        const filtered = unreadOnly ? list.filter((n) => !n.read_at) : list;
-        const unreadCount = list.filter((n) => !n.read_at).length;
-        return res({
-            notifications: filtered,
-            unread: unreadCount,
-        }, 200);
+        return res({ status: "ok" }, 200);
     }
 
     if (pathWithoutQuery === "/auth/login") {
@@ -3889,7 +3839,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const campIdLower = (campId || "").toLowerCase();
         const match: any = campaigns.find((c: { id: string }) => (c.id || "").toLowerCase() === campIdLower) ||
             campaigns.find((c: { name: string }) => (c.name || "").toLowerCase().includes(campIdLower)) ||
-            campaigns[0];
+            null;
 
         // Lifetime summary, daily series and per-step counters from the
         // database. This replaces the old Smartlead fixture merge, inbox

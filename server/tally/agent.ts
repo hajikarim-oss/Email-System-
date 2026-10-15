@@ -41,17 +41,18 @@ export class TallySyncAgent {
     private offlineBuffer: Array<{ timestamp: string; vouchers: TallyParsedVoucher[] }> = [];
 
     constructor(config: AgentConfig = {}) {
+        const cloudUrl = config.cloudApiUrl ?? (process.env.CLOUD_API_URL || 'https://tbmoutreach.tech');
         this.config = {
             agentId: config.agentId ?? `agent-${os.hostname().toLowerCase()}`,
             machineName: config.machineName ?? os.hostname(),
-            tallyHost: config.tallyHost ?? '127.0.0.1',
-            tallyPort: config.tallyPort ?? 9000,
-            targetCompanyName: config.targetCompanyName ?? 'The Brand Master Pvt Ltd',
-            targetCompanyGuid: config.targetCompanyGuid ?? 'TBM-MUMBAI-2025-001',
+            tallyHost: config.tallyHost ?? (process.env.TALLY_HOST || '127.0.0.1'),
+            tallyPort: config.tallyPort ?? (process.env.TALLY_PORT ? parseInt(process.env.TALLY_PORT, 10) : 9000),
+            targetCompanyName: config.targetCompanyName ?? (process.env.TALLY_COMPANY || 'any'),
+            targetCompanyGuid: config.targetCompanyGuid ?? (process.env.TALLY_COMPANY_GUID || '9327a748-5d1b-47ad-b8a1-bd5ff78b4129'),
             pollIntervalMs: config.pollIntervalMs ?? 15000,
-            cloudApiUrl: config.cloudApiUrl ?? '',
+            cloudApiUrl: cloudUrl,
             offlineBufferFile: config.offlineBufferFile ?? path.resolve(process.cwd(), '.tally_offline_buffer.json'),
-            directDbMode: config.directDbMode ?? true,
+            directDbMode: config.directDbMode ?? (!cloudUrl),
         };
 
         this.loadOfflineBuffer();
@@ -251,19 +252,26 @@ export class TallySyncAgent {
     public async persistVouchers(vouchers: TallyParsedVoucher[]): Promise<void> {
         if (!vouchers.length) return;
 
+        let sentToCloud = false;
+        if (this.config.cloudApiUrl) {
+            try {
+                await this.postVouchersToCloud(vouchers);
+                sentToCloud = true;
+                console.log(`[TallyAgent] Successfully streamed ${vouchers.length} vouchers to ${this.config.cloudApiUrl}`);
+            } catch (netErr: any) {
+                console.warn(`[TallyAgent] Cloud post failed (${netErr.message}). Buffering locally.`);
+                this.bufferLocally(vouchers);
+            }
+        }
+
         if (this.config.directDbMode) {
             try {
                 await TallyDbRepository.upsertVouchers(this.config.targetCompanyGuid, vouchers);
             } catch (dbErr: any) {
-                console.warn(`[TallyAgent] Database write failed (${dbErr.message}). Buffering to local storage.`);
-                this.bufferLocally(vouchers);
-            }
-        } else if (this.config.cloudApiUrl) {
-            try {
-                await this.postVouchersToCloud(vouchers);
-            } catch (netErr: any) {
-                console.warn(`[TallyAgent] Cloud post failed (${netErr.message}). Buffering locally.`);
-                this.bufferLocally(vouchers);
+                if (!sentToCloud && !this.config.cloudApiUrl) {
+                    console.warn(`[TallyAgent] Database write failed (${dbErr.message}). Buffering to local storage.`);
+                    this.bufferLocally(vouchers);
+                }
             }
         }
     }
@@ -284,10 +292,10 @@ export class TallySyncAgent {
 
         for (const item of this.offlineBuffer) {
             try {
-                if (this.config.directDbMode) {
-                    await TallyDbRepository.upsertVouchers(this.config.targetCompanyGuid, item.vouchers);
-                } else if (this.config.cloudApiUrl) {
+                if (this.config.cloudApiUrl) {
                     await this.postVouchersToCloud(item.vouchers);
+                } else if (this.config.directDbMode) {
+                    await TallyDbRepository.upsertVouchers(this.config.targetCompanyGuid, item.vouchers);
                 }
             } catch {
                 remaining.push(item);
@@ -333,18 +341,29 @@ export class TallySyncAgent {
                 // Ignore heartbeat DB transient errors
             }
         }
+
+        if (this.config.cloudApiUrl) {
+            try {
+                await this.postHeartbeatToCloud();
+            } catch (err: any) {
+                console.warn(`[TallyAgent] Cloud heartbeat warning: ${err.message}`);
+            }
+        }
     }
 
-    private async postVouchersToCloud(vouchers: TallyParsedVoucher[]): Promise<void> {
-        // Cloud HTTP API post implementation
+    private async postHeartbeatToCloud(): Promise<void> {
         return new Promise((resolve, reject) => {
             const postData = JSON.stringify({
                 agentId: this.config.agentId,
-                companyGuid: this.config.targetCompanyGuid,
-                vouchers,
+                machineName: this.config.machineName,
+                status: this.status,
+                companyName: this.activeCompany?.companyName || this.config.targetCompanyName,
+                companyGuid: this.activeCompany?.companyGuid || this.config.targetCompanyGuid,
+                tallyVersion: `TallyPrime (Desktop Port ${this.config.tallyPort})`,
+                tallyPort: this.config.tallyPort,
             });
 
-            const url = new URL(`${this.config.cloudApiUrl}/api/sync/agent/vouchers`);
+            const url = new URL(`${this.config.cloudApiUrl}/api/tally/agent/heartbeat`);
             const client = url.protocol === 'https:' ? https : http;
 
             const req = client.request(url, {
@@ -354,6 +373,49 @@ export class TallySyncAgent {
                     'Content-Length': Buffer.byteLength(postData),
                 },
                 timeout: 5000,
+            }, (res) => {
+                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                    resolve();
+                } else {
+                    reject(new Error(`Cloud Heartbeat HTTP ${res.statusCode}`));
+                }
+            });
+
+            req.on('error', reject);
+            req.on('timeout', () => { req.destroy(new Error('Cloud heartbeat timeout')); });
+            req.write(postData);
+            req.end();
+        });
+    }
+
+    private async postVouchersToCloud(vouchers: TallyParsedVoucher[]): Promise<void> {
+        if (!vouchers.length) return;
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < vouchers.length; i += BATCH_SIZE) {
+            const chunk = vouchers.slice(i, i + BATCH_SIZE);
+            await this.sendSingleCloudBatch(chunk);
+            console.log(`[TallyAgent] Streamed batch ${Math.min(i + BATCH_SIZE, vouchers.length)}/${vouchers.length} vouchers to cloud.`);
+        }
+    }
+
+    private sendSingleCloudBatch(vouchers: TallyParsedVoucher[]): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const postData = JSON.stringify({
+                agentId: this.config.agentId,
+                companyGuid: this.config.targetCompanyGuid,
+                vouchers,
+            });
+
+            const url = new URL(`${this.config.cloudApiUrl}/api/tally/agent/vouchers`);
+            const client = url.protocol === 'https:' ? https : http;
+
+            const req = client.request(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData),
+                },
+                timeout: 30000,
             }, (res) => {
                 if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
                     resolve();
@@ -383,7 +445,7 @@ export class TallySyncAgent {
                     'Content-Type': 'text/xml; charset=utf-8',
                     'Content-Length': Buffer.byteLength(xmlBody),
                 },
-                timeout: 5000,
+                timeout: 60000,
             }, (res) => {
                 let data = '';
                 res.on('data', chunk => { data += chunk; });

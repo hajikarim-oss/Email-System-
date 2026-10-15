@@ -38,12 +38,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         for (let i = 0; i < validItems.length; i += BATCH_SIZE) {
             const chunk = validItems.slice(i, i + BATCH_SIZE);
             const emails = chunk.map((c: any) => (c.email || "").toLowerCase().trim());
+            const defaultCampId = (parsed as any).campaign_id || (parsed as any).campaignId || null;
 
-            // 1. Fetch all existing leads in this batch in one round-trip
-            const existingRows = await pgQuery<{ id: string; email: string }>(
-                `SELECT id, lower(email) as email FROM "Lead" WHERE lower(email) = ANY($1)`,
-                [emails]
-            );
+            // 1. Fetch existing leads FOR THIS CAMPAIGN to avoid corrupting other campaigns
+            const existingRows = defaultCampId
+                ? await pgQuery<{ id: string; email: string }>(
+                    `SELECT id, lower(email) as email FROM "Lead" WHERE lower(email) = ANY($1) AND "campaignId" = $2`,
+                    [emails, defaultCampId]
+                )
+                : await pgQuery<{ id: string; email: string }>(
+                    `SELECT id, lower(email) as email FROM "Lead" WHERE lower(email) = ANY($1) AND "campaignId" IS NULL`,
+                    [emails]
+                );
             const existingMap = new Map<string, string>();
             for (const r of existingRows) {
                 existingMap.set(r.email, r.id);
@@ -54,7 +60,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             for (const item of chunk) {
                 const email = (item.email || "").toLowerCase().trim();
-                const campId = item.campaign_id || item.campaignId || (Array.isArray(item.campaigns) ? item.campaigns[0] : null) || (parsed as any).campaign_id || (parsed as any).campaignId || null;
+                const campId = item.campaign_id || item.campaignId || (Array.isArray(item.campaigns) ? item.campaigns[0] : null) || defaultCampId;
                 const firstName = item.first_name || item.firstName || (item.name ? item.name.split(" ")[0] : "") || "";
                 const lastName = item.last_name || item.lastName || (item.name ? item.name.split(" ").slice(1).join(" ") : "") || "";
                 const domain = email.split("@")[1] || "";
@@ -69,13 +75,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     toUpdate.push(
                         pgQuery(
                             `UPDATE "Lead" 
-                             SET "campaignId" = COALESCE($1, "campaignId"),
-                                 "firstName" = CASE WHEN "firstName" IS NULL OR "firstName" = '' THEN $2 ELSE "firstName" END,
-                                 "lastName" = CASE WHEN "lastName" IS NULL OR "lastName" = '' THEN $3 ELSE "lastName" END,
-                                 "customData" = COALESCE("customData", '{}'::jsonb) || $4::jsonb,
+                             SET "firstName" = CASE WHEN "firstName" IS NULL OR "firstName" = '' THEN $1 ELSE "firstName" END,
+                                 "lastName" = CASE WHEN "lastName" IS NULL OR "lastName" = '' THEN $2 ELSE "lastName" END,
+                                 "customData" = COALESCE("customData", '{}'::jsonb) || $3::jsonb,
                                  "updatedAt" = now()
-                             WHERE id = $5`,
-                            [campId || null, firstName, lastName, customData, existingId]
+                             WHERE id = $4`,
+                            [firstName, lastName, customData, existingId]
                         )
                     );
                 } else {

@@ -63,6 +63,9 @@ export interface ReportCampaign {
 }
 
 export interface ReportReply {
+    lead_id?: string;
+    thread_id?: string;
+    contact_name?: string;
     contact_email: string;
     subject: string;
     snippet: string;
@@ -70,6 +73,9 @@ export interface ReportReply {
     replied_at: string | null;
     sender_email: string;
     campaign: string;
+    campaign_id?: string | null;
+    team_member?: string;
+    team_member_id?: string | null;
 }
 
 export interface ReportBrand {
@@ -95,6 +101,25 @@ export interface SystemReport {
 function rate(numerator: number, denominator: number): number {
     if (!denominator || denominator <= 0) return 0;
     return Math.min(100, Math.round((numerator / denominator) * 1000) / 10);
+}
+
+export function cleanSnippetText(raw: any, fallback?: string): string {
+    if (!raw) return fallback || "Inbound prospect reply";
+    const cleaned = String(raw)
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&#x9;/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return cleaned.slice(0, 300) || fallback || "Inbound prospect reply";
 }
 
 // Free consumer domains are contacts, not target brands, so they stay out of
@@ -219,18 +244,36 @@ export async function getReport(query: QueryFn, scope: DataScope): Promise<Syste
              WHERE ${messageOwned(scope, `"EmailMessage"`)}`,
         ),
         query(
-            `SELECT "contactEmail" AS contact_email,
-                    coalesce(nullif("subjectRaw", ''), '(no subject)') AS subject,
-                    left(coalesce("bodyHook", ''), 180) AS snippet,
-                    coalesce("replyClassification"::text, 'UNCLASSIFIED') AS classification,
-                    "createdAt"::timestamp::text AS replied_at,
-                    coalesce("senderEmail", '') AS sender_email,
-                    coalesce(nullif("campaignClean", ''), '') AS campaign
-             FROM "EmailMessage"
-             WHERE "replied"
-               AND ${messageOwned(scope, `"EmailMessage"`)}
-             ORDER BY "createdAt" DESC
-             LIMIT 6`,
+            `SELECT l.id AS lead_id,
+                    l.email AS contact_email,
+                    coalesce(nullif(trim(concat(l."firstName", ' ', l."lastName")), ''), l.email) AS contact_name,
+                    coalesce(nullif(e."rawPayload"->>'subject', ''), nullif(e."rawPayload"->>'email_subject', ''), concat('Re: ', coalesce(c.name, 'Outreach'))) AS subject,
+                    coalesce(
+                        nullif(e."rawPayload"->'reply_message'->>'text', ''),
+                        nullif(e."rawPayload"->'reply_message'->>'html', ''),
+                        nullif(e."rawPayload"->>'reply_text', ''),
+                        nullif(e."rawPayload"->>'reply_body', ''),
+                        nullif(e."rawPayload"->>'snippet', ''),
+                        nullif(e."rawPayload"->>'body', ''),
+                        nullif(e."rawPayload"->>'text', ''),
+                        nullif(e."rawPayload"->>'email_body', ''),
+                        ''
+                    ) AS raw_snippet,
+                    coalesce(l."replyClassification"::text, l."leadCategory"::text, 'Interested') AS classification,
+                    e."createdAt"::timestamp::text AS replied_at,
+                    coalesce(e."fromEmail", '') AS sender_email,
+                    coalesce(c.name, 'Direct Outreach') AS campaign,
+                    c.id AS campaign_id,
+                    coalesce(u.name, 'Master') AS team_member,
+                    u.id AS team_member_id
+             FROM "EmailEvent" e
+             JOIN "Lead" l ON l.id = e."leadId"
+             LEFT JOIN "Campaign" c ON c.id = l."campaignId"
+             LEFT JOIN "User" u ON u.id = c."userId"
+             WHERE e."eventType" = 'replied'
+               AND ${leadOwned(scope, "l")}
+             ORDER BY e."createdAt" DESC
+             LIMIT 50`,
         ),
         query(
             `SELECT name, domain, "totalContacts"::int AS contacts, "repliedContacts"::int AS replied
@@ -343,13 +386,19 @@ export async function getReport(query: QueryFn, scope: DataScope): Promise<Syste
         })),
         campaigns_total: campaignTotal,
         recent_replies: replyRows.map((row) => ({
+            lead_id: String(row.lead_id || ""),
+            thread_id: `th_camp_${row.lead_id}`,
+            contact_name: String(row.contact_name || ""),
             contact_email: String(row.contact_email || ""),
             subject: String(row.subject || ""),
-            snippet: String(row.snippet || ""),
-            classification: String(row.classification || "UNCLASSIFIED"),
+            snippet: cleanSnippetText(row.raw_snippet, String(row.subject || "")),
+            classification: String(row.classification || "INTERESTED"),
             replied_at: row.replied_at || null,
             sender_email: String(row.sender_email || ""),
             campaign: String(row.campaign || ""),
+            campaign_id: row.campaign_id ? String(row.campaign_id) : null,
+            team_member: String(row.team_member || "Master"),
+            team_member_id: row.team_member_id ? String(row.team_member_id) : null,
         })),
         brands: brandRows.map((row) => ({
             name: String(row.name || ""),

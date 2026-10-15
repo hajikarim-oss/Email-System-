@@ -14,11 +14,12 @@ import { readBearer, resolveToken } from "../server/auth";
 import { scopeFor, type DataScope } from "../server/scope";
 import { smartleadPrimary, smartleadSecondary } from "../server/smartleadKeys";
 import { recordSmartleadEvent, resolveWebhookSecret, verifySmartleadSignature } from "../server/smartleadWebhook";
-import { resolveDatabaseUrl } from "../server/pg";
+import { resolveDatabaseUrl, pgQuery } from "../server/pg";
 import { checkBatch, checkContact } from "../server/checkBatch";
 import authHandler from "../server/handlers/auth";
 import organizationHandler from "../server/handlers/organization";
 import { handleUnibox } from "../server/unibox";
+import { handleNotifications } from "../server/notifications";
 import { reconcileSmartleadCampaigns, ensureImmediateSendingSchedule } from "../server/smartleadSync";
 import { handleTallyApi } from "../server/tally/apiHandler";
 
@@ -721,9 +722,13 @@ function smartleadApiPlugin() {
                                     },
                                 };
                             });
-                            for (let i = 0; i < leadList.length; i += 50) {
-                                const batch = leadList.slice(i, i + 50);
-                                await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: batch }, chosenKey);
+                            const BATCH_SIZE = 100;
+                            for (let i = 0; i < leadList.length; i += BATCH_SIZE * 2) {
+                                const b1 = leadList.slice(i, i + BATCH_SIZE);
+                                const b2 = leadList.slice(i + BATCH_SIZE, i + BATCH_SIZE * 2);
+                                const tasks = [apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: b1 }, chosenKey)];
+                                if (b2.length > 0) tasks.push(apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: b2 }, chosenKey));
+                                await Promise.all(tasks);
                             }
                             console.log(`[Smartlead Vite Sync] Uploaded ${leadList.length} new leads to #${smartleadId} (${existingLeadEmails.size} already existed)`);
                         } else if (rawLeads.length > 0) {
@@ -924,12 +929,14 @@ function databaseIntelligencePlugin() {
         if (!prismaInstance) {
             try {
                 const { PrismaClient } = cjsRequire(path.resolve(__dirname, "../nexus-outbound/node_modules/@prisma/client"));
+                let dbUrl = process.env.DATABASE_URL || resolveDatabaseUrl() || undefined;
+                if (dbUrl && dbUrl.includes("pgbouncer=true") && !dbUrl.includes("connection_limit")) {
+                    dbUrl += (dbUrl.includes("?") ? "&" : "?") + "connection_limit=5&pool_timeout=20";
+                }
                 prismaInstance = new PrismaClient({
                     datasources: {
                         db: {
-                            // Env only — no credentials in source. resolveDatabaseUrl
-                            // checks process.env then the local .env files.
-                            url: process.env.DATABASE_URL || resolveDatabaseUrl() || undefined,
+                            url: dbUrl,
                         },
                     },
                 });
@@ -1020,9 +1027,14 @@ function databaseIntelligencePlugin() {
             // this dev middleware and the deployed /api/intelligence/contacts
             // function are guaranteed to return the same numbers.
             const prismaQuery = async <T = Record<string, any>>(sql: string, params: unknown[] = []): Promise<T[]> => {
-                const prisma = getPrisma();
-                if (!prisma) throw new Error("database_unavailable");
-                return (await prisma.$queryRawUnsafe(sql, ...(params as any[]))) as T[];
+                try {
+                    return await pgQuery<T>(sql, params);
+                } catch (pgErr: any) {
+                    console.error("[prismaQuery] pgQuery failed:", pgErr?.message || pgErr);
+                    const prisma = getPrisma();
+                    if (!prisma) throw pgErr;
+                    return (await prisma.$queryRawUnsafe(sql, ...(params as any[]))) as T[];
+                }
             };
 
             server.middlewares.use("/api/intelligence/contacts", async (req: any, res: any) => {
@@ -1579,7 +1591,13 @@ function databaseIntelligencePlugin() {
                                 l."lastName" AS last_name
                          FROM "EmailEvent" e
                          JOIN "Lead" l ON l.id = e."leadId"
-                         WHERE l."campaignId" = $1
+                         JOIN "Campaign" c ON c.id = l."campaignId"
+                         WHERE (l."campaignId" = $1 OR c."providerCampaignId" = $1)
+                           AND (
+                               e."rawPayload"->>'email_campaign_id' IS NULL
+                               OR e."rawPayload"->>'email_campaign_id' = c."providerCampaignId"
+                               OR e."rawPayload"->>'campaign_id' = c."providerCampaignId"
+                           )
                          ORDER BY e."createdAt" DESC
                          LIMIT 50`,
                         [campaignId]
@@ -2235,6 +2253,15 @@ function databaseIntelligencePlugin() {
             server.middlewares.use("/api/v1/unibox", handleUniboxMiddleware);
             server.middlewares.use("/api/unibox", handleUniboxMiddleware);
             server.middlewares.use("/unibox", handleUniboxMiddleware);
+
+            // Notifications: live alerts from database (replies, bounces, paused campaigns)
+            const handleNotificationsMiddleware = (req: any, res: any) => {
+                handleNotifications(req, res);
+            };
+            server.middlewares.use("/api/auth/me/notifications", handleNotificationsMiddleware);
+            server.middlewares.use("/auth/me/notifications", handleNotificationsMiddleware);
+            server.middlewares.use("/api/v1/notifications", handleNotificationsMiddleware);
+            server.middlewares.use("/api/notifications", handleNotificationsMiddleware);
 
             // 9. Live database mailboxes query, including each mailbox's real
             // "sent today" / lifetime counters derived from EmailEvent rows.

@@ -55,6 +55,9 @@ export interface ReportCampaign {
 }
 
 export interface ReportReply {
+    lead_id?: string
+    thread_id?: string
+    contact_name?: string
     contact_email: string
     subject: string
     snippet: string
@@ -62,6 +65,9 @@ export interface ReportReply {
     replied_at: string | null
     sender_email: string
     campaign: string
+    campaign_id?: string | null
+    team_member?: string
+    team_member_id?: string | null
 }
 
 export interface ReportBrand {

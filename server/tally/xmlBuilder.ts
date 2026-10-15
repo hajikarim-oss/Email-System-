@@ -69,7 +69,7 @@ export class TallyXmlBuilder {
         <TDLMESSAGE>
           <COLLECTION NAME="SyncVouchers">
             <TYPE>Voucher</TYPE>
-            <FETCH>Date, VoucherNumber, VoucherTypeName, PartyLedgerName, Amount, AlterId, Narration, AllLedgerEntries.*</FETCH>
+            <FETCH>Date, VoucherNumber, VoucherTypeName, PartyLedgerName, Amount, AlterId, Narration, AllLedgerEntries.LedgerName, AllLedgerEntries.Amount</FETCH>
             ${filterTag}
           </COLLECTION>
           ${formulaTag}

@@ -29,21 +29,21 @@ import {
 } from "@/lib/api/hooks/app/notifications/useNotifications";
 import type { AppNotification } from "@/lib/api/models/app/notifications/Notification";
 
-// Per-category icon + tone so the list scans by kind before reading titles.
-const CATEGORY_META: Record<string, { icon: LucideIcon; tone: string }> = {
-    inbound_reply: { icon: ReplyIcon, tone: "bg-amber-50 text-amber-700" },
-    inbound_out_of_office: { icon: ClockIcon, tone: "bg-slate-100 text-slate-500" },
-    health_bounce: { icon: TriangleAlertIcon, tone: "bg-amber-50 text-amber-600" },
-    health_complaint: { icon: ShieldAlertIcon, tone: "bg-rose-50 text-rose-600" },
-    health_worker_downtime: { icon: ServerCrashIcon, tone: "bg-rose-50 text-rose-600" },
-    security_new_signin: { icon: KeyRoundIcon, tone: "bg-violet-50 text-violet-600" },
-    billing_alert: { icon: CreditCardIcon, tone: "bg-amber-50 text-amber-600" },
-    team_activity: { icon: UsersIcon, tone: "bg-emerald-50 text-emerald-600" },
-    campaign_paused: { icon: PauseCircleIcon, tone: "bg-rose-50 text-rose-600" },
-    health_domain_auth: { icon: ShieldOffIcon, tone: "bg-rose-50 text-rose-600" },
+// Per-category icon + tone + badge so the list scans by kind before reading titles.
+const CATEGORY_META: Record<string, { icon: LucideIcon; tone: string; badge: string }> = {
+    inbound_reply: { icon: ReplyIcon, tone: "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300/80", badge: "New Reply" },
+    inbound_out_of_office: { icon: ClockIcon, tone: "bg-slate-100 text-slate-600", badge: "Auto-Reply" },
+    health_bounce: { icon: TriangleAlertIcon, tone: "bg-rose-100 text-rose-800 ring-1 ring-rose-300/80", badge: "Bounce" },
+    health_complaint: { icon: ShieldAlertIcon, tone: "bg-rose-100 text-rose-800", badge: "Spam Alert" },
+    health_worker_downtime: { icon: ServerCrashIcon, tone: "bg-rose-100 text-rose-800", badge: "System" },
+    security_new_signin: { icon: KeyRoundIcon, tone: "bg-violet-100 text-violet-800", badge: "Security" },
+    billing_alert: { icon: CreditCardIcon, tone: "bg-amber-100 text-amber-800", badge: "Billing" },
+    team_activity: { icon: UsersIcon, tone: "bg-blue-100 text-blue-800", badge: "Team" },
+    campaign_paused: { icon: PauseCircleIcon, tone: "bg-amber-100 text-amber-800 ring-1 ring-amber-300/80", badge: "Campaign" },
+    health_domain_auth: { icon: ShieldOffIcon, tone: "bg-rose-100 text-rose-800", badge: "DNS" },
 };
 
-const FALLBACK_META = { icon: BellIcon, tone: "bg-slate-100 text-slate-500" };
+const FALLBACK_META = { icon: BellIcon, tone: "bg-slate-100 text-slate-500", badge: "Alert" };
 
 type Bucket = "today" | "yesterday" | "earlier";
 
@@ -111,36 +111,57 @@ export function NotificationBell() {
     const itemBody = (n: AppNotification) => {
         const meta = CATEGORY_META[n.category] ?? FALLBACK_META;
         const Icon = meta.icon;
+        const isReply = n.category === "inbound_reply";
         return (
             <div className="flex items-start gap-2.5">
-                <span className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md ${meta.tone}`}>
+                <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${meta.tone} shadow-2xs`}>
                     <Icon className="size-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                    <div
-                        className={`text-[12px] truncate ${
-                            n.read_at ? "font-normal text-slate-600" : "font-semibold text-slate-900"
-                        }`}
-                    >
-                        {n.title}
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className={`text-[9.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
+                            isReply ? "bg-emerald-100 text-emerald-800" :
+                            n.category === "health_bounce" ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-700"
+                        }`}>
+                            {meta.badge}
+                        </span>
+                        <div
+                            className={`text-[12px] truncate ${
+                                n.read_at ? "font-normal text-slate-600" : "font-bold text-slate-900"
+                            }`}
+                        >
+                            {n.title}
+                        </div>
                     </div>
                     {n.body && (
-                        <div className={`text-[11px] truncate ${n.read_at ? "text-slate-400" : "text-slate-500"}`}>
+                        <div className={`text-[11px] truncate ${n.read_at ? "text-slate-400" : "text-slate-600 font-medium"}`}>
                             {n.body}
+                        </div>
+                    )}
+                    {isReply && (
+                        <div className="text-[10.5px] font-semibold text-emerald-600 hover:text-emerald-700 mt-1 flex items-center gap-1">
+                            <span>Open in Inbox</span>
+                            <span>→</span>
                         </div>
                     )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
-                    <span className="text-[10px] text-slate-400">{relTime(n.created_at)}</span>
-                    {!n.read_at && <span className="size-1.5 rounded-full bg-[#FFE600]" />}
+                    <span className="text-[10px] text-slate-400 font-mono">{relTime(n.created_at)}</span>
+                    {!n.read_at && (
+                        <span className={`size-2 rounded-full ${isReply ? "bg-emerald-500 animate-pulse" : "bg-amber-400"}`} />
+                    )}
                 </div>
             </div>
         );
     };
 
     const rowClass = (n: AppNotification) =>
-        `block w-full text-left px-3 py-2 border-l-2 transition-colors hover:bg-slate-50 cursor-pointer ${
-            n.read_at ? "border-l-transparent" : "border-l-[#18181B] bg-slate-50/70"
+        `block w-full text-left px-3 py-2.5 border-l-[3px] transition-colors hover:bg-slate-50 cursor-pointer ${
+            n.read_at
+                ? "border-l-transparent opacity-75"
+                : n.category === "inbound_reply"
+                    ? "border-l-emerald-500 bg-emerald-50/40 hover:bg-emerald-50/70"
+                    : "border-l-amber-500 bg-amber-50/30 hover:bg-amber-50/60"
         }`;
 
     const emptyState = (
@@ -175,17 +196,41 @@ export function NotificationBell() {
         </div>
     );
 
+    const hasReplies = items.some((n) => !n.read_at && n.category === "inbound_reply");
+    const hasWarnings = items.some((n) => !n.read_at && (
+        n.category === "health_bounce" ||
+        n.category === "health_complaint" ||
+        n.category === "campaign_paused" ||
+        n.category === "health_domain_auth" ||
+        n.category === "health_worker_downtime" ||
+        n.category === "billing_alert"
+    ));
+
     return (
         <div ref={ref} className="relative">
             <button
                 type="button"
                 onClick={() => setOpen((o) => !o)}
                 aria-label="Notifications"
-                className="relative w-7 h-7 rounded-md flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+                className={
+                    unread > 0
+                        ? hasReplies
+                            ? "relative w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-sm hover:bg-emerald-100 transition-all ring-2 ring-emerald-200/50"
+                            : hasWarnings
+                                ? "relative w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-600 border border-rose-200 shadow-sm hover:bg-rose-100 transition-all"
+                                : "relative w-8 h-8 rounded-lg flex items-center justify-center bg-amber-50 text-amber-700 border border-amber-200 shadow-sm hover:bg-amber-100 transition-all"
+                        : "relative w-7 h-7 rounded-md flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+                }
             >
-                <BellIcon className="w-4 h-4" />
+                <BellIcon className={unread > 0 ? "w-4 h-4 animate-[wiggle_0.5s_ease-in-out]" : "w-4 h-4"} />
                 {unread > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-semibold flex items-center justify-center">
+                    <span className={
+                        hasReplies
+                            ? "absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white animate-pulse"
+                            : hasWarnings
+                                ? "absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white animate-pulse"
+                                : "absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white"
+                    }>
                         {unread > 9 ? "9+" : unread}
                     </span>
                 )}
