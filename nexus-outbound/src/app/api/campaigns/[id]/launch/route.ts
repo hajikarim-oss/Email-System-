@@ -125,63 +125,46 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     const sendDays = campaign.preferredSendDays?.length ? campaign.preferredSendDays : [1, 2, 3, 4, 5];
 
-    // If already launched, re-start
-    if (campaign.providerCampaignId) {
+    // Check if campaign already exists on Smartlead or create it
+    let providerCampaignId = campaign.providerCampaignId;
+    if (!providerCampaignId) {
       try {
-        await smartlead.setSchedule(campaign.providerCampaignId, {
-          timezone: campaign.sendTimezone || "Asia/Kolkata",
-          daysOfWeek: sendDays,
-          startHour: "09:00",
-          endHour: "17:00",
-          minTimeBetweenEmails: 3,
-          maxNewLeadsPerDay: 50 * smartleadMailboxIds.length,
-          startDate: today,
-        });
-        await smartlead.startCampaign(campaign.providerCampaignId);
-        const webhookUrl = process.env.WEBHOOK_BASE_URL
-          ? `${process.env.WEBHOOK_BASE_URL}/api/webhooks/smartlead`
-          : "https://tbmoutreach.tech/api/webhooks/smartlead";
-        await smartlead.configureUserWebhook(webhookUrl);
-        await smartlead.configureWebhook(campaign.providerCampaignId, webhookUrl);
-        await prisma.campaign.update({ where: { id }, data: { status: "ACTIVE" } });
-        return NextResponse.json({ id: campaign.id, name: campaign.name, status: "re-launched", message: "Campaign re-activated." });
+        const res = await fetch(
+          `https://server.smartlead.ai/api/v1/campaigns/create?api_key=${smartleadApiKey}`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: campaign.name }) }
+        );
+        if (!res.ok) throw new Error(`Create error: ${await res.text()}`);
+        const data = await res.json();
+        providerCampaignId = String(data.id);
+        await prisma.campaign.update({ where: { id }, data: { providerCampaignId } });
       } catch (err) {
-        return NextResponse.json({ error: `Re-launch failed: ${(err as Error).message}` }, { status: 502 });
+        return NextResponse.json({ error: `Smartlead error: ${(err as Error).message}` }, { status: 502 });
       }
     }
 
-    // Create campaign on Smartlead
-    let providerCampaignId: string;
+    // Add sequences if not already created
     try {
-      const res = await fetch(
-        `https://server.smartlead.ai/api/v1/campaigns/create?api_key=${smartleadApiKey}`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: campaign.name }) }
+      const seqCheck = await fetch(
+        `https://server.smartlead.ai/api/v1/campaigns/${providerCampaignId}/sequences?api_key=${smartleadApiKey}`
       );
-      if (!res.ok) throw new Error(`Create error: ${await res.text()}`);
-      const data = await res.json();
-      providerCampaignId = String(data.id);
-      await prisma.campaign.update({ where: { id }, data: { providerCampaignId } });
-    } catch (err) {
-      return NextResponse.json({ error: `Smartlead error: ${(err as Error).message}` }, { status: 502 });
-    }
-
-    // Add sequences
-    try {
-      const seqRes = await fetch(
-        `https://server.smartlead.ai/api/v1/campaigns/${providerCampaignId}/sequences?api_key=${smartleadApiKey}`,
-        {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sequences: campaign.steps.map((s: any, idx: number) => ({
-              id: null, seq_number: idx + 1,
-              subject: (s.subject || "").replace(/\{\{firstName\}\}/g, "{{first_name}}").replace(/\{\{lastName\}\}/g, "{{last_name}}").replace(/\{\{CompanyName\}\}/g, "{{company}}").replace(/\{\{JobTitle\}\}/g, "{{title}}"),
-              email_body: (s.bodyTemplate || "").replace(/\{\{firstName\}\}/g, "{{first_name}}").replace(/\{\{lastName\}\}/g, "{{last_name}}").replace(/\{\{CompanyName\}\}/g, "{{company}}").replace(/\{\{JobTitle\}\}/g, "{{title}}"),
-              seq_delay_details: { delay_in_days: s.delayDays || 0 },
-            })),
-          }),
-        }
-      );
-      if (!seqRes.ok) console.error("Sequences error:", await seqRes.text());
+      const existingSeqs = seqCheck.ok ? await seqCheck.json() : [];
+      if (!Array.isArray(existingSeqs) || existingSeqs.length === 0) {
+        const seqRes = await fetch(
+          `https://server.smartlead.ai/api/v1/campaigns/${providerCampaignId}/sequences?api_key=${smartleadApiKey}`,
+          {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sequences: campaign.steps.map((s: any, idx: number) => ({
+                id: null, seq_number: idx + 1,
+                subject: (s.subject || "").replace(/\{\{firstName\}\}/g, "{{first_name}}").replace(/\{\{lastName\}\}/g, "{{last_name}}").replace(/\{\{CompanyName\}\}/g, "{{company_name}}").replace(/\{\{JobTitle\}\}/g, "{{title}}"),
+                email_body: (s.bodyTemplate || "").replace(/\{\{firstName\}\}/g, "{{first_name}}").replace(/\{\{lastName\}\}/g, "{{last_name}}").replace(/\{\{CompanyName\}\}/g, "{{company_name}}").replace(/\{\{JobTitle\}\}/g, "{{title}}"),
+                seq_delay_details: { delay_in_days: s.delayDays || 0 },
+              })),
+            }),
+          }
+        );
+        if (!seqRes.ok) console.error("Sequences error:", await seqRes.text());
+      }
     } catch (e) { console.error("Sequences failed:", e); }
 
     // Link mailboxes
@@ -193,28 +176,56 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!mbRes.ok) console.error("Mailbox error:", await mbRes.text());
     } catch (e) { console.error("Mailbox failed:", e); }
 
-    // Add leads in batches
+    // Check existing leads in Smartlead & upload missing leads in batches of 50
     try {
-      for (let i = 0; i < activeLeads.length; i += 50) {
-        const batch = activeLeads.slice(i, i + 50);
-        const lRes = await fetch(
-          `https://server.smartlead.ai/api/v1/campaigns/${providerCampaignId}/leads?api_key=${smartleadApiKey}`,
-          {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              lead_list: batch.map((l: any) => {
-                const custom = (l.customData && typeof l.customData === "object") ? l.customData : {};
-                return {
-                  email: l.email, first_name: l.firstName || l.email.split("@")[0], last_name: l.lastName || "",
-                  company: custom.company || "", title: custom.title || "",
-                };
-              }),
-            }),
-          }
+      let slTotalLeads = 0;
+      try {
+        const leadCheck = await fetch(
+          `https://server.smartlead.ai/api/v1/campaigns/${providerCampaignId}/leads?limit=1&api_key=${smartleadApiKey}`
         );
-        if (!lRes.ok) console.error("Leads error:", await lRes.text());
+        if (leadCheck.ok) {
+          const checkData = await leadCheck.json();
+          slTotalLeads = Number(checkData?.total_leads) || (Array.isArray(checkData?.data) ? checkData.data.length : 0);
+        }
+      } catch {}
+
+      if (slTotalLeads < activeLeads.length) {
+        console.log(`[Launch] Smartlead #${providerCampaignId} has ${slTotalLeads} leads, uploading ${activeLeads.length} leads...`);
+        for (let i = 0; i < activeLeads.length; i += 50) {
+          const batch = activeLeads.slice(i, i + 50);
+          const lRes = await fetch(
+            `https://server.smartlead.ai/api/v1/campaigns/${providerCampaignId}/leads?api_key=${smartleadApiKey}`,
+            {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lead_list: batch.map((l: any) => {
+                  const custom = (l.customData && typeof l.customData === "object") ? l.customData : {};
+                  const companyName = custom.company || custom.company_name || l.company || l.company_name || "";
+                  const title = custom.title || custom.role || l.title || l.role || "";
+                  const fName = l.firstName || (l.email ? l.email.split("@")[0] : "Prospect");
+                  const lName = l.lastName || "";
+                  return {
+                    email: l.email,
+                    first_name: fName,
+                    last_name: lName,
+                    company_name: companyName,
+                    custom_fields: {
+                      company: companyName,
+                      company_name: companyName,
+                      title: title,
+                      firstName: fName,
+                      lastName: lName,
+                      ...custom,
+                    },
+                  };
+                }),
+              }),
+            }
+          );
+          if (!lRes.ok) console.error("Leads error:", await lRes.text());
+        }
       }
-    } catch (e) { console.error("Leads failed:", e); }
+    } catch (e) { console.error("Leads sync failed:", e); }
 
     // Set schedule with today's date so sending starts immediately
     try {

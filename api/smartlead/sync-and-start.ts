@@ -432,14 +432,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     existingLeadCount = Number(leadCheck.data?.total_leads) || (Array.isArray(leadCheck.data?.data) ? leadCheck.data.data.length : 0);
                 } catch {}
 
-                if (existingLeadCount === 0) {
-                    const leadsRes = await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: leadList }, chosenKey);
-                    if (leadsRes.status < 200 || leadsRes.status >= 300) {
-                        console.error(`[Smartlead Sync] CRITICAL: Failed to add leads to campaign ${smartleadId}`);
-                        console.error(`   Status: ${leadsRes.status}, Response:`, leadsRes.data);
-                        throw new Error(`Lead import failed: ${leadsRes.status}`);
+                if (existingLeadCount < leadList.length) {
+                    console.log(`[Smartlead Sync] Enrolling leads in batches: campaign #${smartleadId} has ${existingLeadCount} on Smartlead vs ${leadList.length} locally`);
+                    let totalUploaded = 0;
+                    for (let i = 0; i < leadList.length; i += 50) {
+                        const batch = leadList.slice(i, i + 50);
+                        const leadsRes = await apiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: batch }, chosenKey);
+                        if (leadsRes.status < 200 || leadsRes.status >= 300) {
+                            console.error(`[Smartlead Sync] WARNING: Batch ${i}..${i + batch.length} upload failed for campaign ${smartleadId}`);
+                            console.error(`   Status: ${leadsRes.status}, Response:`, leadsRes.data);
+                        } else {
+                            totalUploaded += batch.length;
+                        }
                     }
-                    console.log(`[Smartlead Sync] ✅ Added ${leadList.length} leads to campaign ${smartleadId}`);
+                    console.log(`[Smartlead Sync] ✅ Uploaded ${totalUploaded}/${leadList.length} leads to campaign ${smartleadId}`);
                 } else {
                     console.log(`[Smartlead Sync] Campaign #${smartleadId} already has ${existingLeadCount} leads enrolled. Skipping duplicate lead upload.`);
                 }

@@ -100,11 +100,25 @@ export class SmartleadProvider implements EmailProvider {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lead_list: input.leads.map((l) => ({
-            email: l.email,
-            first_name: l.firstName || "",
-            last_name: l.lastName || "",
-          })),
+          lead_list: input.leads.map((l: any) => {
+            const custom = (l.customData && typeof l.customData === "object") ? l.customData : {};
+            const companyName = l.company || l.companyName || custom.company || custom.company_name || "";
+            const title = l.title || custom.title || custom.role || "";
+            return {
+              email: l.email,
+              first_name: l.firstName || "",
+              last_name: l.lastName || "",
+              company_name: companyName,
+              custom_fields: {
+                company: companyName,
+                company_name: companyName,
+                title: title,
+                firstName: l.firstName || "",
+                lastName: l.lastName || "",
+                ...custom,
+              },
+            };
+          }),
         }),
       });
 
@@ -419,7 +433,6 @@ export class SmartleadProvider implements EmailProvider {
       min_time_btw_emails: schedule.minTimeBetweenEmails ?? 3,
       max_new_leads_per_day: schedule.maxNewLeadsPerDay ?? 50,
     };
-    if (schedule.startDate) payload.start_date = schedule.startDate;
 
     const response = await fetch(
       this.getUrl(`/campaigns/${providerCampaignId}/schedule`),

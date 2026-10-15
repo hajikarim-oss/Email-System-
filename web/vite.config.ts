@@ -1707,8 +1707,20 @@ function databaseIntelligencePlugin() {
                             return;
                         }
 
-                        // 1. Guard against re-starting an already active campaign with leads
-                        if (camp.status === "ACTIVE" && camp.providerCampaignId && camp.leads.length > 0) {
+                        // 1. Check if campaign is already linked to Smartlead AND already has leads enrolled
+                        let existingSlLeadCount = 0;
+                        if (camp.providerCampaignId) {
+                            try {
+                                const sender = (camp.mailboxes?.[0]?.mailbox?.senderEmail || "").toLowerCase();
+                                const isPreeti = sender.includes("preeti");
+                                const chosenKey = isPreeti ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY;
+                                const leadCheck = await apiCall(`/campaigns/${camp.providerCampaignId}/leads?limit=1`, "GET", undefined, chosenKey);
+                                existingSlLeadCount = Number(leadCheck.data?.total_leads) || (Array.isArray(leadCheck.data?.data) ? leadCheck.data.data.length : 0);
+                            } catch {}
+                        }
+
+                        // Guard against re-starting an already active campaign with all leads enrolled
+                        if (camp.status === "ACTIVE" && camp.providerCampaignId && existingSlLeadCount >= (camp.leads?.length || 1) && existingSlLeadCount > 0) {
                             res.writeHead(200, { "Content-Type": "application/json" });
                             res.end(JSON.stringify({
                                 success: true,
@@ -1718,8 +1730,8 @@ function databaseIntelligencePlugin() {
                             return;
                         }
 
-                        // 2. If campaign is already linked to Smartlead AND already has leads enrolled, simply resume it
-                        if (camp.providerCampaignId && camp.leads.length > 0) {
+                        // If campaign is already linked to Smartlead AND already has all leads enrolled, simply resume it
+                        if (camp.providerCampaignId && existingSlLeadCount >= (camp.leads?.length || 1) && existingSlLeadCount > 0) {
                             const slId = camp.providerCampaignId;
                             const sender = (camp.mailboxes?.[0]?.mailbox?.senderEmail || "").toLowerCase();
                             const isPreeti = sender.includes("preeti");

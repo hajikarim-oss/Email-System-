@@ -158,11 +158,27 @@ export const launchCampaignJob = inngest.createFunction(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              lead_list: batch.map((l: any) => ({
-                email: l.email,
-                first_name: l.firstName || l.email.split("@")[0],
-                last_name: l.lastName || "",
-              })),
+              lead_list: batch.map((l: any) => {
+                const custom = (l.customData && typeof l.customData === "object") ? l.customData : {};
+                const companyName = custom.company || custom.company_name || l.company || l.company_name || "";
+                const title = custom.title || custom.role || l.title || l.role || "";
+                const fName = l.firstName || (l.email ? l.email.split("@")[0] : "Prospect");
+                const lName = l.lastName || "";
+                return {
+                  email: l.email,
+                  first_name: fName,
+                  last_name: lName,
+                  company_name: companyName,
+                  custom_fields: {
+                    company: companyName,
+                    company_name: companyName,
+                    title: title,
+                    firstName: fName,
+                    lastName: lName,
+                    ...custom,
+                  },
+                };
+              }),
             }),
           }
         );
