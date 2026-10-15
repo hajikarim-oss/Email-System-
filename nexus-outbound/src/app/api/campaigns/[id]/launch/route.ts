@@ -227,14 +227,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     } catch (e) { console.error("Leads sync failed:", e); }
 
-    // Set schedule with today's date so sending starts immediately
+    // Set schedule using campaign's configured send hour
+    const startHour = campaign.preferredSendHour ? `${String(campaign.preferredSendHour).padStart(2, "0")}:00` : "09:00";
     try {
       await smartlead.setSchedule(providerCampaignId, {
         timezone: campaign.sendTimezone || "Asia/Kolkata",
         daysOfWeek: sendDays,
-        startHour: "09:00", endHour: "17:00", minTimeBetweenEmails: 3,
+        startHour,
+        endHour: "18:00",
+        minTimeBetweenEmails: 3,
         maxNewLeadsPerDay: 50 * smartleadMailboxIds.length,
-        startDate: today,
       });
     } catch (e) { console.error("Schedule failed:", e); }
 

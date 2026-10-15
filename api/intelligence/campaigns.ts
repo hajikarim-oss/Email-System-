@@ -325,16 +325,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
             }
 
-            // 7. Set schedule with today's date
-            let today: string;
-            try { today = new Date().toLocaleDateString("en-CA", { timeZone: tz }); }
-            catch { today = new Date().toISOString().slice(0, 10); }
+            // 7. Set schedule using campaign's configured send hour
+            const configuredStartH = camp.preferredSendHour != null ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "09:00";
+            const configuredEndH = "18:00";
 
             await slApiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
                 timezone: tz,
                 days_of_the_week: days,
-                start_hour: "09:00",
-                end_hour: "18:00",
+                start_hour: configuredStartH,
+                end_hour: configuredEndH,
                 min_time_btw_emails: 3,
                 max_new_leads_per_day: 50 * slMailboxIds.length,
             }, apiKey);
@@ -344,7 +343,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             // 9. Ensure immediate sending window
             try {
-                await ensureImmediateSendingSchedule(smartleadId, { timezone: tz, days, apiKey });
+                await ensureImmediateSendingSchedule(smartleadId, { timezone: tz, days, start_time: configuredStartH, end_time: configuredEndH, apiKey });
             } catch {}
 
             // 10. Register webhook
