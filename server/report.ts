@@ -126,7 +126,41 @@ export function cleanSnippetText(raw: any, fallback?: string): string {
 // the "primary target brands" list.
 const FREE_MAIL_DOMAINS = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "proton.me", "aol.com"];
 
+interface ReportCacheEntry {
+    data: SystemReport;
+    expiresAt: number;
+}
+const reportCache = new Map<string, ReportCacheEntry>();
+const inFlightReports = new Map<string, Promise<SystemReport>>();
+const REPORT_CACHE_TTL = 60_000;
+
 export async function getReport(query: QueryFn, scope: DataScope): Promise<SystemReport> {
+    const key = `${scope.master ? "master" : scope.userId}`;
+    const cached = reportCache.get(key);
+    const nowMs = Date.now();
+    if (cached && cached.expiresAt > nowMs) {
+        return cached.data;
+    }
+
+    if (inFlightReports.has(key)) {
+        return inFlightReports.get(key)!;
+    }
+
+    const fetchPromise = (async () => {
+        try {
+            const report = await fetchReportInternal(query, scope);
+            reportCache.set(key, { data: report, expiresAt: Date.now() + REPORT_CACHE_TTL });
+            return report;
+        } finally {
+            inFlightReports.delete(key);
+        }
+    })();
+
+    inFlightReports.set(key, fetchPromise);
+    return fetchPromise;
+}
+
+async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<SystemReport> {
     const now = new Date();
     // First day of the month 17 months back = an 18-month window incl. this one.
     const volumeStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 17, 1))
@@ -140,7 +174,6 @@ export async function getReport(query: QueryFn, scope: DataScope): Promise<Syste
         categoryRows,
         classificationRows,
         volumeRows,
-        yearlyRows,
         campaignRows,
         campaignTotalRows,
         replyRows,
@@ -171,7 +204,7 @@ export async function getReport(query: QueryFn, scope: DataScope): Promise<Syste
              WHERE ${leadOwned(scope, `"Lead"`)}`,
         ),
         query(
-            `SELECT coalesce(nullif(btrim("customData"->>'category'), ''), 'Other Segments') AS category,
+            `SELECT coalesce(nullif("customData"->>'category', ''), 'Other Segments') AS category,
                     count(*)::int AS leads,
                     count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS contacted,
                     count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "totalReplied" > 0)::int AS opened,
@@ -215,15 +248,6 @@ export async function getReport(query: QueryFn, scope: DataScope): Promise<Syste
              GROUP BY 1
              ORDER BY 1`,
             [volumeStart],
-        ),
-        query(
-            `SELECT to_char(date_trunc('year', "createdAt"), 'YYYY') AS year,
-                    count(*)::int AS sent,
-                    count(*) FILTER (WHERE "replied")::int AS replies
-             FROM "EmailMessage"
-             WHERE ${messageOwned(scope, `"EmailMessage"`)}
-             GROUP BY 1
-             ORDER BY 1`,
         ),
         query(
             `SELECT coalesce(nullif("campaignClean", ''), 'Unattributed') AS campaign,

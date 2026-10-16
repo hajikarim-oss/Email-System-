@@ -28,6 +28,13 @@ function readBody(req: IncomingMessage): Promise<string> {
 const SNEHAL_USER_ID = "cmttwwhj5000ovdkr7ooyb6qt";
 const VATSAL_USER_ID = "cmu6m304o00003307qj8ex6oa";
 
+interface UniboxCacheEntry {
+    data: any;
+    expiresAt: number;
+}
+const uniboxOverviewCache = new Map<string, UniboxCacheEntry>();
+const UNIBOX_CACHE_TTL = 30_000;
+
 export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
     try {
         const user = await requireUser(req, res);
@@ -59,9 +66,9 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 `SELECT c."userId", COUNT(DISTINCT l.id)::int as unread
                  FROM "Lead" l
                  JOIN "Campaign" c ON c.id = l."campaignId"
-                 WHERE (l.status = 'REPLIED' OR EXISTS (
-                     SELECT 1 FROM "EmailEvent" ev WHERE ev."leadId" = l.id AND ev."eventType" = 'replied'
-                 ))
+                 WHERE l.status = 'REPLIED' OR l.id IN (
+                     SELECT ev."leadId" FROM "EmailEvent" ev WHERE ev."eventType" = 'replied'
+                 )
                  GROUP BY c."userId"`
             );
 
@@ -105,6 +112,17 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const memberId = searchParams.get("member_id");
             const campaignId = searchParams.get("campaign_id");
 
+            const cacheKey = `${isMaster ? "master" : scope.userId}_${memberId || "all"}_${campaignId || "all"}`;
+            const cachedOverview = uniboxOverviewCache.get(cacheKey);
+            if (cachedOverview && cachedOverview.expiresAt > Date.now()) {
+                if (pathname.endsWith("/count")) {
+                    send(res, 200, { unseen: cachedOverview.data.unread }, 0);
+                    return;
+                }
+                send(res, 200, cachedOverview.data, 0);
+                return;
+            }
+
             // Filter conditions
             const conditions: string[] = [];
             const params: any[] = [];
@@ -126,11 +144,11 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
             // Dynamic aggregations from PostgreSQL
-            const counts = await pgQuery<any>(
+            const countsPromise = pgQuery<any>(
                 `SELECT
                     COUNT(DISTINCT l.id)::int AS total_leads,
-                    COUNT(DISTINCT CASE WHEN (l.status = 'REPLIED' OR EXISTS (
-                        SELECT 1 FROM "EmailEvent" ev WHERE ev."leadId" = l.id AND ev."eventType" = 'replied'
+                    COUNT(DISTINCT CASE WHEN (l.status = 'REPLIED' OR l.id IN (
+                        SELECT ev."leadId" FROM "EmailEvent" ev WHERE ev."eventType" = 'replied'
                     )) THEN l.id END)::int AS replied_leads,
                     COUNT(DISTINCT CASE WHEN l.status = 'ACTIVE' AND l."totalOutbound" > 0 THEN l.id END)::int AS awaiting_reply,
                     COUNT(DISTINCT CASE WHEN l.status = 'BOUNCED' THEN l.id END)::int AS bounced_leads
@@ -140,8 +158,8 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 params
             );
 
-            // Reply events today and this week (only count leads with actual replies)
-            const eventCounts = await pgQuery<any>(
+            // Reply events today and this week
+            const eventCountsPromise = conditions.length > 0 ? pgQuery<any>(
                 `SELECT
                     COUNT(DISTINCT CASE WHEN e."createdAt" >= CURRENT_DATE AND e."eventType" = 'replied' THEN e."leadId" END)::int AS today_replies,
                     COUNT(DISTINCT CASE WHEN e."createdAt" >= NOW() - INTERVAL '7 days' AND e."eventType" = 'replied' THEN e."leadId" END)::int AS week_replies,
@@ -151,19 +169,30 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                  LEFT JOIN "Campaign" c ON c.id = l."campaignId"
                  ${whereClause}`,
                 params
+            ) : pgQuery<any>(
+                `SELECT
+                    COUNT(DISTINCT CASE WHEN e."createdAt" >= CURRENT_DATE AND e."eventType" = 'replied' THEN e."leadId" END)::int AS today_replies,
+                    COUNT(DISTINCT CASE WHEN e."createdAt" >= NOW() - INTERVAL '7 days' AND e."eventType" = 'replied' THEN e."leadId" END)::int AS week_replies,
+                    COUNT(DISTINCT CASE WHEN e."eventType" = 'sent' THEN e.id END)::int AS total_sent
+                 FROM "EmailEvent" e`
             );
 
-            // Mailboxes
-            const mailboxes = await pgQuery<any>(
-                `SELECT m.id, m."senderEmail" as email, m.status,
-                        coalesce(count(DISTINCT e.id), 0)::int as total
-                 FROM "Mailbox" m
-                 LEFT JOIN "EmailEvent" e ON lower(e."fromEmail") = lower(m."senderEmail")
-                 WHERE m.status != 'RETIRED'
-                 GROUP BY m.id, m."senderEmail", m.status
-                 ORDER BY m."createdAt" ASC`
+            // Mailboxes and event counts
+            const mailboxesPromise = pgQuery<any>(
+                `SELECT id, "senderEmail" as email, status FROM "Mailbox" WHERE status != 'RETIRED' ORDER BY "createdAt" ASC`
+            );
+            const emailCountsPromise = pgQuery<any>(
+                `SELECT lower("fromEmail") as email, count(*)::int as total FROM "EmailEvent" WHERE "fromEmail" IS NOT NULL GROUP BY 1`
             );
 
+            const [counts, eventCounts, mailboxes, emailEventCounts] = await Promise.all([
+                countsPromise,
+                eventCountsPromise,
+                mailboxesPromise,
+                emailCountsPromise,
+            ]);
+
+            const eventCountMap = new Map(emailEventCounts.map((r: any) => [r.email?.toLowerCase(), r.total]));
             const cData = counts[0] || {};
             const eData = eventCounts[0] || {};
 
@@ -172,7 +201,7 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 email: m.email,
                 name: m.email.split("@")[0],
                 unread: 0,
-                total: m.total || 0,
+                total: eventCountMap.get(m.email?.toLowerCase()) || 0,
             }));
 
             const repliedCount = cData.replied_leads || 0;
@@ -203,6 +232,8 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 ],
                 generated_at: new Date().toISOString(),
             };
+
+            uniboxOverviewCache.set(cacheKey, { data: overview, expiresAt: Date.now() + UNIBOX_CACHE_TTL });
 
             if (pathname.endsWith("/count")) {
                 send(res, 200, { unseen: overview.unread }, 0);
@@ -399,8 +430,8 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 conditions.push(`l."totalOutbound" > 0`);
             } else {
                 // inbox / all / any non-sent folder: ONLY show leads with genuine inbound replies!
-                conditions.push(`(l.status = 'REPLIED' OR EXISTS (
-                    SELECT 1 FROM "EmailEvent" ev WHERE ev."leadId" = l.id AND ev."eventType" = 'replied'
+                conditions.push(`(l.status = 'REPLIED' OR l.id IN (
+                    SELECT ev."leadId" FROM "EmailEvent" ev WHERE ev."eventType" = 'replied'
                 ))`);
             }
 
@@ -424,24 +455,34 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
             const rows = await pgQuery<any>(
-                `SELECT l.id, l.email, l."firstName", l."lastName", l."campaignId", l.status,
-                        l."leadCategory", l."totalOutbound", l."totalInbound", l."updatedAt",
-                        c.name as "campaignName", c."userId" as "campaignOwner",
-                        coalesce(
-                            (SELECT e."fromEmail" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'sent' ORDER BY e."createdAt" DESC LIMIT 1),
-                            'haji.karim@theboredmonkey.com'
-                        ) as "fromEmail",
-                        (SELECT e."fromEmail" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'replied' ORDER BY e."createdAt" DESC LIMIT 1) as "replyFromEmail",
-                        (SELECT e."createdAt" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'replied' ORDER BY e."createdAt" DESC LIMIT 1) as "replyCreatedAt",
-                        (SELECT e."rawPayload" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'replied' ORDER BY e."createdAt" DESC LIMIT 1) as "replyPayload"
-                 FROM "Lead" l
-                 LEFT JOIN "Campaign" c ON c.id = l."campaignId"
-                 ${whereClause}
-                 ORDER BY coalesce(
-                     (SELECT e."createdAt" FROM "EmailEvent" e WHERE e."leadId" = l.id AND e."eventType" = 'replied' ORDER BY e."createdAt" DESC LIMIT 1),
-                     l."updatedAt"
-                 ) DESC
-                 LIMIT ${limit + 1}`,
+                `WITH replied_events AS (
+                    SELECT DISTINCT ON ("leadId")
+                           "leadId", "fromEmail" as reply_from, "createdAt" as reply_created_at, "rawPayload" as reply_payload
+                    FROM "EmailEvent"
+                    WHERE "eventType" = 'replied'
+                    ORDER BY "leadId", "createdAt" DESC
+                ),
+                sent_events AS (
+                    SELECT DISTINCT ON ("leadId")
+                           "leadId", "fromEmail" as sent_from
+                    FROM "EmailEvent"
+                    WHERE "eventType" = 'sent'
+                    ORDER BY "leadId", "createdAt" DESC
+                )
+                SELECT l.id, l.email, l."firstName", l."lastName", l."campaignId", l.status,
+                       l."leadCategory", l."totalOutbound", l."totalInbound", l."updatedAt",
+                       c.name as "campaignName", c."userId" as "campaignOwner",
+                       coalesce(se.sent_from, 'haji.karim@theboredmonkey.com') as "fromEmail",
+                       re.reply_from as "replyFromEmail",
+                       re.reply_created_at as "replyCreatedAt",
+                       re.reply_payload as "replyPayload"
+                FROM "Lead" l
+                LEFT JOIN "Campaign" c ON c.id = l."campaignId"
+                LEFT JOIN replied_events re ON re."leadId" = l.id
+                LEFT JOIN sent_events se ON se."leadId" = l.id
+                ${whereClause}
+                ORDER BY coalesce(re.reply_created_at, l."updatedAt") DESC
+                LIMIT ${limit + 1}`,
                 params
             );
 

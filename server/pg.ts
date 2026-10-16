@@ -66,9 +66,9 @@ export function getPool(): Pool {
     pool = new Pool({
         connectionString: parsed.toString(),
         ssl: useSsl ? { rejectUnauthorized: false } : undefined,
-        max: 10,
+        max: 15,
         idleTimeoutMillis: 30_000,
-        connectionTimeoutMillis: 10_000,
+        connectionTimeoutMillis: 30_000,
     });
 
     // Supabase transaction pooler resets idle TLS sockets periodically (ECONNRESET).
@@ -85,13 +85,8 @@ export const pgQuery: QueryFn = async <T = Record<string, any>>(sql: string, par
     while (attempts < 2) {
         attempts++;
         try {
-            const client = await getPool().connect();
-            try {
-                const result = await client.query(sql, params as any[]);
-                return result.rows as unknown as T[];
-            } finally {
-                client.release();
-            }
+            const result = await getPool().query(sql, params as any[]);
+            return result.rows as unknown as T[];
         } catch (err: any) {
             const isTransient = err.code === "ECONNRESET" || err.message?.includes("Connection terminated") || err.message?.includes("closed");
             if (isTransient && attempts < 2) {

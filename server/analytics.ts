@@ -119,6 +119,13 @@ function engagementCte(scope: DataScope): string {
                    l."updatedAt" AS updated_at
             FROM "Lead" l
             WHERE ${leadOwned(scope, "l")} AND l."campaignId" IS NOT NULL
+              AND (
+                (l."lastContactedAt" >= $1::timestamp AND l."lastContactedAt" < $2::timestamp)
+                OR (l."lastOpenAt" >= $1::timestamp AND l."lastOpenAt" < $2::timestamp)
+                OR (coalesce(l."lastRepliedAt", l."repliedAt") >= $1::timestamp AND coalesce(l."lastRepliedAt", l."repliedAt") < $2::timestamp)
+                OR (l."lastBouncedAt" >= $1::timestamp AND l."lastBouncedAt" < $2::timestamp)
+                OR (l."updatedAt" >= $1::timestamp AND l."updatedAt" < $2::timestamp)
+              )
         ),
         event_dates AS (
             SELECT e."leadId" AS lead_id,
@@ -127,6 +134,7 @@ function engagementCte(scope: DataScope): string {
                    min(e."createdAt") FILTER (WHERE e."eventType" IN ${inList(BOUNCE_EVENTS)}) AS bounce_at
             FROM "EmailEvent" e
             WHERE ${eventOwned(scope, "e")}
+              AND e."createdAt" >= $1::timestamp AND e."createdAt" < $2::timestamp
             GROUP BY 1
         ),
         message_dates AS (
@@ -135,6 +143,7 @@ function engagementCte(scope: DataScope): string {
                    min("createdAt") FILTER (WHERE "bounced") AS bounce_at
             FROM "EmailMessage"
             WHERE ${messageOwned(scope, `"EmailMessage"`)}
+              AND "createdAt" >= $1::timestamp AND "createdAt" < $2::timestamp
             GROUP BY 1
         ),
         engagement AS (
@@ -358,7 +367,41 @@ interface CampaignBucket {
     engaged: Set<string>;
 }
 
+interface DashboardCacheEntry {
+    data: any;
+    expiresAt: number;
+}
+const dashboardCache = new Map<string, DashboardCacheEntry>();
+const inFlightDashboards = new Map<string, Promise<any>>();
+const DASHBOARD_CACHE_TTL = 60_000;
+
 export async function getDashboard(req: DashboardRequest, query: QueryFn, scope: DataScope) {
+    const key = `${scope.master ? "master" : scope.userId}_${req.period || "custom"}_${req.from || ""}_${req.to || ""}`;
+    const cached = dashboardCache.get(key);
+    const nowMs = Date.now();
+    if (cached && cached.expiresAt > nowMs) {
+        return cached.data;
+    }
+
+    if (inFlightDashboards.has(key)) {
+        return inFlightDashboards.get(key)!;
+    }
+
+    const fetchPromise = (async () => {
+        try {
+            const data = await fetchDashboardInternal(req, query, scope);
+            dashboardCache.set(key, { data, expiresAt: Date.now() + DASHBOARD_CACHE_TTL });
+            return data;
+        } finally {
+            inFlightDashboards.delete(key);
+        }
+    })();
+
+    inFlightDashboards.set(key, fetchPromise);
+    return fetchPromise;
+}
+
+async function fetchDashboardInternal(req: DashboardRequest, query: QueryFn, scope: DataScope) {
     const range = resolveRange(req);
     const startTs = toTs(range.start);
     const endTs = toTs(range.endExclusive);

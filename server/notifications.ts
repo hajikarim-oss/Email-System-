@@ -24,6 +24,13 @@ interface NotificationRow {
     created_at: string;
 }
 
+interface NotifCacheEntry {
+    data: any;
+    expiresAt: number;
+}
+const notifCache = new Map<string, NotifCacheEntry>();
+const NOTIF_CACHE_TTL = 15_000;
+
 export async function handleNotifications(req: IncomingMessage, res: ServerResponse) {
     try {
         const user = await requireUser(req, res);
@@ -37,6 +44,7 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
 
         // Mark single notification as read: POST .../notifications/{id}/read
         if (req.method === "POST" && pathname.match(/\/notifications\/[^/]+\/read$/)) {
+            notifCache.clear();
             const parts = pathname.split("/");
             const notifId = parts[parts.length - 2];
             try {
@@ -51,6 +59,7 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
 
         // Mark all as read: PUT .../notifications
         if (req.method === "PUT" && (pathname.endsWith("/notifications") || pathname.endsWith("/me/notifications"))) {
+            notifCache.clear();
             try {
                 await pgQuery(
                     `UPDATE "Notification" SET read = true WHERE "userId" = $1 AND read = false`,
@@ -63,6 +72,7 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
 
         // Clear read: DELETE .../notifications
         if (req.method === "DELETE" && (pathname.endsWith("/notifications") || pathname.endsWith("/me/notifications"))) {
+            notifCache.clear();
             try {
                 await pgQuery(
                     `DELETE FROM "Notification" WHERE "userId" = $1 AND read = true`,
@@ -76,6 +86,13 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
         // GET: build live notifications from database events
         const unreadOnly = searchParams.get("unread") === "1";
         const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
+
+        const cacheKey = `${scope.userId}_${isMaster ? "1" : "0"}_${unreadOnly}_${limit}`;
+        const cached = notifCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            send(res, 200, cached.data, 0);
+            return;
+        }
 
         // Try Notification table first
         let dbNotifs: NotificationRow[] = [];
@@ -211,12 +228,15 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
         const finalList = unreadOnly ? notifications.filter(n => !n.read_at) : notifications;
         const unreadCount = notifications.filter(n => !n.read_at).length;
 
-        console.log(`[Notifications] Returning ${finalList.length} notifications (${unreadCount} unread) for ${isMaster ? "master" : scope.userId}`);
-
-        send(res, 200, {
+        const payload = {
             notifications: finalList.slice(0, limit),
             unread: unreadCount,
-        }, 0);
+        };
+        notifCache.set(cacheKey, { data: payload, expiresAt: Date.now() + NOTIF_CACHE_TTL });
+
+        console.log(`[Notifications] Returning ${finalList.length} notifications (${unreadCount} unread) for ${isMaster ? "master" : scope.userId}`);
+
+        send(res, 200, payload, 0);
     } catch (err: any) {
         console.error("[Notifications Handler Error]", err?.message || err);
         if (!res.headersSent) {

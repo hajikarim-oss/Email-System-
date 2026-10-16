@@ -5,9 +5,9 @@ export default function useReport(member_id?: string) {
     return useQuery({
         queryKey: ["analytics", "report", member_id ?? "all"],
         queryFn: () => getReport(member_id),
-        staleTime: 1_000, // 1-second buffer load: instant cached paint, then revalidates
+        staleTime: 60_000, // 1-minute fresh window
         gcTime: 30 * 60_000,
-        refetchInterval: 30_000, // Auto-sync report every 30 seconds
-        refetchOnWindowFocus: true,
+        refetchInterval: 60_000, // Auto-sync report every 60 seconds
+        refetchOnWindowFocus: false,
     });
 }
