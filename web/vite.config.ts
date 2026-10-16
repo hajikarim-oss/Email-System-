@@ -15,6 +15,7 @@ import { scopeFor, type DataScope } from "../server/scope";
 import { smartleadPrimary, smartleadSecondary } from "../server/smartleadKeys";
 import { recordSmartleadEvent, resolveWebhookSecret, verifySmartleadSignature } from "../server/smartleadWebhook";
 import { resolveDatabaseUrl, pgQuery } from "../server/pg";
+import type { QueryRow } from "../server/types";
 import { checkBatch, checkContact } from "../server/checkBatch";
 import authHandler from "../server/handlers/auth";
 import organizationHandler from "../server/handlers/organization";
@@ -277,55 +278,55 @@ Use your own intelligence, reasoning, and creativity. Think carefully and give r
     };
 }
 
-function smartleadApiPlugin() {
-    const DEFAULT_SMARTLEAD_KEY = smartleadPrimary();
-    const SECONDARY_SMARTLEAD_KEY = smartleadSecondary();
-    const BASE_URL = "https://server.smartlead.ai/api/v1";
+const DEFAULT_SMARTLEAD_KEY = smartleadPrimary();
+const SECONDARY_SMARTLEAD_KEY = smartleadSecondary();
+const BASE_URL = "https://server.smartlead.ai/api/v1";
 
-    function apiCall(endpoint: string, method: string = "GET", body?: any, customKey?: string): Promise<{ status: number; data: any }> {
-        const apiKey = customKey || DEFAULT_SMARTLEAD_KEY;
-        if (!apiKey) {
-            return Promise.resolve({ status: 503, data: { error: "smartlead_api_key_not_configured" } });
-        }
-        return new Promise((resolve, reject) => {
-            const separator = endpoint.includes("?") ? "&" : "?";
-            const fullPath = `${endpoint}${separator}api_key=${apiKey}`;
-            const url = `${BASE_URL}${fullPath}`;
-            const payload = body ? JSON.stringify(body) : "";
-
-            const req = https.request(url, {
-                method,
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(body ? { "Content-Length": Buffer.byteLength(payload) } : {}),
-                },
-            }, (res: any) => {
-                let text = "";
-                res.on("data", (chunk: any) => { text += chunk; });
-                res.on("end", async () => {
-                    try {
-                        const parsed = text ? JSON.parse(text) : {};
-                        // If 401 or 404 and using default key without explicit customKey, try secondary active key
-                        if ((res.statusCode === 401 || res.statusCode === 404) && !customKey && SECONDARY_SMARTLEAD_KEY && apiKey !== SECONDARY_SMARTLEAD_KEY) {
-                            try {
-                                const fallbackRes = await apiCall(endpoint, method, body, SECONDARY_SMARTLEAD_KEY);
-                                if (fallbackRes.status >= 200 && fallbackRes.status < 300) {
-                                    return resolve(fallbackRes);
-                                }
-                            } catch { }
-                        }
-                        resolve({ status: res.statusCode, data: parsed });
-                    } catch {
-                        resolve({ status: res.statusCode, data: { raw: text } });
-                    }
-                });
-            });
-            req.on("error", (err: any) => reject(err));
-            if (payload) req.write(payload);
-            req.end();
-        });
+function apiCall(endpoint: string, method: string = "GET", body?: any, customKey?: string): Promise<{ status: number; data: any }> {
+    const apiKey = customKey || DEFAULT_SMARTLEAD_KEY;
+    if (!apiKey) {
+        return Promise.resolve({ status: 503, data: { error: "smartlead_api_key_not_configured" } });
     }
+    return new Promise((resolve, reject) => {
+        const separator = endpoint.includes("?") ? "&" : "?";
+        const fullPath = `${endpoint}${separator}api_key=${apiKey}`;
+        const url = `${BASE_URL}${fullPath}`;
+        const payload = body ? JSON.stringify(body) : "";
 
+        const req = https.request(url, {
+            method,
+            headers: {
+                "Content-Type": "application/json",
+                ...(body ? { "Content-Length": Buffer.byteLength(payload) } : {}),
+            },
+        }, (res: any) => {
+            let text = "";
+            res.on("data", (chunk: any) => { text += chunk; });
+            res.on("end", async () => {
+                try {
+                    const parsed = text ? JSON.parse(text) : {};
+                    // If 401 or 404 and using default key without explicit customKey, try secondary active key
+                    if ((res.statusCode === 401 || res.statusCode === 404) && !customKey && SECONDARY_SMARTLEAD_KEY && apiKey !== SECONDARY_SMARTLEAD_KEY) {
+                        try {
+                            const fallbackRes = await apiCall(endpoint, method, body, SECONDARY_SMARTLEAD_KEY);
+                            if (fallbackRes.status >= 200 && fallbackRes.status < 300) {
+                                return resolve(fallbackRes);
+                            }
+                        } catch { }
+                    }
+                    resolve({ status: res.statusCode, data: parsed });
+                } catch {
+                    resolve({ status: res.statusCode, data: { raw: text } });
+                }
+            });
+        });
+        req.on("error", (err: any) => reject(err));
+        if (payload) req.write(payload);
+        req.end();
+    });
+}
+
+function smartleadApiPlugin() {
     function normalizeToSmartleadTemplate(text: string): string {
         if (!text) return "";
         return text
@@ -1026,7 +1027,7 @@ function databaseIntelligencePlugin() {
             // Filtering, counting and row mapping live in server/contacts.ts so
             // this dev middleware and the deployed /api/intelligence/contacts
             // function are guaranteed to return the same numbers.
-            const prismaQuery = async <T = Record<string, any>>(sql: string, params: unknown[] = []): Promise<T[]> => {
+            const prismaQuery = async <T extends QueryRow = QueryRow>(sql: string, params: unknown[] = []): Promise<T[]> => {
                 try {
                     return await pgQuery<T>(sql, params);
                 } catch (pgErr: any) {

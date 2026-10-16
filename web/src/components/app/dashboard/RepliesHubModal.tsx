@@ -24,7 +24,7 @@ import type { ReportReply } from "@/lib/api/models/app/analytics/SystemReport";
 
 export interface RepliesHubViewProps {
     replies: ReportReply[];
-    teamMembers: Array<{ id: string; name: string; email?: string }>;
+    teamMembers: Array<{ id: string; name: string; email?: string; role?: string }>;
     selectedMemberId?: string;
     onSelectMember?: (id: string) => void;
     onClose?: () => void;
@@ -43,6 +43,48 @@ function relTime(iso: string | null): string {
     if (days === 1) return "Yesterday";
     if (days < 7) return `${days}d ago`;
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function isMemberMatch(
+    r: ReportReply,
+    m: { id: string; name: string; email?: string; role?: string }
+): boolean {
+    if (!m || m.id === "all") return true;
+
+    // Direct ID match
+    if (r.team_member_id && r.team_member_id === m.id) return true;
+
+    const mName = m.name.toLowerCase();
+    const rTeam = (r.team_member || "").toLowerCase();
+
+    // Direct team_member name match (e.g. "Snehal Maurya" or "Snehal")
+    if (rTeam && (rTeam.includes(mName) || mName.includes(rTeam))) return true;
+
+    // Check first name match (e.g. "Snehal" in "Snehal Maurya")
+    const firstName = m.name.split(" ")[0].toLowerCase();
+    if (firstName.length > 2) {
+        if (rTeam && rTeam.includes(firstName)) return true;
+        const rCamp = (r.campaign || "").toLowerCase();
+        if (rCamp.includes(firstName)) return true;
+    }
+
+    // Monu / Master role mapping
+    const isMasterUser =
+        mName.includes("monu") ||
+        (m.role && m.role.toLowerCase() === "master") ||
+        (m.email && m.email.toLowerCase().includes("monu"));
+
+    if (isMasterUser) {
+        // If the reply is labeled as Master or has no team member assigned
+        if (rTeam.includes("master") || !r.team_member_id) {
+            const belongsToOther = ["snehal", "vatsal", "preeti"].some(
+                (other) => rTeam.includes(other) || (r.campaign || "").toLowerCase().includes(other)
+            );
+            if (!belongsToOther) return true;
+        }
+    }
+
+    return false;
 }
 
 export function RepliesHubView({
@@ -66,39 +108,35 @@ export function RepliesHubView({
     const campaignList = useMemo(() => {
         const set = new Set<string>();
         replies.forEach((r) => {
-            if (r.campaign) set.add(r.campaign);
+            if (r.campaign && r.campaign.trim()) set.add(r.campaign.trim());
         });
-        return Array.from(set);
+        return Array.from(set).sort();
     }, [replies]);
 
     const filteredReplies = useMemo(() => {
         return replies.filter((r) => {
             if (filterMember !== "all") {
-                if (r.team_member_id && r.team_member_id !== filterMember) {
-                    const matchName = teamMembers.find((m) => m.id === filterMember)?.name;
-                    if (!matchName || !r.team_member?.toLowerCase().includes(matchName.toLowerCase())) {
-                        return false;
-                    }
-                } else if (!r.team_member_id) {
-                    const matchName = teamMembers.find((m) => m.id === filterMember)?.name;
-                    if (!matchName || !r.team_member?.toLowerCase().includes(matchName.toLowerCase())) {
-                        return false;
-                    }
+                const targetMember = teamMembers.find((m) => m.id === filterMember);
+                if (targetMember && !isMemberMatch(r, targetMember)) {
+                    return false;
                 }
             }
 
-            if (filterCampaign !== "all" && r.campaign !== filterCampaign) {
-                return false;
+            if (filterCampaign !== "all") {
+                if (!r.campaign || r.campaign.trim().toLowerCase() !== filterCampaign.trim().toLowerCase()) {
+                    return false;
+                }
             }
 
             if (searchQuery.trim()) {
-                const q = searchQuery.toLowerCase();
+                const q = searchQuery.toLowerCase().trim();
                 const inName = (r.contact_name || "").toLowerCase().includes(q);
                 const inEmail = (r.contact_email || "").toLowerCase().includes(q);
                 const inSubject = (r.subject || "").toLowerCase().includes(q);
                 const inSnippet = (r.snippet || "").toLowerCase().includes(q);
                 const inCamp = (r.campaign || "").toLowerCase().includes(q);
-                if (!inName && !inEmail && !inSubject && !inSnippet && !inCamp) {
+                const inMember = (r.team_member || "").toLowerCase().includes(q);
+                if (!inName && !inEmail && !inSubject && !inSnippet && !inCamp && !inMember) {
                     return false;
                 }
             }
@@ -110,9 +148,8 @@ export function RepliesHubView({
     const memberCounts = useMemo(() => {
         const counts: Record<string, number> = { all: replies.length };
         teamMembers.forEach((m) => {
-            counts[m.id] = replies.filter((r) =>
-                r.team_member_id === m.id || (r.team_member && r.team_member.toLowerCase().includes(m.name.toLowerCase()))
-            ).length;
+            if (m.id === "all") return;
+            counts[m.id] = replies.filter((r) => isMemberMatch(r, m)).length;
         });
         return counts;
     }, [replies, teamMembers]);
@@ -315,7 +352,7 @@ export interface RepliesHubModalProps {
     open: boolean;
     onClose: () => void;
     replies: ReportReply[];
-    teamMembers: Array<{ id: string; name: string; email?: string }>;
+    teamMembers: Array<{ id: string; name: string; email?: string; role?: string }>;
     selectedMemberId?: string;
     onSelectMember?: (id: string) => void;
 }
