@@ -60,6 +60,7 @@ export default function CampaignLayout() {
     const startCampaign = useStartCampaign();
     const stopCampaign = useStopCampaign();
     const [launchOpen, setLaunchOpen] = useState(false);
+    const [testingNow, setTestingNow] = useState(false);
 
     // Collaboration: claim this campaign while it's open so teammates see
     // who's already in here (header pill + the org-wide presence stack).
@@ -120,10 +121,9 @@ export default function CampaignLayout() {
     const canStart = canStartCampaign(status);
     const canToggle = isActive || canStart;
     const pending = isActive ? stopCampaign.isPending : startCampaign.isPending;
-    const [testingNow, setTestingNow] = useState(false);
 
     const handleRunTest = async () => {
-        if (testingNow) return;
+        if (testingNow || !campaign) return;
         setTestingNow(true);
         toast.loading("Sending test email & sequence to snehal.maurya & vatsal.vadecha...", { id: "camp_test" });
         try {
