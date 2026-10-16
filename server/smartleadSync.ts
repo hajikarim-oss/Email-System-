@@ -146,22 +146,27 @@ export async function ensureImmediateSendingSchedule(
 }
 
 let lastReconcileTime = 0;
-const RECONCILE_DEBOUNCE_MS = 15_000; // 15 seconds debounce
+let inFlightReconcile: Promise<void> | null = null;
+const RECONCILE_DEBOUNCE_MS = 120_000; // 2 minutes debounce
 
 /**
  * Reconciles Smartlead campaigns into the local PostgreSQL "Campaign" & "Lead" tables.
  * Safe to call before any campaigns GET or after campaign creation.
  */
 export async function reconcileSmartleadCampaigns(force: boolean = false): Promise<void> {
+    if (inFlightReconcile) {
+        return inFlightReconcile;
+    }
     const now = Date.now();
     if (!force && now - lastReconcileTime < RECONCILE_DEBOUNCE_MS) {
         return;
     }
     lastReconcileTime = now;
 
-    try {
-        const accounts = getAllSmartleadKeys();
-        if (accounts.length === 0) return;
+    inFlightReconcile = (async () => {
+        try {
+            const accounts = getAllSmartleadKeys();
+            if (accounts.length === 0) return;
 
         // Fetch team members from DB to correctly map campaign ownership
         const users = await pgQuery<any>(`SELECT id, email, name, role FROM "User"`);
@@ -305,5 +310,10 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
         }
     } catch (err: any) {
         console.warn("[Auto-Reconcile] Reconciliation warning (non-fatal):", err?.message);
+    } finally {
+        inFlightReconcile = null;
     }
+    })();
+
+    return inFlightReconcile;
 }

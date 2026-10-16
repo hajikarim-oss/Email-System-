@@ -2204,8 +2204,8 @@ function databaseIntelligencePlugin() {
                         }
                     }
 
-                    // Always auto-reconcile with Smartlead so newly created campaigns register without manual sync
-                    await reconcileSmartleadCampaigns().catch(() => {});
+                    // Auto-reconcile with Smartlead asynchronously in background (debounced)
+                    reconcileSmartleadCampaigns().catch(() => {});
 
                     let allowedUserIds = [scope.userId];
                     try {
