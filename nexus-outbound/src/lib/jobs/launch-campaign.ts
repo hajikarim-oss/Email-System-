@@ -116,11 +116,13 @@ export const launchCampaignJob = inngest.createFunction(
             sequences: campaign.steps.map((s: any, idx: number) => ({
               id: null,
               seq_number: idx + 1,
-              subject: (s.subject || "")
-                .replace(/\{\{firstName\}\}/g, "{{first_name}}")
-                .replace(/\{\{lastName\}\}/g, "{{last_name}}")
-                .replace(/\{\{CompanyName\}\}/g, "{{company}}")
-                .replace(/\{\{JobTitle\}\}/g, "{{title}}"),
+              subject: idx === 0
+                ? (s.subject || "")
+                    .replace(/\{\{firstName\}\}/g, "{{first_name}}")
+                    .replace(/\{\{lastName\}\}/g, "{{last_name}}")
+                    .replace(/\{\{CompanyName\}\}/g, "{{company}}")
+                    .replace(/\{\{JobTitle\}\}/g, "{{title}}")
+                : (/^step\s*\d+$/i.test(s.subject?.trim() || "") ? "" : (s.subject || "")),
               email_body: (s.bodyTemplate || "")
                 .replace(/\{\{firstName\}\}/g, "{{first_name}}")
                 .replace(/\{\{lastName\}\}/g, "{{last_name}}")

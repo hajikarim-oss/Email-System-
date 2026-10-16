@@ -615,7 +615,11 @@ function smartleadApiPlugin() {
                                 ? parsed.steps.map((s: any, idx: number) => ({
                                     seq_number: idx + 1,
                                     seq_delay_details: { delay_in_days: idx === 0 ? 0 : (s.wait_after !== undefined ? Number(s.wait_after) : 3) },
-                                    subject: normalizeToSmartleadTemplate(s.subject || (idx === 0 ? `Outreach: ${campaignName}` : "")),
+                                    subject: normalizeToSmartleadTemplate(
+                                        idx === 0
+                                            ? (s.subject || `Outreach: ${campaignName}`)
+                                            : (s.subject && !/^step\s*\d+$/i.test(s.subject.trim()) ? s.subject : "")
+                                    ),
                                     email_body: normalizeToSmartleadTemplate(s.body_html || s.body_plain || "<p>Hello {{first_name}}, reaching out from TheBoredMonkey.</p>"),
                                 }))
                                 : [
@@ -820,7 +824,11 @@ function smartleadApiPlugin() {
                         const seqSteps = steps.map((s: any, idx: number) => ({
                             seq_number: idx + 1,
                             seq_delay_details: { delay_in_days: s.wait_after || 0 },
-                            subject: normalizeToSmartleadTemplate(s.subject || ""),
+                            subject: normalizeToSmartleadTemplate(
+                                idx === 0
+                                    ? (s.subject || "")
+                                    : (s.subject && !/^step\s*\d+$/i.test(s.subject.trim()) ? s.subject : "")
+                            ),
                             email_body: normalizeToSmartleadTemplate(s.body_html || s.body_plain || ""),
                         }));
                         const slRes = await apiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences: seqSteps });
@@ -1510,6 +1518,9 @@ function databaseIntelligencePlugin() {
                                 const s = stepsData[i];
                                 const stepNum = i + 1;
                                 const stepHtml = s.body_html || (s.body_plain ? `<div>${s.body_plain.replace(/\n/g, "<br/>")}</div>` : "<p></p>");
+                                const cleanSubject = stepNum === 1
+                                    ? (s.subject || "")
+                                    : (s.subject && !/^step\s*\d+$/i.test(s.subject.trim()) ? s.subject : "");
                                 const saved = await prisma.campaignStep.upsert({
                                     where: {
                                         campaignId_stepNumber: {
@@ -1521,12 +1532,12 @@ function databaseIntelligencePlugin() {
                                         campaignId: targetCampId,
                                         stepNumber: stepNum,
                                         delayDays: s.wait_after !== undefined ? s.wait_after : (stepNum === 1 ? 0 : 3),
-                                        subject: s.subject || "",
+                                        subject: cleanSubject,
                                         bodyTemplate: stepHtml,
                                     },
                                     update: {
                                         delayDays: s.wait_after !== undefined ? s.wait_after : (stepNum === 1 ? 0 : 3),
-                                        subject: s.subject || "",
+                                        subject: cleanSubject,
                                         bodyTemplate: stepHtml,
                                     },
                                 });
@@ -2041,12 +2052,15 @@ function databaseIntelligencePlugin() {
                         if (Array.isArray(input.steps) && input.steps.length > 0) {
                             for (let i = 0; i < input.steps.length; i++) {
                                 const step = input.steps[i];
+                                const stepSubject = (i === 0
+                                    ? (step.subject || "Initial Outreach")
+                                    : (step.subject && !/^step\s*\d+$/i.test(step.subject.trim()) ? step.subject : "")).slice(0, 255);
                                 await prisma.campaignStep.create({
                                     data: {
                                         campaignId: created.id,
                                         stepNumber: i + 1,
                                         delayDays: step.wait_after !== undefined ? Number(step.wait_after) : (i === 0 ? 0 : 3),
-                                        subject: (step.subject || `Step ${i + 1}`).slice(0, 255),
+                                        subject: stepSubject,
                                         bodyTemplate: step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>",
                                     },
                                 });

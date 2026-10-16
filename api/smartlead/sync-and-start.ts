@@ -260,7 +260,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             // 3. Sequences (Step 1, Step 2, Step 3 with precise delay_in_days)
             const seqSteps = (parsed.steps && parsed.steps.length > 0)
                 ? parsed.steps.map((s: any, idx: number) => {
-                    const subject = normalizeToSmartleadTemplate(s.subject || (idx === 0 ? `Quick question for {{first_name}}` : ""));
+                    const rawSub = (s.subject || "").trim();
+                    const isFollowUp = idx > 0;
+                    const subject = !isFollowUp
+                        ? normalizeToSmartleadTemplate(rawSub || `Quick question for {{first_name}}`)
+                        : (/^step\s*\d+$/i.test(rawSub) ? "" : normalizeToSmartleadTemplate(rawSub));
                     const body = normalizeToSmartleadTemplate(s.body_html || s.body_plain || (idx === 0
                         ? "<p>Hi {{first_name}},</p><p>Thought of you when I came across {{company_name}}.</p><p>Quick question - how are you handling [topic]?</p><p>Haji</p>"
                         : "<p>Hi {{first_name}},</p><p>Did you get a chance to think about it?</p><p>Happy to chat.</p><p>Haji</p>"

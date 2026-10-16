@@ -271,7 +271,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     const sequences = steps.map((s: any, idx: number) => ({
                         seq_number: idx + 1,
                         seq_delay_details: { delay_in_days: s.delayDays || (idx === 0 ? 0 : 3) },
-                        subject: normalizeTemplate(s.subject || `Step ${idx + 1}`),
+                        subject: normalizeTemplate(
+                            idx === 0
+                                ? (s.subject || "Discussion regarding partnership")
+                                : (s.subject && !/^step\s*\d+$/i.test(s.subject.trim()) ? s.subject : "")
+                        ),
                         email_body: normalizeTemplate(s.bodyTemplate || ""),
                     }));
                     const seqRes = await slApiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences }, apiKey);
@@ -458,7 +462,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 if (Array.isArray(input.steps) && input.steps.length > 0) {
                     for (let i = 0; i < input.steps.length; i++) {
                         const step = input.steps[i];
-                        const subject = (step.subject || `Step ${i + 1}`).slice(0, 255);
+                        const stepSubject = (i === 0
+                            ? (step.subject || "Initial Outreach")
+                            : (step.subject && !/^step\s*\d+$/i.test(step.subject.trim()) ? step.subject : "")).slice(0, 255);
                         const body = (step.body_html || step.body_plain || "<p>Hello {{first_name}}</p>").slice(0, 65535);
 
                         await pgQuery(
@@ -468,7 +474,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                                 campaignId,
                                 i + 1,
                                 step.wait_after || (i === 0 ? 0 : 3),
-                                subject,
+                                stepSubject,
                                 body,
                             ]
                         );

@@ -83,7 +83,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return {
                     id: null,
                     seq_number: idx + 1,
-                    subject: idx === 0 ? subject : (s.subject?.trim() || ""),
+                    subject: idx === 0 ? subject : (/^step\s*\d+$/i.test(s.subject?.trim() || "") ? "" : (s.subject?.trim() || "")),
                     email_body: email_body,
                     seq_delay_details: {
                         delay_in_days: idx === 0 ? 0 : (s.wait_after !== undefined ? s.wait_after : 3),
