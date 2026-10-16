@@ -681,7 +681,7 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
     const manCnt = selectedContacts.filter(s => s.source === "manual").length;
 
     return (
-        <div className="max-w-[640px] space-y-4">
+        <div className="w-full space-y-4">
             <div>
                 <p className="text-[13.5px] text-slate-900 font-semibold">Who should receive this campaign?</p>
                 <p className="text-[11.5px] text-slate-500 mt-0.5">Select contacts from your existing database, upload a CSV list, or add contacts manually.</p>

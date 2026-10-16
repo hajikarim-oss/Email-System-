@@ -799,7 +799,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                                     animate="center"
                                     exit="exit"
                                     transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                                    className="px-5 py-5 min-h-[340px]"
+                                    className="w-full px-5 py-5 min-h-[340px]"
                                 >
                                     {current.key === "basics" && (
                                         <BasicsStep draft={draft} patch={patch} setKind={setKind} onEnter={next} />
@@ -1150,7 +1150,7 @@ function BasicsStep({
 }) {
     const len = draft.name.trim().length;
     return (
-        <div className="max-w-[560px]">
+        <div className="w-full">
             <StepIntro
                 title="What are you sending?"
                 hint="A sequence follows up over days; a one-time email goes out once to a segment. Both send through your mailbox pool at its daily caps."
@@ -1313,7 +1313,7 @@ function SendingWindowFields({ draft, patch }: { draft: Draft; patch: (p: Partia
 
 function ScheduleStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft>) => void }) {
     return (
-        <div className="max-w-[560px]">
+        <div className="w-full">
             <StepIntro
                 title="When should it send?"
                 hint="Sends stay inside this window in the campaign timezone and spread out across it."
@@ -1352,7 +1352,7 @@ function SendingStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft>
     const poolCapacity = (draft.dailyLimit * poolAccountsCount).toLocaleString();
 
     return (
-        <div className="max-w-[560px]">
+        <div className="w-full">
             <StepIntro
                 title="Who sends it, and how?"
                 hint="Volume is split across every mailbox in the pool so no single sender carries the campaign."
@@ -1501,7 +1501,7 @@ function EmailsStep({
         patch({ sequences: draft.sequences.map((s, idx) => (idx === i ? { ...s, ...p } : s)) });
 
     return (
-        <div className="max-w-[640px]">
+        <div className="w-full">
             <StepIntro
                 title={oneTime ? "What does the email say?" : "What does the first email say?"}
                 hint={
@@ -1630,7 +1630,7 @@ function AudienceStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft
     const estimate = useCampaignEstimate({ segment_ids: draft.segmentIds });
     const recipients = estimate.data?.recipients;
     return (
-        <div className="max-w-[560px]">
+        <div className="w-full">
             <StepIntro
                 title="Who receives it?"
                 hint="Every current member of the segments you pick becomes a lead. Suppressed and unsubscribed contacts are skipped at send time."
@@ -1691,7 +1691,7 @@ function SendStep({
     const finish = e?.estimated_finish_at ? new Date(e.estimated_finish_at) : null;
 
     return (
-        <div className="max-w-[560px]">
+        <div className="w-full">
             <StepIntro
                 title="When should it go?"
                 hint="Send now starts the moment you confirm. Either way it keeps to the sending window and the daily cap of every mailbox."
