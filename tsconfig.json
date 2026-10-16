@@ -9,7 +9,11 @@
     "strict": false,
     "noEmit": true,
     "types": ["node"],
-    "typeRoots": ["./web/node_modules/@types", "./node_modules/@types"]
+    "typeRoots": ["./web/node_modules/@types", "./node_modules/@types"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["web/src/*"]
+    }
   },
   "include": [
     "api/**/*",

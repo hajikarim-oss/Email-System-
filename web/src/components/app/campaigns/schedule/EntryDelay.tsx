@@ -2,8 +2,8 @@
 // Rendered both on the Schedule tab and inside the flow canvas's trigger node,
 // which edit the same campaigns.entry_delay_minutes value.
 import React from "react";
-import { NumberInput } from "@/components/ui/field";
-import { SelectMenu, type SelectOption } from "@/components/ui/select-menu";
+import { NumberInput } from "../../../ui/field";
+import { SelectMenu, type SelectOption } from "../../../ui/select-menu";
 import {
     ENTRY_DELAY_MAX_MINUTES,
     ENTRY_DELAY_PRESETS,
@@ -80,10 +80,9 @@ export default function EntryDelayPicker({
     };
 
     const chip = (active: boolean) =>
-        `h-7 px-2.5 rounded-md border text-[11.5px] transition-colors disabled:opacity-50 ${
-            active
-                ? "border-amber-200 bg-[#FFF9DB] text-slate-900 font-medium"
-                : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
+        `h-7 px-2.5 rounded-md border text-[11.5px] transition-colors disabled:opacity-50 ${active
+            ? "border-amber-200 bg-[#FFF9DB] text-slate-900 font-medium"
+            : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
         }`;
 
     return (
@@ -109,8 +108,8 @@ export default function EntryDelayPicker({
                     <div className="w-[110px]">
                         <NumberInput
                             value={draft.amount}
-                            onChange={(v) => editCustom(v, draft.unit, false)}
-                            onCommit={(v) => editCustom(v, draft.unit, true)}
+                            onChange={(v: number) => editCustom(v, draft.unit, false)}
+                            onCommit={(v: number) => editCustom(v, draft.unit, true)}
                             min={0}
                             max={ENTRY_DELAY_MAX_MINUTES / ENTRY_DELAY_UNIT_MINUTES[draft.unit]}
                             step={1}
@@ -119,7 +118,7 @@ export default function EntryDelayPicker({
                     </div>
                     <SelectMenu
                         value={draft.unit}
-                        onChange={(u) => editCustom(draft.amount, u as EntryDelayUnit, true)}
+                        onChange={(u: string) => editCustom(draft.amount, u as EntryDelayUnit, true)}
                         options={UNIT_OPTIONS}
                         minWidth={130}
                         disabled={disabled}
