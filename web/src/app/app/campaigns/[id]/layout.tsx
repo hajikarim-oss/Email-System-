@@ -6,6 +6,7 @@ import {
     ArrowLeftIcon,
     BarChart3Icon,
     CalendarIcon,
+    FlaskConicalIcon,
     ListChecksIcon,
     Loader2Icon,
     MailIcon,
@@ -19,6 +20,7 @@ import { campaignDisplayLabel, isIdleCampaign, isOneTimeCampaign } from "@/compo
 import useCampaign from "@/lib/api/hooks/app/campaigns/useCampaign";
 import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
 import useStopCampaign from "@/lib/api/hooks/app/campaigns/useStopCampaign";
+import sendTestCampaign from "@/lib/api/client/app/campaigns/sendTestCampaign";
 import { CampaignContext } from "@/hooks/context/campaign";
 import { useConfirm } from "@/hooks/context/confirm";
 import LaunchCampaignDialog from "@/components/app/campaigns/LaunchCampaignDialog";
@@ -118,6 +120,21 @@ export default function CampaignLayout() {
     const canStart = canStartCampaign(status);
     const canToggle = isActive || canStart;
     const pending = isActive ? stopCampaign.isPending : startCampaign.isPending;
+    const [testingNow, setTestingNow] = useState(false);
+
+    const handleRunTest = async () => {
+        if (testingNow) return;
+        setTestingNow(true);
+        toast.loading("Sending test email & sequence to snehal.maurya & vatsal.vadecha...", { id: "camp_test" });
+        try {
+            await sendTestCampaign(campaign.id);
+            toast.success("Test campaign sent to snehal.maurya@theboredmonkey.com & vatsal.vadecha@theboredmonkey.com!", { id: "camp_test", duration: 6000 });
+        } catch (e: any) {
+            toast.error(e?.message || "Failed to send test campaign", { id: "camp_test" });
+        } finally {
+            setTestingNow(false);
+        }
+    };
 
     const onToggle = async () => {
         if (isActive) {
@@ -175,6 +192,25 @@ export default function CampaignLayout() {
                     </div>
 
                     <div className="ml-auto shrink-0 flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            onClick={handleRunTest}
+                            disabled={testingNow || pending}
+                            title="Dispatch test email and sequence to snehal.maurya@theboredmonkey.com & vatsal.vadecha@theboredmonkey.com"
+                            className="h-8 px-2.5 sm:px-3 rounded-md border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 text-slate-800 text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 shadow-2xs cursor-pointer"
+                        >
+                            {testingNow ? (
+                                <>
+                                    <Loader2Icon className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                                    <span className="hidden sm:inline">Testing…</span>
+                                </>
+                            ) : (
+                                <>
+                                    <FlaskConicalIcon className="w-3.5 h-3.5 text-indigo-600" />
+                                    <span>Test Campaign</span>
+                                </>
+                            )}
+                        </button>
                         {canToggle && (
                             <PermissionButton
                                 permission="SEND_CAMPAIGNS"

@@ -1947,6 +1947,177 @@ function databaseIntelligencePlugin() {
                         return;
                     }
 
+                    // Test Campaign execution: sends actual email and sequence steps to snehal.maurya & vatsal.vadecha
+                    if (campIdParam && (subAction === "test-campaign" || subAction === "test" || subAction === "test-email" || subAction === "test-send") && (req.method === "POST" || req.method === "PUT")) {
+                        try {
+                            const bodyParts: any[] = [];
+                            await new Promise((resolve) => {
+                                req.on("data", (chunk: any) => bodyParts.push(chunk));
+                                req.on("end", resolve);
+                            });
+                            let input: any = {};
+                            try { input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}"); } catch {}
+
+                            const camp = await prisma.campaign.findFirst({
+                                where: { OR: [{ id: campIdParam }, { providerCampaignId: campIdParam }] },
+                                include: {
+                                    steps: { orderBy: { stepNumber: "asc" } },
+                                    leads: { where: { status: "ACTIVE" }, take: 5 },
+                                    mailboxes: { include: { mailbox: true } },
+                                },
+                            });
+                            if (!camp) {
+                                res.writeHead(404, { "Content-Type": "application/json" });
+                                res.end(JSON.stringify({ error: "campaign_not_found" }));
+                                return;
+                            }
+
+                            const chosenKey = camp.name.toLowerCase().includes("preeti") ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY;
+                            let smartleadId = camp.providerCampaignId;
+
+                            // If not yet in Smartlead, sync it as DRAFT (auto_start: false)
+                            if (!smartleadId) {
+                                console.log(`[Vite Test Campaign] Campaign ${camp.id} (${camp.name}) not yet on Smartlead. Syncing as DRAFT...`);
+                                const steps = camp.steps || [];
+                                const senderEmail = camp.mailboxes?.[0]?.mailbox?.senderEmail || (camp.name.toLowerCase().includes("vatsal") ? "vatsal.vadecha@theboredmonkey.com" : "");
+                                let mailboxIds = (camp.mailboxes || []).map((mb: any) => mb.mailbox?.providerMailboxId).filter(Boolean);
+                                if (mailboxIds.length === 0) {
+                                    const activeMbs = await prisma.mailbox.findMany({ where: { status: "ACTIVE" }, select: { providerMailboxId: true } });
+                                    mailboxIds = activeMbs.map((m: any) => m.providerMailboxId).filter(Boolean);
+                                }
+
+                                const syncBody = JSON.stringify({
+                                    name: camp.name,
+                                    auto_start: false,
+                                    status: "DRAFT",
+                                    steps: steps.map((s: any) => ({
+                                        subject: s.subject || "",
+                                        body_html: s.bodyTemplate || "",
+                                        wait_after: s.delayDays ?? 0,
+                                    })),
+                                    leads: (camp.leads || []).map((l: any) => ({
+                                        email: l.email,
+                                        first_name: l.firstName || "",
+                                        last_name: l.lastName || "",
+                                        company: (l.customData as any)?.company || "",
+                                        title: (l.customData as any)?.title || "",
+                                    })),
+                                    sender_email: senderEmail,
+                                    mailbox_ids: mailboxIds,
+                                    timezone: camp.sendTimezone || "Asia/Kolkata",
+                                    days: camp.preferredSendDays || [1, 2, 3, 4, 5],
+                                    start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "08:00",
+                                    end_time: "19:00",
+                                    daily_limit: 200,
+                                    stop_on_reply: true,
+                                    open_tracking: true,
+                                    link_tracking: true,
+                                });
+
+                                const syncRes = await fetch("http://localhost:5173/api/smartlead/sync-and-start", {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+                                    },
+                                    body: syncBody,
+                                }).then(async (r) => ({
+                                    status: r.status,
+                                    data: (await r.json().catch(() => ({}))) as any,
+                                })).catch((e: any) => ({
+                                    status: 500,
+                                    data: { error: e.message } as any,
+                                }));
+
+                                if (syncRes.data?.smartlead_id) {
+                                    smartleadId = String(syncRes.data.smartlead_id);
+                                    await prisma.campaign.update({
+                                        where: { id: camp.id },
+                                        data: { providerCampaignId: smartleadId, status: "DRAFT" },
+                                    });
+                                }
+                            }
+
+                            if (!smartleadId) {
+                                throw new Error("Could not initialize Smartlead campaign for testing");
+                            }
+
+                            // Ensure lead exists for dynamic variable replacement
+                            let leadCheck = await apiCall(`/campaigns/${smartleadId}/leads?limit=1`, "GET", undefined, chosenKey);
+                            let leadId = leadCheck.data?.data?.[0]?.lead?.id || leadCheck.data?.data?.[0]?.id;
+
+                            if (!leadId) {
+                                console.log(`[Vite Test Campaign] Adding sample token lead to Smartlead campaign #${smartleadId}...`);
+                                await apiCall(`/campaigns/${smartleadId}/leads`, "POST", {
+                                    lead_list: [{
+                                        email: "test.preview@theboredmonkey.com",
+                                        first_name: "Snehal",
+                                        last_name: "Maurya",
+                                        company_name: "TheBoredMonkey",
+                                        custom_fields: {
+                                            firstName: "Snehal",
+                                            lastName: "Maurya",
+                                            company: "TheBoredMonkey",
+                                            title: "Brand Partnerships",
+                                        }
+                                    }]
+                                }, chosenKey);
+                                leadCheck = await apiCall(`/campaigns/${smartleadId}/leads?limit=1`, "GET", undefined, chosenKey);
+                                leadId = leadCheck.data?.data?.[0]?.lead?.id || leadCheck.data?.data?.[0]?.id;
+                            }
+
+                            // Fetch total sequence steps
+                            const seqRes = await apiCall(`/campaigns/${smartleadId}/sequences`, "GET", undefined, chosenKey);
+                            const seqs = Array.isArray(seqRes.data) ? seqRes.data : [];
+                            const stepsCount = seqs.length > 0 ? seqs.length : (camp.steps?.length || 1);
+
+                            const testRecipients: string[] = Array.isArray(input.recipients) && input.recipients.length > 0
+                                ? input.recipients
+                                : ["snehal.maurya@theboredmonkey.com", "vatsal.vadecha@theboredmonkey.com"];
+
+                            console.log(`[Vite Test Campaign] Dispatching ${stepsCount} step(s) to ${testRecipients.join(", ")}...`);
+                            const dispatchResults: any[] = [];
+
+                            for (const recipient of testRecipients) {
+                                for (let seq = 1; seq <= stepsCount; seq++) {
+                                    try {
+                                        const sendRes = await apiCall(`/campaigns/${smartleadId}/send-test-email`, "POST", {
+                                            leadId: leadId || 1,
+                                            sequenceNumber: seq,
+                                            customEmailAddress: recipient,
+                                        }, chosenKey);
+                                        dispatchResults.push({ recipient, sequenceNumber: seq, status: sendRes.status, ok: sendRes.data?.ok });
+                                    } catch (sErr: any) {
+                                        console.warn(`[Vite Test Campaign] Failed to send step ${seq} to ${recipient}:`, sErr.message);
+                                        dispatchResults.push({ recipient, sequenceNumber: seq, error: sErr.message });
+                                    }
+                                }
+                            }
+
+                            // Mark testSentAt in DB
+                            await prisma.campaign.update({
+                                where: { id: camp.id },
+                                data: { testSentAt: new Date() },
+                            }).catch(() => {});
+
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({
+                                success: true,
+                                campaignId: camp.id,
+                                providerCampaignId: smartleadId,
+                                recipients: testRecipients,
+                                stepsCount,
+                                dispatches: dispatchResults,
+                                message: `Test campaign sequence sent to ${testRecipients.join(" & ")}. Actual campaign remains as Draft.`,
+                            }));
+                        } catch (err: any) {
+                            console.error("[Vite Test Campaign] Error:", err);
+                            res.writeHead(500, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: err.message }));
+                        }
+                        return;
+                    }
+
                     if (campIdParam && subAction === "steps") {
                         if (req.method === "GET") {
                             const steps = await prisma.campaignStep.findMany({

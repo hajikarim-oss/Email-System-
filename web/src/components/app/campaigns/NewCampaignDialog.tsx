@@ -16,6 +16,7 @@ import {
     CheckIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
+    FlaskConicalIcon,
     ListChecksIcon,
     Loader2Icon,
     MailIcon,
@@ -33,6 +34,7 @@ import { useNavigate } from "react-router-dom";
 import useCampaigns from "@/lib/api/hooks/app/campaigns/useCampaigns";
 import useCreateCampaign from "@/lib/api/hooks/app/campaigns/useCreateCampaign";
 import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
+import sendTestCampaign from "@/lib/api/client/app/campaigns/sendTestCampaign";
 import useCampaignEstimate from "@/lib/api/hooks/app/campaigns/useCampaignEstimate";
 import { useSetCampaignSegments } from "@/lib/api/hooks/app/segments";
 import useAddContacts from "@/lib/api/hooks/app/contacts/useAddContacts";
@@ -293,6 +295,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
     const [nudged, setNudged] = React.useState(false);
     // The one-time flow is three calls; the footer stays busy across all of them.
     const [submitting, setSubmitting] = React.useState(false);
+    const [testingCampaign, setTestingCampaign] = React.useState(false);
     const [draftRestored, setDraftRestored] = React.useState(false);
 
     const steps = stepsFor(draft.kind);
@@ -412,7 +415,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
         if (step < lastStep) goTo(step + 1);
     }, [issue, step, lastStep, goTo]);
 
-    const isPending = create.isPending || submitting;
+    const isPending = create.isPending || submitting || testingCampaign;
 
     const requestClose = React.useCallback(() => {
         if (isPending) return;
@@ -647,6 +650,100 @@ export function NewCampaignDialog({ open, onClose }: Props) {
         }
     }
 
+    async function handleTestCampaign() {
+        if (testingCampaign || isPending) return;
+
+        const first = draft.sequences[0];
+        if (!first?.subject?.trim() || !(first?.body_html || first?.body_plain)?.trim()) {
+            toast.error("Please add a subject line and body for the first email before running a test campaign.");
+            return;
+        }
+
+        const cleanName = draft.name.trim();
+        if (cleanName.length < NAME_MIN) {
+            setNudged(true);
+            toast.error(`Please provide a campaign name with at least ${NAME_MIN} characters.`);
+            return;
+        }
+
+        setTestingCampaign(true);
+        try {
+            const startDateIso = draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined;
+            const endDateIso = draft.endScheduledAt ? new Date(draft.endScheduledAt).toISOString() : undefined;
+
+            const base = {
+                name: cleanName,
+                description: draft.description.trim(),
+                timezone: draft.timezone,
+                days: draft.days,
+                start_time: draft.startTime,
+                end_time: draft.endTime,
+                entry_delay_minutes: draft.entryDelayMinutes,
+                daily_limit: Math.max(3, Math.min(5000, Number(draft.dailyLimit) || 50)),
+                open_tracking: draft.openTracking,
+                link_tracking: draft.linkTracking,
+                utm_tracking: draft.utmTracking,
+                unsubscribe_header: draft.unsubHeader,
+                email_tag_ids: draft.emailTagIds,
+                steps: buildSteps(),
+                start_date: startDateIso,
+                end_date: endDateIso,
+                contacts: draft.selectedContacts,
+                leads: draft.selectedContacts,
+            };
+
+            // 1. Create the campaign as DRAFT in local DB & Smartlead
+            const created = await create.mutateAsync({
+                ...base,
+                kind: draft.kind || "sequence",
+                stop_on_reply: draft.stopOnReply,
+                start_date: startDateIso,
+                end_date: endDateIso,
+            });
+
+            // Enrol contacts if present
+            if (draft.selectedContacts.length > 0) {
+                try {
+                    const toAdd: AddContact[] = draft.selectedContacts.map((c) => {
+                        const cleanC = cleanCompanyName(c.company || "");
+                        return {
+                            first_name: c.first_name || "",
+                            last_name: c.last_name || "",
+                            email: c.email,
+                            company: cleanC,
+                            phone: "",
+                            campaign_id: created.id,
+                            campaigns: [created.id],
+                            custom_fields: (c.role ? { role: c.role, company: cleanC } : { company: cleanC }) as Record<string, string>,
+                            source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
+                        };
+                    });
+                    await addContactsMutation.mutateAsync(toAdd);
+                } catch {}
+            }
+
+            // 2. Dispatch actual test email and sequences
+            await sendTestCampaign(created.id, [
+                "snehal.maurya@theboredmonkey.com",
+                "vatsal.vadecha@theboredmonkey.com"
+            ]);
+
+            toast.success(
+                `Test campaign sequence sent to snehal.maurya@theboredmonkey.com & vatsal.vadecha@theboredmonkey.com! Campaign saved as Draft. Come back and run it whenever you're ready.`,
+                { duration: 7000 }
+            );
+
+            try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
+            onClose();
+            if (created?.id) navigate(`/app/campaigns/${created.id}`);
+        } catch (err: any) {
+            console.error("Test campaign error:", err);
+            toast.error(err?.message || "Failed to dispatch test campaign.");
+        } finally {
+            setTestingCampaign(false);
+        }
+    }
+
     return (
         <AnimatePresence>
             {open && (
@@ -744,6 +841,8 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                             onBack={() => goTo(step - 1)}
                             onNext={next}
                             onSubmit={() => submit(draft.kind === "one_time")}
+                            onTestCampaign={handleTestCampaign}
+                            isTesting={testingCampaign}
                             isPending={isPending}
                         />
                     </motion.div>
@@ -886,6 +985,8 @@ function Footer({
     onBack,
     onNext,
     onSubmit,
+    onTestCampaign,
+    isTesting,
     isPending,
 }: {
     step: number;
@@ -897,6 +998,8 @@ function Footer({
     onBack: () => void;
     onNext: () => void;
     onSubmit: () => void;
+    onTestCampaign?: () => void;
+    isTesting?: boolean;
     isPending: boolean;
 }) {
     const isLast = step === lastStep;
@@ -907,7 +1010,7 @@ function Footer({
                     type="button"
                     onClick={onBack}
                     disabled={isPending}
-                    className="h-7 px-2.5 rounded-md text-[12px] text-slate-700 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                    className="h-7 px-2.5 rounded-md text-[12px] text-slate-700 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                     <ChevronLeftIcon className="w-3 h-3" />
                     Back
@@ -918,7 +1021,7 @@ function Footer({
                 </span>
             )}
 
-            <div className="ml-auto flex items-center gap-2.5 min-w-0">
+            <div className="ml-auto flex items-center gap-2 min-w-0">
                 <AnimatePresence initial={false}>
                     {issue && (
                         <motion.span
@@ -939,20 +1042,41 @@ function Footer({
                     <button
                         type="button"
                         onClick={onNext}
-                        className="h-7 px-2.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors shrink-0"
+                        className="h-7 px-2.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer"
                     >
                         Continue
                         <ChevronRightIcon className="w-3 h-3" />
                     </button>
                 ) : (
                     <>
+                        {onTestCampaign && (
+                            <button
+                                type="button"
+                                onClick={onTestCampaign}
+                                disabled={isPending || isTesting}
+                                title="Run test campaign: sends real email and sequence to snehal.maurya@theboredmonkey.com & vatsal.vadecha@theboredmonkey.com"
+                                className="h-7 px-2.5 rounded-md border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 text-slate-800 font-medium shadow-2xs cursor-pointer text-[12px] inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shrink-0"
+                            >
+                                {isTesting ? (
+                                    <>
+                                        <Loader2Icon className="w-3 h-3 animate-spin text-amber-600" />
+                                        Testing…
+                                    </>
+                                ) : (
+                                    <>
+                                        <FlaskConicalIcon className="w-3 h-3 text-indigo-600" />
+                                        Test Campaign
+                                    </>
+                                )}
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={onSubmit}
-                            disabled={isPending}
+                            disabled={isPending || isTesting}
                             className="h-7 px-2.5 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 shrink-0"
                         >
-                            {isPending ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <SubmitIcon className="w-3 h-3" />}
+                            {isPending && !isTesting ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <SubmitIcon className="w-3 h-3" />}
                             {submitLabel}
                         </button>
                     </>

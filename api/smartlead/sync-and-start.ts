@@ -455,44 +455,50 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
             }
 
-            // 6. Start campaign - CRITICAL: Validate success before continuing
-            console.log(`[Smartlead Sync] Starting campaign ${smartleadId} at Smartlead...`);
-            const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
+            // 6. Start campaign - CRITICAL: Validate success before continuing (skip if auto_start is false)
+            const isAutoStart = parsed.auto_start !== false && !parsed.draft_only && parsed.status !== "DRAFT";
+            if (isAutoStart) {
+                console.log(`[Smartlead Sync] Starting campaign ${smartleadId} at Smartlead...`);
+                const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
 
-            if (startRes.status < 200 || startRes.status >= 300) {
-                console.error(`[Smartlead Sync] CRITICAL: Campaign START FAILED for campaign ${smartleadId}`);
-                console.error(`   Status: ${startRes.status}, Response:`, startRes.data);
-                throw new Error(`Campaign start failed with status ${startRes.status}: ${JSON.stringify(startRes.data)}`);
-            }
+                if (startRes.status < 200 || startRes.status >= 300) {
+                    console.error(`[Smartlead Sync] CRITICAL: Campaign START FAILED for campaign ${smartleadId}`);
+                    console.error(`   Status: ${startRes.status}, Response:`, startRes.data);
+                    throw new Error(`Campaign start failed with status ${startRes.status}: ${JSON.stringify(startRes.data)}`);
+                }
 
-            const campaignStatus = startRes.data?.status || startRes.data?.campaign_status;
-            if (!campaignStatus || (campaignStatus !== "RUNNING" && campaignStatus !== "START" && campaignStatus !== "started")) {
-                console.error(`[Smartlead Sync] CRITICAL: Campaign did not start properly`);
-                console.error(`   Expected status: RUNNING, Got: ${campaignStatus}`);
-                console.error(`   Full response:`, startRes.data);
-                throw new Error(`Campaign status invalid after start: ${campaignStatus}`);
-            }
+                const campaignStatus = startRes.data?.status || startRes.data?.campaign_status;
+                if (!campaignStatus || (campaignStatus !== "RUNNING" && campaignStatus !== "START" && campaignStatus !== "started")) {
+                    console.error(`[Smartlead Sync] CRITICAL: Campaign did not start properly`);
+                    console.error(`   Expected status: RUNNING, Got: ${campaignStatus}`);
+                    console.error(`   Full response:`, startRes.data);
+                    throw new Error(`Campaign status invalid after start: ${campaignStatus}`);
+                }
 
-            console.log(`[Smartlead Sync] ✅ Campaign ${smartleadId} SUCCESSFULLY STARTED in Smartlead`);
+                console.log(`[Smartlead Sync] ✅ Campaign ${smartleadId} SUCCESSFULLY STARTED in Smartlead`);
 
-            // 7. Force immediate sending window so Smartlead dispatches now instead of next day
-            try {
-                await ensureImmediateSendingSchedule(smartleadId, {
-                    timezone: parsed.timezone || "Asia/Kolkata",
-                    days: parsed.days,
-                    start_time: parsed.start_time || parsed.startTime || "08:00",
-                    end_time: parsed.end_time || parsed.endTime || "19:00",
-                    interval_minutes: Number(parsed.min_time_between_emails) || 3,
-                    daily_limit: dailyCap,
-                    apiKey: chosenKey,
-                });
-                console.log(`[Smartlead Sync] ✅ Active window confirmed. Campaign #${smartleadId} starts dispatching immediately.`);
-            } catch (schedErr: any) {
-                console.warn("[Smartlead Sync] Immediate schedule check warning:", schedErr.message);
+                // 7. Force immediate sending window so Smartlead dispatches now instead of next day
+                try {
+                    await ensureImmediateSendingSchedule(smartleadId, {
+                        timezone: parsed.timezone || "Asia/Kolkata",
+                        days: parsed.days,
+                        start_time: parsed.start_time || parsed.startTime || "08:00",
+                        end_time: parsed.end_time || parsed.endTime || "19:00",
+                        interval_minutes: Number(parsed.min_time_between_emails) || 3,
+                        daily_limit: dailyCap,
+                        apiKey: chosenKey,
+                    });
+                    console.log(`[Smartlead Sync] ✅ Active window confirmed. Campaign #${smartleadId} starts dispatching immediately.`);
+                } catch (schedErr: any) {
+                    console.warn("[Smartlead Sync] Immediate schedule check warning:", schedErr.message);
+                }
+            } else {
+                console.log(`[Smartlead Sync] Campaign ${smartleadId} synced as DRAFT/PAUSED (auto_start=false)`);
             }
 
             // 8. Save campaign to database robustly
             let dbCampaignId: string | null = null;
+            const targetDbStatus = isAutoStart ? 'ACTIVE' : 'DRAFT';
             try {
                 const existingCamp = await pgQuery<any>(
                     `SELECT id FROM "Campaign" WHERE "providerCampaignId" = $1 OR ("userId" = $2 AND name = $3) LIMIT 1`,
@@ -503,18 +509,19 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     dbCampaignId = existingCamp[0].id;
                     await pgQuery(
                         `UPDATE "Campaign"
-                         SET "providerCampaignId" = $1, status = 'ACTIVE', "updatedAt" = NOW()
-                         WHERE id = $2`,
-                        [String(smartleadId), dbCampaignId]
+                         SET "providerCampaignId" = $1, status = $2, "updatedAt" = NOW()
+                         WHERE id = $3`,
+                        [String(smartleadId), targetDbStatus, dbCampaignId]
                     );
                 } else {
                     const insertRes = await pgQuery<any>(
                         `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendHour", "preferredSendDays", "createdAt", "updatedAt")
-                         VALUES (gen_random_uuid()::text, $1, $2, 'ACTIVE', $3, $4, $5, $6, NOW(), NOW())
+                         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
                          RETURNING id`,
                         [
                             user.id,
                             campaignName,
+                            targetDbStatus,
                             String(smartleadId),
                             parsed.timezone || "Asia/Kolkata",
                             parsed.start_time ? parseInt(parsed.start_time.split(":")[0]) : 10,

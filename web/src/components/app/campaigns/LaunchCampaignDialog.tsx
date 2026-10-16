@@ -15,12 +15,15 @@ import {
     CalendarClockIcon,
     CheckIcon,
     EyeIcon,
+    FlaskConicalIcon,
     GaugeIcon,
     HourglassIcon,
     ListChecksIcon,
+    Loader2Icon,
     RocketIcon,
     XIcon,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import type Campaign from "@/lib/api/models/app/campaigns/Campaign";
 import type { AppError } from "@/lib/api/client/normalizeError";
 import buildError from "@/lib/helper/buildError";
@@ -32,6 +35,7 @@ import { preflightFailures } from "@/lib/api/models/app/campaigns/Preflight";
 import { isIdleCampaign } from "@/components/app/campaigns/status";
 import { entryDelayLabel } from "@/components/app/campaigns/schedule/entryDelay";
 import type { StartCampaignOptions, StartCampaignResult } from "@/lib/api/client/app/campaigns/startCampaign";
+import sendTestCampaign from "@/lib/api/client/app/campaigns/sendTestCampaign";
 
 type Phase = "idle" | "launching" | "done";
 
@@ -103,7 +107,22 @@ export default function LaunchCampaignDialog({
     const [riskBlocked, setRiskBlocked] = React.useState(false);
     // The start answered that the campaign is active but waiting for leads.
     const [waiting, setWaiting] = React.useState(false);
+    const [testing, setTesting] = React.useState(false);
     const timer = React.useRef<number | null>(null);
+
+    async function handleTestCampaign() {
+        if (!campaign || testing || phase === "launching") return;
+        setTesting(true);
+        toast.loading("Sending test email & sequence to snehal.maurya & vatsal.vadecha...", { id: "launch_test" });
+        try {
+            await sendTestCampaign(campaign.id);
+            toast.success("Test campaign sent to snehal.maurya@theboredmonkey.com & vatsal.vadecha@theboredmonkey.com!", { id: "launch_test", duration: 6000 });
+        } catch (err: any) {
+            toast.error(err?.message || "Failed to dispatch test campaign", { id: "launch_test" });
+        } finally {
+            setTesting(false);
+        }
+    }
 
     // The list passes a trimmed campaign, so fetch the full record for accurate
     // settings. Falls back to the passed campaign until it resolves.
@@ -402,6 +421,25 @@ export default function LaunchCampaignDialog({
                                             className="h-8 px-3 rounded-md border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 bg-white text-[12.5px] font-medium transition-colors disabled:opacity-50"
                                         >
                                             Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleTestCampaign}
+                                            disabled={phase === "launching" || testing}
+                                            title="Send test email & sequence to snehal.maurya@theboredmonkey.com & vatsal.vadecha@theboredmonkey.com"
+                                            className="h-8 px-3 rounded-md border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 text-slate-800 text-[12.5px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 shadow-2xs cursor-pointer"
+                                        >
+                                            {testing ? (
+                                                <>
+                                                    <Loader2Icon className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                                                    Testing…
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <FlaskConicalIcon className="w-3.5 h-3.5 text-indigo-600" />
+                                                    Test Campaign
+                                                </>
+                                            )}
                                         </button>
                                         {riskBlocked && (
                                             <motion.button

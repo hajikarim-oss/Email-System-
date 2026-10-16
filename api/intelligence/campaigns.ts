@@ -412,7 +412,123 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             return;
         }
 
-        // Handle POST campaign creation
+        // Handle POST test campaign: sends actual test email & sequences to snehal.maurya & vatsal.vadecha
+        if (campIdParam && (subAction === "test-campaign" || subAction === "test" || subAction === "test-email" || subAction === "test-send") && (req.method === "POST" || req.method === "PUT")) {
+            const existing = await pgQuery<any>(
+                `SELECT id, name, "userId", "providerCampaignId", status
+                 FROM "Campaign" WHERE id = $1 OR "providerCampaignId" = $1 LIMIT 1`,
+                [campIdParam]
+            );
+            if (!existing || existing.length === 0) {
+                send(res, 404, { error: "campaign_not_found" });
+                return;
+            }
+            const camp = existing[0];
+            const rawBody = await readBody(req);
+            let input: any = {};
+            try { input = JSON.parse(rawBody || "{}"); } catch {}
+
+            const apiKey = smartleadPrimary();
+            let smartleadId = camp.providerCampaignId;
+
+            // Fetch steps from DB
+            const steps = await pgQuery<any>(
+                `SELECT id, "stepNumber", subject, "bodyTemplate", "delayDays" FROM "CampaignStep" WHERE "campaignId" = $1 ORDER BY "stepNumber" ASC`,
+                [camp.id]
+            );
+
+            // If not yet in Smartlead, create it as DRAFT
+            if (!smartleadId && apiKey) {
+                const createRes = await slApiCall("/campaigns/create", "POST", { name: camp.name }, apiKey);
+                if (createRes.data?.id) {
+                    smartleadId = String(createRes.data.id);
+                    await pgQuery(`UPDATE "Campaign" SET "providerCampaignId" = $1 WHERE id = $2`, [smartleadId, camp.id]);
+
+                    // Link mailboxes
+                    const mbList = await slApiCall("/email-accounts", "GET", undefined, apiKey);
+                    const mbIds = Array.isArray(mbList.data) ? mbList.data.map((m: any) => m.id) : [];
+                    if (mbIds.length > 0) {
+                        await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: mbIds }, apiKey);
+                    }
+
+                    // Push sequences
+                    if (steps.length > 0) {
+                        const sequences = steps.map((s: any, idx: number) => ({
+                            seq_number: s.stepNumber || idx + 1,
+                            seq_delay_details: { delay_in_days: s.delayDays || 0 },
+                            subject: idx === 0 ? (s.subject || "Outreach") : (/^step\s*\d+$/i.test(s.subject?.trim() || "") ? "" : (s.subject || "")),
+                            email_body: s.bodyTemplate || "<p>Hi {{first_name}},</p>",
+                        }));
+                        await slApiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences }, apiKey);
+                    }
+                }
+            }
+
+            if (!smartleadId) {
+                send(res, 500, { error: "smartlead_campaign_not_available" });
+                return;
+            }
+
+            // Ensure test token lead exists
+            let leadCheck = await slApiCall(`/campaigns/${smartleadId}/leads?limit=1`, "GET", undefined, apiKey);
+            let leadId = leadCheck.data?.data?.[0]?.lead?.id || leadCheck.data?.data?.[0]?.id;
+
+            if (!leadId) {
+                await slApiCall(`/campaigns/${smartleadId}/leads`, "POST", {
+                    lead_list: [{
+                        email: "test.preview@theboredmonkey.com",
+                        first_name: "Snehal",
+                        last_name: "Maurya",
+                        company_name: "TheBoredMonkey",
+                        custom_fields: {
+                            firstName: "Snehal",
+                            lastName: "Maurya",
+                            company: "TheBoredMonkey",
+                            title: "Brand Partnerships",
+                        }
+                    }]
+                }, apiKey);
+                leadCheck = await slApiCall(`/campaigns/${smartleadId}/leads?limit=1`, "GET", undefined, apiKey);
+                leadId = leadCheck.data?.data?.[0]?.lead?.id || leadCheck.data?.data?.[0]?.id;
+            }
+
+            const seqRes = await slApiCall(`/campaigns/${smartleadId}/sequences`, "GET", undefined, apiKey);
+            const seqs = Array.isArray(seqRes.data) ? seqRes.data : [];
+            const stepsCount = seqs.length > 0 ? seqs.length : (steps.length || 1);
+
+            const testRecipients: string[] = Array.isArray(input.recipients) && input.recipients.length > 0
+                ? input.recipients
+                : ["snehal.maurya@theboredmonkey.com", "vatsal.vadecha@theboredmonkey.com"];
+
+            const dispatchResults: any[] = [];
+            for (const recipient of testRecipients) {
+                for (let seq = 1; seq <= stepsCount; seq++) {
+                    try {
+                        const sendRes = await slApiCall(`/campaigns/${smartleadId}/send-test-email`, "POST", {
+                            leadId: leadId || 1,
+                            sequenceNumber: seq,
+                            customEmailAddress: recipient,
+                        }, apiKey);
+                        dispatchResults.push({ recipient, sequenceNumber: seq, status: sendRes.status, ok: sendRes.data?.ok });
+                    } catch (e: any) {
+                        dispatchResults.push({ recipient, sequenceNumber: seq, error: e.message });
+                    }
+                }
+            }
+
+            await pgQuery(`UPDATE "Campaign" SET "testSentAt" = NOW() WHERE id = $1`, [camp.id]).catch(() => {});
+
+            send(res, 200, {
+                success: true,
+                campaignId: camp.id,
+                providerCampaignId: smartleadId,
+                recipients: testRecipients,
+                stepsCount,
+                dispatches: dispatchResults,
+                message: `Test campaign sequence sent to ${testRecipients.join(" & ")}. Actual campaign remains as Draft.`,
+            });
+            return;
+        }
         if (req.method === "POST" && (!subAction || subAction === "create")) {
             const rawBody = await readBody(req);
             try {
