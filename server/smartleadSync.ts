@@ -104,22 +104,10 @@ export async function ensureImmediateSendingSchedule(
         daysOfTheWeek.sort((a, b) => a - b);
     }
 
-    // Window logic: Ensure current time is well inside start_hour .. end_hour
-    let startHour = options.start_time || "08:00";
-    let endHour = options.end_time || "18:00";
-
-    const endH = parseInt(endHour.split(":")[0], 10);
-    const startH = parseInt(startHour.split(":")[0], 10);
-
-    // If current time is past or within 1 hour of endHour, extend endHour to 23:59
-    if (currentHour >= endH - 1) {
-        endHour = "23:59";
-    }
-
-    // If current time is earlier than startHour, set startHour to cover right now
-    if (currentHour < startH) {
-        startHour = `${String(Math.max(0, currentHour)).padStart(2, "0")}:00`;
-    }
+    // Window logic: Default to 8:00 AM - 7:00 PM (08:00 - 19:00) unless user configured custom hours.
+    // If added at night (e.g. 11 PM - 12 AM), the window remains 8 AM - 7 PM so Smartlead waits until 8 AM morning.
+    const startHour = options.start_time || "08:00";
+    const endHour = options.end_time || "19:00";
 
     // Interval: Smartlead expects minutes (e.g. 3). If seconds passed (e.g. 180), convert to minutes.
     let intervalMinutes = options.interval_minutes || 3;

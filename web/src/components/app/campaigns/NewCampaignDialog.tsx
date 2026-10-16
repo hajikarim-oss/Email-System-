@@ -153,7 +153,7 @@ const initialDraft = (timezone?: string): Draft => ({
     timezone: timezone || "Asia/Kolkata",
     days: WEEKDAYS_MASK,
     startTime: "08:00",
-    endTime: "18:00",
+    endTime: "19:00",
     entryDelayMinutes: 0,
     emailTagIds: [],
     dailyLimit: 200,

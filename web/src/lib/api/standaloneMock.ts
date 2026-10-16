@@ -560,8 +560,8 @@ export const Q3_CAMPAIGN_DEF: any = {
     end_date: null,
     timezone: "Asia/Kolkata",
     days: 62, // Monday - Friday
-    start_time: "10:00",
-    end_time: "18:00",
+    start_time: "08:00",
+    end_time: "19:00",
     email_tags: [],
     folders: [],
     contact_order_by: "created_at",
@@ -661,8 +661,8 @@ export const Q2_CAMPAIGN_DEF: any = {
     end_date: null,
     timezone: "Asia/Kolkata",
     days: 62, // Monday - Friday
-    start_time: "10:00",
-    end_time: "18:00",
+    start_time: "08:00",
+    end_time: "19:00",
     email_tags: [],
     folders: [],
     contact_order_by: "created_at",
@@ -1474,8 +1474,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             if (!c.sent_count) c.sent_count = 48;
             c.timezone = "Asia/Kolkata";
             c.days = 62; // Monday - Friday
-            c.start_time = "10:00";
-            c.end_time = "18:00";
+            c.start_time = "08:00";
+            c.end_time = "19:00";
             c.daily_limit = 200;
         }
     });

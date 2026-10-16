@@ -657,7 +657,7 @@ function smartleadApiPlugin() {
                         }
 
                         const startHour = parsed.start_time || parsed.startTime || "08:00";
-                        const endHour = parsed.end_time || parsed.endTime || "18:00";
+                        const endHour = parsed.end_time || parsed.endTime || "19:00";
                         const dailyCap = Number(parsed.daily_limit) || Number(parsed.max_new_leads_per_day) || 50;
 
                         const schedulePayload: Record<string, any> = {
@@ -748,8 +748,8 @@ function smartleadApiPlugin() {
                             await ensureImmediateSendingSchedule(smartleadId, {
                                 timezone: parsed.timezone || "Asia/Kolkata",
                                 days: parsed.days,
-                                start_time: parsed.start_time || parsed.startTime,
-                                end_time: parsed.end_time || parsed.endTime,
+                                start_time: parsed.start_time || parsed.startTime || "08:00",
+                                end_time: parsed.end_time || parsed.endTime || "19:00",
                                 interval_minutes: Number(parsed.min_time_between_emails) || 3,
                                 daily_limit: dailyCap,
                                 apiKey: chosenKey,
@@ -1855,8 +1855,8 @@ function databaseIntelligencePlugin() {
                                 mailbox_ids: mailboxIds,
                                 timezone: camp.sendTimezone || "Asia/Kolkata",
                                 days: camp.preferredSendDays || [1, 2, 3, 4, 5],
-                                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
-                                end_time: "18:00",
+                                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "08:00",
+                                end_time: "19:00",
                                 daily_limit: 200,
                                 stop_on_reply: true,
                                 open_tracking: true,
@@ -2043,7 +2043,7 @@ function databaseIntelligencePlugin() {
                                 userId: scope.userId,
                                 status: (input.status || "DRAFT").toUpperCase(),
                                 sendTimezone: input.timezone || "Asia/Kolkata",
-                                preferredSendHour: input.start_time ? parseInt(input.start_time.split(":")[0]) : null,
+                                preferredSendHour: input.start_time ? parseInt(input.start_time.split(":")[0]) : 8,
                                 preferredSendDays: (Array.isArray(input.days) ? input.days : [1, 2, 3, 4, 5]).map(Number),
                             },
                         });
@@ -2186,8 +2186,8 @@ function databaseIntelligencePlugin() {
                                 end_date: null,
                                 timezone: camp.sendTimezone || "Asia/Kolkata",
                                 days: camp.preferredSendDays || [1, 2, 3, 4, 5],
-                                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
-                                end_time: "18:00",
+                                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "08:00",
+                                end_time: "19:00",
                                 total_leads: camp._count?.leads || 0,
                                 lead_count: camp._count?.leads || 0,
                                 sent_count: camp.sent || 0,

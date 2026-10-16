@@ -229,14 +229,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     } catch (e) { console.error("Leads sync failed:", e); }
 
-    // Set schedule using campaign's configured send hour
-    const startHour = campaign.preferredSendHour ? `${String(campaign.preferredSendHour).padStart(2, "0")}:00` : "09:00";
+    // Set schedule using campaign's configured send hour (default 8 AM - 7 PM)
+    const startHour = campaign.preferredSendHour ? `${String(campaign.preferredSendHour).padStart(2, "0")}:00` : "08:00";
     try {
       await smartlead.setSchedule(providerCampaignId, {
         timezone: campaign.sendTimezone || "Asia/Kolkata",
         daysOfWeek: sendDays,
         startHour,
-        endHour: "18:00",
+        endHour: "19:00",
         minTimeBetweenEmails: 3,
         maxNewLeadsPerDay: 50 * smartleadMailboxIds.length,
       });

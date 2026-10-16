@@ -333,7 +333,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
 
             const startHour = parsed.start_time || parsed.startTime || "08:00";
-            const endHour = parsed.end_time || parsed.endTime || "18:00";
+            const endHour = parsed.end_time || parsed.endTime || "19:00";
             const dailyCap = Number(parsed.daily_limit) || Number(parsed.max_new_leads_per_day) || 50;
 
             // Support aggressive sending: 2-4 sec for ultra-fast, default 180 sec (3 min)
@@ -480,8 +480,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 await ensureImmediateSendingSchedule(smartleadId, {
                     timezone: parsed.timezone || "Asia/Kolkata",
                     days: parsed.days,
-                    start_time: parsed.start_time || parsed.startTime,
-                    end_time: parsed.end_time || parsed.endTime,
+                    start_time: parsed.start_time || parsed.startTime || "08:00",
+                    end_time: parsed.end_time || parsed.endTime || "19:00",
                     interval_minutes: Number(parsed.min_time_between_emails) || 3,
                     daily_limit: dailyCap,
                     apiKey: chosenKey,

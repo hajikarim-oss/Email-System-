@@ -338,8 +338,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
 
             // 7. Set schedule using campaign's configured send hour
-            const configuredStartH = camp.preferredSendHour != null ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "09:00";
-            const configuredEndH = "18:00";
+            const configuredStartH = camp.preferredSendHour != null ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "08:00";
+            const configuredEndH = "19:00";
 
             await slApiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
                 timezone: tz,
@@ -591,8 +591,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 end_date: null,
                 timezone: camp.sendTimezone || "Asia/Kolkata",
                 days: camp.preferredSendDays || [1, 2, 3, 4, 5],
-                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
-                end_time: "18:00",
+                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "08:00",
+                end_time: "19:00",
                 total_leads: Number(camp.lead_count || 0),
                 lead_count: Number(camp.lead_count || 0),
                 _count: { leads: Number(camp.lead_count || 0) },
