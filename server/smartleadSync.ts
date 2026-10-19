@@ -104,9 +104,9 @@ export async function ensureImmediateSendingSchedule(
         daysOfTheWeek.sort((a, b) => a - b);
     }
 
-    // Window logic: Default to 8:00 AM - 7:00 PM (08:00 - 19:00) unless user configured custom hours.
-    // If added at night (e.g. 11 PM - 12 AM), the window remains 8 AM - 7 PM so Smartlead waits until 8 AM morning.
-    const startHour = options.start_time || "08:00";
+    // Window logic: Default to 10:00 AM - 7:00 PM (10:00 - 19:00) unless user configured custom hours.
+    // If added at night (e.g. 11 PM - 12 AM), the window remains 10 AM - 7 PM so Smartlead waits until 10 AM morning.
+    const startHour = options.start_time || "10:00";
     const endHour = options.end_time || "19:00";
 
     // Interval: Smartlead expects minutes (e.g. 3). If seconds passed (e.g. 180), convert to minutes.
@@ -235,6 +235,19 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
             }
 
             if (!campDbId) continue;
+
+            // Link Master's dedicated mailbox for Master-owned campaigns
+            if (targetUserId === masterUserId) {
+                const masterMb = await pgQuery<any>(
+                    `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`
+                );
+                if (masterMb && masterMb.length > 0) {
+                    await pgQuery(
+                        `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                        [campDbId, masterMb[0].id]
+                    ).catch(() => {});
+                }
+            }
 
             // Check if leads exist for this campaign
             const dbLeadCount = await pgQuery<any>(

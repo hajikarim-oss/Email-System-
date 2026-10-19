@@ -129,8 +129,8 @@ async function testCampaignCreation() {
     name: `Test Campaign 2K Leads ${Date.now()}`,
     status: "DRAFT",
     timezone: "Asia/Kolkata",
-    start_time: "08:00",
-    end_time: "18:00",
+    start_time: "10:00",
+    end_time: "19:00",
     daily_limit: 2000,
     steps: [
       {
@@ -170,8 +170,8 @@ async function testSmartleadSync(campaignName) {
   const syncData = {
     name: campaignName,
     timezone: "Asia/Kolkata",
-    start_time: "08:00",
-    end_time: "18:00",
+    start_time: "10:00",
+    end_time: "19:00",
     daily_limit: 2000,
     days: [1, 2, 3, 4, 5], // Mon-Fri
     leads: leads.slice(0, 100), // First 100 for testing (full 2K in production)

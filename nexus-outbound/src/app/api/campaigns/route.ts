@@ -118,12 +118,6 @@ export async function POST(req: Request) {
       subject: s.subject || "",
       bodyHtml: s.body_html || s.bodyHtml || s.body_plain || "",
     })) : []);
-    let mailboxIds = rawMailboxIds as string[];
-    if (mailboxIds.length === 0) {
-      const activeMbs = await prisma.mailbox.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
-      mailboxIds = activeMbs.map((m) => m.id);
-    }
-
     // MASTER users can create campaigns on behalf of team members
     let userId = loggedUserId;
     if (activeUserId && userRole === "MASTER" && activeUserId !== loggedUserId) {
@@ -131,6 +125,46 @@ export async function POST(req: Request) {
       const targetUser = await prisma.user.findUnique({ where: { id: activeUserId } });
       if (targetUser) {
         userId = activeUserId;
+      }
+    }
+
+    const isMasterCampaign = (userRole === "MASTER" && userId === loggedUserId) || (session?.user?.email || "").toLowerCase().includes("monu");
+
+    let mailboxIds = rawMailboxIds as string[];
+    if (isMasterCampaign) {
+      const masterMb = await prisma.mailbox.findFirst({
+        where: {
+          OR: [
+            { providerMailboxId: "24993809" },
+            { senderEmail: { equals: "kumar.monu@theboredmonkey.com", mode: "insensitive" } },
+          ],
+        },
+        select: { id: true },
+      });
+      mailboxIds = masterMb ? [masterMb.id] : [];
+    } else if (mailboxIds.length === 0) {
+      const activeMbs = await prisma.mailbox.findMany({
+        where: {
+          status: "ACTIVE",
+          providerMailboxId: { not: "24993809" },
+          senderEmail: { not: "kumar.monu@theboredmonkey.com" },
+        },
+        select: { id: true },
+      });
+      mailboxIds = activeMbs.map((m) => m.id);
+    } else {
+      // Ensure team-provided mailboxIds do not include Master's dedicated mailbox
+      const excluded = await prisma.mailbox.findFirst({
+        where: {
+          OR: [
+            { providerMailboxId: "24993809" },
+            { senderEmail: { equals: "kumar.monu@theboredmonkey.com", mode: "insensitive" } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (excluded) {
+        mailboxIds = mailboxIds.filter((id) => id !== excluded.id);
       }
     }
 

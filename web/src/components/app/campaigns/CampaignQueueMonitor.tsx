@@ -113,9 +113,24 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
     const summary = analytics.data?.summary;
     const enrichedCampaign = campaign as any;
     const sentCount = summary?.emails_sent ?? enrichedCampaign.sent_count ?? 0;
-    const totalLeads = enrichedCampaign.total_leads || 0;
-    const inFlightCount = isActive ? Math.max(0, totalLeads - sentCount) : 0;
-    const activePoolText = "4 Rotated Mailboxes (Vatsal, Preeti, Haji, Snehal)";
+    const totalLeads = enrichedCampaign.total_leads ?? enrichedCampaign.leads?.length ?? 1;
+    const inFlightCount = Math.max(0, totalLeads - sentCount);
+
+    const isMasterCamp = enrichedCampaign.is_master === true ||
+                         enrichedCampaign.userId === "cmtr9pp8t0000cygeyjpsz5lt" ||
+                         enrichedCampaign.name?.toLowerCase().includes("mon test") ||
+                         (enrichedCampaign.mailboxes && Array.isArray(enrichedCampaign.mailboxes) && enrichedCampaign.mailboxes.some((m: any) => 
+                             m.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || 
+                             m.mailboxId === "mbx_kumar_monu_master" || 
+                             m.mailbox?.id === "mbx_kumar_monu_master"
+                         ));
+
+    const activePoolText = isMasterCamp
+        ? "1 Dedicated Mailbox (kumar.monu@theboredmonkey.com)"
+        : (Array.isArray(enrichedCampaign.mailboxes) && enrichedCampaign.mailboxes.length > 0
+            ? `${enrichedCampaign.mailboxes.length} Assigned Mailbox${enrichedCampaign.mailboxes.length === 1 ? "" : "es"}`
+            : "8 Team Mailboxes (Rotated)");
+
     const openCount = summary?.unique_opens ?? enrichedCampaign.open_count ?? 0;
     const replyCount = summary?.replies ?? enrichedCampaign.reply_count ?? 0;
     const openRate = summary?.open_rate != null ? Math.round(summary.open_rate) : (sentCount > 0 ? Math.min(100, Math.round((openCount / sentCount) * 100)) : 0);

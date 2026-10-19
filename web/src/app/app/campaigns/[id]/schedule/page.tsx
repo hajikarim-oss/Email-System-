@@ -62,8 +62,8 @@ function seedWindows(c: Campaign): Interval[][] {
 
 const PRESETS: { label: string; build: () => Interval[][] }[] = [
     {
-        label: "Mon–Fri 8 AM–7 PM (Default)",
-        build: () => Array.from({ length: 7 }, (_, i) => (i < 5 ? [{ start: 480, end: 1140 }] : [])),
+        label: "Mon–Fri 10 AM–7 PM (Default)",
+        build: () => Array.from({ length: 7 }, (_, i) => (i < 5 ? [{ start: 600, end: 1140 }] : [])),
     },
     {
         label: "Mon–Fri 9–5",

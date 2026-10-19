@@ -28,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             },
           },
         },
-        user: { select: { smartleadApiKey: true, email: true } },
+        user: { select: { smartleadApiKey: true, email: true, role: true } },
       },
     });
 
@@ -48,18 +48,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Campaign has no active leads" }, { status: 400 });
     }
 
+    const isMaster = campaign.user?.role === "MASTER" || (campaign.user?.email || "").toLowerCase().includes("monu");
+
     if (campaign.mailboxes.length === 0) {
-      const activeMbs = await prisma.mailbox.findMany({
-        where: { status: "ACTIVE" },
-        select: { id: true },
-      });
-      if (activeMbs.length === 0) {
+      const activeMbs = isMaster
+        ? await prisma.mailbox.findMany({
+            where: {
+              status: "ACTIVE",
+              OR: [
+                { providerMailboxId: "24993809" },
+                { senderEmail: { equals: "kumar.monu@theboredmonkey.com", mode: "insensitive" } },
+              ],
+            },
+            select: { id: true },
+          })
+        : await prisma.mailbox.findMany({
+            where: {
+              status: "ACTIVE",
+              providerMailboxId: { not: "24993809" },
+              senderEmail: { not: "kumar.monu@theboredmonkey.com" },
+            },
+            select: { id: true },
+          });
+
+      if (activeMbs.length === 0 && !isMaster) {
         return NextResponse.json({ error: "No active mailboxes available" }, { status: 400 });
       }
-      await prisma.campaignMailbox.createMany({
-        data: activeMbs.map((m) => ({ campaignId: id, mailboxId: m.id })),
-        skipDuplicates: true,
-      });
+      if (activeMbs.length > 0) {
+        await prisma.campaignMailbox.createMany({
+          data: activeMbs.map((m) => ({ campaignId: id, mailboxId: m.id })),
+          skipDuplicates: true,
+        });
+      }
       const refreshed = await prisma.campaign.findUnique({
         where: { id },
         include: {
@@ -92,11 +112,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     console.log(`[Launch] Using Smartlead API key from: ${firstMailboxOwner?.email || "fallback"} (campaign: ${campaign.name})`);
 
-    const smartleadMailboxIds = campaign.mailboxes
-      .map((cm: any) => cm.mailbox?.providerMailboxId)
-      .filter((id: any): id is string => !!id)
-      .map((id: string) => parseInt(id, 10))
-      .filter((id: number) => !isNaN(id));
+    const smartleadMailboxIds = isMaster
+      ? [24993809]
+      : campaign.mailboxes
+          .map((cm: any) => cm.mailbox?.providerMailboxId)
+          .filter((id: any): id is string => !!id && id !== "24993809")
+          .map((id: string) => parseInt(id, 10))
+          .filter((id: number) => !isNaN(id));
 
     if (smartleadMailboxIds.length === 0) {
       return NextResponse.json({ error: "No linked mailboxes" }, { status: 400 });
@@ -229,8 +251,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     } catch (e) { console.error("Leads sync failed:", e); }
 
-    // Set schedule using campaign's configured send hour (default 8 AM - 7 PM)
-    const startHour = campaign.preferredSendHour ? `${String(campaign.preferredSendHour).padStart(2, "0")}:00` : "08:00";
+    // Set schedule using campaign's configured send hour (default 10 AM - 7 PM)
+    const startHour = campaign.preferredSendHour ? `${String(campaign.preferredSendHour).padStart(2, "0")}:00` : "10:00";
     try {
       await smartlead.setSchedule(providerCampaignId, {
         timezone: campaign.sendTimezone || "Asia/Kolkata",

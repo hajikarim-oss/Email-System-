@@ -57,6 +57,7 @@ import TagSelector from "@/components/app/popup/select/TagSelector";
 import { SegmentMultiPicker } from "@/components/app/segments/SegmentPickers";
 import { Toggle } from "@/components/app/campaigns/preferences/components/CampaignPreferenceBoolBox";
 import { useUserProfile } from "@/hooks/context/user";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
 import { useConfirm } from "@/hooks/context/confirm";
 import type { AppError } from "@/lib/api/client/normalizeError";
 import buildError from "@/lib/helper/buildError";
@@ -154,7 +155,7 @@ const initialDraft = (timezone?: string): Draft => ({
     description: "",
     timezone: timezone || "Asia/Kolkata",
     days: WEEKDAYS_MASK,
-    startTime: "08:00",
+    startTime: "10:00",
     endTime: "19:00",
     entryDelayMinutes: 0,
     emailTagIds: [],
@@ -281,6 +282,7 @@ function fmtDateTime(d: Date): string {
 export function NewCampaignDialog({ open, onClose }: Props) {
     const navigate = useNavigate();
     const profile = useUserProfile();
+    const { isMaster } = useFeatureAccess();
     const confirm = useConfirm();
     const create = useCreateCampaign();
     const linkSegments = useSetCampaignSegments();
@@ -491,6 +493,13 @@ export function NewCampaignDialog({ open, onClose }: Props) {
             end_date: endDateIso,
             contacts: draft.selectedContacts,
             leads: draft.selectedContacts,
+            is_master: isMaster,
+            ...(isMaster ? {
+                sender_email: "kumar.monu@theboredmonkey.com",
+                mailboxes: ["mbx_kumar_monu_master"],
+                mailbox_ids: ["24993809"],
+                mailboxIds: ["mbx_kumar_monu_master"],
+            } : {}),
         };
 
         if (draft.kind === "sequence") {
@@ -811,7 +820,7 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                                         />
                                     )}
                                     {current.key === "schedule" && <ScheduleStep draft={draft} patch={patch} />}
-                                    {current.key === "sending" && <SendingStep draft={draft} patch={patch} />}
+                                    {current.key === "sending" && <SendingStep draft={draft} patch={patch} isMaster={isMaster} />}
                                     {current.key === "email" && <EmailsStep draft={draft} patch={patch} goToKey={goToKey} />}
                                     {current.key === "audience" && <AudienceStep draft={draft} patch={patch} />}
                                     {current.key === "send" && <SendStep draft={draft} patch={patch} goToKey={goToKey} />}
@@ -1253,7 +1262,7 @@ function SendingWindowFields({ draft, patch }: { draft: Draft; patch: (p: Partia
                     if (d) {
                         patch({
                             sendMode: "later",
-                            scheduledAt: format(d, "yyyy-MM-dd'T'") + (draft.startTime || "08:00"),
+                            scheduledAt: format(d, "yyyy-MM-dd'T'") + (draft.startTime || "10:00"),
                         });
                     } else {
                         patch({
@@ -1344,31 +1353,62 @@ function ScheduleStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft
     );
 }
 
-function SendingStep({ draft, patch }: { draft: Draft; patch: (p: Partial<Draft>) => void }) {
+function SendingStep({ draft, patch, isMaster }: { draft: Draft; patch: (p: Partial<Draft>) => void; isMaster?: boolean }) {
     const oneTime = draft.kind === "one_time";
     const { emails } = useEmails({ query: "", tag: "" });
     const activeMailboxesCount = emails?.length || 8;
-    const poolAccountsCount = draft.emailTagIds.length > 0 ? draft.emailTagIds.length : activeMailboxesCount;
+    const poolAccountsCount = isMaster ? 1 : (draft.emailTagIds.length > 0 ? draft.emailTagIds.length : activeMailboxesCount);
     const poolCapacity = (draft.dailyLimit * poolAccountsCount).toLocaleString();
 
     return (
         <div className="w-full">
             <StepIntro
                 title="Who sends it, and how?"
-                hint="Volume is split across every mailbox in the pool so no single sender carries the campaign."
+                hint={isMaster ? "Campaign sends exclusively through Master's dedicated mailbox." : "Volume is split across every mailbox in the pool so no single sender carries the campaign."}
             />
             <div className="space-y-5">
-                <div>
-                    <Label>Sender pool</Label>
-                    <TagSelector
-                        selected={draft.emailTagIds}
-                        onAdd={(t) => patch({ emailTagIds: [...draft.emailTagIds, t] })}
-                        onRemove={(t) => patch({ emailTagIds: draft.emailTagIds.filter((id) => id !== t) })}
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                        Mailbox tags this campaign rotates through. Leave empty to use every active mailbox ({activeMailboxesCount} sender accounts active).
-                    </p>
-                </div>
+                {isMaster ? (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="flex h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse" />
+                                <Label className="text-blue-950 font-bold text-[13px]">Master Account Dedicated Mailbox</Label>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-200/90 text-blue-900 px-2 py-0.5 rounded-full">
+                                Exclusive Master Sender
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-white border border-blue-200 rounded-lg p-3 shadow-2xs">
+                            <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+                                    KM
+                                </div>
+                                <div>
+                                    <p className="text-[13px] font-semibold text-slate-900">kumar.monu@theboredmonkey.com</p>
+                                    <p className="text-[11px] text-slate-500">Smartlead Account #24993809 &bull; Google Workspace &bull; 99% Health</p>
+                                </div>
+                            </div>
+                            <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                                Dedicated Active
+                            </span>
+                        </div>
+                        <p className="text-[11.5px] text-blue-950/80 leading-relaxed">
+                            As the Master administrator, your campaigns send exclusively from <strong>kumar.monu@theboredmonkey.com</strong>. Team member mailbox pools remain completely isolated to team campaigns.
+                        </p>
+                    </div>
+                ) : (
+                    <div>
+                        <Label>Sender pool</Label>
+                        <TagSelector
+                            selected={draft.emailTagIds}
+                            onAdd={(t) => patch({ emailTagIds: [...draft.emailTagIds, t] })}
+                            onRemove={(t) => patch({ emailTagIds: draft.emailTagIds.filter((id) => id !== t) })}
+                        />
+                        <p className="text-[11px] text-slate-400 mt-1">
+                            Mailbox tags this campaign rotates through. Leave empty to use every active mailbox ({activeMailboxesCount} sender accounts active).
+                        </p>
+                    </div>
+                )}
 
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
                     <div className="flex items-start justify-between gap-5">

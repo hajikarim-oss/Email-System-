@@ -261,7 +261,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const body = await req.json();
     const { name, status, sequence, leads, mailboxIds } = body;
 
-    let existing = await prisma.campaign.findUnique({ where: { id } });
+    let existing = await prisma.campaign.findUnique({ where: { id }, include: { user: true } });
 
     if (!existing) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -321,9 +321,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (mailboxIds && Array.isArray(mailboxIds)) {
       await prisma.campaignMailbox.deleteMany({ where: { campaignId: id } });
-      if (mailboxIds.length > 0) {
+      const isMasterCampaign = existing.user?.role === "MASTER" || (existing.user?.email || "").toLowerCase().includes("monu");
+
+      if (isMasterCampaign) {
+        const masterMb = await prisma.mailbox.findFirst({
+          where: {
+            OR: [
+              { providerMailboxId: "24993809" },
+              { senderEmail: { equals: "kumar.monu@theboredmonkey.com", mode: "insensitive" } },
+            ],
+          },
+          select: { id: true },
+        });
+        if (masterMb) {
+          await prisma.campaignMailbox.create({
+            data: { campaignId: id, mailboxId: masterMb.id },
+          });
+        }
+      } else if (mailboxIds.length > 0) {
         const mailboxes = await prisma.mailbox.findMany({
-          where: { id: { in: mailboxIds } },
+          where: {
+            id: { in: mailboxIds },
+            providerMailboxId: { not: "24993809" },
+            senderEmail: { not: "kumar.monu@theboredmonkey.com" },
+          },
           select: { id: true },
         });
         if (mailboxes.length > 0) {

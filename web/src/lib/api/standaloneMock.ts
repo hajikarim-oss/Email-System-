@@ -416,6 +416,47 @@ export const DEFAULT_8_PROFILES = [
     }
 ];
 
+export const MASTER_DEDICATED_MAILBOX = {
+    id: "mbx_kumar_monu_master",
+    email: "kumar.monu@theboredmonkey.com",
+    name: "kumar Monu",
+    signature_plain: "Best regards,\nkumar Monu\nMaster Admin | TheBoredMonkey",
+    signature_html: "<p>Best regards,<br/><strong>kumar Monu</strong><br/>Master Admin | TheBoredMonkey</p>",
+    signature_sync: false,
+    signature_code: false,
+    tags: ["master", "primary", "outreach"],
+    provider: "google",
+    status: "active",
+    last_synced_at: new Date().toISOString(),
+    campaign_limit: 50,
+    min_wait_time: 3,
+    reply_to: "",
+    save_to_sent: true,
+    tracking_domain: "mail.theboredmonkey.com",
+    tracking_domain_verified: true,
+    tracking_domain_verified_at: "2026-10-19T00:00:00.000Z",
+    auth_state: "passing",
+    auth_spf: true,
+    auth_dkim: true,
+    auth_dmarc: true,
+    warmup: "2026-10-19T00:00:00.000Z",
+    warmup_paused_at: null,
+    warmup_base: 5,
+    warmup_max: 50,
+    warmup_increase: 3,
+    warmup_reply_rate: 35,
+    reputation: 100,
+    daily_limit: 200,
+    sent_today: 0,
+    total_sent: 0,
+    mailbox_allowance: 200,
+    connected_at: "2026-10-19T00:00:00.000Z",
+    created_at: "2026-10-19T00:00:00.000Z",
+    updated_at: "2026-10-19T00:00:00.000Z",
+    smartlead_id: 24993809,
+    smartlead_api_key: "mock_smartlead_api_key",
+};
+
 export const DEFAULT_4_PROFILES = DEFAULT_8_PROFILES;
 const initialEmails = DEFAULT_8_PROFILES;
 
@@ -560,7 +601,7 @@ export const Q3_CAMPAIGN_DEF: any = {
     end_date: null,
     timezone: "Asia/Kolkata",
     days: 62, // Monday - Friday
-    start_time: "08:00",
+    start_time: "10:00",
     end_time: "19:00",
     email_tags: [],
     folders: [],
@@ -661,7 +702,7 @@ export const Q2_CAMPAIGN_DEF: any = {
     end_date: null,
     timezone: "Asia/Kolkata",
     days: 62, // Monday - Friday
-    start_time: "08:00",
+    start_time: "10:00",
     end_time: "19:00",
     email_tags: [],
     folders: [],
@@ -1346,11 +1387,13 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         const currentUser = loadStorage<any>("current_user", null);
         const role = (currentUser?.role || "").toUpperCase();
-        const isMaster = role === "MASTER" || role === "OWNER" || currentUser?.is_admin === true;
-        let visibleEmails = emails;
+        const isMaster = role === "MASTER" || role === "OWNER" || currentUser?.is_admin === true || (currentUser?.email || "").toLowerCase().includes("monu");
+        let visibleEmails = isMaster
+            ? [MASTER_DEDICATED_MAILBOX, ...emails.filter((e: any) => (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com")]
+            : emails.filter((e: any) => (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com");
         if (!isMaster && currentUser?.id && Array.isArray(dbMbs) && dbMbs.length > 0) {
             const allowedSet = new Set(dbMbs.map((m: any) => (m.senderEmail || "").toLowerCase()));
-            visibleEmails = emails.filter((e: any) => allowedSet.has((e.email || "").toLowerCase()));
+            visibleEmails = visibleEmails.filter((e: any) => allowedSet.has((e.email || "").toLowerCase()));
         }
 
         return res({
@@ -1474,7 +1517,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             if (!c.sent_count) c.sent_count = 48;
             c.timezone = "Asia/Kolkata";
             c.days = 62; // Monday - Friday
-            c.start_time = "08:00";
+            c.start_time = "10:00";
             c.end_time = "19:00";
             c.daily_limit = 200;
         }
@@ -1925,7 +1968,63 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     return res(created, 201);
                 }
             } catch {}
-            return res({ error: "Failed to create campaign" }, 500);
+            // Standalone / offline fallback
+            const currentUser = loadStorage<any>("current_user", null);
+            const userRole = (currentUser?.role || "").toUpperCase();
+            const isMaster = userRole === "MASTER" || userRole === "OWNER" || currentUser?.is_admin === true || (currentUser?.email || "").toLowerCase().includes("monu") || body.is_master === true;
+            const newCamp = {
+                id: `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                user_id: currentUser?.id || "cmtr9pp8t0000cygeyjpsz5lt",
+                owner_email: currentUser?.email || "",
+                name: body.name || "New Outreach Campaign",
+                description: body.description || "Outreach sequence",
+                status: "draft",
+                kind: body.kind || "sequence",
+                stop_on_reply: body.stop_on_reply ?? true,
+                open_tracking: body.open_tracking ?? true,
+                link_tracking: body.link_tracking ?? true,
+                utm_tracking: body.utm_tracking ?? false,
+                text_only: false,
+                daily_limit: body.daily_limit || 50,
+                unsubscribe_header: body.unsubscribe_header ?? true,
+                risky_emails: false,
+                cc: [],
+                bcc: [],
+                start_date: body.start_date || (body.scheduledAt ? new Date(body.scheduledAt).toISOString() : new Date().toISOString()),
+                end_date: body.end_date || (body.endScheduledAt ? new Date(body.endScheduledAt).toISOString() : null),
+                timezone: body.timezone || "Asia/Kolkata",
+                days: body.days || 127,
+                start_time: body.start_time || "10:00",
+                end_time: body.end_time || "19:00",
+                email_tags: [],
+                folders: [],
+                total_leads: 0,
+                sent_count: 0,
+                open_count: 0,
+                reply_count: 0,
+                bounce_count: 0,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                mailboxes: (Array.isArray(body.mailboxes) && body.mailboxes.length > 0)
+                    ? body.mailboxes
+                    : isMaster
+                        ? ["mbx_kumar_monu_master"]
+                        : emails.filter((e: { email?: string }) => (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com").map((e: { id: string }) => e.id),
+                steps: (body.steps || []).map((s: any, idx: number) => ({
+                    id: `stp_${Date.now()}_${idx}`,
+                    stepNumber: idx + 1,
+                    position: idx + 1,
+                    name: s.name || `Step ${idx + 1}`,
+                    subject: s.subject || "",
+                    body_plain: s.body_plain || "",
+                    body_html: s.body_html || "",
+                    wait_after: s.wait_after || 0,
+                })),
+                analytics: null,
+            };
+            campaigns.unshift(newCamp as any);
+            saveStorage("campaigns", campaigns);
+            return res(newCamp, 200);
         }
         // Proxy campaigns GET to real backend which returns live Smartlead stats
         try {

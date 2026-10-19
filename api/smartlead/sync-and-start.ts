@@ -213,33 +213,43 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return idStr;
             }
 
-            // 2. Link rotational mailboxes (dedicated per campaign/team member)
+            // 2. Link rotational mailboxes (Master exclusively uses kumar.monu@theboredmonkey.com #24993809)
             let mailboxIds: number[] = [];
-            try {
-                const mbRes = await apiCall("/email-accounts", "GET", undefined, chosenKey);
-                const allAccounts: any[] = Array.isArray(mbRes.data) ? mbRes.data : [];
+            const isMaster = user?.role === "MASTER" || (user?.email || "").toLowerCase().includes("monu") || parsed.is_master === true || sender.includes("kumar.monu");
 
-                if (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.length > 0) {
-                    mailboxIds = parsed.mailbox_ids.map(Number).filter(Boolean);
-                } else if (Array.isArray(parsed.sender_emails) && parsed.sender_emails.length > 0) {
-                    const requested = parsed.sender_emails.map((e: string) => String(e).toLowerCase().trim());
-                    mailboxIds = allAccounts
-                        .filter((m: any) => requested.includes(String(m.from_email || m.email || "").toLowerCase().trim()))
-                        .map((m: any) => m.id);
-                } else if (sender) {
-                    const matched = allAccounts.filter((m: any) =>
-                        String(m.from_email || m.email || "").toLowerCase().trim() === sender
-                    );
-                    if (matched.length > 0) {
-                        mailboxIds = matched.map((m: any) => m.id);
+            if (isMaster) {
+                // Master account exclusively uses kumar.monu@theboredmonkey.com (Smartlead ID: 24993809)
+                mailboxIds = [24993809];
+                console.log(`[Smartlead Sync] Master campaign detected. Exclusively assigning kumar.monu@theboredmonkey.com (ID: 24993809)`);
+            } else {
+                // Team member logic unchanged, ensuring Master's dedicated mailbox is excluded from team pool
+                try {
+                    const mbRes = await apiCall("/email-accounts", "GET", undefined, chosenKey);
+                    const allAccounts: any[] = (Array.isArray(mbRes.data) ? mbRes.data : [])
+                        .filter((m: any) => m.id !== 24993809 && String(m.from_email || m.email || "").toLowerCase().trim() !== "kumar.monu@theboredmonkey.com");
+
+                    if (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.length > 0) {
+                        mailboxIds = parsed.mailbox_ids.map(Number).filter((id: number) => Boolean(id) && id !== 24993809);
+                    } else if (Array.isArray(parsed.sender_emails) && parsed.sender_emails.length > 0) {
+                        const requested = parsed.sender_emails.map((e: string) => String(e).toLowerCase().trim());
+                        mailboxIds = allAccounts
+                            .filter((m: any) => requested.includes(String(m.from_email || m.email || "").toLowerCase().trim()))
+                            .map((m: any) => m.id);
+                    } else if (sender) {
+                        const matched = allAccounts.filter((m: any) =>
+                            String(m.from_email || m.email || "").toLowerCase().trim() === sender
+                        );
+                        if (matched.length > 0) {
+                            mailboxIds = matched.map((m: any) => m.id);
+                        }
                     }
-                }
 
-                if (mailboxIds.length === 0 && allAccounts.length > 0) {
-                    mailboxIds = allAccounts.map((m: any) => m.id);
+                    if (mailboxIds.length === 0 && allAccounts.length > 0) {
+                        mailboxIds = allAccounts.map((m: any) => m.id);
+                    }
+                } catch (err: any) {
+                    console.warn("[Smartlead Sync] Mailbox lookup warning:", err.message);
                 }
-            } catch (err: any) {
-                console.warn("[Smartlead Sync] Mailbox lookup warning:", err.message);
             }
 
             if (mailboxIds.length > 0) {
@@ -332,7 +342,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 if (decodedDays.length > 0) daysOfTheWeek = decodedDays.sort((a, b) => a - b);
             }
 
-            const startHour = parsed.start_time || parsed.startTime || "08:00";
+            const startHour = parsed.start_time || parsed.startTime || "10:00";
             const endHour = parsed.end_time || parsed.endTime || "19:00";
             const dailyCap = Number(parsed.daily_limit) || Number(parsed.max_new_leads_per_day) || 50;
 
@@ -482,7 +492,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     await ensureImmediateSendingSchedule(smartleadId, {
                         timezone: parsed.timezone || "Asia/Kolkata",
                         days: parsed.days,
-                        start_time: parsed.start_time || parsed.startTime || "08:00",
+                        start_time: parsed.start_time || parsed.startTime || "10:00",
                         end_time: parsed.end_time || parsed.endTime || "19:00",
                         interval_minutes: Number(parsed.min_time_between_emails) || 3,
                         daily_limit: dailyCap,

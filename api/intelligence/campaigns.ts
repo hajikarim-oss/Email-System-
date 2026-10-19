@@ -213,23 +213,39 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
 
             // 2. Get linked mailbox Smartlead IDs
-            const mailboxRows = await pgQuery<any>(
-                `SELECT m."providerMailboxId" FROM "CampaignMailbox" cm
-                 JOIN "Mailbox" m ON m.id = cm."mailboxId"
-                 WHERE cm."campaignId" = $1`, [camp.id]
+            // Check if campaign owner is Master
+            const campOwner = await pgQuery<any>(
+                `SELECT u.role, u.email FROM "Campaign" c JOIN "User" u ON u.id = c."userId" WHERE c.id = $1`, [camp.id]
             );
-            let slMailboxIds: number[] = mailboxRows
-                .map((m: any) => parseInt(m.providerMailboxId, 10))
-                .filter((id: number) => !isNaN(id) && id > 0);
+            const isMasterCamp = campOwner?.[0]?.role === "MASTER" || (campOwner?.[0]?.email || "").toLowerCase().includes("monu");
 
-            // If no mailboxes linked locally, fetch all from Smartlead
-            if (slMailboxIds.length === 0) {
-                try {
-                    const mbRes = await slApiCall("/email-accounts", "GET", undefined, apiKey);
-                    if (Array.isArray(mbRes.data)) {
-                        slMailboxIds = mbRes.data.map((m: any) => m.id).filter(Boolean);
-                    }
-                } catch {}
+            let slMailboxIds: number[] = [];
+            if (isMasterCamp) {
+                // Master account exclusively uses kumar.monu@theboredmonkey.com (Smartlead ID: 24993809)
+                slMailboxIds = [24993809];
+                console.log(`[Launch] Master campaign detected (#${camp.id}). Exclusively routing through kumar.monu@theboredmonkey.com (24993809)`);
+            } else {
+                const mailboxRows = await pgQuery<any>(
+                    `SELECT m."providerMailboxId" FROM "CampaignMailbox" cm
+                     JOIN "Mailbox" m ON m.id = cm."mailboxId"
+                     WHERE cm."campaignId" = $1 AND m."providerMailboxId" != '24993809' AND lower(m."senderEmail") != 'kumar.monu@theboredmonkey.com'`, [camp.id]
+                );
+                slMailboxIds = mailboxRows
+                    .map((m: any) => parseInt(m.providerMailboxId, 10))
+                    .filter((id: number) => !isNaN(id) && id > 0 && id !== 24993809);
+
+                // If no mailboxes linked locally, fetch from Smartlead (excluding Master's dedicated mailbox)
+                if (slMailboxIds.length === 0) {
+                    try {
+                        const mbRes = await slApiCall("/email-accounts", "GET", undefined, apiKey);
+                        if (Array.isArray(mbRes.data)) {
+                            slMailboxIds = mbRes.data
+                                .filter((m: any) => m.id !== 24993809 && String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com")
+                                .map((m: any) => m.id)
+                                .filter(Boolean);
+                        }
+                    } catch {}
+                }
             }
             if (slMailboxIds.length === 0) {
                 send(res, 400, { error: "no_mailboxes_available" });
@@ -338,7 +354,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
 
             // 7. Set schedule using campaign's configured send hour
-            const configuredStartH = camp.preferredSendHour != null ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "08:00";
+            const configuredStartH = camp.preferredSendHour != null ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00";
             const configuredEndH = "19:00";
 
             await slApiCall(`/campaigns/${smartleadId}/schedule`, "POST", {
@@ -445,10 +461,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     await pgQuery(`UPDATE "Campaign" SET "providerCampaignId" = $1 WHERE id = $2`, [smartleadId, camp.id]);
 
                     // Link mailboxes
-                    const mbList = await slApiCall("/email-accounts", "GET", undefined, apiKey);
-                    const mbIds = Array.isArray(mbList.data) ? mbList.data.map((m: any) => m.id) : [];
-                    if (mbIds.length > 0) {
-                        await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: mbIds }, apiKey);
+                    const campUser = await pgQuery<any>(`SELECT u.role, u.email FROM "Campaign" c JOIN "User" u ON u.id = c."userId" WHERE c.id = $1`, [camp.id]);
+                    const isMaster = campUser?.[0]?.role === "MASTER" || (campUser?.[0]?.email || "").toLowerCase().includes("monu");
+                    if (isMaster) {
+                        await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: [24993809] }, apiKey);
+                    } else {
+                        const mbList = await slApiCall("/email-accounts", "GET", undefined, apiKey);
+                        const mbIds = Array.isArray(mbList.data)
+                            ? mbList.data.filter((m: any) => m.id !== 24993809 && String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com").map((m: any) => m.id)
+                            : [];
+                        if (mbIds.length > 0) {
+                            await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: mbIds }, apiKey);
+                        }
                     }
 
                     // Push sequences
@@ -562,7 +586,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         campaignName,
                         input.status || "DRAFT",
                         input.timezone || "Asia/Kolkata",
-                        input.start_time ? parseInt(input.start_time.split(":")[0]) : null,
+                        input.start_time ? parseInt(input.start_time.split(":")[0]) : 10,
                         (Array.isArray(input.days) ? input.days : [1, 2, 3, 4, 5]).map(Number),
                     ]
                 );
@@ -597,16 +621,30 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     }
                 }
 
-                // Auto-assign all active mailboxes so the campaign is ready to launch
+                // Auto-assign mailboxes: Master gets kumar.monu@theboredmonkey.com exclusively; team members get team pool
                 try {
-                    const activeMbs = await pgQuery<any>(
-                        `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE'`
-                    );
-                    for (const mb of activeMbs) {
-                        await pgQuery(
-                            `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                            [campaignId, mb.id]
-                        ).catch(() => {});
+                    if (scope.master) {
+                        // Master account exclusively uses kumar.monu@theboredmonkey.com (24993809)
+                        const masterMb = await pgQuery<any>(
+                            `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`
+                        );
+                        if (masterMb && masterMb.length > 0) {
+                            await pgQuery(
+                                `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                [campaignId, masterMb[0].id]
+                            ).catch(() => {});
+                        }
+                    } else {
+                        // Team members keep their rotational pool intact, strictly excluding Master's email
+                        const activeMbs = await pgQuery<any>(
+                            `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE' AND "providerMailboxId" != '24993809' AND lower("senderEmail") != 'kumar.monu@theboredmonkey.com'`
+                        );
+                        for (const mb of activeMbs) {
+                            await pgQuery(
+                                `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                [campaignId, mb.id]
+                            ).catch(() => {});
+                        }
                     }
                 } catch {}
 
@@ -707,7 +745,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 end_date: null,
                 timezone: camp.sendTimezone || "Asia/Kolkata",
                 days: camp.preferredSendDays || [1, 2, 3, 4, 5],
-                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "08:00",
+                start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
                 end_time: "19:00",
                 total_leads: Number(camp.lead_count || 0),
                 lead_count: Number(camp.lead_count || 0),

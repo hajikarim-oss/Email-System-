@@ -66,11 +66,18 @@ export default function SenderSelector({
         for (const t of tags) m.set(t.id, t);
         return m;
     }, [tags]);
+    const userRole = (profile?.user?.role || "").toUpperCase();
+    const isMaster = userRole === "MASTER" || userRole === "OWNER" || profile?.user?.is_admin === true;
+    const availableMailboxes = React.useMemo(() => {
+        if (isMaster) return emails;
+        return emails.filter((e) => (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com");
+    }, [emails, isMaster]);
+
     const mailboxById = React.useMemo(() => {
         const m = new Map<string, (typeof emails)[number]>();
-        for (const e of emails) m.set(e.id, e);
+        for (const e of availableMailboxes) m.set(e.id, e);
         return m;
-    }, [emails]);
+    }, [availableMailboxes]);
 
     const tagChips = selectedTags
         .map((id) => tagById.get(id))
@@ -86,14 +93,14 @@ export default function SenderSelector({
     const filteredMailboxes = React.useMemo(
         () =>
             !q
-                ? emails
-                : emails.filter(
+                ? availableMailboxes
+                : availableMailboxes.filter(
                       (e) =>
                           e.email.toLowerCase().includes(q) ||
                           (e.name ?? "").toLowerCase().includes(q) ||
                           (e.provider ?? "").toLowerCase().includes(q),
                   ),
-        [emails, q],
+        [availableMailboxes, q],
     );
 
     function toggleTag(id: string) {
