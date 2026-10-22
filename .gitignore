@@ -60,3 +60,4 @@ scratch/
 **/scratch/
 scratch_*
 *.scratch.*
+restore_chats/

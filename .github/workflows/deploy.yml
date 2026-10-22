@@ -53,7 +53,7 @@ jobs:
             
             # Zero-downtime PM2 reload
             echo "🔄 Reloading PM2 processes..."
-            pm2 reload ecosystem.config.js || pm2 start ecosystem.config.js
+            pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js --update-env
             
             echo "✅ Deployment successful! Live at https://tbmoutreach.tech"
 
@@ -85,6 +85,6 @@ jobs:
             cd /var/www/email-system
             
             echo "🔄 Reloading PM2 processes..."
-            pm2 reload ecosystem.config.js || pm2 start ecosystem.config.js
+            pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js --update-env
             
             echo "✅ Deployment successful! Live at https://tbmoutreach.tech"

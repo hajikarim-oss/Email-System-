@@ -130,6 +130,25 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 send(res, 401, { error: "unauthorized", message: "A valid session is required." });
                 return;
             }
+            const userTeams = await pgQuery<{ id: string; name: string }>(
+                `SELECT t.id, t.name FROM "Team" t
+                 JOIN "UserTeam" ut ON ut."teamId" = t.id
+                 WHERE ut."userId" = $1`,
+                [user.id]
+            );
+            if (userTeams.length > 0) {
+                const orgs = userTeams.map((t) => ({
+                    id: t.id.replace("team_", "org_"),
+                    name: t.name,
+                    slug: t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+                    plan: "enterprise",
+                    role: orgRole(user),
+                    permissions: 4294967295,
+                    created_at: "2026-01-01T00:00:00.000Z",
+                }));
+                send(res, 200, orgs, 60);
+                return;
+            }
             send(res, 200, [{ ...ORG, role: orgRole(user), permissions: 4294967295 }], 60);
             return;
         }
@@ -144,9 +163,22 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         }
 
         if ((path === "/api/organization/members" || path === "/api/organization/members/invite") && method === "GET") {
-            await requireMaster(req, res);
-            if (res.writableEnded) return;
-            const rows = await pgQuery<MemberRow>(MEMBER_SELECT);
+            const master = await requireMaster(req, res);
+            if (!master || res.writableEnded) return;
+            const rows = await pgQuery<MemberRow>(
+                `SELECT u.id, u.name, u.email, u.role, u."isActive" AS is_active, u."createdAt" AS joined_at,
+                    (SELECT count(*)::int FROM "Mailbox" m WHERE m."userId" = u.id) AS mailbox_count,
+                    (SELECT count(*)::int FROM "Campaign" c WHERE c."userId" = u.id) AS campaign_count
+                FROM "User" u
+                WHERE u."isActive" = true
+                  AND u.id IN (
+                      SELECT ut."userId" FROM "UserTeam" ut
+                      WHERE ut."teamId" IN (SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1)
+                      UNION ALL SELECT $1
+                  )
+                ORDER BY CASE WHEN u.role = 'MASTER' THEN 0 ELSE 1 END, u."createdAt"`,
+                [master.id]
+            );
             send(res, 200, rows.map(toMember), 15);
             return;
         }

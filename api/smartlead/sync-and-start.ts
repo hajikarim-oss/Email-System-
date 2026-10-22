@@ -213,16 +213,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return idStr;
             }
 
-            // 2. Link rotational mailboxes (Master exclusively uses kumar.monu@theboredmonkey.com #24993809)
+            // 2. Link rotational mailboxes (TBM Master exclusively uses kumar.monu@theboredmonkey.com #24993809)
             let mailboxIds: number[] = [];
-            const isMaster = user?.role === "MASTER" || (user?.email || "").toLowerCase().includes("monu") || parsed.is_master === true || sender.includes("kumar.monu");
+            const userEmail = (user?.email || "").toLowerCase();
+            const isTroops = userEmail.includes("pratik") || userEmail.includes("naveen") || userEmail.includes("meenakshi") || (parsed.workspace && String(parsed.workspace).toLowerCase().includes("troops"));
+            const isMonuMaster = !isTroops && (userEmail.includes("monu") || sender.includes("kumar.monu") || (user?.role === "MASTER" && !isTroops && parsed.is_master === true));
 
-            if (isMaster) {
-                // Master account exclusively uses kumar.monu@theboredmonkey.com (Smartlead ID: 24993809)
+            if (isMonuMaster) {
+                // TBM Master account exclusively uses kumar.monu@theboredmonkey.com (Smartlead ID: 24993809)
                 mailboxIds = [24993809];
-                console.log(`[Smartlead Sync] Master campaign detected. Exclusively assigning kumar.monu@theboredmonkey.com (ID: 24993809)`);
+                console.log(`[Smartlead Sync] TBM Master campaign detected. Exclusively assigning kumar.monu@theboredmonkey.com (ID: 24993809)`);
             } else {
-                // Team member logic unchanged, ensuring Master's dedicated mailbox is excluded from team pool
+                // Troops and team member logic: Master's dedicated mailbox (24993809) is strictly isolated and excluded
                 try {
                     const mbRes = await apiCall("/email-accounts", "GET", undefined, chosenKey);
                     const allAccounts: any[] = (Array.isArray(mbRes.data) ? mbRes.data : [])

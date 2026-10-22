@@ -2400,15 +2400,32 @@ function databaseIntelligencePlugin() {
                         return;
                     }
 
+                    let allowedUserIds = [scope.userId];
+                    if (scope.master) {
+                        try {
+                            const userTeams = await prisma.userTeam.findMany({ where: { userId: scope.userId }, select: { teamId: true } });
+                            if (userTeams.length > 0) {
+                                const teamIds = userTeams.map((t: any) => t.teamId);
+                                const peers = await prisma.userTeam.findMany({ where: { teamId: { in: teamIds } }, select: { userId: true } });
+                                allowedUserIds = Array.from(new Set([scope.userId, ...peers.map((p: any) => p.userId)]));
+                            }
+                        } catch {}
+                    }
+
                     // Single campaign GET: /:id
                     const rawCampId = (req.url || "").split("?")[0].replace(/^\//, "").trim();
                     if (rawCampId && rawCampId !== "" && !["stats", "steps", "analytics", "logs"].includes(rawCampId)) {
                         const camp = await prisma.campaign.findFirst({
                             where: {
-                                OR: [
-                                    { id: rawCampId },
-                                    { providerCampaignId: rawCampId },
-                                    { name: { contains: rawCampId, mode: "insensitive" } },
+                                AND: [
+                                    {
+                                        OR: [
+                                            { id: rawCampId },
+                                            { providerCampaignId: rawCampId },
+                                            { name: { contains: rawCampId, mode: "insensitive" } },
+                                        ],
+                                    },
+                                    { userId: { in: allowedUserIds } },
                                 ],
                             },
                             include: {
@@ -2478,18 +2495,8 @@ function databaseIntelligencePlugin() {
                     // Auto-reconcile with Smartlead asynchronously in background (debounced)
                     reconcileSmartleadCampaigns().catch(() => {});
 
-                    let allowedUserIds = [scope.userId];
-                    try {
-                        const userTeams = await prisma.userTeam.findMany({ where: { userId: scope.userId }, select: { teamId: true } });
-                        if (userTeams.length > 0) {
-                            const teamIds = userTeams.map((t: any) => t.teamId);
-                            const peers = await prisma.userTeam.findMany({ where: { teamId: { in: teamIds } }, select: { userId: true } });
-                            allowedUserIds = Array.from(new Set([scope.userId, ...peers.map((p: any) => p.userId)]));
-                        }
-                    } catch {}
-
                     const dbCampaigns = await prisma.campaign.findMany({
-                        where: scope.master ? {} : { userId: { in: allowedUserIds } },
+                        where: { userId: { in: allowedUserIds } },
                         include: {
                             _count: { select: { leads: true } },
                             steps: { orderBy: { stepNumber: "asc" } },

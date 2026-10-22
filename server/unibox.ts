@@ -52,7 +52,16 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 `SELECT u.id, u.name, u.email, u.role
                  FROM "User" u
                  WHERE u."isActive" = true
-                 ORDER BY u."createdAt" ASC`
+                   AND u.id IN (
+                     SELECT ut."userId" FROM "UserTeam" ut
+                     WHERE ut."teamId" IN (
+                       SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1
+                     )
+                     UNION ALL
+                     SELECT $1
+                   )
+                 ORDER BY u."createdAt" ASC`,
+                [scope.userId]
             );
 
             const mailboxes = await pgQuery<any>(
@@ -112,7 +121,7 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const memberId = searchParams.get("member_id");
             const campaignId = searchParams.get("campaign_id");
 
-            const cacheKey = `${isMaster ? "master" : scope.userId}_${memberId || "all"}_${campaignId || "all"}`;
+            const cacheKey = `${isMaster ? `master_${scope.userId}` : scope.userId}_${memberId || "all"}_${campaignId || "all"}`;
             const cachedOverview = uniboxOverviewCache.get(cacheKey);
             if (cachedOverview && cachedOverview.expiresAt > Date.now()) {
                 if (pathname.endsWith("/count")) {
@@ -134,6 +143,13 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             } else if (memberId && memberId !== "all") {
                 conditions.push(`c."userId" = $${pIdx++}`);
                 params.push(memberId);
+            } else {
+                conditions.push(`c."userId" IN (
+                    SELECT ut."userId" FROM "UserTeam" ut 
+                    WHERE ut."teamId" IN (SELECT "teamId" FROM "UserTeam" WHERE "userId" = $${pIdx++})
+                    UNION ALL SELECT $${pIdx++}
+                )`);
+                params.push(scope.userId, scope.userId);
             }
 
             if (campaignId && campaignId !== "all") {
@@ -179,7 +195,15 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
 
             // Mailboxes and event counts
             const mailboxesPromise = pgQuery<any>(
-                `SELECT id, "senderEmail" as email, status FROM "Mailbox" WHERE status != 'RETIRED' ORDER BY "createdAt" ASC`
+                `SELECT id, "senderEmail" as email, status FROM "Mailbox" 
+                 WHERE status != 'RETIRED' 
+                   AND ("userId" IN (
+                       SELECT ut."userId" FROM "UserTeam" ut
+                       WHERE ut."teamId" IN (SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1)
+                       UNION ALL SELECT $1
+                   ) OR "userId" IS NULL)
+                 ORDER BY "createdAt" ASC`,
+                [scope.userId]
             );
             const emailCountsPromise = pgQuery<any>(
                 `SELECT lower("fromEmail") as email, count(*)::int as total FROM "EmailEvent" WHERE "fromEmail" IS NOT NULL GROUP BY 1`
@@ -320,10 +344,25 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
 
             const targetLead = leads[0];
 
-            // Access check: non-master can only see their own campaigns
-            if (!isMaster && targetLead.campaignOwner && targetLead.campaignOwner !== scope.userId) {
-                send(res, 403, { error: "forbidden", message: "You can only view threads from your own campaigns" });
-                return;
+            // Access check: non-master can only see their own campaigns; master only their workspace team
+            if (targetLead.campaignOwner) {
+                if (!isMaster && targetLead.campaignOwner !== scope.userId) {
+                    send(res, 403, { error: "forbidden", message: "You can only view threads from your own campaigns" });
+                    return;
+                }
+                if (isMaster && targetLead.campaignOwner !== scope.userId) {
+                    const sameTeam = await pgQuery<any>(
+                        `SELECT 1 FROM "UserTeam" ut1
+                         JOIN "UserTeam" ut2 ON ut1."teamId" = ut2."teamId"
+                         WHERE ut1."userId" = $1 AND ut2."userId" = $2
+                         LIMIT 1`,
+                        [scope.userId, targetLead.campaignOwner]
+                    );
+                    if (sameTeam.length === 0) {
+                        send(res, 403, { error: "forbidden", message: "You can only view threads from your own workspace" });
+                        return;
+                    }
+                }
             }
 
             // Fetch events for this lead
@@ -417,6 +456,13 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             } else if (memberId && memberId !== "all") {
                 conditions.push(`c."userId" = $${pIdx++}`);
                 params.push(memberId);
+            } else {
+                conditions.push(`c."userId" IN (
+                    SELECT ut."userId" FROM "UserTeam" ut 
+                    WHERE ut."teamId" IN (SELECT "teamId" FROM "UserTeam" WHERE "userId" = $${pIdx++})
+                    UNION ALL SELECT $${pIdx++}
+                )`);
+                params.push(scope.userId, scope.userId);
             }
 
             // 2. Campaign filter

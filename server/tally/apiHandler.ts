@@ -661,7 +661,7 @@ export async function handleTallyApi(req: IncomingMessage, res: ServerResponse):
         // 3. GET /api/tally/reconcile (Reconciliation Report)
         // ----------------------------------------------------------------------
         if (pathname === '/api/tally/reconcile' && req.method === 'GET') {
-            const statusFilter = url.searchParams.get('status') || 'PENDING_REVIEW';
+            const pool = getPool();
             const discrepancies = await pool.query(`
                 SELECT id, company_guid, discrepancy_type, dashboard_entity, dashboard_record_id,
                        tally_voucher_no, party_name, dashboard_amount, tally_amount, variance_amount,

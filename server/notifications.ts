@@ -94,19 +94,26 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
             return;
         }
 
+        const teamUsersSub = `(
+            SELECT ut."userId" FROM "UserTeam" ut
+            WHERE ut."teamId" IN (SELECT "teamId" FROM "UserTeam" WHERE "userId" = '${scope.userId}')
+            UNION ALL SELECT '${scope.userId}'
+        )`;
+        const allowedUserFilter = isMaster ? `n."userId" IN ${teamUsersSub}` : `n."userId" = '${scope.userId}'`;
+        const allowedCampOwnerFilter = isMaster ? `c."userId" IN ${teamUsersSub}` : `c."userId" = '${scope.userId}'`;
+
         // Try Notification table first
         let dbNotifs: NotificationRow[] = [];
         let hasNotifTable = true;
         try {
             const readFilter = unreadOnly ? ` AND n.read = false` : "";
-            const userFilter = isMaster ? "" : ` AND n."userId" = '${scope.userId}'`;
             dbNotifs = await pgQuery<any>(
                 `SELECT n.id, n.type as category, n.title, n.message as body,
                         n."campaignId", n."campaignName", n."leadEmail",
                         CASE WHEN n.read THEN n."createdAt"::text ELSE NULL END as read_at,
                         n."createdAt" as created_at
                  FROM "Notification" n
-                 WHERE 1=1 ${userFilter} ${readFilter}
+                 WHERE ${allowedUserFilter} ${readFilter}
                  ORDER BY n."createdAt" DESC
                  LIMIT ${limit}`
             );
@@ -132,7 +139,6 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
         }
 
         // Always supplement with live reply events from the last 14 days
-        const memberFilter = isMaster ? "" : `AND c."userId" = '${scope.userId}'`;
         const replyNotifs = await pgQuery<any>(
             `SELECT e.id, e."leadId", e."fromEmail", e."eventType", e."rawPayload", e."createdAt",
                     l.email as "leadEmail", l."firstName", l."lastName",
@@ -142,7 +148,7 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
              LEFT JOIN "Campaign" c ON c.id = l."campaignId"
              WHERE e."eventType" = 'replied'
                AND e."createdAt" >= NOW() - INTERVAL '14 days'
-               ${memberFilter}
+               AND ${allowedCampOwnerFilter}
              ORDER BY e."createdAt" DESC
              LIMIT 20`
         );
@@ -175,7 +181,7 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
              LEFT JOIN "Campaign" c ON c.id = l."campaignId"
              WHERE l.status = 'BOUNCED'
                AND l."updatedAt" >= NOW() - INTERVAL '7 days'
-               ${memberFilter}
+               AND ${allowedCampOwnerFilter}
              ORDER BY l."updatedAt" DESC
              LIMIT 10`
         );
@@ -197,11 +203,12 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
 
         // Paused campaigns
         const pausedCampaigns = await pgQuery<any>(
-            `SELECT id, name, status, "updatedAt"
-             FROM "Campaign"
-             WHERE (status::text ILIKE 'paused%' OR status::text = 'PAUSED')
-               AND "updatedAt" >= NOW() - INTERVAL '7 days'
-             ORDER BY "updatedAt" DESC
+            `SELECT c.id, c.name, c.status, c."updatedAt"
+             FROM "Campaign" c
+             WHERE (c.status::text ILIKE 'paused%' OR c.status::text = 'PAUSED')
+               AND c."updatedAt" >= NOW() - INTERVAL '7 days'
+               AND ${allowedCampOwnerFilter}
+             ORDER BY c."updatedAt" DESC
              LIMIT 5`
         );
 

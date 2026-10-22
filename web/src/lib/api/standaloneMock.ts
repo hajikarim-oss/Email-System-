@@ -78,6 +78,20 @@ try {
         localStorage.removeItem(STORAGE_KEY_PREFIX + "app_notifications_feed");
         localStorage.setItem(uniboxAccuracyKey, "true");
     }
+    const troopsFixKey = STORAGE_KEY_PREFIX + "v30_troops_strict_isolation_oct22";
+    if (!localStorage.getItem(troopsFixKey)) {
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "app_notifications_feed");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
+        localStorage.setItem(troopsFixKey, "true");
+    }
+    const userCampIsolationKey = STORAGE_KEY_PREFIX + "v31_user_campaigns_strict_oct22";
+    if (!localStorage.getItem(userCampIsolationKey)) {
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
+        localStorage.removeItem(STORAGE_KEY_PREFIX + "troops_campaigns");
+        localStorage.setItem(userCampIsolationKey, "true");
+    }
     const notifsKey = STORAGE_KEY_PREFIX + "app_notifications_feed";
     const existingNotifs = localStorage.getItem(notifsKey);
     if (existingNotifs) {
@@ -1013,6 +1027,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             });
             if (loginRes.ok) {
                 const loginJson = await loginRes.json();
+                const prevUser = loadStorage<any>("current_user", null);
+                if (prevUser && prevUser.id !== loginJson.user?.id) {
+                    localStorage.removeItem(STORAGE_KEY_PREFIX + "campaigns");
+                    localStorage.removeItem(STORAGE_KEY_PREFIX + "troops_campaigns");
+                    localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_inbox_messages");
+                    localStorage.removeItem(STORAGE_KEY_PREFIX + "unibox_sent_records");
+                    localStorage.removeItem(STORAGE_KEY_PREFIX + "app_notifications_feed");
+                    localStorage.removeItem(STORAGE_KEY_PREFIX + "current_organization_id");
+                }
                 saveStorage("current_user", loginJson.user);
                 return res(loginJson, 200);
             }
@@ -1144,6 +1167,23 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery === "/organization" || pathWithoutQuery === "/organizations") {
         const curUser = loadStorage<any>("current_user", null);
         const userRole = (curUser?.role === "owner" || curUser?.role === "MASTER") ? "owner" : "member";
+        const emailLower = (curUser?.email || "").toLowerCase();
+        const isTroops = emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi");
+
+        if (isTroops) {
+            return res([
+                {
+                    id: "org_troops_outreach",
+                    name: "Troops Outreach",
+                    slug: "troops-outreach",
+                    role: userRole,
+                    plan: "enterprise",
+                    permissions: 4294967295,
+                    created_at: "2026-10-21T00:00:00Z",
+                },
+            ]);
+        }
+
         return res([
             {
                 id: "org_tbm_main",
@@ -1160,6 +1200,21 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     if (pathWithoutQuery === "/organization/current" || pathWithoutQuery === "/organizations/current") {
         const curUser = loadStorage<any>("current_user", null);
         const userRole = (curUser?.role === "owner" || curUser?.role === "MASTER") ? "owner" : "member";
+        const emailLower = (curUser?.email || "").toLowerCase();
+        const isTroops = emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi");
+        const activeOrgId = loadStorage<string>("current_organization_id", isTroops ? "org_troops_outreach" : "org_tbm_main");
+
+        if (activeOrgId === "org_troops_outreach" || isTroops) {
+            return res({
+                id: "org_troops_outreach",
+                name: "Troops Outreach",
+                slug: "troops-outreach",
+                role: userRole,
+                plan: "enterprise",
+                permissions: 4294967295,
+                created_at: "2026-10-21T00:00:00Z",
+            });
+        }
         return res({
             id: "org_tbm_main",
             name: "TheBoredMonkey Workspace",
@@ -1180,6 +1235,8 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     if (pathWithoutQuery.startsWith("/organization/switch/")) {
+        const targetOrgId = pathWithoutQuery.replace("/organization/switch/", "");
+        saveStorage("current_organization_id", targetOrgId);
         return res({ success: true });
     }
 
@@ -1443,7 +1500,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
     }
 
     // 5. Campaigns
-    const campaigns = await loadStorageLazy("campaigns", (c) => c?.campaigns || []);
+    const curUserForCamp = loadStorage<any>("current_user", null);
+    const userEmailForCamp = (curUserForCamp?.email || "").toLowerCase();
+    const isTroopsCampUser = userEmailForCamp.includes("pratik") || userEmailForCamp.includes("naveen") || userEmailForCamp.includes("meenakshi");
+    const userCampStorageKey = isTroopsCampUser
+        ? "troops_campaigns"
+        : (curUserForCamp?.id ? `campaigns_${curUserForCamp.id}` : "campaigns");
+
+    const campaigns = isTroopsCampUser
+        ? loadStorage<any[]>("troops_campaigns", [])
+        : (curUserForCamp?.id
+            ? loadStorage<any[]>(userCampStorageKey, [])
+            : await loadStorageLazy("campaigns", (c) => c?.campaigns || []));
     const deletedCampaignIds = loadStorage<string[]>("deleted_campaign_ids", []);
 
     const isCampDeleted = (cId?: any, slId?: any, cName?: any) => {
@@ -1468,61 +1536,65 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }
     }
 
-    // Only enrich campaigns if they are present in storage/backend (never force insert mock campaigns)
-    campaigns.forEach((c: any) => {
-        if (c.id === "cmp_1790233732719_dvlj" || (c.name && c.name.toLowerCase().includes("q3"))) {
-            c.smartlead_id = 4015596;
-            c.steps = (c.steps && c.steps.length > 0) ? c.steps : Q3_CAMPAIGN_DEF.steps;
-        } else if (c.id === "cmp_1789718475256_g91f" || (c.name && c.name.toLowerCase().includes("reachout"))) {
-            c.smartlead_id = 3980868;
-            c.steps = (c.steps && c.steps.length > 0) ? c.steps : Q2_CAMPAIGN_DEF.steps;
-        }
-    });
+    if (!isTroopsCampUser) {
+        // Only enrich campaigns if they are present in storage/backend (never force insert mock campaigns)
+        campaigns.forEach((c: any) => {
+            if (c.id === "cmp_1790233732719_dvlj" || (c.name && c.name.toLowerCase().includes("q3"))) {
+                c.smartlead_id = 4015596;
+                c.steps = (c.steps && c.steps.length > 0) ? c.steps : Q3_CAMPAIGN_DEF.steps;
+            } else if (c.id === "cmp_1789718475256_g91f" || (c.name && c.name.toLowerCase().includes("reachout"))) {
+                c.smartlead_id = 3980868;
+                c.steps = (c.steps && c.steps.length > 0) ? c.steps : Q2_CAMPAIGN_DEF.steps;
+            }
+        });
 
-    // Link Campaign 116 / 120 / 108 / 106 as PAUSED to match live Smartlead state
-    campaigns.forEach((c: any) => {
-        if (c.id === "cmp_1789556689473" || c.name === "Campaign 116") {
-            c.smartlead_id = 3967633;
-            c.status = c.status || "paused";
-            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
-            c.sent_count = 1;
-            c.open_count = 1;
-            c.click_count = 0;
-            c.reply_count = 1;
-            c.bounce_count = 0;
-            c.open_rate = 100.0;
-            c.reply_rate = 100.0;
-        } else if (c.id === "cmp_1789560721755" || (c.name?.includes("120") && !c.name?.includes("Reachout"))) {
-            c.smartlead_id = 3967990;
-            c.status = c.status || "paused";
-            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
-            c.sent_count = 1;
-            c.open_count = 1;
-            c.click_count = 0;
-            c.reply_count = 1;
-            c.bounce_count = 0;
-            c.open_rate = 100.0;
-            c.reply_rate = 100.0;
-        } else if (c.id === "cmtvl4lye0001tdcgjxhipix8" || c.name?.includes("108")) {
-            c.status = c.status || "paused";
-            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
-        } else if (c.id === "cmtvi0fiz0001gkjds7ym4te0" || c.name?.includes("106")) {
-            c.status = c.status || "paused";
-            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
-        } else if (c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) {
-            c.smartlead_id = 3980868;
-            c.status = c.status || "paused";
-            c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
-            if (!c.total_leads || c.total_leads < 1876) c.total_leads = 1876;
-            if (!c.sent_count) c.sent_count = 48;
-            c.timezone = "Asia/Kolkata";
-            c.days = 62; // Monday - Friday
-            c.start_time = "10:00";
-            c.end_time = "19:00";
-            c.daily_limit = 200;
-        }
-    });
-    saveStorage("campaigns", campaigns);
+        // Link Campaign 116 / 120 / 108 / 106 as PAUSED to match live Smartlead state
+        campaigns.forEach((c: any) => {
+            if (c.id === "cmp_1789556689473" || c.name === "Campaign 116") {
+                c.smartlead_id = 3967633;
+                c.status = c.status || "paused";
+                c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
+                c.sent_count = 1;
+                c.open_count = 1;
+                c.click_count = 0;
+                c.reply_count = 1;
+                c.bounce_count = 0;
+                c.open_rate = 100.0;
+                c.reply_rate = 100.0;
+            } else if (c.id === "cmp_1789560721755" || (c.name?.includes("120") && !c.name?.includes("Reachout"))) {
+                c.smartlead_id = 3967990;
+                c.status = c.status || "paused";
+                c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
+                c.sent_count = 1;
+                c.open_count = 1;
+                c.click_count = 0;
+                c.reply_count = 1;
+                c.bounce_count = 0;
+                c.open_rate = 100.0;
+                c.reply_rate = 100.0;
+            } else if (c.id === "cmtvl4lye0001tdcgjxhipix8" || c.name?.includes("108")) {
+                c.status = c.status || "paused";
+                c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
+            } else if (c.id === "cmtvi0fiz0001gkjds7ym4te0" || c.name?.includes("106")) {
+                c.status = c.status || "paused";
+                c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
+            } else if (c.id === "cmp_1789718475256_g91f" || c.name?.includes("Q2 Reachout")) {
+                c.smartlead_id = 3980868;
+                c.status = c.status || "paused";
+                c.smartlead_status = c.status === "active" ? "ACTIVE" : "PAUSED";
+                if (!c.total_leads || c.total_leads < 1876) c.total_leads = 1876;
+                if (!c.sent_count) c.sent_count = 48;
+                c.timezone = "Asia/Kolkata";
+                c.days = 62; // Monday - Friday
+                c.start_time = "10:00";
+                c.end_time = "19:00";
+                c.daily_limit = 200;
+            }
+        });
+        saveStorage(userCampStorageKey, campaigns);
+    } else {
+        saveStorage("troops_campaigns", campaigns);
+    }
 
     // Dedicated Campaign Leads Registry: manages contacts per campaign reliably without hitting localStorage quota
     async function getOrInitCampaignLeads(campId: string, campaignObj?: any): Promise<any[]> {
@@ -1819,7 +1891,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             const camp = campaignObj || campaigns.find((c: any) => c.id === campId);
             if (camp && camp.total_leads !== stored.length) {
                 camp.total_leads = stored.length;
-                saveStorage("campaigns", campaigns);
+                saveStorage(userCampStorageKey, campaigns);
             }
 
             if (modified) {
@@ -1964,7 +2036,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 if (createRes.ok) {
                     const created = await createRes.json();
                     campaigns.unshift({ ...created, status: created.status || "draft" } as any);
-                    saveStorage("campaigns", campaigns);
+                    saveStorage(userCampStorageKey, campaigns);
                     return res(created, 201);
                 }
             } catch {}
@@ -2023,7 +2095,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 analytics: null,
             };
             campaigns.unshift(newCamp as any);
-            saveStorage("campaigns", campaigns);
+            saveStorage(isTroopsCampUser ? "troops_campaigns" : "campaigns", campaigns);
             return res(newCamp, 200);
         }
         // Proxy campaigns GET to real backend which returns live Smartlead stats
@@ -2062,6 +2134,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 const filtered = campQuery
                     ? mapped.filter((c: any) => (c.name || "").toLowerCase().includes(campQuery))
                     : mapped;
+                saveStorage(userCampStorageKey, mapped);
                 return res({
                     data: filtered,
                     count: filtered.length,

@@ -460,10 +460,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     smartleadId = String(createRes.data.id);
                     await pgQuery(`UPDATE "Campaign" SET "providerCampaignId" = $1 WHERE id = $2`, [smartleadId, camp.id]);
 
-                    // Link mailboxes
+                    // Link mailboxes (TBM master gets 24993809; Troops and team get team pool strictly excluding 24993809)
                     const campUser = await pgQuery<any>(`SELECT u.role, u.email FROM "Campaign" c JOIN "User" u ON u.id = c."userId" WHERE c.id = $1`, [camp.id]);
-                    const isMaster = campUser?.[0]?.role === "MASTER" || (campUser?.[0]?.email || "").toLowerCase().includes("monu");
-                    if (isMaster) {
+                    const campUserEmail = (campUser?.[0]?.email || "").toLowerCase();
+                    const isTroops = campUserEmail.includes("pratik") || campUserEmail.includes("naveen") || campUserEmail.includes("meenakshi");
+                    const isMonuMaster = !isTroops && (campUser?.[0]?.role === "MASTER" || campUserEmail.includes("monu"));
+
+                    if (isMonuMaster) {
                         await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: [24993809] }, apiKey);
                     } else {
                         const mbList = await slApiCall("/email-accounts", "GET", undefined, apiKey);
@@ -621,18 +624,50 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     }
                 }
 
-                // Auto-assign mailboxes: Master gets kumar.monu@theboredmonkey.com exclusively; team members get team pool
+                // Auto-assign mailboxes: TBM Master gets kumar.monu@theboredmonkey.com; Troops Outreach gets dedicated pool excluding 24993809
                 try {
                     if (scope.master) {
-                        // Master account exclusively uses kumar.monu@theboredmonkey.com (24993809)
-                        const masterMb = await pgQuery<any>(
-                            `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`
+                        const teamCheck = await pgQuery<any>(
+                            `SELECT t.id, t.name FROM "Team" t
+                             JOIN "UserTeam" ut ON ut."teamId" = t.id
+                             WHERE ut."userId" = $1`,
+                            [scope.userId]
                         );
-                        if (masterMb && masterMb.length > 0) {
-                            await pgQuery(
-                                `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                                [campaignId, masterMb[0].id]
-                            ).catch(() => {});
+                        const isTroops = teamCheck.some((t: any) => t.id === 'team_troops_outreach' || t.name?.toLowerCase().includes('troops'));
+
+                        if (isTroops) {
+                            // Troops Outreach exclusively uses Troops dedicated mailboxes, NEVER 24993809
+                            const troopsMbs = await pgQuery<any>(
+                                `SELECT id FROM "Mailbox" 
+                                 WHERE status = 'ACTIVE' 
+                                   AND "providerMailboxId" != '24993809' 
+                                   AND lower("senderEmail") != 'kumar.monu@theboredmonkey.com'
+                                   AND ("userId" IN (
+                                       SELECT ut."userId" FROM "UserTeam" ut WHERE ut."teamId" = 'team_troops_outreach'
+                                       UNION ALL SELECT $1
+                                   ) OR "userId" = $1)`,
+                                [scope.userId]
+                            );
+                            const finalMbs = troopsMbs.length > 0 ? troopsMbs : await pgQuery<any>(
+                                `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE' AND "providerMailboxId" != '24993809' AND lower("senderEmail") != 'kumar.monu@theboredmonkey.com' LIMIT 3`
+                            );
+                            for (const mb of finalMbs) {
+                                await pgQuery(
+                                    `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                    [campaignId, mb.id]
+                                ).catch(() => {});
+                            }
+                        } else {
+                            // TBM Master account exclusively uses kumar.monu@theboredmonkey.com (24993809)
+                            const masterMb = await pgQuery<any>(
+                                `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`
+                            );
+                            if (masterMb && masterMb.length > 0) {
+                                await pgQuery(
+                                    `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                    [campaignId, masterMb[0].id]
+                                ).catch(() => {});
+                            }
                         }
                     } else {
                         // Team members keep their rotational pool intact, strictly excluding Master's email
@@ -791,17 +826,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         let campaigns: any[] = [];
 
         if (scope.master) {
-            // Master sees all campaigns
-            campaigns = await pgQuery<any>(
-                `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
-                        COUNT(l.id)::int AS lead_count
-                 FROM "Campaign" c
-                 LEFT JOIN "Lead" l ON l."campaignId" = c.id
-                 GROUP BY c.id
-                 ORDER BY c."createdAt" DESC`
-            );
-        } else {
-            // Team member sees campaigns from their team members + their own
+            // Master sees campaigns from their active workspace team members + their own
             campaigns = await pgQuery<any>(
                 `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                         COUNT(l.id)::int AS lead_count
@@ -820,28 +845,23 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                  ORDER BY c."createdAt" DESC`,
                 [scope.userId]
             );
+        } else {
+            // Team member sees strictly their own campaigns
+            campaigns = await pgQuery<any>(
+                `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
+                        COUNT(l.id)::int AS lead_count
+                 FROM "Campaign" c
+                 LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                 WHERE c."userId" = $1
+                 GROUP BY c.id
+                 ORDER BY c."createdAt" DESC`,
+                [scope.userId]
+            );
         }
 
         // Verify authorization
         if (!scope.master && campaigns.length > 0) {
-            const userTeams = await pgQuery<{ teamId: string }>(
-                `SELECT DISTINCT "teamId" FROM "UserTeam" WHERE "userId" = $1`,
-                [scope.userId]
-            );
-            const teamIds = userTeams.map((t: any) => t.teamId).filter(Boolean);
-            const authorizedUserIds = new Set<string>([scope.userId]);
-            if (teamIds.length > 0) {
-                const teamUserIds = await pgQuery<{ userId: string }>(
-                    `SELECT DISTINCT "userId" FROM "UserTeam" WHERE "teamId" = ANY($1::text[])`,
-                    [teamIds]
-                );
-                teamUserIds.forEach((u: any) => authorizedUserIds.add(u.userId));
-            }
-
-            const unauthorizedCampaigns = campaigns.filter((c: any) => !authorizedUserIds.has(c.userId));
-            if (unauthorizedCampaigns.length > 0) {
-                campaigns = campaigns.filter((c: any) => authorizedUserIds.has(c.userId));
-            }
+            campaigns = campaigns.filter((c: any) => c.userId === scope.userId);
         }
 
         const formatted = campaigns.map((c: any) => ({

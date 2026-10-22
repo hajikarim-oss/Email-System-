@@ -80,23 +80,37 @@ export function getPool(): Pool {
     return pool;
 }
 
-export const pgQuery: QueryFn = async <T = Record<string, any>>(sql: string, params: unknown[] = []) => {
-    let attempts = 0;
-    while (attempts < 2) {
-        attempts++;
-        try {
-            const result = await getPool().query(sql, params as any[]);
-            return result.rows as unknown as T[];
-        } catch (err: any) {
-            const isTransient = err.code === "ECONNRESET" || err.message?.includes("Connection terminated") || err.message?.includes("closed");
-            if (isTransient && attempts < 2) {
-                console.warn("[pgQuery] Transient connection drop, retrying query once...");
-                await new Promise((r) => setTimeout(r, 250));
-                continue;
+// High Availability DB Cluster Integration
+import { clusterManager, clusterQuery } from "./dbCluster";
+
+export { clusterManager, clusterQuery };
+
+/**
+ * Cluster-aware pgQuery:
+ * - Read queries run on current active Leader with transparent auto-failover to Replica 2 (Standby) on error.
+ * - Write queries (mutations) execute on Leader and replicate continuously to Replica 2 & Replica 3.
+ */
+export const pgQuery: QueryFn = async <T = Record<string, any>>(sql: string, params: unknown[] = []): Promise<T[]> => {
+    try {
+        return await clusterQuery<T>(sql, params);
+    } catch (clusterErr) {
+        // Fallback to direct pool if cluster encounters unexpected initialization error
+        let attempts = 0;
+        while (attempts < 2) {
+            attempts++;
+            try {
+                const result = await getPool().query(sql, params as any[]);
+                return result.rows as unknown as T[];
+            } catch (err: any) {
+                const isTransient = err.code === "ECONNRESET" || err.message?.includes("Connection terminated") || err.message?.includes("closed");
+                if (isTransient && attempts < 2) {
+                    await new Promise((r) => setTimeout(r, 250));
+                    continue;
+                }
+                throw err;
             }
-            throw err;
         }
+        return [] as unknown as T[];
     }
-    return [] as unknown as T[];
 };
 
