@@ -107,12 +107,31 @@ class DatabaseClusterManager {
   private failoverHistory: Array<{ timestamp: Date; from: NodeId; to: NodeId; reason: string }> = [];
 
   constructor() {
-    this.initPools();
-    this.startHeartbeat();
-    this.startQueueWorker();
+    if (!this.isBuildEnv()) {
+      this.initPools();
+      this.startHeartbeat();
+      this.startQueueWorker();
+    }
+  }
+
+  private isBuildEnv(): boolean {
+    return (
+      process.env.npm_lifecycle_event === "build" ||
+      process.env.NEXT_PHASE === "phase-production-build" ||
+      process.argv.some((arg) => /build|vite|next|tsc|lint/i.test(arg))
+    );
+  }
+
+  public ensureInitialized() {
+    if (this.pools.size === 0) {
+      this.initPools();
+      this.startHeartbeat();
+      this.startQueueWorker();
+    }
   }
 
   private initPools() {
+    if (this.pools.size > 0) return;
     for (const [id, config] of Object.entries(CLUSTER_CONFIGS) as [NodeId, ClusterNodeConfig][]) {
       const poolConfig: PoolConfig = {
         host: config.host,
@@ -146,6 +165,7 @@ class DatabaseClusterManager {
   }
 
   public getPool(nodeId?: NodeId): Pool {
+    this.ensureInitialized();
     const id = nodeId || this.currentLeaderId;
     const pool = this.pools.get(id);
     if (!pool) throw new Error(`[DBCluster] Pool not found for node ${id}`);
@@ -157,6 +177,7 @@ class DatabaseClusterManager {
   }
 
   public getClusterStatus() {
+    this.ensureInitialized();
     return {
       currentLeader: this.currentLeaderId,
       nodes: Array.from(this.health.values()),
@@ -203,6 +224,7 @@ class DatabaseClusterManager {
    * Heartbeat ping to monitor all 3 databases
    */
   private startHeartbeat() {
+    if (this.isBuildEnv() || this.heartbeatTimer) return;
     this.heartbeatTimer = setInterval(async () => {
       for (const [id, pool] of this.pools.entries()) {
         const start = Date.now();
@@ -233,12 +255,16 @@ class DatabaseClusterManager {
         }
       }
     }, 10_000);
+    if (typeof this.heartbeatTimer?.unref === "function") {
+      this.heartbeatTimer.unref();
+    }
   }
 
   /**
    * Background queue worker for reconciling delayed writes across replicas
    */
   private startQueueWorker() {
+    if (this.isBuildEnv() || this.queueTimer) return;
     this.queueTimer = setInterval(async () => {
       if (this.isProcessingQueue || this.syncQueue.length === 0) return;
       this.isProcessingQueue = true;
@@ -267,6 +293,24 @@ class DatabaseClusterManager {
         this.isProcessingQueue = false;
       }
     }, 3_000);
+    if (typeof this.queueTimer?.unref === "function") {
+      this.queueTimer.unref();
+    }
+  }
+
+  public async close(): Promise<void> {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    if (this.queueTimer) {
+      clearInterval(this.queueTimer);
+      this.queueTimer = null;
+    }
+    for (const pool of this.pools.values()) {
+      await pool.end().catch(() => {});
+    }
+    this.pools.clear();
   }
 
   /**
