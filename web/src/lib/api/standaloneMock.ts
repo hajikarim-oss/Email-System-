@@ -1168,9 +1168,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const curUser = loadStorage<any>("current_user", null);
         const userRole = (curUser?.role === "owner" || curUser?.role === "MASTER") ? "owner" : "member";
         const emailLower = (curUser?.email || "").toLowerCase();
-        const isTroops = emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi");
+        const isTroopsOnly = !emailLower.includes("monu") && (emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi") || emailLower.includes("tbmtroop"));
 
-        if (isTroops) {
+        if (isTroopsOnly) {
             return res([
                 {
                     id: "org_troops_outreach",
@@ -1193,6 +1193,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 plan: "enterprise",
                 permissions: 4294967295,
                 created_at: "2026-01-01T00:00:00Z",
+            },
+            {
+                id: "org_troops_outreach",
+                name: "Troops Outreach",
+                slug: "troops-outreach",
+                role: userRole,
+                plan: "enterprise",
+                permissions: 4294967295,
+                created_at: "2026-10-21T00:00:00Z",
             },
         ]);
     }
@@ -1412,27 +1421,33 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     const matched = new Set<string>();
                     dbMbs.forEach((dbm: any) => {
                         const key = (dbm.senderEmail || "").toLowerCase();
+                        if (!key) return;
+                        matched.add(key);
                         const local = emails.find((e: any) => (e.email || "").toLowerCase() === key);
                         if (local) {
-                            matched.add(key);
-                            local.status = dbm.status.toLowerCase();
+                            local.status = (dbm.status || "active").toLowerCase();
                             local.daily_limit = dbm.dailySendLimit || local.daily_limit;
-                            // Real counters from EmailEvent rows; a mailbox that
-                            // sent nothing today reports 0, never a seeded figure.
                             if (typeof dbm.sent_today === "number") local.sent_today = dbm.sent_today;
                             if (typeof dbm.total_sent === "number") local.total_sent = dbm.total_sent;
-                            // null when the database tracks no warmup score yet
-                            // so the UI shows "—" instead of a seeded percentage.
-                            local.reputation = dbm.warmupReputationScore ?? null;
-                        }
-                    });
-                    // Anything the database does not know about has no tracked
-                    // sends either, so its seeded counters are cleared too.
-                    emails.forEach((e: any) => {
-                        const key = (e.email || "").toLowerCase();
-                        if (key && !matched.has(key)) {
-                            e.sent_today = 0;
-                            e.total_sent = 0;
+                            local.reputation = dbm.warmupReputationScore ?? (local.reputation || 98);
+                        } else {
+                            const name = key.split("@")[0].split(".").map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(" ");
+                            emails.push({
+                                id: dbm.id || `mbx_${dbm.providerMailboxId || Date.now()}`,
+                                name: name,
+                                email: key,
+                                provider: dbm.provider || "google",
+                                status: (dbm.status || "active").toLowerCase(),
+                                daily_limit: dbm.dailySendLimit || 200,
+                                warmup_enabled: true,
+                                sent_today: dbm.sent_today || 0,
+                                total_sent: dbm.total_sent || 0,
+                                reputation: dbm.warmupReputationScore ?? 98,
+                                mailbox_allowance: 200,
+                                connected_at: dbm.createdAt || new Date().toISOString(),
+                                created_at: dbm.createdAt || new Date().toISOString(),
+                                updated_at: dbm.updatedAt || new Date().toISOString(),
+                            });
                         }
                     });
                     saveStorage("emails", emails);
@@ -1444,10 +1459,27 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
         const currentUser = loadStorage<any>("current_user", null);
         const role = (currentUser?.role || "").toUpperCase();
-        const isMaster = role === "MASTER" || role === "OWNER" || currentUser?.is_admin === true || (currentUser?.email || "").toLowerCase().includes("monu");
-        let visibleEmails = isMaster
-            ? [MASTER_DEDICATED_MAILBOX, ...emails.filter((e: any) => (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com")]
-            : emails.filter((e: any) => (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com");
+        const emailLower = (currentUser?.email || "").toLowerCase();
+        const isTroopsUser = emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi") || emailLower.includes("tbmtroop");
+        const activeOrgId = loadStorage<string>("current_organization_id", isTroopsUser ? "org_troops_outreach" : "org_tbm_main");
+        const isMaster = role === "MASTER" || role === "OWNER" || currentUser?.is_admin === true || emailLower.includes("monu");
+
+        let visibleEmails = [...emails];
+
+        if (activeOrgId === "org_troops_outreach" || isTroopsUser) {
+            visibleEmails = visibleEmails.filter((e: any) => (e.email || "").toLowerCase().includes("tbmtroop"));
+        } else {
+            visibleEmails = visibleEmails.filter((e: any) => !(e.email || "").toLowerCase().includes("tbmtroop"));
+            if (isMaster) {
+                const hasMaster = visibleEmails.some((e: any) => (e.email || "").toLowerCase() === "kumar.monu@theboredmonkey.com");
+                if (!hasMaster) {
+                    visibleEmails.unshift(MASTER_DEDICATED_MAILBOX);
+                }
+            } else {
+                visibleEmails = visibleEmails.filter((e: any) => (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com");
+            }
+        }
+
         if (!isMaster && currentUser?.id && Array.isArray(dbMbs) && dbMbs.length > 0) {
             const allowedSet = new Set(dbMbs.map((m: any) => (m.senderEmail || "").toLowerCase()));
             visibleEmails = visibleEmails.filter((e: any) => allowedSet.has((e.email || "").toLowerCase()));
@@ -3929,8 +3961,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     // 8. Analytics & Deliverability
     if (pathWithoutQuery === "/analytics/accounts") {
+        const curUser = loadStorage<any>("current_user", null);
+        const emailLower = (curUser?.email || "").toLowerCase();
+        const isTroopsUser = emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi") || emailLower.includes("tbmtroop");
+        const activeOrgId = loadStorage<string>("current_organization_id", isTroopsUser ? "org_troops_outreach" : "org_tbm_main");
+
+        let filtered = emails;
+        if (activeOrgId === "org_troops_outreach" || isTroopsUser) {
+            filtered = emails.filter((e: any) => (e.email || "").toLowerCase().includes("tbmtroop"));
+        } else {
+            filtered = emails.filter((e: any) => !(e.email || "").toLowerCase().includes("tbmtroop"));
+        }
+
         return res(
-            emails.map((e: { id: string; email: string; reputation?: number }) => ({
+            filtered.map((e: { id: string; email: string; reputation?: number }) => ({
                 id: e.id,
                 email: e.email,
                 health: {

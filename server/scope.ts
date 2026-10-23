@@ -105,14 +105,15 @@ export function messageOwned(scope: DataScope, alias = `"EmailMessage"`): string
 
 /** Mailbox rows owned with strict domain & workspace isolation. `alias` is the mailbox alias or table name. */
 export function mailboxOwned(scope: DataScope, alias = "m"): string {
-    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach");
+    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach" || scope.isTroops === true);
     if (isTroops) {
         return `(${alias}."userId" IN ${teamUsersSubquery(scope.userId)} OR lower(${alias}."senderEmail") LIKE '%@tbmtroop%')`;
     }
-    // TheBoredMonkey Workspace: strictly exclude tbmtroop mailboxes
-    const troopsExclusion = `lower(${alias}."senderEmail") NOT LIKE '%@tbmtroop%'`;
     if (scope.master) {
-        return troopsExclusion;
+        if (scope.teamId === "team_tbm_main") {
+            return `lower(${alias}."senderEmail") NOT LIKE '%@tbmtroop%'`;
+        }
+        return "TRUE";
     }
-    return `(${troopsExclusion} AND ${alias}."userId" = ${lit(scope.userId)})`;
+    return `(lower(${alias}."senderEmail") NOT LIKE '%@tbmtroop%' AND ${alias}."userId" = ${lit(scope.userId)})`;
 }
