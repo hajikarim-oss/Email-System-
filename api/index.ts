@@ -33,6 +33,7 @@ import { agentSessionsHandler } from "./agentSessions";
 import { handleUnibox } from "../server/unibox";
 import { handleNotifications } from "../server/notifications";
 import { handleTallyApi } from "../server/tally/apiHandler";
+import { reconcileSmartleadMailboxes } from "../server/smartleadSync";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
 
@@ -63,6 +64,16 @@ const routes: Record<string, Handler> = {
     "/campaigns": intelligenceCampaigns,
     "/v1/campaigns": intelligenceCampaigns,
     "/api/smartlead/status": smartleadStatus,
+    "/api/smartlead/sync-mailboxes": async (_req, res) => {
+        try {
+            const result = await reconcileSmartleadMailboxes(true);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(result));
+        } catch (err: any) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err?.message }));
+        }
+    },
     "/api/smartlead/create-campaign": smartleadCreateCampaign,
     "/api/smartlead/campaigns": smartleadCampaigns,
     "/api/smartlead/campaign-analytics": smartleadCampaignAnalytics,
@@ -239,8 +250,22 @@ if (isDirectExecution) {
         console.log(`[Email System API] Listening on http://${host}:${port} (PID: ${process.pid})`);
     });
 
+    // Automated background mailbox sync daemon: runs every 2 minutes
+    const syncTimer = setInterval(() => {
+        reconcileSmartleadMailboxes(false).catch((err) => {
+            console.warn("[Background Mailbox Sync] Periodic sync error:", err?.message);
+        });
+    }, 2 * 60 * 1000);
+
+    setTimeout(() => {
+        reconcileSmartleadMailboxes(false).catch((err) => {
+            console.warn("[Background Mailbox Sync] Initial sync error:", err?.message);
+        });
+    }, 5000);
+
     const shutdown = (signal: string) => {
         console.log(`[Email System API] Received ${signal}, closing server gracefully...`);
+        clearInterval(syncTimer);
         server.close(() => {
             console.log("[Email System API] Server closed.");
             process.exit(0);

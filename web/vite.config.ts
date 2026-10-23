@@ -21,7 +21,7 @@ import authHandler from "../server/handlers/auth";
 import organizationHandler from "../server/handlers/organization";
 import { handleUnibox } from "../server/unibox";
 import { handleNotifications } from "../server/notifications";
-import { reconcileSmartleadCampaigns, ensureImmediateSendingSchedule } from "../server/smartleadSync";
+import { reconcileSmartleadCampaigns, reconcileSmartleadMailboxes, ensureImmediateSendingSchedule } from "../server/smartleadSync";
 import { handleTallyApi } from "../server/tally/apiHandler";
 
 const cjsRequire = createRequire(import.meta.url);
@@ -404,6 +404,17 @@ function smartleadApiPlugin() {
                 }
             });
 
+            server.middlewares.use("/api/smartlead/sync-mailboxes", async (_req: any, res: any) => {
+                try {
+                    const result = await reconcileSmartleadMailboxes(true);
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(result));
+                } catch (err: any) {
+                    res.writeHead(500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: err.message }));
+                }
+            });
+
             server.middlewares.use("/api/smartlead/create-campaign", (req: any, res: any) => {
                 if (req.method !== "POST") {
                     res.statusCode = 405;
@@ -589,16 +600,28 @@ function smartleadApiPlugin() {
                         }
 
                         // 2. Fetch mailboxes and link active account (Master exclusively uses kumar.monu@theboredmonkey.com #24993809)
-                        const isMaster = (parsed.is_master === true) || 
+                        const isTroops = Boolean(
+                            (parsed.workspace && String(parsed.workspace).toLowerCase().includes("troops")) ||
+                            campaignName.toLowerCase().includes("troops") ||
+                            sender.includes("tbmtroop")
+                        );
+                        const isMaster = !isTroops && ((parsed.is_master === true) || 
                                          (sender.includes("kumar.monu") || sender.includes("monu@theboredmonkey.com")) ||
-                                         (Array.isArray(parsed.mailbox_ids) && (parsed.mailbox_ids.includes(24993809) || parsed.mailbox_ids.includes("24993809")));
+                                         (Array.isArray(parsed.mailbox_ids) && (parsed.mailbox_ids.includes(24993809) || parsed.mailbox_ids.includes("24993809"))));
                         let mailboxIds = isMaster ? [24993809] : (isPreeti ? [23458016] : [23457457]);
                         if (!isMaster) {
                             try {
                                 const mbRes = await apiCall("/email-accounts", "GET", undefined, chosenKey);
                                 if (Array.isArray(mbRes.data) && mbRes.data.length > 0) {
                                     mailboxIds = mbRes.data
-                                        .filter((m: any) => m.id !== 24993809 && String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com")
+                                        .filter((m: any) => {
+                                            const em = String(m.from_email || "").toLowerCase();
+                                            if (m.id === 24993809 || em === "kumar.monu@theboredmonkey.com") return false;
+                                            if (isTroops) {
+                                                return em.includes("tbmtroop");
+                                            }
+                                            return !em.includes("tbmtroop");
+                                        })
                                         .map((m: any) => m.id);
                                 }
                             } catch { }
@@ -1007,6 +1030,37 @@ function databaseIntelligencePlugin() {
     return {
         name: "database-intelligence-plugin",
         configureServer(server: any) {
+            // Automated background synchronization: runs every 2 minutes
+            const autoSyncInterval = setInterval(() => {
+                reconcileSmartleadMailboxes(false).catch((err) => {
+                    console.warn("[Vite Auto-Sync] Periodic mailbox reconciliation warning:", err?.message);
+                });
+            }, 2 * 60 * 1000);
+
+            // Initial auto-sync 5s after startup
+            setTimeout(() => {
+                reconcileSmartleadMailboxes(false).catch(() => {});
+            }, 5000);
+
+            server.middlewares.use("/api/intelligence/mailboxes", async (req: any, res: any) => {
+                try {
+                    const scope = await requireScope(req, res);
+                    if (!scope) return;
+                    const urlObj = new URL(req.url, "http://localhost:5173");
+                    if (urlObj.searchParams.get("sync") === "true") {
+                        await reconcileSmartleadMailboxes(true).catch(() => {});
+                    } else {
+                        reconcileSmartleadMailboxes(false).catch(() => {});
+                    }
+                    const payload = await getMailboxes(prismaQuery, scope);
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(payload));
+                } catch (err: any) {
+                    res.writeHead(500, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: err.message }));
+                }
+            });
+
             server.middlewares.use("/api/intelligence/check-contact", async (req: any, res: any) => {
                 if (req.method !== "POST") {
                     res.statusCode = 405;
@@ -1846,19 +1900,44 @@ function databaseIntelligencePlugin() {
                         }
 
                         const steps = camp.steps || [];
-                        const isMasterCamp = (scope?.master === true) ||
+                        const isTroopsCamp = (camp.name || "").toLowerCase().includes("troops") ||
+                                             (camp.userId === "usr_troops_0c4c79fd") ||
+                                             (scope?.isTroops === true) ||
+                                             (camp.teamId === "team_troops_outreach");
+                        const isMasterCamp = !isTroopsCamp && ((scope?.master === true) ||
                                              (camp.userId === "cmtr9pp8t0000cygeyjpsz5lt") ||
                                              (camp.mailboxes || []).some((mb: any) => mb.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || mb.mailboxId === "mbx_kumar_monu_master") ||
                                              (input.is_master === true) ||
-                                             (String(input.sender_email || "").includes("kumar.monu"));
+                                             (String(input.sender_email || "").includes("kumar.monu")));
 
                         const senderEmail = isMasterCamp
                             ? "kumar.monu@theboredmonkey.com"
+                            : isTroopsCamp
+                            ? (camp.mailboxes?.[0]?.mailbox?.senderEmail || "pratik@theboredmonkey.com")
                             : (camp.mailboxes?.[0]?.mailbox?.senderEmail || (camp.name.toLowerCase().includes("vatsal") ? "vatsal.vadecha@theboredmonkey.com" : ""));
 
                         let mailboxIds: string[] = [];
                         if (isMasterCamp) {
                             mailboxIds = ["24993809"];
+                        } else if (isTroopsCamp) {
+                            mailboxIds = (camp.mailboxes || [])
+                                .map((mb: any) => mb.mailbox?.providerMailboxId)
+                                .filter((id: any) => Boolean(id) && String(id) !== "24993809");
+                            if (mailboxIds.length === 0) {
+                                const activeMbs = await prisma.mailbox.findMany({
+                                    where: {
+                                        status: "ACTIVE",
+                                        providerMailboxId: { not: "24993809" },
+                                        OR: [
+                                            { senderEmail: { endsWith: "@tbmtroop.com" } },
+                                            { senderEmail: { endsWith: "@tbmtroops.com" } },
+                                            { userId: "usr_troops_0c4c79fd" },
+                                        ],
+                                    },
+                                    select: { providerMailboxId: true },
+                                });
+                                mailboxIds = activeMbs.map((m: any) => m.providerMailboxId).filter(Boolean);
+                            }
                         } else {
                             mailboxIds = (camp.mailboxes || [])
                                 .map((mb: any) => mb.mailbox?.providerMailboxId)
@@ -1870,8 +1949,12 @@ function databaseIntelligencePlugin() {
                                     mailboxIds = ["23458016"];
                                 } else {
                                     const activeMbs = await prisma.mailbox.findMany({
-                                        where: { status: "ACTIVE", providerMailboxId: { not: "24993809" } },
-                                        select: { providerMailboxId: true }
+                                        where: {
+                                            status: "ACTIVE",
+                                            providerMailboxId: { not: "24993809" },
+                                            senderEmail: { not: { contains: "tbmtroop" } },
+                                        },
+                                        select: { providerMailboxId: true },
                                     });
                                     mailboxIds = activeMbs.map((m: any) => m.providerMailboxId).filter(Boolean);
                                 }
@@ -2023,27 +2106,56 @@ function databaseIntelligencePlugin() {
                             if (!smartleadId) {
                                 console.log(`[Vite Test Campaign] Campaign ${camp.id} (${camp.name}) not yet on Smartlead. Syncing as DRAFT...`);
                                 const steps = camp.steps || [];
-                                const isMasterTest = (scope?.master === true) ||
+                                const isTroopsTest = (camp.name || "").toLowerCase().includes("troops") ||
+                                                     (camp.userId === "usr_troops_0c4c79fd") ||
+                                                     (scope?.isTroops === true) ||
+                                                     (camp.teamId === "team_troops_outreach");
+                                const isMasterTest = !isTroopsTest && ((scope?.master === true) ||
                                                      (camp.userId === "cmtr9pp8t0000cygeyjpsz5lt") ||
                                                      (camp.mailboxes || []).some((mb: any) => mb.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || mb.mailboxId === "mbx_kumar_monu_master") ||
                                                      (input.is_master === true) ||
-                                                     (String(input.sender_email || "").includes("kumar.monu"));
+                                                     (String(input.sender_email || "").includes("kumar.monu")));
 
                                 const senderEmail = isMasterTest
                                     ? "kumar.monu@theboredmonkey.com"
+                                    : isTroopsTest
+                                    ? (camp.mailboxes?.[0]?.mailbox?.senderEmail || "pratik@theboredmonkey.com")
                                     : (camp.mailboxes?.[0]?.mailbox?.senderEmail || (camp.name.toLowerCase().includes("vatsal") ? "vatsal.vadecha@theboredmonkey.com" : ""));
 
                                 let mailboxIds: string[] = [];
                                 if (isMasterTest) {
                                     mailboxIds = ["24993809"];
+                                } else if (isTroopsTest) {
+                                    mailboxIds = (camp.mailboxes || [])
+                                        .map((mb: any) => mb.mailbox?.providerMailboxId)
+                                        .filter((id: any) => Boolean(id) && String(id) !== "24993809");
+                                    if (mailboxIds.length === 0) {
+                                        const activeMbs = await prisma.mailbox.findMany({
+                                            where: {
+                                                status: "ACTIVE",
+                                                providerMailboxId: { not: "24993809" },
+                                                OR: [
+                                                    { senderEmail: { endsWith: "@tbmtroop.com" } },
+                                                    { senderEmail: { endsWith: "@tbmtroops.com" } },
+                                                    { userId: "usr_troops_0c4c79fd" },
+                                                ],
+                                            },
+                                            select: { providerMailboxId: true },
+                                        });
+                                        mailboxIds = activeMbs.map((m: any) => m.providerMailboxId).filter(Boolean);
+                                    }
                                 } else {
                                     mailboxIds = (camp.mailboxes || [])
                                         .map((mb: any) => mb.mailbox?.providerMailboxId)
                                         .filter((id: any) => Boolean(id) && String(id) !== "24993809");
                                     if (mailboxIds.length === 0) {
                                         const activeMbs = await prisma.mailbox.findMany({
-                                            where: { status: "ACTIVE", providerMailboxId: { not: "24993809" } },
-                                            select: { providerMailboxId: true }
+                                            where: {
+                                                status: "ACTIVE",
+                                                providerMailboxId: { not: "24993809" },
+                                                senderEmail: { not: { contains: "tbmtroop" } },
+                                            },
+                                            select: { providerMailboxId: true },
                                         });
                                         mailboxIds = activeMbs.map((m: any) => m.providerMailboxId).filter(Boolean);
                                     }

@@ -112,62 +112,55 @@ async function main() {
         console.log(`\n3. Existing Mailboxes in Database (${existingMailboxes.rows.length}):`);
         console.table(existingMailboxes.rows);
 
-        // 3. Sync newly found accounts into DB
+        // 3. Sync newly found accounts into DB with domain routing
         if (accounts.length > 0) {
-            console.log('\n4. Syncing Smartlead accounts into Database...');
-            const defaultOwnerId = masterUser.rows[0]?.id;
+            console.log('\n4. Syncing Smartlead accounts into Database with Domain Routing...');
+            const tbmMasterId = masterUser.rows[0]?.id || 'cmtr9pp8t0000cygeyjpsz5lt';
+            
+            // Check for Troops Master
+            const troopsMaster = await pool.query(
+                `SELECT id, name, email FROM "User" WHERE lower(email) = 'pratik@theboredmonkey.com' OR id = 'usr_troops_0c4c79fd' LIMIT 1`
+            );
+            const troopsMasterId = troopsMaster.rows[0]?.id || 'usr_troops_0c4c79fd';
 
             for (const acc of accounts) {
                 const email = (acc.from_email || acc.username || acc.email || '').toLowerCase().trim();
                 const providerId = String(acc.id);
                 if (!email) continue;
 
+                const isTroops = email.endsWith('@tbmtroop.com') || email.endsWith('@tbmtroops.com') || email.includes('tbmtroop');
+                const targetUserId = isTroops ? troopsMasterId : tbmMasterId;
+
                 const exists = await pool.query(
-                    `SELECT id, "userId", "providerMailboxId" FROM "Mailbox" WHERE lower("senderEmail") = lower($1)`,
-                    [email]
+                    `SELECT id, "userId", "providerMailboxId" FROM "Mailbox" WHERE lower("senderEmail") = lower($1) OR "providerMailboxId" = $2`,
+                    [email, providerId]
                 );
 
                 if (exists.rows.length > 0) {
                     await pool.query(
                         `UPDATE "Mailbox"
-                         SET "providerMailboxId" = $1, status = 'ACTIVE', "dailySendLimit" = 200, "updatedAt" = now()
-                         WHERE id = $2`,
-                        [providerId, exists.rows[0].id]
+                         SET "userId" = $1, "providerMailboxId" = $2, status = 'ACTIVE', "dailySendLimit" = 200, "updatedAt" = now()
+                         WHERE id = $3`,
+                        [targetUserId, providerId, exists.rows[0].id]
                     );
-                    console.log(`  ✓ Updated mailbox ${email} (Smartlead ID: ${providerId}, Daily Limit: 200)`);
+                    console.log(`  ✓ Updated mailbox ${email} -> Assigned to ${isTroops ? 'Troops Workspace' : 'TBM Workspace'} (Smartlead ID: ${providerId})`);
                 } else {
                     const id = `mbx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
                     await pool.query(
                         `INSERT INTO "Mailbox" (id, "userId", "senderEmail", provider, "providerMailboxId", status, "dailySendLimit", "createdAt", "updatedAt")
                          VALUES ($1, $2, $3, 'smartlead', $4, 'ACTIVE', 200, now(), now())`,
-                        [id, defaultOwnerId, email, providerId]
+                        [id, targetUserId, email, providerId]
                     );
-                    console.log(`  + Created mailbox ${email} (Smartlead ID: ${providerId}, Daily Limit: 200)`);
-                }
-            }
-        }
-
-        // 4. If auto-assign is requested and we have at least 8 mailboxes and 4 team members:
-        if (autoAssign && teamMembers.rows.length >= 4 && accounts.length >= 8) {
-            console.log('\n5. Auto-assigning 2 sender emails each to the 4 team members...');
-            for (let i = 0; i < 4; i++) {
-                const member = teamMembers.rows[i];
-                const mb1 = accounts[i * 2]?.from_email;
-                const mb2 = accounts[i * 2 + 1]?.from_email;
-                if (mb1 && mb2) {
-                    await pool.query(
-                        `UPDATE "Mailbox" SET "userId" = $1 WHERE lower("senderEmail") IN ($2, $3)`,
-                        [member.id, mb1.toLowerCase(), mb2.toLowerCase()]
-                    );
-                    console.log(`  Assigned [${mb1}, ${mb2}] -> ${member.name} (${member.email})`);
+                    console.log(`  + Created mailbox ${email} -> Assigned to ${isTroops ? 'Troops Workspace' : 'TBM Workspace'} (Smartlead ID: ${providerId})`);
                 }
             }
         }
 
         console.log('\nAlignment Status: FULLY ALIGNED.');
-        console.log('The system supports multi-tenant mailbox isolation where:');
-        console.log('- Each Team Member only sees and sends through their assigned sender mailboxes.');
-        console.log('- The Master Account (monu@theboredmonkey.com) retains global visibility of all 8 mailboxes.');
+        console.log('The system supports strict workspace domain isolation where:');
+        console.log('- @tbmtroop.com accounts are automatically isolated in Troops Outreach workspace.');
+        console.log('- @theboredmonkey.com accounts are assigned to TheBoredMonkey team campaigns.');
+        console.log('- Master Account (kumar.monu@theboredmonkey.com #24993809) remains exclusively dedicated to Master tests.');
 
     } catch (dbErr) {
         console.error('Database error:', dbErr);

@@ -636,20 +636,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         const isTroops = teamCheck.some((t: any) => t.id === 'team_troops_outreach' || t.name?.toLowerCase().includes('troops'));
 
                         if (isTroops) {
-                            // Troops Outreach exclusively uses Troops dedicated mailboxes, NEVER 24993809
+                            // Troops Outreach exclusively uses Troops dedicated mailboxes, NEVER 24993809 and NEVER TBM team mailboxes
                             const troopsMbs = await pgQuery<any>(
                                 `SELECT id FROM "Mailbox" 
                                  WHERE status = 'ACTIVE' 
                                    AND "providerMailboxId" != '24993809' 
                                    AND lower("senderEmail") != 'kumar.monu@theboredmonkey.com'
-                                   AND ("userId" IN (
+                                   AND (lower("senderEmail") LIKE '%@tbmtroop%' OR "userId" IN (
                                        SELECT ut."userId" FROM "UserTeam" ut WHERE ut."teamId" = 'team_troops_outreach'
                                        UNION ALL SELECT $1
                                    ) OR "userId" = $1)`,
                                 [scope.userId]
                             );
                             const finalMbs = troopsMbs.length > 0 ? troopsMbs : await pgQuery<any>(
-                                `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE' AND "providerMailboxId" != '24993809' AND lower("senderEmail") != 'kumar.monu@theboredmonkey.com' LIMIT 3`
+                                `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE' AND "providerMailboxId" != '24993809' AND lower("senderEmail") LIKE '%@tbmtroop%' LIMIT 3`
                             );
                             for (const mb of finalMbs) {
                                 await pgQuery(
@@ -670,9 +670,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                             }
                         }
                     } else {
-                        // Team members keep their rotational pool intact, strictly excluding Master's email
+                        // Team members keep their rotational pool intact, strictly excluding Master's email and Troops mailboxes
                         const activeMbs = await pgQuery<any>(
-                            `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE' AND "providerMailboxId" != '24993809' AND lower("senderEmail") != 'kumar.monu@theboredmonkey.com'`
+                            `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE' AND "providerMailboxId" != '24993809' AND lower("senderEmail") != 'kumar.monu@theboredmonkey.com' AND lower("senderEmail") NOT LIKE '%@tbmtroop%'`
                         );
                         for (const mb of activeMbs) {
                             await pgQuery(

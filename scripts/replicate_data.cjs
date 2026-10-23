@@ -109,8 +109,14 @@ async function syncAll() {
     const pkColumns = pkRes.rows.map(r => `"${r.column_name}"`);
     const orderByClause = pkColumns.length > 0 ? `ORDER BY ${pkColumns.join(', ')}` : `ORDER BY "${columns[0]}"`;
 
-    // Truncate on both destinations first
-    await Promise.all(targets.map(t => t.client.query(`TRUNCATE TABLE "${table}" CASCADE`)));
+    // Clean table on both destinations cleanly without cascading to other tables
+    await Promise.all(targets.map(async t => {
+      try {
+        await t.client.query(`TRUNCATE TABLE "${table}"`);
+      } catch {
+        await t.client.query(`DELETE FROM "${table}"`);
+      }
+    }));
 
     // Calculate safe batch size to strictly prevent Postgres parameter limit (max 65535)
     const batchSize = Math.max(10, Math.min(1000, Math.floor(25000 / columns.length)));
@@ -139,7 +145,7 @@ async function syncAll() {
         valuePlaceholders.push(`(${rowPlaceholders.join(', ')})`);
       }
 
-      const conflictClause = pkColumns.length > 0 ? `ON CONFLICT (${pkColumns.join(', ')}) DO NOTHING` : '';
+      const conflictClause = 'ON CONFLICT DO NOTHING';
       const insertQuery = `
         INSERT INTO "${table}" (${colList})
         VALUES ${valuePlaceholders.join(', ')}

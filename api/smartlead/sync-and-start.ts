@@ -216,7 +216,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             // 2. Link rotational mailboxes (TBM Master exclusively uses kumar.monu@theboredmonkey.com #24993809)
             let mailboxIds: number[] = [];
             const userEmail = (user?.email || "").toLowerCase();
-            const isTroops = userEmail.includes("pratik") || userEmail.includes("naveen") || userEmail.includes("meenakshi") || (parsed.workspace && String(parsed.workspace).toLowerCase().includes("troops"));
+            const isTroops = userEmail.includes("pratik") || userEmail.includes("naveen") || userEmail.includes("meenakshi") || (parsed.workspace && String(parsed.workspace).toLowerCase().includes("troops")) || sender.includes("tbmtroop") || (parsed.name && String(parsed.name).toLowerCase().includes("troops"));
             const isMonuMaster = !isTroops && (userEmail.includes("monu") || sender.includes("kumar.monu") || (user?.role === "MASTER" && !isTroops && parsed.is_master === true));
 
             if (isMonuMaster) {
@@ -228,7 +228,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 try {
                     const mbRes = await apiCall("/email-accounts", "GET", undefined, chosenKey);
                     const allAccounts: any[] = (Array.isArray(mbRes.data) ? mbRes.data : [])
-                        .filter((m: any) => m.id !== 24993809 && String(m.from_email || m.email || "").toLowerCase().trim() !== "kumar.monu@theboredmonkey.com");
+                        .filter((m: any) => {
+                            const em = String(m.from_email || m.email || "").toLowerCase().trim();
+                            if (m.id === 24993809 || em === "kumar.monu@theboredmonkey.com") return false;
+                            if (isTroops) {
+                                return em.includes("tbmtroop");
+                            }
+                            return !em.includes("tbmtroop");
+                        });
 
                     if (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.length > 0) {
                         mailboxIds = parsed.mailbox_ids.map(Number).filter((id: number) => Boolean(id) && id !== 24993809);

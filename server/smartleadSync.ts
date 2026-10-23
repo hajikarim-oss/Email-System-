@@ -318,3 +318,158 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
 
     return inFlightReconcile;
 }
+
+let inFlightMailboxSync: Promise<any> | null = null;
+
+/**
+ * Automatically synchronizes connected email accounts from Smartlead and routes them
+ * by domain with 100% strict workspace isolation:
+ * - @tbmtroop.com / @tbmtroops.com -> Troops Outreach Workspace (usr_troops_0c4c79fd)
+ *   -> Attached exclusively to Troops campaigns. Blocked from TBM campaigns.
+ * - @theboredmonkey.com (kumar.monu) -> Master Account (cmtr9pp8t0000cygeyjpsz5lt)
+ *   -> Attached exclusively to Master campaigns (#24993809).
+ * - @theboredmonkey.com (all other team senders) -> TBM Workspace (cmtr9pp8t0000cygeyjpsz5lt)
+ *   -> Attached to TBM Team campaigns. Blocked from Troops campaigns.
+ */
+export async function reconcileSmartleadMailboxes(force = false): Promise<{
+    synced: number;
+    tbmAccounts: number;
+    troopsAccounts: number;
+    updatedCampaigns: number;
+}> {
+    if (inFlightMailboxSync && !force) return inFlightMailboxSync;
+
+    inFlightMailboxSync = (async () => {
+        try {
+            console.log("[Auto-Mailbox-Sync] Scanning Smartlead email accounts for domain-based routing...");
+            const accRes = await apiCall("/email-accounts");
+            const accounts: any[] = Array.isArray(accRes.data) ? accRes.data : [];
+
+            if (accounts.length === 0) {
+                console.log("[Auto-Mailbox-Sync] 0 email accounts returned from Smartlead.");
+                return { synced: 0, tbmAccounts: 0, troopsAccounts: 0, updatedCampaigns: 0 };
+            }
+
+            // Identify Master IDs
+            const tbmMasterRes = await pgQuery<any>(
+                `SELECT id FROM "User" WHERE role = 'MASTER' AND lower(email) NOT LIKE '%pratik%' AND lower(email) NOT LIKE '%troops%' LIMIT 1`
+            );
+            const tbmMasterId = tbmMasterRes?.[0]?.id || "cmtr9pp8t0000cygeyjpsz5lt";
+
+            const troopsMasterRes = await pgQuery<any>(
+                `SELECT id FROM "User" WHERE lower(email) = 'pratik@theboredmonkey.com' OR id = 'usr_troops_0c4c79fd' LIMIT 1`
+            );
+            const troopsMasterId = troopsMasterRes?.[0]?.id || "usr_troops_0c4c79fd";
+
+            const tbmTeamAccountIds: number[] = [];
+            const troopsAccountIds: number[] = [];
+            let masterAccountId: number | null = null;
+
+            for (const acc of accounts) {
+                const email = (acc.from_email || acc.email || "").toLowerCase().trim();
+                const providerId = String(acc.id);
+                if (!email) continue;
+
+                const isTroops = email.endsWith("@tbmtroop.com") || email.endsWith("@tbmtroops.com") || email.includes("tbmtroop");
+                const isMasterMonu = !isTroops && (email === "kumar.monu@theboredmonkey.com" || email.startsWith("monu@") || acc.id === 24993809);
+
+                const targetUserId = isTroops ? troopsMasterId : tbmMasterId;
+
+                if (isTroops) {
+                    troopsAccountIds.push(acc.id);
+                } else if (isMasterMonu) {
+                    masterAccountId = acc.id;
+                } else {
+                    tbmTeamAccountIds.push(acc.id);
+                }
+
+                // Upsert in database
+                const existing = await pgQuery<any>(
+                    `SELECT id FROM "Mailbox" WHERE lower("senderEmail") = $1 OR "providerMailboxId" = $2 LIMIT 1`,
+                    [email, providerId]
+                );
+
+                if (existing.length > 0) {
+                    await pgQuery(
+                        `UPDATE "Mailbox"
+                         SET "userId" = $1, "providerMailboxId" = $2, status = 'ACTIVE', "dailySendLimit" = 200, "updatedAt" = NOW()
+                         WHERE id = $3`,
+                        [targetUserId, providerId, existing[0].id]
+                    );
+                } else {
+                    const mbxId = `mbx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                    await pgQuery(
+                        `INSERT INTO "Mailbox" (id, "userId", "senderEmail", provider, "providerMailboxId", status, "dailySendLimit", "createdAt", "updatedAt")
+                         VALUES ($1, $2, $3, 'smartlead', $4, 'ACTIVE', 200, NOW(), NOW())`,
+                        [mbxId, targetUserId, email, providerId]
+                    );
+                    console.log(`[Auto-Mailbox-Sync] + Registered new ${isTroops ? "Troops" : "TBM"} mailbox: ${email} (#${providerId})`);
+                }
+            }
+
+            // Sync email accounts to live campaigns with zero cross-contamination
+            let updatedCampaigns = 0;
+            const campRes = await apiCall("/campaigns");
+            const campaigns: any[] = Array.isArray(campRes.data) ? campRes.data : [];
+
+            for (const camp of campaigns) {
+                const nameLower = (camp.name || "").toLowerCase();
+                const isMasterCamp = nameLower.startsWith("mon test") || nameLower.includes("master test");
+                const isTroopsCamp = nameLower.includes("troops") || (Array.isArray(camp.tags) && camp.tags.some((t: any) => String(t).toLowerCase().includes("troops")));
+
+                const curAccRes = await apiCall(`/campaigns/${camp.id}/email-accounts`);
+                const curAccs: any[] = Array.isArray(curAccRes.data) ? curAccRes.data : [];
+                const curIds = new Set(curAccs.map((a: any) => a.id));
+
+                if (isMasterCamp) {
+                    // Master campaigns: Strictly kumar.monu (24993809)
+                    const unwanted = Array.from(curIds).filter((id) => id !== 24993809);
+                    if (unwanted.length > 0) {
+                        await apiCall(`/campaigns/${camp.id}/email-accounts`, "DELETE", { email_account_ids: unwanted });
+                    }
+                    if (masterAccountId && !curIds.has(masterAccountId)) {
+                        await apiCall(`/campaigns/${camp.id}/email-accounts`, "POST", { email_account_ids: [masterAccountId] });
+                        updatedCampaigns++;
+                    }
+                } else if (isTroopsCamp) {
+                    // Troops campaigns: Strictly @tbmtroop.com
+                    const unwanted = Array.from(curIds).filter((id) => !troopsAccountIds.includes(id));
+                    if (unwanted.length > 0) {
+                        await apiCall(`/campaigns/${camp.id}/email-accounts`, "DELETE", { email_account_ids: unwanted });
+                    }
+                    const missing = troopsAccountIds.filter((id) => !curIds.has(id));
+                    if (missing.length > 0) {
+                        await apiCall(`/campaigns/${camp.id}/email-accounts`, "POST", { email_account_ids: missing });
+                        updatedCampaigns++;
+                    }
+                } else {
+                    // TBM Team campaigns: Strictly @theboredmonkey.com team pool (excluding master)
+                    const unwanted = Array.from(curIds).filter((id) => !tbmTeamAccountIds.includes(id));
+                    if (unwanted.length > 0) {
+                        await apiCall(`/campaigns/${camp.id}/email-accounts`, "DELETE", { email_account_ids: unwanted });
+                    }
+                    const missing = tbmTeamAccountIds.filter((id) => !curIds.has(id));
+                    if (missing.length > 0) {
+                        await apiCall(`/campaigns/${camp.id}/email-accounts`, "POST", { email_account_ids: missing });
+                        updatedCampaigns++;
+                    }
+                }
+            }
+
+            console.log(`[Auto-Mailbox-Sync] ✓ Completed: ${accounts.length} mailboxes (${tbmTeamAccountIds.length} TBM team, ${troopsAccountIds.length} Troops, 1 Master), updated ${updatedCampaigns} campaigns.`);
+            return {
+                synced: accounts.length,
+                tbmAccounts: tbmTeamAccountIds.length,
+                troopsAccounts: troopsAccountIds.length,
+                updatedCampaigns,
+            };
+        } catch (err: any) {
+            console.warn("[Auto-Mailbox-Sync] Warning during mailbox reconciliation:", err?.message);
+            return { synced: 0, tbmAccounts: 0, troopsAccounts: 0, updatedCampaigns: 0 };
+        } finally {
+            inFlightMailboxSync = null;
+        }
+    })();
+
+    return inFlightMailboxSync;
+}
