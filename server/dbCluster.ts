@@ -210,9 +210,7 @@ class DatabaseClusterManager {
         if (!record) continue;
 
         try {
-          const client = await pool.connect();
-          await client.query("SELECT 1;");
-          client.release();
+          await pool.query("SELECT 1;");
 
           const latency = Date.now() - start;
           record.latencyMs = latency;

@@ -18,13 +18,13 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          timeout: 60s
-          command_timeout: 10m
+          timeout: 90s
+          command_timeout: 15m
           script: |
             echo "🚀 Starting automated deployment on VPS..."
             cd /var/www/email-system
             
-            # Ensure swap exists to prevent memory spikes from crashing the VPS
+            # Ensure swap exists to absorb temporary spikes
             if [ ! -f /swapfile ] && [ $(id -u) -eq 0 ]; then
               echo "Creating 2GB swapfile..."
               fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
@@ -40,15 +40,15 @@ jobs:
             # Install any new dependencies
             pnpm install
             
-            # Build Frontend A (Vite SPA) with memory limit & low CPU priority
+            # Build Frontend A (Vite SPA)
             echo "📦 Building Frontend A..."
-            NODE_OPTIONS="--max-old-space-size=1536" nice -n 19 pnpm --dir web build
+            pnpm --dir web build
             
-            # Build Next.js Backend with memory limit & low CPU priority
+            # Build Next.js Backend
             echo "⚡ Generating Prisma & Building Next.js..."
             cd /var/www/email-system/nexus-outbound
             npx prisma generate
-            NODE_OPTIONS="--max-old-space-size=1536" nice -n 19 npx next build
+            NODE_OPTIONS="--max-old-space-size=3072" npx next build
             cd /var/www/email-system
             
             # Zero-downtime PM2 reload
@@ -66,7 +66,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           timeout: 90s
-          command_timeout: 10m
+          command_timeout: 15m
           script: |
             echo "🚀 Retrying automated deployment on VPS..."
             cd /var/www/email-system
@@ -76,12 +76,12 @@ jobs:
             pnpm install
             
             echo "📦 Building Frontend A..."
-            NODE_OPTIONS="--max-old-space-size=1536" nice -n 19 pnpm --dir web build
+            pnpm --dir web build
             
             echo "⚡ Generating Prisma & Building Next.js..."
             cd /var/www/email-system/nexus-outbound
             npx prisma generate
-            NODE_OPTIONS="--max-old-space-size=1536" nice -n 19 npx next build
+            NODE_OPTIONS="--max-old-space-size=3072" npx next build
             cd /var/www/email-system
             
             echo "🔄 Reloading PM2 processes..."
