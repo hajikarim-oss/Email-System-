@@ -2199,10 +2199,10 @@ function databaseIntelligencePlugin() {
                                     auto_start: false,
                                     status: "DRAFT",
                                     is_master: isMasterTest,
-                                    is_troops: isTroopsCamp,
-                                    workspace: isTroopsCamp ? "troops" : "main",
+                                    is_troops: isTroopsTest,
+                                    workspace: isTroopsTest ? "troops" : "main",
                                     user_id: camp.userId,
-                                    owner_email: (camp.mailboxes?.[0]?.mailbox?.user?.email || (isTroopsCamp ? "pratik@theboredmonkey.com" : "")),
+                                    owner_email: (camp.mailboxes?.[0]?.mailbox?.user?.email || (isTroopsTest ? "pratik@theboredmonkey.com" : "")),
                                     steps: steps.map((s: any) => ({
                                         subject: s.subject || "",
                                         body_html: s.bodyTemplate || "",
@@ -2253,6 +2253,35 @@ function databaseIntelligencePlugin() {
 
                             if (!smartleadId) {
                                 throw new Error("Could not initialize Smartlead campaign for testing");
+                            }
+
+                            // Safeguard: Ensure email accounts on Smartlead match Monu Master dedicated mailbox or Troops rules
+                            try {
+                                const isTroopsCheck = Boolean(
+                                    (camp.name || "").toLowerCase().includes("troops") ||
+                                    camp.userId === "usr_troops_0c4c79fd" ||
+                                    scope?.isTroops === true
+                                );
+                                const isMonuCheck = !isTroopsCheck && (
+                                    scope?.master === true ||
+                                    camp.userId === "cmtr9pp8t0000cygeyjpsz5lt" ||
+                                    (camp.mailboxes || []).some((mb: any) => mb.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || mb.mailboxId === "mbx_kumar_monu_master") ||
+                                    input?.is_master === true
+                                );
+
+                                if (isMonuCheck) {
+                                    const curAccs = await apiCall(`/campaigns/${smartleadId}/email-accounts`, "GET", undefined, chosenKey);
+                                    const curIds = Array.isArray(curAccs.data) ? curAccs.data.map((a: any) => a.id) : [];
+                                    const unwanted = curIds.filter((id: number) => id !== 24993809);
+                                    if (unwanted.length > 0) {
+                                        await apiCall(`/campaigns/${smartleadId}/email-accounts`, "DELETE", { email_account_ids: unwanted }, chosenKey);
+                                    }
+                                    if (!curIds.includes(24993809)) {
+                                        await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: [24993809] }, chosenKey);
+                                    }
+                                }
+                            } catch (mbErr: any) {
+                                console.warn("[Vite Test Campaign] Safeguard mailbox check:", mbErr.message);
                             }
 
                             // Ensure lead exists for dynamic variable replacement

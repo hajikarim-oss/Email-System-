@@ -699,6 +699,13 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                 end_date: endDateIso,
                 contacts: draft.selectedContacts,
                 leads: draft.selectedContacts,
+                is_master: isMaster,
+                ...(isMaster ? {
+                    sender_email: "kumar.monu@theboredmonkey.com",
+                    mailboxes: ["mbx_kumar_monu_master"],
+                    mailbox_ids: ["24993809"],
+                    mailboxIds: ["mbx_kumar_monu_master"],
+                } : {}),
             };
 
             // 1. Create the campaign as DRAFT in local DB & Smartlead

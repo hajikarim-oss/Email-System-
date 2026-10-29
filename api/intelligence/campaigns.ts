@@ -554,6 +554,31 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 return;
             }
 
+            // Safeguard: Ensure email accounts on Smartlead match Monu Master dedicated mailbox or Troops rules
+            try {
+                const campUser = await pgQuery<any>(`SELECT u.id, u.role, u.email FROM "Campaign" c JOIN "User" u ON u.id = c."userId" WHERE c.id = $1`, [camp.id]);
+                const campUserEmail = (campUser?.[0]?.email || "").toLowerCase();
+                const campUserId = campUser?.[0]?.id || "";
+                const isTroops = campUserEmail.includes("pratik") || campUserEmail.includes("naveen") || campUserEmail.includes("meenakshi") ||
+                    campUserId === "usr_troops_0c4c79fd" || campUserId === "usr_troops_87e6f943" || campUserId === "usr_troops_4d72a76b" ||
+                    (camp.name || "").toLowerCase().includes("troops");
+                const isMonuMaster = !isTroops && (campUser?.[0]?.role === "MASTER" || campUserEmail.includes("monu") || input?.is_master === true);
+
+                if (isMonuMaster) {
+                    const curAccs = await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "GET", undefined, apiKey);
+                    const curIds = Array.isArray(curAccs.data) ? curAccs.data.map((a: any) => a.id) : [];
+                    const unwanted = curIds.filter((id: number) => id !== 24993809);
+                    if (unwanted.length > 0) {
+                        await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "DELETE", { email_account_ids: unwanted }, apiKey);
+                    }
+                    if (!curIds.includes(24993809)) {
+                        await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: [24993809] }, apiKey);
+                    }
+                }
+            } catch (safeguardErr: any) {
+                console.warn("[Test Campaign] Safeguard mailbox check:", safeguardErr.message);
+            }
+
             // Ensure test token lead exists
             let leadCheck = await slApiCall(`/campaigns/${smartleadId}/leads?limit=1`, "GET", undefined, apiKey);
             let leadId = leadCheck.data?.data?.[0]?.lead?.id || leadCheck.data?.data?.[0]?.id;

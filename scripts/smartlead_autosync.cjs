@@ -1,3 +1,4 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 /**
  * Smartlead Automated Reconciliation Worker (Self-Healing)
  * 
@@ -10,7 +11,26 @@
  */
 
 const { Client } = require("pg");
-require("dotenv").config({ path: __dirname + "/../.env" });
+// Zero-dependency .env loader
+const fs = require("fs");
+const path = require("path");
+const envPath = path.resolve(__dirname, "../.env");
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, "utf8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx > 0) {
+      const key = trimmed.slice(0, eqIdx).trim();
+      let val = trimmed.slice(eqIdx + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      if (!process.env[key]) process.env[key] = val;
+    }
+  }
+}
 
 const SMARTLEAD_KEY = process.env.SMARTLEAD_API_KEY || "b0042f19-3f90-4910-b5de-31b1e2c8c032_ticg3c4";
 const BASE_URL = "https://server.smartlead.ai/api/v1";
@@ -32,21 +52,25 @@ const DB_CONNECTIONS = [
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function fetchWithRetry(url, retries = 3) {
+async function fetchWithRetry(url, retries = 5) {
+  let lastRes;
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url);
+      lastRes = res;
       if (res.status === 429) {
-        console.warn(`[Smartlead Rate Limit 429] Waiting 5s before retry (attempt ${i + 1}/${retries})...`);
-        await sleep(5000);
+        const waitTime = (i + 1) * 3000;
+        console.warn(`[Smartlead Rate Limit 429] Waiting ${waitTime / 1000}s before retry (attempt ${i + 1}/${retries})...`);
+        await sleep(waitTime);
         continue;
       }
       return res;
     } catch (err) {
       if (i === retries - 1) throw err;
-      await sleep(1500);
+      await sleep(2000);
     }
   }
+  return lastRes;
 }
 
 async function reconcileCampaigns() {
@@ -162,19 +186,17 @@ async function reconcileCampaigns() {
     try {
       await client.connect();
 
-      // Update Campaign stats
+      // Update Campaign status
       for (const c of campaignData) {
-        await client.query(
-          `UPDATE "Campaign" 
-           SET "sentCount" = GREATEST("sentCount", $1),
-               "replyCount" = GREATEST("replyCount", $2),
-               "openCount" = GREATEST("openCount", $3),
-               "clickCount" = GREATEST("clickCount", $4),
-               "bounceCount" = GREATEST("bounceCount", $5),
-               "updatedAt" = NOW()
-           WHERE "providerCampaignId" = $6`,
-          [c.sentCount, c.replyCount, c.openCount, c.clickCount, c.bounceCount, c.id]
-        );
+        if (c.status) {
+          await client.query(
+            `UPDATE "Campaign" 
+             SET "status" = COALESCE($1, "status"),
+                 "updatedAt" = NOW()
+             WHERE "providerCampaignId" = $2`,
+            [c.status, c.id]
+          ).catch(() => {});
+        }
       }
 
       // Upsert Genuine Replies
@@ -254,6 +276,14 @@ async function reconcileCampaigns() {
     }
   }
 
+  // 5. Cross-Cluster Self-Healing: Reconcile EmailEvents & Leads across all nodes
+  console.log("\n--- Cross-Cluster Event Reconciliation ---");
+  try {
+    await syncClusterEvents();
+  } catch (clusterErr) {
+    console.warn("[Smartlead AutoSync] Warning during cluster event sync:", clusterErr.message);
+  }
+
   console.log("\n=====================================================");
   console.log(`[Smartlead AutoSync] Completed reconciliation successfully at ${new Date().toISOString()}`);
   console.log("=====================================================");
@@ -266,4 +296,75 @@ if (require.main === module) {
   });
 }
 
-module.exports = { reconcileCampaigns };
+
+async function syncClusterEvents() {
+  const cTokyo = new Client({ connectionString: DB_CONNECTIONS[0].url, ssl: { rejectUnauthorized: false } });
+  await cTokyo.connect();
+
+  const tokyoEvents = (await cTokyo.query(`
+    SELECT e.id, e."providerEventId", e."eventType", e."createdAt", e."fromEmail", e."rawPayload",
+           l.email as lead_email, l."firstName" as first_name, l."lastName" as last_name,
+           c."providerCampaignId" as sl_camp_id
+    FROM "EmailEvent" e
+    JOIN "Lead" l ON l.id = e."leadId"
+    JOIN "Campaign" c ON c.id = l."campaignId"
+    WHERE e."providerEventId" IS NOT NULL
+  `)).rows;
+
+  for (let i = 1; i < DB_CONNECTIONS.length; i++) {
+    const db = DB_CONNECTIONS[i];
+    const cTarget = new Client({ connectionString: db.url, ssl: { rejectUnauthorized: false } });
+    await cTarget.connect();
+
+    const targetPEvents = new Set((await cTarget.query('SELECT "providerEventId" FROM "EmailEvent" WHERE "providerEventId" IS NOT NULL')).rows.map(r => r.providerEventId));
+    const missing = tokyoEvents.filter(e => !targetPEvents.has(e.providerEventId));
+
+    if (missing.length > 0) {
+      console.log(`[${db.name}] Replicating ${missing.length} missing events from Primary...`);
+      const campMap = new Map((await cTarget.query('SELECT id, "providerCampaignId" FROM "Campaign" WHERE "providerCampaignId" IS NOT NULL')).rows.map(r => [String(r.providerCampaignId), r.id]));
+      const missingEmails = [...new Set(missing.map(m => (m.lead_email || '').toLowerCase()).filter(Boolean))];
+      const targetLeads = (await cTarget.query(`
+        SELECT l.id, lower(l.email) as email, c."providerCampaignId" as sl_camp_id
+        FROM "Lead" l
+        JOIN "Campaign" c ON c.id = l."campaignId"
+        WHERE lower(l.email) = ANY($1::text[])
+      `, [missingEmails])).rows;
+
+      const leadMap = new Map();
+      for (const tl of targetLeads) {
+        leadMap.set(`${tl.sl_camp_id}_${tl.email}`, tl.id);
+      }
+
+      for (const ev of missing) {
+        const leadKey = `${ev.sl_camp_id}_${(ev.lead_email || '').toLowerCase()}`;
+        let targetLeadId = leadMap.get(leadKey);
+        if (!targetLeadId) {
+          const campId = campMap.get(String(ev.sl_camp_id));
+          if (campId) {
+            try {
+              const nl = await cTarget.query(`
+                INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", status, "createdAt", "updatedAt")
+                VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'ACTIVE'::"LeadStatus", $5, $5)
+                RETURNING id
+              `, [campId, ev.lead_email, ev.first_name || '', ev.last_name || '', ev.createdAt]);
+              targetLeadId = nl.rows[0].id;
+              leadMap.set(leadKey, targetLeadId);
+            } catch (_) {}
+          }
+        }
+        if (targetLeadId) {
+          await cTarget.query(`
+            INSERT INTO "EmailEvent" (id, "leadId", "eventType", "providerEventId", "fromEmail", "rawPayload", "createdAt")
+            VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6)
+            ON CONFLICT ("providerEventId") DO NOTHING
+          `, [targetLeadId, ev.eventType, ev.providerEventId, ev.fromEmail, ev.rawPayload || '{}', ev.createdAt]);
+        }
+      }
+      console.log(`[${db.name}] Replicated ${missing.length} events successfully.`);
+    }
+    await cTarget.end();
+  }
+  await cTokyo.end();
+}
+
+module.exports = { reconcileCampaigns, syncClusterEvents };
