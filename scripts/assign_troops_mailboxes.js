@@ -147,6 +147,15 @@ async function main() {
         const slAccount = slMap.get(email);
         const providerId = slAccount ? String(slAccount.id) : null;
 
+        let targetUserId = troopsMaster.id;
+        if (email.includes("naveen")) {
+            const navRes = await pool.query(`SELECT id FROM "User" WHERE lower(email) LIKE '%naveen%' OR id = 'usr_troops_87e6f943' LIMIT 1`);
+            if (navRes.rows.length > 0) targetUserId = navRes.rows[0].id;
+        } else if (email.includes("meenakshi")) {
+            const meeRes = await pool.query(`SELECT id FROM "User" WHERE lower(email) LIKE '%meenakshi%' OR id = 'usr_troops_4d72a76b' LIMIT 1`);
+            if (meeRes.rows.length > 0) targetUserId = meeRes.rows[0].id;
+        }
+
         // Upsert mailbox
         const existing = await pool.query('SELECT id FROM "Mailbox" WHERE lower("senderEmail") = $1', [email]);
         if (existing.rows.length > 0) {
@@ -157,15 +166,15 @@ async function main() {
                     status = 'ACTIVE',
                     "updatedAt" = now()
                 WHERE id = $3
-            `, [troopsMaster.id, providerId, existing.rows[0].id]);
-            console.log(`✓ Reassigned existing mailbox: ${email} ➔ Troops Outreach (Smartlead ID: ${providerId || 'local'})`);
+            `, [targetUserId, providerId, existing.rows[0].id]);
+            console.log(`✓ Reassigned existing mailbox: ${email} ➔ User ID: ${targetUserId} (Smartlead ID: ${providerId || 'local'})`);
         } else {
             const newId = `mbx_troops_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
             await pool.query(`
                 INSERT INTO "Mailbox" (id, "userId", "senderEmail", "providerMailboxId", provider, status, "createdAt", "updatedAt")
                 VALUES ($1, $2, $3, $4, 'google', 'ACTIVE', now(), now())
-            `, [newId, troopsMaster.id, email, providerId]);
-            console.log(`✓ Registered new mailbox: ${email} ➔ Troops Outreach (Smartlead ID: ${providerId || 'local'})`);
+            `, [newId, targetUserId, email, providerId]);
+            console.log(`✓ Registered new mailbox: ${email} ➔ User ID: ${targetUserId} (Smartlead ID: ${providerId || 'local'})`);
         }
     }
 

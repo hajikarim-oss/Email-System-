@@ -2075,7 +2075,9 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             // Standalone / offline fallback
             const currentUser = loadStorage<any>("current_user", null);
             const userRole = (currentUser?.role || "").toUpperCase();
-            const isMaster = userRole === "MASTER" || userRole === "OWNER" || currentUser?.is_admin === true || (currentUser?.email || "").toLowerCase().includes("monu") || body.is_master === true;
+            const emailLower = (currentUser?.email || "").toLowerCase();
+            const isTroops = isTroopsCampUser || emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi") || emailLower.includes("tbmtroop") || (body.name && String(body.name).toLowerCase().includes("troops"));
+            const isMonuMaster = !isTroops && (emailLower.includes("monu") || (userRole === "MASTER" && body.is_master === true));
             const newCamp = {
                 id: `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                 user_id: currentUser?.id || "cmtr9pp8t0000cygeyjpsz5lt",
@@ -2110,10 +2112,17 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
                 mailboxes: (Array.isArray(body.mailboxes) && body.mailboxes.length > 0)
-                    ? body.mailboxes
-                    : isMaster
-                        ? ["mbx_kumar_monu_master"]
-                        : emails.filter((e: { email?: string }) => (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com").map((e: { id: string }) => e.id),
+                    ? (isTroops
+                        ? body.mailboxes.filter((mId: string) => {
+                            const found = emails.find((e: any) => e.id === mId);
+                            return found && (found.email || "").toLowerCase().includes("tbmtroop");
+                        })
+                        : body.mailboxes)
+                    : isTroops
+                        ? emails.filter((e: { email?: string }) => (e.email || "").toLowerCase().includes("tbmtroop")).map((e: { id: string }) => e.id)
+                        : isMonuMaster
+                            ? ["mbx_kumar_monu_master"]
+                            : emails.filter((e: { email?: string }) => !(e.email || "").toLowerCase().includes("tbmtroop") && (e.email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com").map((e: { id: string }) => e.id),
                 steps: (body.steps || []).map((s: any, idx: number) => ({
                     id: `stp_${Date.now()}_${idx}`,
                     stepNumber: idx + 1,

@@ -215,8 +215,33 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             // 2. Link rotational mailboxes (TBM Master exclusively uses kumar.monu@theboredmonkey.com #24993809)
             let mailboxIds: number[] = [];
-            const userEmail = (user?.email || "").toLowerCase();
-            const isTroops = userEmail.includes("pratik") || userEmail.includes("naveen") || userEmail.includes("meenakshi") || (parsed.workspace && String(parsed.workspace).toLowerCase().includes("troops")) || sender.includes("tbmtroop") || (parsed.name && String(parsed.name).toLowerCase().includes("troops"));
+            const userEmail = (user?.email || parsed.owner_email || "").toLowerCase();
+            let isTroops = parsed.is_troops === true ||
+                userEmail.includes("pratik") || userEmail.includes("naveen") || userEmail.includes("meenakshi") ||
+                parsed.user_id === "usr_troops_0c4c79fd" || parsed.user_id === "usr_troops_87e6f943" || parsed.user_id === "usr_troops_4d72a76b" ||
+                (parsed.workspace && String(parsed.workspace).toLowerCase().includes("troops")) ||
+                sender.includes("tbmtroop") ||
+                (parsed.name && String(parsed.name).toLowerCase().includes("troops"));
+
+            if (!isTroops) {
+                try {
+                    const dbCampCheck = await pgQuery<any>(
+                        `SELECT c.id, c."userId", u.email as user_email, u.name as user_name FROM "Campaign" c LEFT JOIN "User" u ON u.id = c."userId" WHERE (c."providerCampaignId" = $1 AND $1 != '') OR lower(c.name) = $2 LIMIT 1`,
+                        [smartleadId ? String(smartleadId) : '', (parsed.name || '').toLowerCase()]
+                    );
+                    const cOwner = dbCampCheck?.[0];
+                    const cEmail = (cOwner?.user_email || "").toLowerCase();
+                    const cId = cOwner?.userId || "";
+                    if (
+                        cEmail.includes("pratik") || cEmail.includes("naveen") || cEmail.includes("meenakshi") ||
+                        cId === "usr_troops_0c4c79fd" || cId === "usr_troops_87e6f943" || cId === "usr_troops_4d72a76b"
+                    ) {
+                        isTroops = true;
+                    }
+                } catch (e) {
+                    console.warn("[Smartlead Sync] DB safeguard check failed:", e);
+                }
+            }
             const isMonuMaster = !isTroops && (userEmail.includes("monu") || sender.includes("kumar.monu") || (user?.role === "MASTER" && !isTroops && parsed.is_master === true));
 
             if (isMonuMaster) {
@@ -238,7 +263,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         });
 
                     if (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.length > 0) {
-                        mailboxIds = parsed.mailbox_ids.map(Number).filter((id: number) => Boolean(id) && id !== 24993809);
+                        const allowedIds = new Set(allAccounts.map((a: any) => a.id));
+                        mailboxIds = parsed.mailbox_ids.map(Number).filter((id: number) => allowedIds.has(id));
                     } else if (Array.isArray(parsed.sender_emails) && parsed.sender_emails.length > 0) {
                         const requested = parsed.sender_emails.map((e: string) => String(e).toLowerCase().trim());
                         mailboxIds = allAccounts
@@ -260,6 +286,29 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     console.warn("[Smartlead Sync] Mailbox lookup warning:", err.message);
                 }
             }
+
+            // Remove mismatched email accounts if already attached to campaign on Smartlead
+            try {
+                const curAccs = await apiCall(`/campaigns/${smartleadId}/email-accounts`, "GET", undefined, chosenKey);
+                if (Array.isArray(curAccs.data) && curAccs.data.length > 0) {
+                    if (isMonuMaster) {
+                        const unwanted = curAccs.data.filter((a: any) => a.id !== 24993809).map((a: any) => a.id);
+                        if (unwanted.length > 0) {
+                            await apiCall(`/campaigns/${smartleadId}/email-accounts`, "DELETE", { email_account_ids: unwanted }, chosenKey);
+                        }
+                    } else if (isTroops) {
+                        const unwanted = curAccs.data.filter((a: any) => !String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop")).map((a: any) => a.id);
+                        if (unwanted.length > 0) {
+                            await apiCall(`/campaigns/${smartleadId}/email-accounts`, "DELETE", { email_account_ids: unwanted }, chosenKey);
+                        }
+                    } else {
+                        const unwanted = curAccs.data.filter((a: any) => a.id === 24993809 || String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop")).map((a: any) => a.id);
+                        if (unwanted.length > 0) {
+                            await apiCall(`/campaigns/${smartleadId}/email-accounts`, "DELETE", { email_account_ids: unwanted }, chosenKey);
+                        }
+                    }
+                }
+            } catch {}
 
             if (mailboxIds.length > 0) {
                 const mbRes = await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
@@ -476,9 +525,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             // 6. Start campaign - CRITICAL: Validate success before continuing (skip if auto_start is false)
             const isAutoStart = parsed.auto_start !== false && !parsed.draft_only && parsed.status !== "DRAFT";
+            let startRes: any = null;
             if (isAutoStart) {
                 console.log(`[Smartlead Sync] Starting campaign ${smartleadId} at Smartlead...`);
-                const startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
+                startRes = await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, chosenKey);
 
                 if (startRes.status < 200 || startRes.status >= 300) {
                     console.error(`[Smartlead Sync] CRITICAL: Campaign START FAILED for campaign ${smartleadId}`);
@@ -637,7 +687,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 status: "ACTIVE",
                 leads_count: rawLeads.length,
                 mailbox_linked: mailboxIds,
-                smartlead_response: startRes.data,
+                smartlead_response: startRes?.data || null,
             }));
         } catch (err: any) {
             res.writeHead(500, { "Content-Type": "application/json" });

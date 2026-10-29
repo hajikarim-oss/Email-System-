@@ -213,34 +213,65 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
 
             // 2. Get linked mailbox Smartlead IDs
-            // Check if campaign owner is Master
             const campOwner = await pgQuery<any>(
-                `SELECT u.role, u.email FROM "Campaign" c JOIN "User" u ON u.id = c."userId" WHERE c.id = $1`, [camp.id]
+                `SELECT u.id, u.role, u.email FROM "Campaign" c JOIN "User" u ON u.id = c."userId" WHERE c.id = $1`, [camp.id]
             );
-            const isMasterCamp = campOwner?.[0]?.role === "MASTER" || (campOwner?.[0]?.email || "").toLowerCase().includes("monu");
+            const ownerEmail = (campOwner?.[0]?.email || "").toLowerCase();
+            const ownerId = campOwner?.[0]?.id || "";
+            const isTroops = ownerEmail.includes("pratik") || ownerEmail.includes("naveen") || ownerEmail.includes("meenakshi") ||
+                ownerId === "usr_troops_0c4c79fd" || ownerId === "usr_troops_87e6f943" || ownerId === "usr_troops_4d72a76b" ||
+                (camp.name || "").toLowerCase().includes("troops");
+            const isMasterCamp = !isTroops && (campOwner?.[0]?.role === "MASTER" || ownerEmail.includes("monu"));
 
             let slMailboxIds: number[] = [];
             if (isMasterCamp) {
                 // Master account exclusively uses kumar.monu@theboredmonkey.com (Smartlead ID: 24993809)
                 slMailboxIds = [24993809];
                 console.log(`[Launch] Master campaign detected (#${camp.id}). Exclusively routing through kumar.monu@theboredmonkey.com (24993809)`);
-            } else {
+            } else if (isTroops) {
+                // Troops Outreach exclusively uses @tbmtroop.com mailboxes
                 const mailboxRows = await pgQuery<any>(
                     `SELECT m."providerMailboxId" FROM "CampaignMailbox" cm
                      JOIN "Mailbox" m ON m.id = cm."mailboxId"
-                     WHERE cm."campaignId" = $1 AND m."providerMailboxId" != '24993809' AND lower(m."senderEmail") != 'kumar.monu@theboredmonkey.com'`, [camp.id]
+                     WHERE cm."campaignId" = $1 AND lower(m."senderEmail") LIKE '%@tbmtroop%'`, [camp.id]
                 );
                 slMailboxIds = mailboxRows
                     .map((m: any) => parseInt(m.providerMailboxId, 10))
-                    .filter((id: number) => !isNaN(id) && id > 0 && id !== 24993809);
+                    .filter((id: number) => !isNaN(id) && id > 0);
 
-                // If no mailboxes linked locally, fetch from Smartlead (excluding Master's dedicated mailbox)
                 if (slMailboxIds.length === 0) {
                     try {
                         const mbRes = await slApiCall("/email-accounts", "GET", undefined, apiKey);
                         if (Array.isArray(mbRes.data)) {
                             slMailboxIds = mbRes.data
-                                .filter((m: any) => m.id !== 24993809 && String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com")
+                                .filter((m: any) => String(m.from_email || "").toLowerCase().includes("tbmtroop"))
+                                .map((m: any) => m.id)
+                                .filter(Boolean);
+                        }
+                    } catch {}
+                }
+                console.log(`[Launch] Troops campaign detected (#${camp.id}). Routing strictly through @tbmtroop.com accounts (${slMailboxIds.join(",")})`);
+            } else {
+                const mailboxRows = await pgQuery<any>(
+                    `SELECT m."providerMailboxId" FROM "CampaignMailbox" cm
+                     JOIN "Mailbox" m ON m.id = cm."mailboxId"
+                     WHERE cm."campaignId" = $1 AND m."providerMailboxId" != '24993809' 
+                       AND lower(m."senderEmail") != 'kumar.monu@theboredmonkey.com'
+                       AND lower(m."senderEmail") NOT LIKE '%@tbmtroop%'`, [camp.id]
+                );
+                slMailboxIds = mailboxRows
+                    .map((m: any) => parseInt(m.providerMailboxId, 10))
+                    .filter((id: number) => !isNaN(id) && id > 0 && id !== 24993809);
+
+                // If no mailboxes linked locally, fetch from Smartlead (excluding Master's dedicated mailbox and Troops mailboxes)
+                if (slMailboxIds.length === 0) {
+                    try {
+                        const mbRes = await slApiCall("/email-accounts", "GET", undefined, apiKey);
+                        if (Array.isArray(mbRes.data)) {
+                            slMailboxIds = mbRes.data
+                                .filter((m: any) => m.id !== 24993809 && 
+                                    String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com" &&
+                                    !String(m.from_email || "").toLowerCase().includes("tbmtroop"))
                                 .map((m: any) => m.id)
                                 .filter(Boolean);
                         }
@@ -299,7 +330,21 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
             }
 
-            // 5. Link mailboxes
+            // 5. Clean up any unwanted accounts and link appropriate rotational mailboxes
+            try {
+                const curAccs = await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "GET", undefined, apiKey);
+                if (Array.isArray(curAccs.data) && curAccs.data.length > 0) {
+                    const unwanted = isMasterCamp
+                        ? curAccs.data.filter((a: any) => a.id !== 24993809).map((a: any) => a.id)
+                        : isTroops
+                        ? curAccs.data.filter((a: any) => !String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop")).map((a: any) => a.id)
+                        : curAccs.data.filter((a: any) => a.id === 24993809 || String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop")).map((a: any) => a.id);
+                    if (unwanted.length > 0) {
+                        await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "DELETE", { email_account_ids: unwanted }, apiKey);
+                    }
+                }
+            } catch {}
+
             const mbLinkRes = await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
                 email_account_ids: slMailboxIds,
             }, apiKey);
@@ -460,18 +505,31 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     smartleadId = String(createRes.data.id);
                     await pgQuery(`UPDATE "Campaign" SET "providerCampaignId" = $1 WHERE id = $2`, [smartleadId, camp.id]);
 
-                    // Link mailboxes (TBM master gets 24993809; Troops and team get team pool strictly excluding 24993809)
-                    const campUser = await pgQuery<any>(`SELECT u.role, u.email FROM "Campaign" c JOIN "User" u ON u.id = c."userId" WHERE c.id = $1`, [camp.id]);
+                    // Link mailboxes: Monu Master gets 24993809, Troops strictly gets @tbmtroop.com, TBM Team strictly gets non-troops non-master
+                    const campUser = await pgQuery<any>(`SELECT u.id, u.role, u.email FROM "Campaign" c JOIN "User" u ON u.id = c."userId" WHERE c.id = $1`, [camp.id]);
                     const campUserEmail = (campUser?.[0]?.email || "").toLowerCase();
-                    const isTroops = campUserEmail.includes("pratik") || campUserEmail.includes("naveen") || campUserEmail.includes("meenakshi");
+                    const campUserId = campUser?.[0]?.id || "";
+                    const isTroops = campUserEmail.includes("pratik") || campUserEmail.includes("naveen") || campUserEmail.includes("meenakshi") ||
+                        campUserId === "usr_troops_0c4c79fd" || campUserId === "usr_troops_87e6f943" || campUserId === "usr_troops_4d72a76b" ||
+                        (camp.name || "").toLowerCase().includes("troops");
                     const isMonuMaster = !isTroops && (campUser?.[0]?.role === "MASTER" || campUserEmail.includes("monu"));
 
                     if (isMonuMaster) {
                         await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: [24993809] }, apiKey);
+                    } else if (isTroops) {
+                        const mbList = await slApiCall("/email-accounts", "GET", undefined, apiKey);
+                        const mbIds = Array.isArray(mbList.data)
+                            ? mbList.data.filter((m: any) => String(m.from_email || "").toLowerCase().includes("tbmtroop")).map((m: any) => m.id)
+                            : [];
+                        if (mbIds.length > 0) {
+                            await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: mbIds }, apiKey);
+                        }
                     } else {
                         const mbList = await slApiCall("/email-accounts", "GET", undefined, apiKey);
                         const mbIds = Array.isArray(mbList.data)
-                            ? mbList.data.filter((m: any) => m.id !== 24993809 && String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com").map((m: any) => m.id)
+                            ? mbList.data.filter((m: any) => m.id !== 24993809 && 
+                                String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com" &&
+                                !String(m.from_email || "").toLowerCase().includes("tbmtroop")).map((m: any) => m.id)
                             : [];
                         if (mbIds.length > 0) {
                             await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: mbIds }, apiKey);
@@ -624,50 +682,42 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     }
                 }
 
-                // Auto-assign mailboxes: TBM Master gets kumar.monu@theboredmonkey.com; Troops Outreach gets dedicated pool excluding 24993809
+                // Auto-assign mailboxes: Troops strictly gets @tbmtroop.com, TBM Master gets kumar.monu@theboredmonkey.com, TBM team gets team pool
                 try {
-                    if (scope.master) {
-                        const teamCheck = await pgQuery<any>(
-                            `SELECT t.id, t.name FROM "Team" t
-                             JOIN "UserTeam" ut ON ut."teamId" = t.id
-                             WHERE ut."userId" = $1`,
-                            [scope.userId]
-                        );
-                        const isTroops = teamCheck.some((t: any) => t.id === 'team_troops_outreach' || t.name?.toLowerCase().includes('troops'));
+                    const userRes = await pgQuery<any>(`SELECT id, email, role FROM "User" WHERE id = $1`, [scope.userId]);
+                    const userEmail = (userRes?.[0]?.email || "").toLowerCase();
+                    const isTroops = userEmail.includes("pratik") || userEmail.includes("naveen") || userEmail.includes("meenakshi") ||
+                        scope.userId === "usr_troops_0c4c79fd" || scope.userId === "usr_troops_87e6f943" || scope.userId === "usr_troops_4d72a76b" ||
+                        (input.name || "").toLowerCase().includes("troops");
 
-                        if (isTroops) {
-                            // Troops Outreach exclusively uses Troops dedicated mailboxes, NEVER 24993809 and NEVER TBM team mailboxes
-                            const troopsMbs = await pgQuery<any>(
-                                `SELECT id FROM "Mailbox" 
-                                 WHERE status = 'ACTIVE' 
-                                   AND "providerMailboxId" != '24993809' 
-                                   AND lower("senderEmail") != 'kumar.monu@theboredmonkey.com'
-                                   AND (lower("senderEmail") LIKE '%@tbmtroop%' OR "userId" IN (
-                                       SELECT ut."userId" FROM "UserTeam" ut WHERE ut."teamId" = 'team_troops_outreach'
-                                       UNION ALL SELECT $1
-                                   ) OR "userId" = $1)`,
-                                [scope.userId]
-                            );
-                            const finalMbs = troopsMbs.length > 0 ? troopsMbs : await pgQuery<any>(
-                                `SELECT id FROM "Mailbox" WHERE status = 'ACTIVE' AND "providerMailboxId" != '24993809' AND lower("senderEmail") LIKE '%@tbmtroop%' LIMIT 3`
-                            );
-                            for (const mb of finalMbs) {
-                                await pgQuery(
-                                    `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                                    [campaignId, mb.id]
-                                ).catch(() => {});
-                            }
-                        } else {
-                            // TBM Master account exclusively uses kumar.monu@theboredmonkey.com (24993809)
-                            const masterMb = await pgQuery<any>(
-                                `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`
-                            );
-                            if (masterMb && masterMb.length > 0) {
-                                await pgQuery(
-                                    `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                                    [campaignId, masterMb[0].id]
-                                ).catch(() => {});
-                            }
+                    if (isTroops) {
+                        // Troops Outreach exclusively uses @tbmtroop.com mailboxes
+                        const troopsMbs = await pgQuery<any>(
+                            `SELECT id, "senderEmail" FROM "Mailbox" 
+                             WHERE status = 'ACTIVE' 
+                               AND lower("senderEmail") LIKE '%@tbmtroop%'
+                             ORDER BY CASE 
+                                WHEN lower("senderEmail") LIKE '%' || $1 || '%' THEN 0 
+                                ELSE 1 
+                             END`,
+                            [userEmail.includes("naveen") ? "naveen" : (userEmail.includes("meenakshi") ? "meenakshi" : "pratik")]
+                        );
+                        for (const mb of troopsMbs) {
+                            await pgQuery(
+                                `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                [campaignId, mb.id]
+                            ).catch(() => {});
+                        }
+                    } else if (scope.master && (userEmail.includes("monu") || userRes?.[0]?.role === "MASTER")) {
+                        // TBM Master account exclusively uses kumar.monu@theboredmonkey.com (24993809)
+                        const masterMb = await pgQuery<any>(
+                            `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`
+                        );
+                        if (masterMb && masterMb.length > 0) {
+                            await pgQuery(
+                                `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                [campaignId, masterMb[0].id]
+                            ).catch(() => {});
                         }
                     } else {
                         // Team members keep their rotational pool intact, strictly excluding Master's email and Troops mailboxes

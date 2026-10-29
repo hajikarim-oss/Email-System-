@@ -350,7 +350,7 @@ export async function reconcileSmartleadMailboxes(force = false): Promise<{
                 return { synced: 0, tbmAccounts: 0, troopsAccounts: 0, updatedCampaigns: 0 };
             }
 
-            // Identify Master IDs
+            // Identify Master & Troops User IDs
             const tbmMasterRes = await pgQuery<any>(
                 `SELECT id FROM "User" WHERE role = 'MASTER' AND lower(email) NOT LIKE '%pratik%' AND lower(email) NOT LIKE '%troops%' LIMIT 1`
             );
@@ -360,6 +360,16 @@ export async function reconcileSmartleadMailboxes(force = false): Promise<{
                 `SELECT id FROM "User" WHERE lower(email) = 'pratik@theboredmonkey.com' OR id = 'usr_troops_0c4c79fd' LIMIT 1`
             );
             const troopsMasterId = troopsMasterRes?.[0]?.id || "usr_troops_0c4c79fd";
+
+            const naveenUserRes = await pgQuery<any>(
+                `SELECT id FROM "User" WHERE lower(email) LIKE '%naveen%' OR id = 'usr_troops_87e6f943' LIMIT 1`
+            );
+            const naveenUserId = naveenUserRes?.[0]?.id || "usr_troops_87e6f943";
+
+            const meenakshiUserRes = await pgQuery<any>(
+                `SELECT id FROM "User" WHERE lower(email) LIKE '%meenakshi%' OR id = 'usr_troops_4d72a76b' LIMIT 1`
+            );
+            const meenakshiUserId = meenakshiUserRes?.[0]?.id || "usr_troops_4d72a76b";
 
             const tbmTeamAccountIds: number[] = [];
             const troopsAccountIds: number[] = [];
@@ -373,9 +383,15 @@ export async function reconcileSmartleadMailboxes(force = false): Promise<{
                 const isTroops = email.endsWith("@tbmtroop.com") || email.endsWith("@tbmtroops.com") || email.includes("tbmtroop");
                 const isMasterMonu = !isTroops && (email === "kumar.monu@theboredmonkey.com" || email.startsWith("monu@") || acc.id === 24993809);
 
-                const targetUserId = isTroops ? troopsMasterId : tbmMasterId;
-
+                let targetUserId = tbmMasterId;
                 if (isTroops) {
+                    if (email.includes("naveen")) {
+                        targetUserId = naveenUserId;
+                    } else if (email.includes("meenakshi")) {
+                        targetUserId = meenakshiUserId;
+                    } else {
+                        targetUserId = troopsMasterId;
+                    }
                     troopsAccountIds.push(acc.id);
                 } else if (isMasterMonu) {
                     masterAccountId = acc.id;
@@ -415,11 +431,26 @@ export async function reconcileSmartleadMailboxes(force = false): Promise<{
             for (const camp of campaigns) {
                 const nameLower = (camp.name || "").toLowerCase();
                 const isMasterCamp = nameLower.startsWith("mon test") || nameLower.includes("master test");
-                const isTroopsCamp = nameLower.includes("troops") || (Array.isArray(camp.tags) && camp.tags.some((t: any) => String(t).toLowerCase().includes("troops")));
+
+                // Check campaign creator in PostgreSQL database to accurately detect Troops ownership
+                const dbCampRes = await pgQuery<any>(
+                    `SELECT c.id, c."userId", u.email as user_email, u.name as user_name FROM "Campaign" c LEFT JOIN "User" u ON u.id = c."userId" WHERE c."providerCampaignId" = $1 OR lower(c.name) = $2 LIMIT 1`,
+                    [String(camp.id), nameLower]
+                );
+                const dbCamp = dbCampRes?.[0];
+                const campOwnerEmail = (dbCamp?.user_email || "").toLowerCase();
+                const campOwnerId = dbCamp?.userId || "";
 
                 const curAccRes = await apiCall(`/campaigns/${camp.id}/email-accounts`);
                 const curAccs: any[] = Array.isArray(curAccRes.data) ? curAccRes.data : [];
                 const curIds = new Set(curAccs.map((a: any) => a.id));
+                const curHasTroops = curAccs.some((a: any) => String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop"));
+
+                const isTroopsCamp = 
+                    campOwnerEmail.includes("pratik") || campOwnerEmail.includes("naveen") || campOwnerEmail.includes("meenakshi") ||
+                    campOwnerId === "usr_troops_0c4c79fd" || campOwnerId === "usr_troops_87e6f943" || campOwnerId === "usr_troops_4d72a76b" ||
+                    nameLower.includes("troops") || (Array.isArray(camp.tags) && camp.tags.some((t: any) => String(t).toLowerCase().includes("troops"))) ||
+                    curHasTroops;
 
                 if (isMasterCamp) {
                     // Master campaigns: Strictly kumar.monu (24993809)
