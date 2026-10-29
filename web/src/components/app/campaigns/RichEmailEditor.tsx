@@ -34,6 +34,38 @@ function derivePlainText(html: string): string {
     return temp.textContent || temp.innerText || "";
 }
 
+
+function sanitizeEmailHtml(rawHtml: string): string {
+    if (!rawHtml) return "";
+    let html = rawHtml;
+
+    // 1. Strip Mac/Apple Mail & WebKit clipboard artifacts
+    html = html.replace(/<br\s+class=["']Apple-interchange-newline["']\s*\/?>/gi, "");
+    html = html.replace(/class=["']Apple-[^"']*["']/gi, "");
+
+    // 2. Strip Google Docs internal wrappers, meta tags, and comments
+    html = html.replace(/<!--[\s\S]*?-->/gi, "");
+    html = html.replace(/<meta[^>]*>/gi, "");
+    html = html.replace(/<b\b[^>]*id=["']docs-internal-guid-[^"']*["'][^>]*>([\s\S]*?)<\/b>/gi, "$1");
+    html = html.replace(/id=["']docs-internal-guid-[^"']*["']/gi, "");
+
+    // 3. Strip dangerous pre-wrap styles that turn internal newlines into massive blank gaps in Gmail
+    html = html.replace(/white-space(?:-collapse)?\s*:\s*(?:pre|pre-wrap|preserve);?/gi, "");
+
+    // 4. Strip messy font families (like Times New Roman) and font sizes (small, 11pt, etc.)
+    html = html.replace(/face=["']Times New Roman[^"']*["']/gi, "face=\"Arial, Helvetica, sans-serif\"");
+    html = html.replace(/font-family:\s*Times New Roman[^;"]*;?/gi, "font-family: Arial, Helvetica, sans-serif;");
+
+    // 5. Clean up runaway consecutive empty paragraphs or breaks
+    html = html.replace(/(?:<p[^>]*>\s*(?:&nbsp;|<br\s*\/?>)?\s*<\/p>\s*){2,}/gi, "<p><br/></p>");
+    html = html.replace(/(?:<br\s*\/?>\s*){3,}/gi, "<br/><br/>");
+    html = html.replace(/<div>\s*<br\s*\/?>\s*<\/div>\s*<div>\s*<br\s*\/?>\s*<\/div>/gi, "<div><br/></div>");
+
+    // 6. Ensure image safety and prevent layout overflow
+    html = html.replace(/<img\b(?![^>]*\breferrerpolicy\b)/gi, "<img referrerpolicy=\"no-referrer\"");
+
+    return html.trim();
+}
 function ensureNoReferrerImages(html: string): string {
     if (!html) return "";
     return html.replace(/<img\b(?![^>]*\breferrerpolicy\b)/gi, '<img referrerpolicy="no-referrer"');
@@ -153,7 +185,7 @@ export function RichEmailEditor({
         const html = e.clipboardData?.getData("text/html");
         if (html && html.trim().length > 0) {
             e.preventDefault();
-            insertHtmlAtCaret(ensureNoReferrerImages(html));
+            insertHtmlAtCaret(sanitizeEmailHtml(html));
             return;
         }
 
@@ -228,6 +260,45 @@ export function RichEmailEditor({
         out = out.replace(/\[\s*(Job\s*Title|Title|Role)\s*\]/gi, "Marketing Partnerships");
         return out;
     };
+
+    
+    const handleFixSpacing = () => {
+        const currentHtml = editorRef.current ? editorRef.current.innerHTML : (bodyHtml || "");
+        const sanitized = sanitizeEmailHtml(currentHtml);
+        if (editorRef.current) {
+            editorRef.current.innerHTML = sanitized;
+        }
+        onBodyChange(sanitized, derivePlainText(sanitized));
+    };
+
+    const handleInsertSignature = (who: "vatsal" | "snehal") => {
+        const sig = who === "vatsal" ? `
+<div style="margin-top: 18px; font-family: Arial, Helvetica, sans-serif; font-size: 13.5px; color: #444444; line-height: 1.4;">
+  <p style="margin: 0 0 2px 0; color: #888888; font-size: 13px;">Thank You</p>
+  <p style="margin: 0 0 4px 0; color: #888888; font-size: 13px;">Kind Regards</p>
+  <p style="margin: 0 0 2px 0; color: #555555; font-size: 13px;">Brands Partnerships Executive</p>
+  <p style="margin: 0 0 2px 0; color: #555555; font-size: 13px;">88284 60424</p>
+  <p style="margin: 0 0 8px 0;"><a href="https://www.theboredmonkey.com" target="_blank" style="color: #1155cc; text-decoration: underline; font-size: 13px;">www.theboredmonkey.com</a></p>
+  <div style="margin-top: 6px;">
+    <a href="https://www.theboredmonkey.com" target="_blank" style="display: block; text-decoration: none; margin-bottom: 6px;">
+      <img referrerpolicy="no-referrer" src="https://ci3.googleusercontent.com/mail-sig/AIorK4yodueS0TJvwOgcLdSfhmbwGCiLGM59x4KSMKgSGehDUu_WTpJpBePnKhA1bVnk-WyVGDPD32XEmmRF" width="96" height="24" alt="TheBoredMonkey" style="display: block; border: 0;" />
+    </a>
+    <img referrerpolicy="no-referrer" src="https://ci3.googleusercontent.com/mail-sig/AIorK4yht7X8br1K9tiI9YpjWY1Sg1ZD2BCFODhgKUeB3_U66VPxN0_6OTgPAJJu7lecH356Qyh6L-rkKMOY" width="220" height="26" alt="Portfolio Brands" style="display: block; border: 0;" />
+  </div>
+</div>` : `
+<div style="margin-top: 18px; font-family: Arial, Helvetica, sans-serif; font-size: 13.5px; color: #444444; line-height: 1.4;">
+  <p style="margin: 0 0 3px 0; color: #333333; font-size: 13px;">Kind Regards,</p>
+  <p style="margin: 0 0 3px 0; color: #333333; font-size: 13px;">Brand Partnerships l TheBoredMonkey</p>
+  <p style="margin: 0 0 8px 0; color: #333333; font-size: 13px;">Contact: <a href="tel:+919136852949" style="color: #1155cc; text-decoration: underline;">+91 9136852949</a></p>
+  <div style="margin-top: 6px;">
+    <a href="https://www.theboredmonkey.com" target="_blank" style="display: block; text-decoration: none; margin-bottom: 6px;">
+      <img referrerpolicy="no-referrer" src="https://ci3.googleusercontent.com/mail-sig/AIorK4yodueS0TJvwOgcLdSfhmbwGCiLGM59x4KSMKgSGehDUu_WTpJpBePnKhA1bVnk-WyVGDPD32XEmmRF" width="96" height="24" alt="TheBoredMonkey" style="display: block; border: 0;" />
+    </a>
+    <img referrerpolicy="no-referrer" src="https://ci3.googleusercontent.com/mail-sig/AIorK4yht7X8br1K9tiI9YpjWY1Sg1ZD2BCFODhgKUeB3_U66VPxN0_6OTgPAJJu7lecH356Qyh6L-rkKMOY" width="220" height="26" alt="Portfolio Brands" style="display: block; border: 0;" />
+  </div>
+</div>`;
+        insertHtmlAtCaret(sig);
+    };;
 
     return (
         <div className="space-y-2.5">
@@ -460,6 +531,34 @@ export function RichEmailEditor({
                         >
                             <LinkIcon className="w-3 h-3" />
                         </button>
+                        
+                                <div className="h-3 w-px bg-slate-300 mx-0.5" />
+                                <button
+                                    type="button"
+                                    onClick={handleFixSpacing}
+                                    className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100 transition-colors inline-flex items-center gap-1 shadow-xs"
+                                    title="Auto-clean formatting, remove Google Docs artifacts, and fix spacing"
+                                >
+                                    <SparklesIcon className="w-3 h-3 text-amber-600" />
+                                    Fix Spacing
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleInsertSignature("vatsal")}
+                                    className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors inline-flex items-center gap-1 shadow-xs"
+                                    title="Insert Vatsal Vadecha signature table"
+                                >
+                                    + Vatsal Sig
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleInsertSignature("snehal")}
+                                    className="px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors inline-flex items-center gap-1 shadow-xs"
+                                    title="Insert Snehal Maurya signature table"
+                                >
+                                    + Snehal Sig
+                                </button>
+
                         <button
                             type="button"
                             onClick={handlePromptImage}
@@ -503,9 +602,9 @@ export function RichEmailEditor({
                         onInput={handleInput}
                         onPaste={handlePaste}
                         data-placeholder={placeholder}
-                        className="min-h-[160px] max-h-[360px] overflow-y-auto px-3 py-2.5 bg-white text-[12.5px] text-slate-900 outline-none leading-relaxed focus:ring-0 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none selection:bg-[#FFF3B0]"
+                        className="min-h-[160px] max-h-[360px] overflow-y-auto px-3 py-2.5 bg-white text-[14px] text-slate-900 outline-none leading-[1.5] focus:ring-0 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none selection:bg-[#FFF3B0]"
                         style={{
-                            minHeight: stepIndex === 0 ? "180px" : "120px",
+                            minHeight: stepIndex === 0 ? "180px" : "120px", fontFamily: "Arial, Helvetica, sans-serif", fontSize: "14px", lineHeight: "1.5", color: "#222222",
                         }}
                     />
                 ) : (

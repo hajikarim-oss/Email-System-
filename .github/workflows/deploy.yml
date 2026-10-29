@@ -55,6 +55,10 @@ jobs:
             echo "🔄 Reloading PM2 processes..."
             pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js --update-env
             
+            # Post-deploy self-healing reconciliation (catches any webhooks dropped during the 90s build)
+            echo "🔄 Running automated Smartlead self-healing reconciliation..."
+            node scripts/smartlead_autosync.cjs || true
+            
             echo "✅ Deployment successful! Live at https://tbmoutreach.tech"
 
       - name: Retry Deploy via SSH (if first attempt timed out)
@@ -86,5 +90,8 @@ jobs:
             
             echo "🔄 Reloading PM2 processes..."
             pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js --update-env
+            
+            echo "🔄 Running automated Smartlead self-healing reconciliation..."
+            node scripts/smartlead_autosync.cjs || true
             
             echo "✅ Deployment successful! Live at https://tbmoutreach.tech"

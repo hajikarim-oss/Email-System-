@@ -48,5 +48,18 @@ module.exports = {
       out_file: "./logs/cron-out.log",
       time: true,
     },
+    {
+      name: "smartlead-autosync-cron",
+      cwd: ".",
+      script: "scripts/smartlead_autosync.cjs",
+      cron_restart: "*/15 * * * *", // Runs every 15 minutes to guarantee 0 data drift
+      autorestart: false,
+      env: {
+        NODE_ENV: "production",
+      },
+      error_file: "./logs/autosync-error.log",
+      out_file: "./logs/autosync-out.log",
+      time: true,
+    },
   ],
 };
