@@ -23,6 +23,7 @@ import { handleUnibox } from "../server/unibox";
 import { handleNotifications } from "../server/notifications";
 import { reconcileSmartleadCampaigns, reconcileSmartleadMailboxes, ensureImmediateSendingSchedule } from "../server/smartleadSync";
 import { handleTallyApi } from "../server/tally/apiHandler";
+import creatorsHandler from "../api/creators/index";
 
 const cjsRequire = createRequire(import.meta.url);
 
@@ -2832,6 +2833,27 @@ function tallyApiPlugin() {
     };
 }
 
+function creatorsApiPlugin() {
+    return {
+        name: "local-creators-api-plugin",
+        configureServer(server: any) {
+            server.middlewares.use((req: any, res: any, next: any) => {
+                const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
+                if (
+                    path === "/api/creators" ||
+                    path.startsWith("/api/creators/") ||
+                    path === "/api/creator/intake" ||
+                    path.startsWith("/api/creator/intake/")
+                ) {
+                    creatorsHandler(req, res);
+                    return;
+                }
+                next();
+            });
+        },
+    };
+}
+
 export default defineConfig({
     plugins: [
         react(),
@@ -2841,6 +2863,7 @@ export default defineConfig({
         databaseIntelligencePlugin(),
         authApiPlugin(),
         tallyApiPlugin(),
+        creatorsApiPlugin(),
         ...sentryPlugins,
     ],
     build: {

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60" width="240" height="60" fill="none">
+  <path d="M10 30L30 8H210L230 30L210 52H30L10 30Z" stroke="#FFFFFF" stroke-width="1.5" fill="none" opacity="0.95"/>
+  <path d="M16 30L32 14H208L224 30L208 46H32L16 30Z" stroke="#FDB913" stroke-width="0.8" stroke-dasharray="2 2" fill="none" opacity="0.8"/>
+  <text x="120" y="27" dominant-baseline="middle" text-anchor="middle" font-family="'PP Neue Montreal', 'Cinzel', serif, sans-serif" font-size="14" font-weight="800" letter-spacing="0.22em" fill="#FFFFFF">BOMBAY</text>
+  <text x="120" y="41" dominant-baseline="middle" text-anchor="middle" font-family="'PP Neue Montreal', 'Cinzel', serif, sans-serif" font-size="8.5" font-weight="600" letter-spacing="0.32em" fill="#FDB913" opacity="0.95">SWEET SHOP</text>
+</svg>

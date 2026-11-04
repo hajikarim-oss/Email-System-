@@ -34,6 +34,7 @@ import { handleUnibox } from "../server/unibox";
 import { handleNotifications } from "../server/notifications";
 import { handleTallyApi } from "../server/tally/apiHandler";
 import { reconcileSmartleadMailboxes } from "../server/smartleadSync";
+import creatorsHandler from "./creators";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
 
@@ -63,6 +64,12 @@ const routes: Record<string, Handler> = {
     "/api/v1/campaigns": intelligenceCampaigns,
     "/campaigns": intelligenceCampaigns,
     "/v1/campaigns": intelligenceCampaigns,
+    "/api/creators": creatorsHandler,
+    "/api/v1/creators": creatorsHandler,
+    "/api/creators/facets": creatorsHandler,
+    "/api/v1/creators/facets": creatorsHandler,
+    "/api/creators/templates": creatorsHandler,
+    "/api/v1/creators/templates": creatorsHandler,
     "/api/smartlead/status": smartleadStatus,
     "/api/smartlead/sync-mailboxes": async (_req, res) => {
         try {
@@ -175,6 +182,10 @@ const prefixes: [string, Handler][] = [
     ["/api/v1/campaigns", intelligenceCampaigns],
     ["/campaigns", intelligenceCampaigns],
     ["/v1/campaigns", intelligenceCampaigns],
+    ["/api/creators", creatorsHandler],
+    ["/api/v1/creators", creatorsHandler],
+    ["/api/creator/intake", creatorsHandler],
+    ["/api/v1/creator/intake", creatorsHandler],
     ["/api/tally", handleTallyApi],
 ];
 

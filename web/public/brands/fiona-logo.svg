@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60" fill="none">
+  <g transform="translate(10, 12)">
+    <path d="M18 4L32 14L18 34L4 14L18 4Z" stroke="#FFFFFF" stroke-width="1.6" fill="none"/>
+    <path d="M18 4V34M4 14H32M10 14L18 4L26 14L18 34L10 14Z" stroke="#FFFFFF" stroke-width="0.8" fill="none" opacity="0.75"/>
+  </g>
+  <text x="54" y="29" font-family="'PP Neue Montreal', 'Inter', sans-serif" font-size="18" font-weight="800" letter-spacing="0.18em" fill="#FFFFFF">FIONA</text>
+  <text x="55" y="43" font-family="'PP Neue Montreal', 'Inter', sans-serif" font-size="8" font-weight="600" letter-spacing="0.38em" fill="#FFFFFF" opacity="0.85">DIAMONDS</text>
+</svg>

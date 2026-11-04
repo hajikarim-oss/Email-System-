@@ -61,7 +61,6 @@ scratch/
 scratch_*
 *.scratch.*
 restore_chats/
-push_changes.sh
 c:*/
 c:\*
 web/src/test_write.txt
