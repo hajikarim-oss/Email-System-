@@ -11,6 +11,30 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
  */
 
 const { Client } = require("pg");
+const crypto = require("crypto");
+const { promisify } = require("util");
+const scryptAsync = promisify(crypto.scrypt);
+
+async function hashScryptPassword(password) {
+  const salt = crypto.randomBytes(16).toString("base64");
+  const derived = await scryptAsync(password, salt, 64, { N: 16384, r: 8, p: 1 });
+  return `scrypt$16384$8$1$${salt}$${derived.toString("base64")}`;
+}
+
+const CORE_TEAM_MEMBERS = [
+  {
+    id: "usr_tbm_riya_thapliyal",
+    name: "Riya Thapliyal",
+    email: "riya.thapliyal@theboredmonkey.com",
+    passwordPlain: "9538564601Aa"
+  },
+  {
+    id: "usr_tbm_sanika_pingulkar",
+    name: "Sanika Pingulkar",
+    email: "sanika.pingulkar@theboredmonkey.com",
+    passwordPlain: "9538564601Aa"
+  }
+];
 // Zero-dependency .env loader
 const fs = require("fs");
 const path = require("path");
@@ -185,6 +209,47 @@ async function reconcileCampaigns() {
 
     try {
       await client.connect();
+
+      // Ensure core TBM team members (Riya & Sanika) exist on every cluster node
+      try {
+        const teamRes = await client.query(
+          `SELECT "teamId" FROM "UserTeam"
+           WHERE "userId" IN ('cmtr9pp8t0000cygeyjpsz5lt', 'cmttwwhj5000ovdkr7ooyb6qt', 'cmu6m304o00003307qj8ex6oa')
+           LIMIT 1`
+        ).catch(() => ({ rows: [] }));
+        const teamId = teamRes.rows[0]?.teamId || "team_tbm_main";
+
+        for (const tm of CORE_TEAM_MEMBERS) {
+          const uRes = await client.query('SELECT id, password FROM "User" WHERE lower(email) = lower($1) LIMIT 1', [tm.email]);
+          let targetUserId = tm.id;
+          if (uRes.rows.length === 0) {
+            const pwHash = await hashScryptPassword(tm.passwordPlain);
+            await client.query(
+              `INSERT INTO "User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, 'TEAM_MEMBER'::"Role", true, NOW(), NOW())
+               ON CONFLICT (id) DO UPDATE
+               SET name = EXCLUDED.name, email = EXCLUDED.email, password = EXCLUDED.password, role = 'TEAM_MEMBER'::"Role", "isActive" = true, "updatedAt" = NOW()`,
+              [tm.id, tm.name, tm.email, pwHash]
+            );
+          } else {
+            targetUserId = uRes.rows[0].id;
+            if (!uRes.rows[0].password || !String(uRes.rows[0].password).startsWith("scrypt$")) {
+              const pwHash = await hashScryptPassword(tm.passwordPlain);
+              await client.query('UPDATE "User" SET password = $2, "isActive" = true, "updatedAt" = NOW() WHERE id = $1', [targetUserId, pwHash]);
+            }
+          }
+          const utRes = await client.query('SELECT 1 FROM "UserTeam" WHERE "userId" = $1 AND "teamId" = $2 LIMIT 1', [targetUserId, teamId]).catch(() => ({ rows: [] }));
+          if (utRes.rows.length === 0) {
+            try {
+              await client.query('INSERT INTO "UserTeam" ("userId", "teamId") VALUES ($1, $2) ON CONFLICT DO NOTHING', [targetUserId, teamId]);
+            } catch (_) {
+              await client.query('INSERT INTO "UserTeam" (id, "userId", "teamId") VALUES (gen_random_uuid()::text, $1, $2) ON CONFLICT DO NOTHING', [targetUserId, teamId]).catch(() => {});
+            }
+          }
+        }
+      } catch (tmErr) {
+        console.warn(`[${db.name}] Team member sync warning:`, tmErr.message);
+      }
 
       // Update Campaign status
       for (const c of campaignData) {

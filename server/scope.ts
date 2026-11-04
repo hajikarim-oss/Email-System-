@@ -115,5 +115,5 @@ export function mailboxOwned(scope: DataScope, alias = "m"): string {
         }
         return "TRUE";
     }
-    return `(lower(${alias}."senderEmail") NOT LIKE '%@tbmtroop%' AND ${alias}."userId" = ${lit(scope.userId)})`;
+    return `(lower(${alias}."senderEmail") NOT LIKE '%@tbmtroop%' AND lower(${alias}."senderEmail") != 'kumar.monu@theboredmonkey.com' AND coalesce(${alias}."providerMailboxId", '') != '24993809')`;
 }

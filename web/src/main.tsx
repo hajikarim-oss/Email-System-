@@ -13,6 +13,14 @@ function ManagerOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function TroopsMasterOnly({ children }: { children: React.ReactNode }) {
+  const access = useFeatureAccess();
+  if (!access.canViewCreators) {
+    return <Navigate to="/app/dashboard" replace />;
+  }
+  return <>{children}</>;
+}
+
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/poppins/400.css";
@@ -82,6 +90,9 @@ import AssetsPage from './app/app/finance/assets/page';
 import CashFlowPage from './app/app/finance/cashflow/page';
 import DashboardNotFound from './app/app/not-found';
 import NotFound from './app/not-found';
+import CreatorsLayout from './app/app/creators/layout';
+import CreatorsPage from './app/app/creators/page';
+import CreatorTemplatesPage from './app/app/creators/templates/page';
 
 import { Toaster } from '@/components/ui/toaster';
 
@@ -114,6 +125,7 @@ import CloudOAuthDonePage from './app/cloud-oauth/done/page';
 import TheBoredMonkeyCloudSettingsPage from './app/app/settings/warmbly-cloud/page';
 import SetupPage from './app/setup/page';
 import SSOCallbackPage from './app/auth/sso/page';
+import CreatorIntakePage from './app/creator/intake/CreatorIntakePage';
 
 // React-Query defaults tuned for a dashboard. The library's
 // out-of-the-box behaviour treats every query as immediately stale
@@ -256,6 +268,14 @@ const router = createBrowserRouter([
         ],
       },
       {
+        path: "creator/intake/:token",
+        element: <CreatorIntakePage />,
+      },
+      {
+        path: "intake/:token",
+        element: <CreatorIntakePage />,
+      },
+      {
         path: "app",
         element: <RootAppLayout />,
         children: [
@@ -285,6 +305,14 @@ const router = createBrowserRouter([
               },
               { path: "categories", element: <CategoriesPage /> },
               { path: "suppressions", element: <SuppressionsPage /> },
+            ],
+          },
+          {
+            path: "creators",
+            element: <TroopsMasterOnly><CreatorsLayout /></TroopsMasterOnly>,
+            children: [
+              { index: true, element: <CreatorsPage /> },
+              { path: "templates", element: <CreatorTemplatesPage /> },
             ],
           },
           {
@@ -445,7 +473,7 @@ const router = createBrowserRouter([
           },
           {
             path: "finance",
-            element: <Outlet />,
+            element: <ManagerOnly><Outlet /></ManagerOnly>,
             children: [
               { index: true, element: <Navigate to="/app/finance/dashboard" replace /> },
               { path: "dashboard", element: <CfoDashboardPage /> },

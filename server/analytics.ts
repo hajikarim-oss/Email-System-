@@ -1,5 +1,5 @@
 import type { QueryFn, QueryRow } from "./types";
-import { eventOwned, leadOwned, messageOwned, ownerOwned, type DataScope } from "./scope";
+import { eventOwned, leadOwned, mailboxOwned, messageOwned, ownerOwned, type DataScope } from "./scope";
 
 export interface DashboardRequest {
     period?: string;
@@ -253,8 +253,8 @@ async function readAccountHealth(query: QueryFn, scope: DataScope): Promise<Quer
             count(*) FILTER (WHERE status IN ('WARMING', 'PAUSED'))::int AS warning_accounts,
             count(*) FILTER (WHERE status = 'RETIRED')::int AS error_accounts,
             coalesce(sum("dailySendLimit") FILTER (WHERE status IN ('ACTIVE', 'WARMING')), 0)::int AS daily_capacity
-        FROM "Mailbox"
-        WHERE ${ownerOwned(scope)}`,
+        FROM "Mailbox" m
+        WHERE ${mailboxOwned(scope, "m")}`,
     );
 }
 

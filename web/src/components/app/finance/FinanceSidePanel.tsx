@@ -19,6 +19,7 @@ import {
     ZapIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
 
 interface TallyStatusData {
     status: "HEALTHY" | "DEGRADED" | "OFFLINE";
@@ -39,6 +40,7 @@ interface TallyStatusData {
 }
 
 export function FinanceSidePanel() {
+    const access = useFeatureAccess();
     const [isOpen, setIsOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [statusData, setStatusData] = useState<TallyStatusData>({
@@ -70,10 +72,13 @@ export function FinanceSidePanel() {
     };
 
     useEffect(() => {
+        if (!access.canManage) return;
         fetchStatus();
         const interval = setInterval(fetchStatus, 20000);
         return () => clearInterval(interval);
-    }, []);
+    }, [access.canManage]);
+
+    if (!access.canManage) return null;
 
     const handleManualSync = async () => {
         setIsSyncing(true);

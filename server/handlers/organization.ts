@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { randomBytes } from "crypto";
-import { hashPassword, readBearer, resolveToken, revokeUserSessions, type AuthRole, type AuthUser } from "../auth";
+import { ensureTbmTeamMembers, hashPassword, readBearer, resolveToken, revokeUserSessions, type AuthRole, type AuthUser } from "../auth";
 import { DatabaseUnavailableError, pgQuery } from "../pg";
 import { readJsonBody, send } from "./send";
 
@@ -165,6 +165,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         if ((path === "/api/organization/members" || path === "/api/organization/members/invite") && method === "GET") {
             const master = await requireMaster(req, res);
             if (!master || res.writableEnded) return;
+            await ensureTbmTeamMembers();
             const rows = await pgQuery<MemberRow>(
                 `SELECT u.id, u.name, u.email, u.role, u."isActive" AS is_active, u."createdAt" AS joined_at,
                     (SELECT count(*)::int FROM "Mailbox" m WHERE m."userId" = u.id) AS mailbox_count,
@@ -215,6 +216,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                  VALUES ($1, $2, $3, $4, $5::"Role", true, now(), now())`,
                 [id, name, email, await hashPassword(password), role]
             );
+
+            // Automatically link newly created member to the Master's active team(s)
+            try {
+                const masterTeams = await pgQuery<{ teamId: string }>(
+                    `SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1`,
+                    [master.id]
+                );
+                const teamId = masterTeams?.[0]?.teamId || "team_tbm_main";
+                try {
+                    await pgQuery(
+                        `INSERT INTO "UserTeam" ("userId", "teamId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                        [id, teamId]
+                    );
+                } catch {
+                    await pgQuery(
+                        `INSERT INTO "UserTeam" (id, "userId", "teamId") VALUES (gen_random_uuid()::text, $1, $2) ON CONFLICT DO NOTHING`,
+                        [id, teamId]
+                    ).catch(() => {});
+                }
+            } catch {}
 
             const created = await memberById(id);
             send(res, 201, {

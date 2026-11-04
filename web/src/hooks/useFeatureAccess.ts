@@ -62,6 +62,8 @@ export interface FeatureAccess {
     isOwner: boolean;
     /** Owner OR admin. */
     canManage: boolean;
+    /** True only for Troops Workspace Masters (Pratik or Master Monu in Troops Outreach). */
+    canViewCreators: boolean;
 }
 
 export default function useFeatureAccess(): FeatureAccess {
@@ -70,11 +72,24 @@ export default function useFeatureAccess(): FeatureAccess {
     // workspace's Settings surfaces. Read the live session identity from
     // UserContext (null-safe: some callers render before the provider).
     const userCtx = useContext(UserContext);
+    const currentOrganization = useAppStore((s) => s.currentOrganization);
     const user = userCtx?.user as any;
     const role = (user?.role || "").toUpperCase();
     const roles: string[] = (user?.roles || []).map((r: any) => String(r).toUpperCase());
     const isMaster = Boolean(user) && (role === "MASTER" || role === "OWNER" || roles.includes("MASTER") || roles.includes("OWNER") || user?.is_admin === true);
     const isTeamMember = Boolean(user) && !isMaster;
+
+    const emailLower = String(user?.email || "").toLowerCase();
+    const userId = String(user?.id || "");
+    const isTroopsMasterUser =
+        userId === "usr_troops_0c4c79fd" ||
+        emailLower === "pratik@theboredmonkey.com" ||
+        emailLower.includes("pratik");
+    const isTroopsWorkspace =
+        currentOrganization?.id === "org_troops_outreach" ||
+        currentOrganization?.slug === "troops-outreach" ||
+        isTroopsMasterUser;
+    const canViewCreators = isMaster && isTroopsWorkspace;
 
     return {
         loading: false,
@@ -92,5 +107,6 @@ export default function useFeatureAccess(): FeatureAccess {
         hasWebhooks: true,
         isOwner: isMaster,
         canManage: isMaster,
+        canViewCreators,
     };
 }

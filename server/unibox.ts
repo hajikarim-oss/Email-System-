@@ -24,9 +24,11 @@ function readBody(req: IncomingMessage): Promise<string> {
     });
 }
 
-// Map user names/emails for Vatsal and Snehal
+// Map user names/emails for Vatsal, Snehal, Riya, and Sanika
 const SNEHAL_USER_ID = "cmttwwhj5000ovdkr7ooyb6qt";
 const VATSAL_USER_ID = "cmu6m304o00003307qj8ex6oa";
+const RIYA_USER_ID = "usr_tbm_riya_thapliyal";
+const SANIKA_USER_ID = "usr_tbm_sanika_pingulkar";
 
 interface UniboxCacheEntry {
     data: any;
@@ -101,11 +103,18 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 },
                 ...users.map((u: any) => {
                     const userMbs = mailboxes.filter((m: any) => m.userId === u.id).map((m: any) => m.id);
+                    const emailLower = (u.email || "").toLowerCase();
+                    let roleLabel = "Team Member";
+                    if (u.role === "MASTER") roleLabel = "Master";
+                    else if (u.id === SNEHAL_USER_ID || emailLower.includes("snehal")) roleLabel = "Campaigns";
+                    else if (u.id === VATSAL_USER_ID || emailLower.includes("vatsal")) roleLabel = "Growth";
+                    else if (u.id === RIYA_USER_ID || emailLower.includes("riya")) roleLabel = "Campaigns";
+                    else if (u.id === SANIKA_USER_ID || emailLower.includes("sanika")) roleLabel = "Campaigns";
                     return {
                         id: u.id,
                         name: u.name || (u.email ? u.email.split("@")[0] : "Member"),
                         email: u.email,
-                        role: u.role === "MASTER" ? "Master" : (u.id === SNEHAL_USER_ID ? "Campaigns" : u.id === VATSAL_USER_ID ? "Growth" : "Team Member"),
+                        role: roleLabel,
                         mailboxIds: userMbs,
                         unread: unreadMap.get(u.id) || 0,
                     };

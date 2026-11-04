@@ -1,5 +1,6 @@
 import https from "https";
 import { pgQuery } from "./pg";
+import { ensureTbmTeamMembers } from "./auth";
 import { getAllSmartleadKeys, smartleadPrimary } from "./smartleadKeys";
 
 const BASE_URL = "https://server.smartlead.ai/api/v1";
@@ -157,6 +158,7 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
             if (accounts.length === 0) return;
 
         // Fetch team members from DB to correctly map campaign ownership
+        await ensureTbmTeamMembers();
         const users = await pgQuery<any>(`SELECT id, email, name, role FROM "User"`);
         if (!users || users.length === 0) return;
 
@@ -170,6 +172,8 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
 
         const snehalId = users.find((u: any) => (u.name || "").toLowerCase().includes("snehal") || (u.email || "").toLowerCase().includes("snehal"))?.id || masterUserId;
         const vatsalId = users.find((u: any) => (u.name || "").toLowerCase().includes("vatsal") || (u.email || "").toLowerCase().includes("vatsal"))?.id || masterUserId;
+        const riyaId = users.find((u: any) => (u.name || "").toLowerCase().includes("riya") || (u.email || "").toLowerCase().includes("riya"))?.id || masterUserId;
+        const sanikaId = users.find((u: any) => (u.name || "").toLowerCase().includes("sanika") || (u.email || "").toLowerCase().includes("sanika"))?.id || masterUserId;
         const preetiId = users.find((u: any) => (u.name || "").toLowerCase().includes("preeti") || (u.email || "").toLowerCase().includes("preeti"))?.id || masterUserId;
 
         // Query campaigns from all active accounts
@@ -204,6 +208,8 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
             const nameLower = slName.toLowerCase();
             if (nameLower.includes("snehal")) targetUserId = snehalId;
             else if (nameLower.includes("vatsal")) targetUserId = vatsalId;
+            else if (nameLower.includes("riya")) targetUserId = riyaId;
+            else if (nameLower.includes("sanika")) targetUserId = sanikaId;
             else if (nameLower.includes("preeti")) targetUserId = preetiId;
 
             let mappedStatus = "DRAFT";

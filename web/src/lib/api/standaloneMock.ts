@@ -957,6 +957,25 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         }
     }
 
+    // Creator Reachout System live database proxy
+    if (pathWithoutQuery.startsWith("/creators") || pathWithoutQuery.startsWith("/api/creators") || pathWithoutQuery.startsWith("/creator/intake") || pathWithoutQuery.startsWith("/api/creator/intake")) {
+        try {
+            const normalizedPath = pathWithoutQuery.startsWith("/api") ? pathWithoutQuery : `/api${pathWithoutQuery}`;
+            const fullUrl = `${normalizedPath}${queryString ? `?${queryString}` : ""}`;
+            const creatorRes = await safeFetch(fullUrl, {
+                method,
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: config.data ? (typeof config.data === "string" ? config.data : JSON.stringify(config.data)) : undefined,
+            });
+            if (creatorRes.ok) {
+                const data = await creatorRes.json();
+                return res(data, creatorRes.status);
+            }
+        } catch (e) {
+            console.warn("[standaloneMock] /api/creators proxy error:", e);
+        }
+    }
+
     if (pathWithoutQuery === "/auth/me/notification-preferences") {
         const defaultPrefs = {
             inbound_reply: { enabled: true, channels: { in_app: true, email: true, slack: false, push: true } },
@@ -1169,6 +1188,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const userRole = (curUser?.role === "owner" || curUser?.role === "MASTER") ? "owner" : "member";
         const emailLower = (curUser?.email || "").toLowerCase();
         const isTroopsOnly = !emailLower.includes("monu") && (emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi") || emailLower.includes("tbmtroop"));
+        const isCrossOrgMaster = userRole === "owner" && emailLower.includes("monu");
 
         if (isTroopsOnly) {
             return res([
@@ -1180,6 +1200,20 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                     plan: "enterprise",
                     permissions: 4294967295,
                     created_at: "2026-10-21T00:00:00Z",
+                },
+            ]);
+        }
+
+        if (!isCrossOrgMaster) {
+            return res([
+                {
+                    id: "org_tbm_main",
+                    name: "TheBoredMonkey Workspace",
+                    slug: "theboredmonkey-outreach",
+                    role: userRole,
+                    plan: "enterprise",
+                    permissions: 4294967295,
+                    created_at: "2026-01-01T00:00:00Z",
                 },
             ]);
         }
@@ -1210,10 +1244,11 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const curUser = loadStorage<any>("current_user", null);
         const userRole = (curUser?.role === "owner" || curUser?.role === "MASTER") ? "owner" : "member";
         const emailLower = (curUser?.email || "").toLowerCase();
-        const isTroops = emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi");
+        const isTroops = !emailLower.includes("monu") && (emailLower.includes("pratik") || emailLower.includes("naveen") || emailLower.includes("meenakshi") || emailLower.includes("tbmtroop"));
+        const isCrossOrgMaster = userRole === "owner" && emailLower.includes("monu");
         const activeOrgId = loadStorage<string>("current_organization_id", isTroops ? "org_troops_outreach" : "org_tbm_main");
 
-        if (activeOrgId === "org_troops_outreach" || isTroops) {
+        if (isTroops || (isCrossOrgMaster && activeOrgId === "org_troops_outreach")) {
             return res({
                 id: "org_troops_outreach",
                 name: "Troops Outreach",
