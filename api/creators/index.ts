@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolveToken } from "../../server/auth";
+import { pgQuery } from "../../server/pg";
 import {
     searchCreators,
     getCreatorFacets,
@@ -117,6 +118,27 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                     return;
                 }
                 const cleanHandle = String(creator.handle).replace(/^@/, "").trim().toLowerCase();
+
+                // 1. Serve from PostgreSQL avatarUrl if stored as data:image/...;base64,...
+                if (typeof creator.avatarUrl === "string" && creator.avatarUrl.startsWith("data:image/")) {
+                    const commaIdx = creator.avatarUrl.indexOf(",");
+                    if (commaIdx > 0) {
+                        const header = creator.avatarUrl.slice(5, commaIdx);
+                        const mimeType = header.split(";")[0] || "image/jpeg";
+                        const b64 = creator.avatarUrl.slice(commaIdx + 1);
+                        const buf = Buffer.from(b64, "base64");
+                        avatarCache.set(cleanHandle, { buf, type: mimeType });
+                        res.writeHead(200, {
+                            "Content-Type": mimeType,
+                            "Cache-Control": "public, max-age=86400",
+                            "Access-Control-Allow-Origin": "*",
+                        });
+                        res.end(method === "HEAD" ? undefined : buf);
+                        return;
+                    }
+                }
+
+                // 2. Serve from in-memory cache
                 const cached = avatarCache.get(cleanHandle);
                 if (cached) {
                     res.writeHead(200, {
@@ -158,6 +180,11 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                     const buf = Buffer.from(arrayBuf);
                     const contentType = imgResp.headers.get("content-type") || "image/jpeg";
                     avatarCache.set(cleanHandle, { buf, type: contentType });
+
+                    // Persist to PostgreSQL so cloud/Vercel deployments serve it without calling Instagram
+                    const dataUri = `data:${contentType};base64,${buf.toString("base64")}`;
+                    pgQuery(`UPDATE "Creator" SET "avatarUrl" = $1 WHERE "id" = $2`, [dataUri, creator.id]).catch(() => {});
+
                     res.writeHead(200, {
                         "Content-Type": contentType,
                         "Cache-Control": "public, max-age=86400",

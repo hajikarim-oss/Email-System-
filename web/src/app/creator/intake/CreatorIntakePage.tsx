@@ -198,17 +198,31 @@ function InstagramIcon({ className = "size-3.5" }: { className?: string }) {
 /* ── Live Instagram Profile Avatar with Story Ring & Fallback ── */
 function CreatorAvatar({
   token,
+  handle,
+  avatarUrl,
   name,
   size = "md",
 }: {
   token?: string;
+  handle?: string;
+  avatarUrl?: string;
   name: string;
   size?: "sm" | "md";
 }) {
-  const [imgError, setImgError] = useState(false);
+  const cleanH = (handle || "").replace(/^@/, "").trim().toLowerCase();
+  const sources = useMemo(() => {
+    const list: string[] = [];
+    if (avatarUrl && avatarUrl.startsWith("data:image/")) list.push(avatarUrl);
+    if (cleanH) list.push(`/creator-avatars/${cleanH}.jpg`);
+    if (token) list.push(`/api/creator/intake/${token}/avatar`);
+    return list;
+  }, [avatarUrl, cleanH, token]);
+
+  const [srcIdx, setSrcIdx] = useState(0);
   const dim = size === "sm" ? "size-9" : "size-12";
   const badgeDim = size === "sm" ? "size-3" : "size-3.5";
   const initial = (name.replace(/^@/, "")[0] || "C").toUpperCase();
+  const currentSrc = sources[srcIdx];
 
   return (
     <div className="relative shrink-0">
@@ -216,11 +230,11 @@ function CreatorAvatar({
         className={`${dim} rounded-full p-[2px] bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] shadow-xs`}
       >
         <div className="size-full rounded-full bg-[#1D1D1F] text-[#F7C636] flex items-center justify-center font-extrabold text-sm border-2 border-white overflow-hidden">
-          {token && !imgError ? (
+          {currentSrc ? (
             <img
-              src={`/api/creator/intake/${token}/avatar`}
+              src={currentSrc}
               alt={name}
-              onError={() => setImgError(true)}
+              onError={() => setSrcIdx((i) => i + 1)}
               className="size-full object-cover"
             />
           ) : (
@@ -276,6 +290,7 @@ const SLIDE_MS = 5200;
 
 function TBMShowcase({
   token,
+  avatarUrl,
   creatorName,
   handle,
   followersLabel,
@@ -289,6 +304,7 @@ function TBMShowcase({
   matchedBrandCount,
 }: {
   token?: string;
+  avatarUrl?: string;
   creatorName: string;
   handle: string;
   followersLabel: string;
@@ -404,7 +420,13 @@ function TBMShowcase({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <CreatorAvatar token={token} name={creatorName} size="md" />
+                  <CreatorAvatar
+                    token={token}
+                    handle={handle}
+                    avatarUrl={avatarUrl}
+                    name={creatorName}
+                    size="md"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[15.5px] font-extrabold text-[#1D1D1F] truncate">
@@ -975,7 +997,13 @@ export function CreatorIntakePage() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <CreatorAvatar token={token} name={displayCreatorName} size="sm" />
+            <CreatorAvatar
+              token={token}
+              handle={cleanHandle}
+              avatarUrl={creator.avatarUrl}
+              name={displayCreatorName}
+              size="sm"
+            />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
                 <span className="text-sm font-extrabold text-[#1D1D1F] truncate">
@@ -1001,6 +1029,7 @@ export function CreatorIntakePage() {
           <div className="hidden lg:block lg:col-span-5 lg:border-r lg:border-stone-200/80 lg:h-[600px]">
             <TBMShowcase
               token={token}
+              avatarUrl={creator.avatarUrl}
               creatorName={displayCreatorName}
               handle={cleanHandle}
               followersLabel={followersLabel}
