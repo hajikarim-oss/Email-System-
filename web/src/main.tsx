@@ -21,6 +21,14 @@ function TroopsMasterOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function FinanceOnly({ children }: { children: React.ReactNode }) {
+  const access = useFeatureAccess();
+  if (!access.canViewFinance) {
+    return <Navigate to="/app/dashboard" replace />;
+  }
+  return <>{children}</>;
+}
+
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/poppins/400.css";
@@ -481,7 +489,7 @@ const router = createBrowserRouter([
           },
           {
             path: "finance",
-            element: <ManagerOnly><Outlet /></ManagerOnly>,
+            element: <FinanceOnly><Outlet /></FinanceOnly>,
             children: [
               { index: true, element: <Navigate to="/app/finance/dashboard" replace /> },
               { path: "dashboard", element: <CfoDashboardPage /> },

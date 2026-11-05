@@ -64,6 +64,8 @@ export interface FeatureAccess {
     canManage: boolean;
     /** True only for Troops Workspace Masters (Pratik or Master Monu in Troops Outreach). */
     canViewCreators: boolean;
+    /** True only for Monu and Pratik to access Finance & Accounts. */
+    canViewFinance: boolean;
 }
 
 export default function useFeatureAccess(): FeatureAccess {
@@ -81,6 +83,20 @@ export default function useFeatureAccess(): FeatureAccess {
 
     const emailLower = String(user?.email || "").toLowerCase();
     const userId = String(user?.id || "");
+    const nameLower = String(user?.name || `${user?.first_name || ""} ${user?.last_name || ""}`).toLowerCase();
+    const isMonu =
+        emailLower === "monu@theboredmonkey.com" ||
+        emailLower === "kumar.monu@theboredmonkey.com" ||
+        emailLower.includes("monu") ||
+        nameLower.includes("monu") ||
+        userId === "cmtr9pp8t0000cygeyjpsz5lt";
+    const isPratik =
+        userId === "usr_troops_0c4c79fd" ||
+        emailLower === "pratik@theboredmonkey.com" ||
+        emailLower.includes("pratik") ||
+        nameLower.includes("pratik");
+    const canViewFinance = Boolean(user) && (isMonu || isPratik);
+
     const isTroopsMasterUser =
         userId === "usr_troops_0c4c79fd" ||
         emailLower === "pratik@theboredmonkey.com" ||
@@ -108,5 +124,6 @@ export default function useFeatureAccess(): FeatureAccess {
         isOwner: isMaster,
         canManage: isMaster,
         canViewCreators,
+        canViewFinance,
     };
 }

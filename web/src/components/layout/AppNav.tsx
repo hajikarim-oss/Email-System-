@@ -83,7 +83,7 @@ interface NavItem {
     /** Feature gate key — when set, sidebar dims the row and shows a plan badge. */
     requires?: "inbox" | "advanced" | "subscription";
     /** Role gate — when set, sidebar hides the row entirely for non-matching roles. */
-    rolesAllowed?: "manage" | "troops_master";
+    rolesAllowed?: "manage" | "troops_master" | "finance";
     /** Permission gate — when the member lacks it, the row shows a lock and a
      *  click pops an access dialog instead of navigating to an empty page. */
     permission?: PermissionKey;
@@ -170,15 +170,15 @@ const sections: NavSection[] = [
     {
         label: "Finance & Accounts",
         items: [
-            { title: "CFO Overview", url: "/app/finance/dashboard", icon: LayoutDashboardIcon, indicator: "analytics", rolesAllowed: "manage" },
-            { title: "P&L Statement", url: "/app/finance/pl", icon: BarChart3Icon, rolesAllowed: "manage" },
-            { title: "Receivables", url: "/app/finance/receivables", icon: CircleDollarSignIcon, indicator: "tasks", rolesAllowed: "manage" },
-            { title: "Creator Payouts", url: "/app/finance/creators", icon: UsersIcon, rolesAllowed: "manage" },
-            { title: "Expenses", url: "/app/finance/expenses", icon: ReceiptIcon, rolesAllowed: "manage" },
-            { title: "Taxes & GST", url: "/app/finance/taxes", icon: ShieldCheckIcon, rolesAllowed: "manage" },
-            { title: "Fixed Assets", url: "/app/finance/assets", icon: LandmarkIcon, rolesAllowed: "manage" },
-            { title: "Cash Flow", url: "/app/finance/cashflow", icon: CircleDollarSignIcon, rolesAllowed: "manage" },
-            { title: "Tally Reconcile", url: "/app/finance/reconcile", icon: CableIcon, indicator: "integrations", rolesAllowed: "manage" },
+            { title: "CFO Overview", url: "/app/finance/dashboard", icon: LayoutDashboardIcon, indicator: "analytics", rolesAllowed: "finance" },
+            { title: "P&L Statement", url: "/app/finance/pl", icon: BarChart3Icon, rolesAllowed: "finance" },
+            { title: "Receivables", url: "/app/finance/receivables", icon: CircleDollarSignIcon, indicator: "tasks", rolesAllowed: "finance" },
+            { title: "Creator Payouts", url: "/app/finance/creators", icon: UsersIcon, rolesAllowed: "finance" },
+            { title: "Expenses", url: "/app/finance/expenses", icon: ReceiptIcon, rolesAllowed: "finance" },
+            { title: "Taxes & GST", url: "/app/finance/taxes", icon: ShieldCheckIcon, rolesAllowed: "finance" },
+            { title: "Fixed Assets", url: "/app/finance/assets", icon: LandmarkIcon, rolesAllowed: "finance" },
+            { title: "Cash Flow", url: "/app/finance/cashflow", icon: CircleDollarSignIcon, rolesAllowed: "finance" },
+            { title: "Tally Reconcile", url: "/app/finance/reconcile", icon: CableIcon, indicator: "integrations", rolesAllowed: "finance" },
         ],
     },
     {
@@ -209,6 +209,7 @@ function NavRow({ item }: { item: NavItem }) {
     // administrative tools, not premium features to tease.
     if (item.rolesAllowed === "manage" && !access.canManage) return null;
     if (item.rolesAllowed === "troops_master" && !access.canViewCreators) return null;
+    if (item.rolesAllowed === "finance" && !access.canViewFinance) return null;
 
     // Permission-gated items the member lacks: render a locked row that pops
     // an access dialog on click, so the feature is visibly unavailable (a
@@ -904,11 +905,12 @@ export function AppNav({ open = false, onClose }: { open?: boolean; onClose?: ()
                 items: s.items.filter((it) => {
                     if (it.rolesAllowed === "manage" && !access.canManage) return false;
                     if (it.rolesAllowed === "troops_master" && !access.canViewCreators) return false;
+                    if (it.rolesAllowed === "finance" && !access.canViewFinance) return false;
                     return true;
                 }),
             }))
             .filter((s) => s.items.length > 0);
-    }, [access.canManage, access.canViewCreators]);
+    }, [access.canManage, access.canViewCreators, access.canViewFinance]);
     return (
         <>
             {/* Mobile-only scrim. Tapping it closes the drawer. */}

@@ -72,13 +72,13 @@ export function FinanceSidePanel() {
     };
 
     useEffect(() => {
-        if (!access.canManage) return;
+        if (!access.canViewFinance) return;
         fetchStatus();
         const interval = setInterval(fetchStatus, 20000);
         return () => clearInterval(interval);
-    }, [access.canManage]);
+    }, [access.canViewFinance]);
 
-    if (!access.canManage) return null;
+    if (!access.canViewFinance) return null;
 
     const handleManualSync = async () => {
         setIsSyncing(true);
