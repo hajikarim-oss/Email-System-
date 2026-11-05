@@ -68,6 +68,7 @@ export default async function searchIncoming(
   }
   if (p.campaignId) usp.set("campaign_id", p.campaignId);
   if (p.memberId) usp.set("member_id", p.memberId);
+  if (p.creatorOnly) usp.set("creator_only", "true");
   if (p.since) usp.set("since", isoDay(p.since));
   if (p.until) usp.set("until", isoDay(p.until));
   if (p.cursor) usp.set("cursor", p.cursor);

@@ -258,6 +258,11 @@ export function RichEmailEditor({
         out = out.replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand)\s*\]/gi, "PhonePe");
         out = out.replace(/\{\{\s*(\.?role|role|\.?Title|title)\s*\}\}/gi, "Marketing Partnerships");
         out = out.replace(/\[\s*(Job\s*Title|Title|Role)\s*\]/gi, "Marketing Partnerships");
+        out = out.replace(/\{\{\s*(\.?Handle|handle)\s*\}\}/gi, "@itsmoumita");
+        out = out.replace(/\{\{\s*(\.?Category|category)\s*\}\}/gi, "Lifestyle & Skincare");
+        out = out.replace(/\{\{\s*(\.?Followers|followers)\s*\}\}/gi, "49K");
+        out = out.replace(/\{\{\s*(\.?IntakeFormUrl|IntakeFormUrl|intake_link|form_link|FormLink)\s*\}\}/gi, `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/itsmoumita`);
+        out = out.replace(/\[\s*Form\s*Link\s*\]/gi, `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/itsmoumita`);
         return out;
     };
 
@@ -533,6 +538,17 @@ export function RichEmailEditor({
                         </button>
                         
                                 <div className="h-3 w-px bg-slate-300 mx-0.5" />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        insertHtmlAtCaret(` <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 600; text-decoration: underline;">{{form_link}}</a> `);
+                                    }}
+                                    className="px-2 py-0.5 rounded text-[10.5px] font-semibold bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                                    title="Insert dedicated dynamic Creator Form Link ({{form_link}})"
+                                >
+                                    <LinkIcon className="w-3 h-3 text-amber-600" />
+                                    + {"{{form_link}}"}
+                                </button>
                                 <button
                                     type="button"
                                     onClick={handleFixSpacing}

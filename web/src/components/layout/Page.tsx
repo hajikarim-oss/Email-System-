@@ -63,14 +63,13 @@ export function PageTopbar({
     return (
         <div
             className={cn(
-                // Single 48px row on >=md; on mobile it wraps so action
-                // clusters drop to a second line instead of widening the page.
-                "min-h-12 md:h-12 px-5 py-1.5 md:py-0 border-b border-stone-200/90 flex flex-wrap md:flex-nowrap items-center gap-3 gap-y-1.5 shrink-0 bg-white sticky top-0 z-10",
+                // Single 48px row; children scroll smoothly on narrow viewports
+                "h-12 min-h-12 px-5 border-b border-stone-200/90 flex flex-nowrap items-center gap-3 shrink-0 bg-white sticky top-0 z-10",
                 className,
             )}
         >
-            <div className="flex items-center gap-2.5 min-w-0">
-                <span className="font-editorial text-[20px] md:text-[22px] font-normal tracking-tight text-slate-950">
+            <div className="flex items-center gap-2.5 shrink-0 whitespace-nowrap">
+                <span className="font-editorial text-[20px] md:text-[22px] font-normal tracking-tight text-slate-950 whitespace-nowrap leading-none select-none">
                     {eyebrow}
                 </span>
                 {subtitle && (
@@ -82,7 +81,11 @@ export function PageTopbar({
                     </>
                 )}
             </div>
-            {children && <div className="ml-auto flex items-center gap-2 min-w-0 flex-wrap justify-end md:flex-nowrap">{children}</div>}
+            {children && (
+                <div className="ml-auto flex items-center gap-2 min-w-0 flex-nowrap justify-end overflow-x-auto no-scrollbar py-1">
+                    {children}
+                </div>
+            )}
         </div>
     );
 }
@@ -113,7 +116,7 @@ export function TopbarAction({
             : "border border-slate-300 hover:border-slate-900 text-slate-800 hover:text-black bg-white font-medium shadow-2xs";
     if (href) {
         const actionCls = cn(
-            "h-7 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors cursor-pointer",
+            "h-7 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0",
             cls,
             className,
         );
@@ -137,7 +140,7 @@ export function TopbarAction({
             onClick={onClick}
             disabled={disabled}
             className={cn(
-                "h-7 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer",
+                "h-7 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0",
                 cls,
                 className,
             )}

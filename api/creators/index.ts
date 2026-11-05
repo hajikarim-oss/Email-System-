@@ -11,6 +11,13 @@ import {
     saveCreatorTemplate,
     deleteCreatorTemplate,
 } from "../../server/creators";
+import {
+    listCreatorCampaigns,
+    getCreatorCampaignById,
+    createCreatorCampaign,
+    updateCreatorCampaign,
+    deleteCreatorCampaign,
+} from "../../server/creator_campaigns";
 
 const avatarCache = new Map<string, { buf: Buffer; type: string }>();
 
@@ -99,6 +106,41 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
             if (id) {
                 await deleteCreatorTemplate(undefined, id);
                 return sendJson(res, 200, { success: true });
+            }
+        }
+
+        // 2b. Native Creator Campaigns Endpoints (/api/creators/campaigns)
+        if (pathname === "/api/creators/campaigns" || pathname === "/api/v1/creators/campaigns") {
+            const workspaceId = url.searchParams.get("workspaceId") || "org_troops_outreach";
+            if (method === "GET") {
+                const campaigns = await listCreatorCampaigns(undefined, workspaceId);
+                return sendJson(res, 200, campaigns);
+            }
+            if (method === "POST") {
+                const body = await parseBody(req);
+                const campaign = await createCreatorCampaign(undefined, { ...body, workspaceId });
+                return sendJson(res, 201, campaign);
+            }
+        }
+
+        if ((pathname.startsWith("/api/creators/campaigns/") || pathname.startsWith("/api/v1/creators/campaigns/")) && pathname.split("/").length === 5) {
+            const campId = pathname.split("/").pop();
+            if (campId) {
+                if (method === "GET") {
+                    const campaign = await getCreatorCampaignById(undefined, campId);
+                    if (!campaign) return sendJson(res, 404, { error: "Campaign not found" });
+                    return sendJson(res, 200, campaign);
+                }
+                if (method === "PATCH") {
+                    const body = await parseBody(req);
+                    const updated = await updateCreatorCampaign(undefined, campId, body);
+                    if (!updated) return sendJson(res, 404, { error: "Campaign not found" });
+                    return sendJson(res, 200, updated);
+                }
+                if (method === "DELETE") {
+                    await deleteCreatorCampaign(undefined, campId);
+                    return sendJson(res, 200, { success: true });
+                }
             }
         }
 

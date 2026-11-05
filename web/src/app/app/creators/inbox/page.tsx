@@ -1,0 +1,483 @@
+import React from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ChevronLeftIcon, InboxIcon, SparklesIcon } from "lucide-react";
+
+import { ConversationList } from "@/components/app/unibox/ConversationList";
+import { ScheduledList } from "@/components/app/unibox/ScheduledList";
+import { ThreadView } from "@/components/app/unibox/ThreadView";
+import { ScopeRail, scopeKey, type UniboxScope } from "@/components/app/unibox/ScopeRail";
+import { ScopeSheet } from "@/components/app/unibox/ScopeSheet";
+import { UniboxHeader, UNIBOX_TEAM_MEMBERS, type UniboxDatePreset, type UniboxDateFilterState } from "@/components/app/unibox/UniboxHeader";
+import useTeamMembers from "@/lib/api/hooks/app/unibox/useTeamMembers";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
+import { LockedSurface } from "@/components/layout/LockedSurface";
+import { NoAccess } from "@/components/layout/NoAccess";
+import { usePermission } from "@/hooks/usePermission";
+import { useUserProfile } from "@/hooks/context/user";
+import { useAppStore } from "@/stores";
+import useUniboxOverview from "@/lib/api/hooks/app/unibox/useUniboxOverview";
+import { cn } from "@/lib/utils";
+import type { UniboxSearchParams } from "@/lib/api/models/app/unibox/UniboxSearch";
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfWeek(): Date {
+  const d = startOfToday();
+  d.setDate(d.getDate() - 6);
+  return d;
+}
+
+export default function CreatorUniboxPage() {
+  const access = useFeatureAccess();
+  const canAccess = usePermission("ACCESS_UNIBOX");
+  const overview = useUniboxOverview(true);
+  const routeParams = useParams<{ scope?: string; threadId?: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [scopeSheetOpen, setScopeSheetOpen] = React.useState(false);
+
+  const { user } = useUserProfile();
+  const userRole = String((user as any)?.role || "").toUpperCase();
+  const userRoles = Array.isArray(user?.roles) ? user.roles.map((r: string) => String(r).toUpperCase()) : [];
+  const isMaster = Boolean(user) && (
+    user?.is_admin === true ||
+    userRole === "OWNER" ||
+    userRole === "MASTER" ||
+    userRole === "ADMIN" ||
+    userRoles.includes("OWNER") ||
+    userRoles.includes("MASTER") ||
+    userRoles.includes("ADMIN") ||
+    user?.email?.toLowerCase() === "monu@theboredmonkey.com"
+  );
+  const teamQuery = useTeamMembers();
+  const teamMembers = React.useMemo(() => {
+    if (Array.isArray(teamQuery.data) && teamQuery.data.length > 0) return teamQuery.data;
+    if (Array.isArray((teamQuery.data as any)?.data) && (teamQuery.data as any).data.length > 0) return (teamQuery.data as any).data;
+    return UNIBOX_TEAM_MEMBERS;
+  }, [teamQuery.data]);
+  const userTeamMember = React.useMemo(() => {
+    return teamMembers.find((m: any) => m.email?.toLowerCase() === user?.email?.toLowerCase());
+  }, [user, teamMembers]);
+
+  // Master starts at "all"; individual team members are locked to their own profile
+  const [selectedMemberId, setSelectedMemberId] = React.useState<string>(() => {
+    if (!isMaster && userTeamMember) return userTeamMember.id;
+    return "all";
+  });
+
+  const [selectedCampaignId, setSelectedCampaignId] = React.useState<string>("all");
+  const [dateFilter, setDateFilter] = React.useState<UniboxDateFilterState>({ preset: "all" });
+
+  const handleSelectDatePreset = React.useCallback((preset: UniboxDatePreset) => {
+    if (preset === "all") {
+      setDateFilter({ preset: "all", label: undefined, since: undefined, until: undefined });
+      return;
+    }
+    const now = new Date();
+    if (preset === "today") {
+      const since = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const until = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      setDateFilter({ preset: "today", since, until, label: "Today" });
+      return;
+    }
+    if (preset === "yesterday") {
+      const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+      const until = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      setDateFilter({ preset: "yesterday", since: yesterday, until, label: "Yesterday" });
+      return;
+    }
+    if (preset === "7d") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+      const until = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      setDateFilter({ preset: "7d", since: start, until, label: "Last 7 days" });
+      return;
+    }
+    if (preset === "30d") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
+      const until = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      setDateFilter({ preset: "30d", since: start, until, label: "Last 30 days" });
+      return;
+    }
+  }, []);
+
+  const handleApplyCustomDateRange = React.useCallback((startStr: string, endStr: string) => {
+    let since: Date | undefined;
+    let until: Date | undefined;
+    let label = "Custom";
+    if (startStr) {
+      const parts = startStr.split("-").map(Number);
+      since = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+    }
+    if (endStr) {
+      const parts = endStr.split("-").map(Number);
+      until = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
+    }
+    if (startStr && endStr) {
+      label = `${startStr.slice(5)} to ${endStr.slice(5)}`;
+    } else if (startStr) {
+      label = `From ${startStr.slice(5)}`;
+    } else if (endStr) {
+      label = `Until ${endStr.slice(5)}`;
+    }
+    setDateFilter({
+      preset: "custom",
+      since,
+      until,
+      customStart: startStr,
+      customEnd: endStr,
+      label,
+    });
+  }, []);
+
+  // Sync if user profile loads late
+  React.useEffect(() => {
+    if (!isMaster && userTeamMember && selectedMemberId !== userTeamMember.id) {
+      setSelectedMemberId(userTeamMember.id);
+    }
+  }, [isMaster, userTeamMember, selectedMemberId]);
+
+  // URL state rooted under /app/creators/inbox
+  const urlScope = routeParams.scope ?? "all";
+  const urlThread = routeParams.threadId ?? null;
+  const urlScopeRef = searchParams.get("ref");
+
+  const goTo = React.useCallback(
+    (next: { scope?: string; threadId?: string | null; ref?: string | null }) => {
+      const scope = next.scope ?? urlScope;
+      const threadId =
+        next.threadId === undefined ? urlThread : next.threadId;
+      const ref = next.ref === undefined ? urlScopeRef : next.ref;
+      let path = `/app/creators/inbox/${scope || "all"}`;
+      if (threadId) path += `/${encodeURIComponent(threadId)}`;
+      if (ref) path += `?ref=${encodeURIComponent(ref)}`;
+      navigate(path, { replace: true });
+    },
+    [navigate, urlScope, urlThread, urlScopeRef],
+  );
+
+  const setSelectedThreadId = useAppStore((s) => s.setSelectedThreadId);
+  const storeThread = useAppStore((s) => s.selectedThreadId);
+  const lastUrlThread = React.useRef(urlThread);
+  const lastStoreThread = React.useRef(storeThread);
+  React.useEffect(() => {
+    const urlMoved = urlThread !== lastUrlThread.current;
+    const storeMoved = storeThread !== lastStoreThread.current;
+    lastUrlThread.current = urlThread;
+    lastStoreThread.current = storeThread;
+    if (urlThread === storeThread) return;
+    if (storeMoved && !urlMoved) goTo({ threadId: storeThread });
+    else setSelectedThreadId(urlThread);
+  }, [urlThread, storeThread, setSelectedThreadId, goTo]);
+
+  const scope: UniboxScope = React.useMemo(() => {
+    switch (urlScope) {
+      case "unread":
+        return { kind: "unread" };
+      case "today":
+        return { kind: "today" };
+      case "week":
+        return { kind: "week" };
+      case "awaiting":
+        return { kind: "awaiting" };
+      case "agent_drafts":
+        return { kind: "agent_drafts" };
+      case "snoozed":
+        return { kind: "snoozed" };
+      case "scheduled":
+        return { kind: "scheduled" };
+      case "inbox":
+      case "sent":
+      case "drafts":
+      case "archive":
+      case "spam":
+      case "trash":
+        return { kind: "folder", folder: urlScope };
+      case "mailbox":
+        return urlScopeRef
+          ? { kind: "mailbox", mailboxId: urlScopeRef }
+          : { kind: "all" };
+      case "tag":
+        return urlScopeRef
+          ? { kind: "tag", tagId: urlScopeRef }
+          : { kind: "all" };
+      case "category":
+        return urlScopeRef
+          ? { kind: "category", categoryId: urlScopeRef }
+          : { kind: "all" };
+      default:
+        return { kind: "all" };
+    }
+  }, [urlScope, urlScopeRef]);
+
+  const setScope = React.useCallback(
+    (s: UniboxScope) => {
+      switch (s.kind) {
+        case "folder":
+          goTo({ scope: s.folder, ref: null });
+          return;
+        case "mailbox":
+          goTo({ scope: "mailbox", ref: s.mailboxId });
+          return;
+        case "tag":
+          goTo({ scope: "tag", ref: s.tagId });
+          return;
+        case "category":
+          goTo({ scope: "category", ref: s.categoryId });
+          return;
+        case "all":
+          goTo({ scope: "all", ref: null });
+          return;
+        default:
+          goTo({ scope: s.kind, ref: null });
+      }
+    },
+    [goTo],
+  );
+
+  const storeEmails = useAppStore((s) => s.emails);
+  const tagAccountIds = React.useMemo(
+    () =>
+      scope.kind === "tag"
+        ? storeEmails
+            .filter((m) => (m.tags ?? []).includes(scope.tagId))
+            .map((m) => m.id)
+        : null,
+    [scope, storeEmails],
+  );
+
+  const paramsForScope = React.useCallback(
+    (sortBy: UniboxSearchParams["sortBy"]): UniboxSearchParams => {
+      const next: UniboxSearchParams = { sortBy: sortBy ?? "newest", creatorOnly: true };
+      switch (scope.kind) {
+        case "all":
+          next.folder = "inbox";
+          break;
+        case "unread":
+          next.unseen = true;
+          next.folder = "inbox";
+          break;
+        case "today":
+          next.since = startOfToday();
+          next.folder = "inbox";
+          break;
+        case "week":
+          next.since = startOfWeek();
+          next.folder = "inbox";
+          break;
+        case "awaiting":
+          next.awaitingReply = true;
+          break;
+        case "agent_drafts":
+          next.agentDrafts = true;
+          break;
+        case "snoozed":
+          next.snoozed = true;
+          break;
+        case "folder":
+          next.folder = scope.folder;
+          break;
+        case "mailbox":
+          next.accountIds = [scope.mailboxId];
+          next.folder = "inbox";
+          break;
+        case "tag":
+          next.accountIds = tagAccountIds ?? [];
+          next.tagId = scope.tagId;
+          break;
+        case "category":
+          next.categoryIds = [scope.categoryId];
+          break;
+      }
+
+      if (selectedMemberId !== "all" && scope.kind !== "mailbox") {
+        next.memberId = selectedMemberId;
+      }
+
+      if (selectedCampaignId !== "all") {
+        next.campaignId = selectedCampaignId;
+      }
+
+      if (dateFilter.since) {
+        next.since = dateFilter.since;
+      }
+      if (dateFilter.until) {
+        next.until = dateFilter.until;
+      }
+
+      return next;
+    },
+    [scope, tagAccountIds, selectedMemberId, selectedCampaignId, dateFilter],
+  );
+
+  const [params, setParams] = React.useState<UniboxSearchParams>(() =>
+    paramsForScope("newest"),
+  );
+
+  const tagIdsKey = tagAccountIds?.join(",") ?? "";
+  const dateFilterKey = `${dateFilter.preset}_${dateFilter.since?.getTime() || ""}_${dateFilter.until?.getTime() || ""}`;
+  const [prevReset, setPrevReset] = React.useState({ scope, tagIdsKey, selectedMemberId, selectedCampaignId, dateFilterKey });
+  if (
+    prevReset.scope !== scope ||
+    prevReset.tagIdsKey !== tagIdsKey ||
+    prevReset.selectedMemberId !== selectedMemberId ||
+    prevReset.selectedCampaignId !== selectedCampaignId ||
+    prevReset.dateFilterKey !== dateFilterKey
+  ) {
+    setPrevReset({ scope, tagIdsKey, selectedMemberId, selectedCampaignId, dateFilterKey });
+    setParams((prev) => paramsForScope(prev.sortBy));
+  }
+
+  const overviewData = overview.data;
+  const scopeLabel = React.useMemo(() => {
+    switch (scope.kind) {
+      case "unread":
+        return "Unread";
+      case "today":
+        return "Today";
+      case "week":
+        return "This week";
+      case "awaiting":
+        return "Awaiting reply";
+      case "agent_drafts":
+        return "Agent drafts";
+      case "snoozed":
+        return "Snoozed";
+      case "scheduled":
+        return "Scheduled";
+      case "folder":
+        return scope.folder.charAt(0).toUpperCase() + scope.folder.slice(1);
+      case "mailbox": {
+        const m = overviewData?.mailboxes?.find((x) => x.id === scope.mailboxId);
+        return m ? m.email : "Mailbox";
+      }
+      case "tag": {
+        const t = overviewData?.tags?.find((x) => x.id === scope.tagId);
+        return t ? `Tag · ${t.title}` : "Tag";
+      }
+      case "category": {
+        const c = overviewData?.categories?.find(
+          (x) => x.id === scope.categoryId,
+        );
+        return c ? `Label · ${c.title}` : "Label";
+      }
+      default:
+        return "All";
+    }
+  }, [scope, overviewData]);
+
+  if (!canAccess) {
+    return <NoAccess feature="the creator unified inbox" permissionLabel="Use unified inbox" />;
+  }
+
+  return (
+    <LockedSurface
+      locked={!access.loading && !access.hasInbox}
+      feature="Creator Replies & Intake Radar"
+      blurb="Real-time inbound communication, Bumble-style intake submissions, and direct brand inquiries from verified Instagram creators."
+      minPlan="starter"
+      bullets={[
+        "Live creator overview: unread, 100% enriched profiles, form opened",
+        "Direct intake token tracking & WhatsApp verification status",
+        "Deep-linkable creator reply threads with complete contact details",
+      ]}
+    >
+      <div className="flex flex-col h-full bg-white">
+        <UniboxHeader
+          creatorOnly
+          title="Creator Replies"
+          scopeLabel={scopeLabel}
+          onClearScope={() => setScope({ kind: "all" })}
+          onOpenScopeSheet={() => setScopeSheetOpen(true)}
+          selectedMemberId={selectedMemberId}
+          onSelectMember={(id) => setSelectedMemberId(id)}
+          selectedCampaignId={selectedCampaignId}
+          onSelectCampaign={(id) => setSelectedCampaignId(id)}
+          dateFilter={dateFilter}
+          onSelectDatePreset={handleSelectDatePreset}
+          onApplyCustomDateRange={handleApplyCustomDateRange}
+          isMaster={isMaster}
+          currentUser={user}
+        />
+
+        <ScopeSheet
+          open={scopeSheetOpen}
+          setOpen={setScopeSheetOpen}
+          scope={scope}
+          onChange={setScope}
+        />
+
+        <div className="flex-1 min-h-0 flex">
+          <aside className="hidden lg:flex w-[220px] shrink-0 h-full">
+            <ScopeRail scope={scope} onChange={setScope} />
+          </aside>
+
+          {scope.kind === "scheduled" ? (
+            <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-l border-slate-200">
+              <ScheduledList />
+            </div>
+          ) : (
+            <>
+              <div
+                className={cn(
+                  "w-full md:w-[360px] shrink-0 border-r border-slate-200 overflow-hidden flex-col",
+                  urlThread ? "hidden md:flex" : "flex",
+                )}
+              >
+                <ConversationList
+                  scopeKey={scopeKey(scope)}
+                  scopeLabel={scopeLabel}
+                  params={params}
+                  setParams={setParams}
+                  activeDateLabel={dateFilter.preset !== "all" ? dateFilter.label : undefined}
+                  onClearDateFilter={() => handleSelectDatePreset("all")}
+                />
+              </div>
+
+              <div
+                className={cn(
+                  "flex-1 min-w-0 overflow-hidden flex-col",
+                  urlThread ? "flex" : "hidden md:flex",
+                )}
+              >
+                {urlThread ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => goTo({ threadId: null })}
+                      className="md:hidden flex items-center gap-1 px-3 h-10 shrink-0 border-b border-slate-200 text-[13px] font-medium text-slate-600 hover:text-slate-900 active:bg-slate-50"
+                    >
+                      <ChevronLeftIcon className="w-4 h-4" />
+                      Creator Replies
+                    </button>
+                    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                      <ThreadView key={urlThread} threadId={urlThread} />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center bg-slate-50/30">
+                    <div className="text-center px-5 max-w-sm">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto mb-3 text-amber-700 shadow-2xs">
+                        <SparklesIcon className="w-5 h-5" />
+                      </div>
+                      <p className="text-[13px] font-bold text-slate-900">
+                        Select a Creator Conversation
+                      </p>
+                      <p className="text-[12px] text-slate-500 mt-1.5 leading-relaxed">
+                        Pick a creator thread from the left to view their collaboration response, verified intake details, rates, and message history.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </LockedSurface>
+  );
+}
+

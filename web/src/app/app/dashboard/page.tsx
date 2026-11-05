@@ -851,43 +851,44 @@ export default function DashboardPage() {
                     type="button"
                     onClick={handleRefreshTelemetry}
                     disabled={isRefreshing}
-                    className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs whitespace-nowrap shrink-0"
                     title="Sync Webhooks & Telemetry"
                 >
-                    <RefreshCwIcon className={cn("w-3.5 h-3.5 text-slate-500", isRefreshing && "animate-spin text-slate-900")} />
-                    <span>Sync Telemetry</span>
+                    <RefreshCwIcon className={cn("w-3.5 h-3.5 text-slate-500 shrink-0", isRefreshing && "animate-spin text-slate-900")} />
+                    <span className="whitespace-nowrap">Sync Telemetry</span>
                 </button>
                 <button
                     type="button"
                     onClick={() => setAiOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                 >
-                    <SparklesIcon className="w-3.5 h-3.5 text-slate-900" />
-                    <span>AI Assistant</span>
+                    <SparklesIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
+                    <span className="whitespace-nowrap">AI Assistant</span>
                 </button>
                 <button
                     type="button"
                     onClick={() => setIsRepliesHubOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                     title="View Inbound Replies"
                 >
-                    <ReplyIcon className="w-3.5 h-3.5 text-slate-900" />
-                    <span>Replies</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#FFE600] text-slate-950 border border-black/10">
+                    <ReplyIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
+                    <span className="whitespace-nowrap">Replies</span>
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FFE600] text-slate-950 border border-black/10 shrink-0">
                         {reportData?.recent_replies?.length ?? 0}
                     </span>
                 </button>
                 <button
                     type="button"
                     onClick={() => setIsExportModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-stone-200/90 bg-white hover:bg-stone-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer shadow-2xs"
+                    className="inline-flex items-center gap-1.5 px-3 h-7 rounded-md border border-stone-200/90 bg-white hover:bg-stone-50 text-[12px] font-medium text-slate-700 transition-colors cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                 >
-                    <CalendarIcon className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Export Report (CSV)</span>
+                    <CalendarIcon className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span className="whitespace-nowrap">Export Report (CSV)</span>
                 </button>
                 <TopbarAction
                     href="/app/campaigns"
-                    icon={<PlusIcon className="w-3.5 h-3.5" />}
+                    icon={<PlusIcon className="w-3.5 h-3.5 shrink-0" />}
+                    className="whitespace-nowrap shrink-0"
                 >
                     New Campaign
                 </TopbarAction>

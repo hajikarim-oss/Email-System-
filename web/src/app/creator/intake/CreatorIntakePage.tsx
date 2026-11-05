@@ -613,6 +613,23 @@ export function CreatorIntakePage() {
   const [contentDescription, setContentDescription] = useState("");
   const [stepError, setStepError] = useState<string | null>(null);
 
+  // Real-time autosave progress ping
+  const autosaveTimerRef = useRef<any>(null);
+  const sendLiveProgress = useCallback(
+    (partialData: Record<string, any>) => {
+      if (!token) return;
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = setTimeout(() => {
+        fetch(`/api/creator/intake/${token}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(partialData),
+        }).catch(() => {});
+      }, 500);
+    },
+    [token]
+  );
+
   useEffect(() => {
     if (!token) return;
     fetch(`/api/creator/intake/${token}`)
@@ -710,8 +727,11 @@ export function CreatorIntakePage() {
         .then((res) => {
           if (res?.[0]?.Status === "Success" && res[0].PostOffice?.length > 0) {
             const po = res[0].PostOffice[0];
-            setCity(po.District || po.Block || po.Name || "");
-            setState(po.State || "");
+            const detectedCity = po.District || po.Block || po.Name || "";
+            const detectedState = po.State || "";
+            setCity(detectedCity);
+            setState(detectedState);
+            sendLiveProgress({ pincode: cleanPin, city: detectedCity, state: detectedState, step: 1 });
           }
         })
         .catch(() => {})
@@ -720,20 +740,24 @@ export function CreatorIntakePage() {
       setCity("");
       setState("");
     }
-  }, [pincode]);
+  }, [pincode, sendLiveProgress]);
 
   const toggleLanguage = (lang: string) => {
     setStepError(null);
-    setLanguages((prev) =>
-      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
-    );
+    setLanguages((prev) => {
+      const next = prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang];
+      sendLiveProgress({ languages: next, step: 2 });
+      return next;
+    });
   };
 
   const toggleGenre = (genre: string) => {
     setStepError(null);
-    setSelectedGenres((prev) =>
-      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
-    );
+    setSelectedGenres((prev) => {
+      const next = prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre];
+      sendLiveProgress({ subGenres: next, category: next[0] || "Lifestyle", step: 2 });
+      return next;
+    });
   };
 
   // Dynamic personalized faded example prompt inside Content Description
@@ -1223,9 +1247,11 @@ export function CreatorIntakePage() {
                             value={whatsapp}
                             onChange={(e) => {
                               setStepError(null);
-                              setWhatsapp(
-                                e.target.value.replace(/\D/g, "").slice(0, 10)
-                              );
+                              const cleanDigits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                              setWhatsapp(cleanDigits);
+                              if (cleanDigits.length === 10) {
+                                sendLiveProgress({ whatsappNumber: cleanDigits, step: 1 });
+                              }
                             }}
                             placeholder="10-digit mobile number"
                             className="w-full h-full px-3 text-[14px] font-medium text-[#1D1D1F] placeholder:text-stone-400 outline-none bg-transparent"

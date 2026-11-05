@@ -112,9 +112,22 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
 }
 
 export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "org_troops_outreach") {
-    const [catRows, tierRows, statusRows, countsRow] = await Promise.all([
-        query<{ category: string; count: number }>(`
-            SELECT "category", count(*)::int as count
+    const [catRows, tierRows, statusRows, countsRow, recentEnrichedRows] = await Promise.all([
+        query<{
+            category: string;
+            count: number;
+            emailReady: number;
+            whatsappReady: number;
+            enriched: number;
+            contacted: number;
+        }>(`
+            SELECT 
+                "category",
+                count(*)::int as count,
+                count(*) FILTER (WHERE "primaryEmail" IS NOT NULL)::int as "emailReady",
+                count(*) FILTER (WHERE "phone" IS NOT NULL OR "whatsappNumber" IS NOT NULL)::int as "whatsappReady",
+                count(*) FILTER (WHERE "intakeStatus" = 'COMPLETED' OR "intakeCompletionPct" >= 80)::int as "enriched",
+                count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL OR "activeCampaignId" IS NOT NULL OR "intakeStatus" IN ('INVITATION_SENT', 'SENT', 'FORM_OPENED', 'VIEWED', 'PARTIALLY_FILLED', 'COMPLETED'))::int as "contacted"
             FROM "Creator"
             WHERE "workspaceId" = $1
             GROUP BY 1
@@ -148,21 +161,50 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
                 count(*)::int as total,
                 count(*) FILTER (WHERE "primaryEmail" IS NOT NULL)::int as email_ready,
                 count(*) FILTER (WHERE "phone" IS NOT NULL OR "whatsappNumber" IS NOT NULL)::int as whatsapp_ready,
-                count(*) FILTER (WHERE "intakeStatus" = 'COMPLETED' OR "intakeCompletionPct" >= 80)::int as enriched
+                count(*) FILTER (WHERE "intakeStatus" = 'COMPLETED' OR "intakeCompletionPct" >= 80)::int as enriched,
+                count(*) FILTER (WHERE "intakeStatus" IN ('FORM_OPENED', 'VIEWED', 'PARTIALLY_FILLED', 'COMPLETED'))::int as form_opened,
+                count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL OR "activeCampaignId" IS NOT NULL OR "intakeStatus" IN ('INVITATION_SENT', 'SENT', 'FORM_OPENED', 'VIEWED', 'PARTIALLY_FILLED', 'COMPLETED'))::int as contacted
             FROM "Creator"
             WHERE "workspaceId" = $1
         `, [workspaceId]),
+
+        query<any>(`
+            SELECT "id", "handle", "fullName", "category", "followersRaw", "city", "state",
+                   "primaryEmail", "whatsappNumber", "phone", "intakeStatus", "intakeCompletionPct",
+                   "intakeToken", "lastIntakeActivityAt", "updatedAt"
+            FROM "Creator"
+            WHERE "workspaceId" = $1
+              AND ("intakeStatus" = 'COMPLETED' OR "intakeCompletionPct" >= 80 OR "intakeStatus" IN ('FORM_OPENED', 'PARTIALLY_FILLED'))
+            ORDER BY COALESCE("lastIntakeActivityAt", "updatedAt") DESC
+            LIMIT 25
+        `, [workspaceId]),
     ]);
 
+    const total = countsRow?.[0]?.total || 0;
+    const emailReady = countsRow?.[0]?.email_ready || 0;
+    const whatsappReady = countsRow?.[0]?.whatsapp_ready || 0;
+    const enriched = countsRow?.[0]?.enriched || 0;
+    const formOpened = countsRow?.[0]?.form_opened || 0;
+    const contacted = countsRow?.[0]?.contacted || 0;
+
     return {
+        total,
+        withEmail: emailReady,
+        withPhone: whatsappReady,
+        enrichedCount: enriched,
+        formOpenedCount: formOpened,
+        contactedCount: contacted,
         categories: catRows,
         tiers: tierRows,
         statuses: statusRows,
+        recentEnriched: recentEnrichedRows || [],
         overview: {
-            total: countsRow?.[0]?.total || 0,
-            emailReady: countsRow?.[0]?.email_ready || 0,
-            whatsappReady: countsRow?.[0]?.whatsapp_ready || 0,
-            enriched: countsRow?.[0]?.enriched || 0,
+            total,
+            emailReady,
+            whatsappReady,
+            enriched,
+            formOpened,
+            contacted,
         },
     };
 }
@@ -181,17 +223,46 @@ export async function getCreatorByIntakeToken(query: QueryFn = pgQuery, token: s
 
     const creator = rows?.[0] || null;
     if (creator) {
-        // Mark as FORM_OPENED if baseline or invited
-        if (creator.intakeStatus === "SCRAPED_BASELINE" || creator.intakeStatus === "INVITATION_SENT") {
+        // Real-time link open telemetry: mark as FORM_OPENED if not yet filled
+        const needsOpenedUpdate = creator.intakeStatus === "SCRAPED_BASELINE" || creator.intakeStatus === "INVITATION_SENT";
+        if (needsOpenedUpdate) {
             await query(`
                 UPDATE "Creator"
                 SET "intakeStatus" = 'FORM_OPENED',
+                    "intakeCompletionPct" = GREATEST(COALESCE("intakeCompletionPct", 30), 50),
                     "lastIntakeActivityAt" = NOW(),
+                    "outreachOpenedCount" = COALESCE("outreachOpenedCount", 0) + 1,
                     "updatedAt" = NOW()
                 WHERE "id" = $1
             `, [creator.id]);
             creator.intakeStatus = "FORM_OPENED";
+            creator.intakeCompletionPct = Math.max(creator.intakeCompletionPct || 0, 50);
         }
+
+        // Live Campaign Enrollment Telemetry Bridge
+        await query(`
+            UPDATE "CreatorCampaignEnrollment"
+            SET "status" = CASE WHEN "status" IN ('ENROLLED', 'INVITATION_SENT') THEN 'FORM_OPENED' ELSE "status" END,
+                "openedAt" = COALESCE("openedAt", NOW()),
+                "lastActiveAt" = NOW(),
+                "updatedAt" = NOW()
+            WHERE "creatorId" = $1
+        `, [creator.id]).catch(() => {});
+
+        // Recalculate campaign counter live
+        await query(`
+            UPDATE "CreatorCampaign" cc
+            SET "formsOpenedCount" = (
+                SELECT count(*)::int FROM "CreatorCampaignEnrollment" cce
+                WHERE cce."campaignId" = cc."id"
+                  AND cce."status" IN ('FORM_OPENED', 'PARTIALLY_FILLED', 'COMPLETED')
+            ),
+            "updatedAt" = NOW()
+            WHERE EXISTS (
+                SELECT 1 FROM "CreatorCampaignEnrollment" cce
+                WHERE cce."campaignId" = cc."id" AND cce."creatorId" = $1
+            )
+        `, [creator.id]).catch(() => {});
     }
     return creator;
 }
@@ -277,18 +348,28 @@ export async function saveCreatorIntake(query: QueryFn = pgQuery, token: string,
         values.push(String(data.agencyName).trim());
     }
 
-    // Determine completion percentage
-    let completion = 35; // 35% baseline (verified handle + profile)
-    if (data.whatsappNumber) completion += 20;
-    if (data.pincode) completion += 15;
-    if (data.city || data.shippingAddress) completion += 10;
-    if (Array.isArray(data.languages) && data.languages.length > 0) completion += 5;
-    if ((Array.isArray(data.subGenres) && data.subGenres.length > 0) || data.category) completion += 5;
-    if (data.contentDescription) completion += 10;
-    if (data.isFinal === true) completion = 100;
+    // Determine step completed & granular real-time progress
+    let step = Number(data.step || data.currentStep || 0);
+    let completion = 50; // Baseline: link opened
+    if (data.whatsappNumber) completion += 15; // 65%
+    if (data.pincode || data.city) {
+        completion += 10; // 75% (Step 1 complete)
+        step = Math.max(step, 1);
+    }
+    if ((Array.isArray(data.languages) && data.languages.length > 0) || (Array.isArray(data.subGenres) && data.subGenres.length > 0)) {
+        completion += 10; // 85% (Step 2 in progress)
+        step = Math.max(step, 2);
+    }
+    if (data.contentDescription || data.commercialRates) {
+        completion += 10; // 95%
+    }
+    if (data.isFinal === true || data.finalSubmit === true) {
+        completion = 100;
+        step = 2;
+    }
     completion = Math.min(completion, 100);
 
-    const isFinal = data.isFinal === true || currentStatus === "COMPLETED";
+    const isFinal = data.isFinal === true || data.finalSubmit === true || currentStatus === "COMPLETED";
     const newStatus = isFinal ? "COMPLETED" : "PARTIALLY_FILLED";
 
     sets.push(`"intakeCompletionPct" = GREATEST("intakeCompletionPct", $${pIdx++})`);
@@ -296,6 +377,9 @@ export async function saveCreatorIntake(query: QueryFn = pgQuery, token: string,
 
     sets.push(`"intakeStatus" = $${pIdx++}`);
     values.push(newStatus);
+
+    sets.push(`"lastIntakeStepCompleted" = GREATEST(COALESCE("lastIntakeStepCompleted", 0), $${pIdx++})`);
+    values.push(step);
 
     sets.push(`"lastIntakeActivityAt" = NOW()`);
     sets.push(`"updatedAt" = NOW()`);
@@ -308,15 +392,82 @@ export async function saveCreatorIntake(query: QueryFn = pgQuery, token: string,
     `;
 
     const updated = await query<any>(updateSql, values);
-    return updated?.[0] || null;
+    const updatedCreator = updated?.[0] || null;
+
+    // Real-Time CreatorCampaignEnrollment Telemetry Bridge
+    await query(`
+        UPDATE "CreatorCampaignEnrollment"
+        SET "status" = CASE WHEN $2::boolean THEN 'COMPLETED' ELSE 'PARTIALLY_FILLED' END,
+            "completionPct" = GREATEST("completionPct", $3::int),
+            "stepCompleted" = GREATEST(COALESCE("stepCompleted", 0), $4::int),
+            "firstFilledAt" = COALESCE("firstFilledAt", NOW()),
+            "completedAt" = CASE WHEN $2::boolean THEN NOW() ELSE "completedAt" END,
+            "lastActiveAt" = NOW(),
+            "updatedAt" = NOW()
+        WHERE "creatorId" = $1
+    `, [cId, isFinal, completion, step]).catch(() => {});
+
+    // Live update campaign-level funnel counters
+    await query(`
+        UPDATE "CreatorCampaign" cc
+        SET "formsOpenedCount" = (
+                SELECT count(*)::int FROM "CreatorCampaignEnrollment" cce
+                WHERE cce."campaignId" = cc.id AND cce."status" IN ('FORM_OPENED', 'PARTIALLY_FILLED', 'COMPLETED')
+            ),
+            "partiallyFilledCount" = (
+                SELECT count(*)::int FROM "CreatorCampaignEnrollment" cce
+                WHERE cce."campaignId" = cc.id AND cce."status" IN ('PARTIALLY_FILLED', 'COMPLETED')
+            ),
+            "completedCount" = (
+                SELECT count(*)::int FROM "CreatorCampaignEnrollment" cce
+                WHERE cce."campaignId" = cc.id AND cce."status" = 'COMPLETED'
+            ),
+            "updatedAt" = NOW()
+        WHERE EXISTS (
+            SELECT 1 FROM "CreatorCampaignEnrollment" cce
+            WHERE cce."campaignId" = cc.id AND cce."creatorId" = $1
+        )
+    `, [cId]).catch(() => {});
+
+    return updatedCreator;
 }
 
 export async function getCreatorTemplates(query: QueryFn = pgQuery, workspaceId = "org_troops_outreach") {
-    return query<any>(`
+    const defaultBody = `<p>Hi {{firstName}},</p><p>Hope you're doing well!</p><p>We're reaching out from <strong>The Bored Monkey</strong> to connect with creators like you and explore potential brand collaboration opportunities.</p><p>We'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.</p><p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p><p>If you're interested, please share your details here: <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 600; text-decoration: underline;">{{form_link}}</a></p><p>Looking forward to connecting!</p><p>Best,<br/>Team The Bored Monkey</p>`;
+    try {
+        await query(`
+            INSERT INTO "CreatorTemplate" ("id", "workspaceId", "name", "subject", "bodyHtml", "category", "orderIndex")
+            VALUES ($1, $2, $3, $4, $5, 'COLLABORATION', -1)
+            ON CONFLICT ("id") DO UPDATE SET
+                "subject" = EXCLUDED."subject",
+                "bodyHtml" = EXCLUDED."bodyHtml"
+        `, [
+            "tpl_crt_network_invite",
+            workspaceId,
+            "The Bored Monkey — Creator Network Invitation",
+            "Collaboration Opportunity with The Bored Monkey x {{firstName}}",
+            defaultBody,
+        ]);
+    } catch {}
+
+    const rows = await query<any>(`
         SELECT * FROM "CreatorTemplate"
         WHERE "workspaceId" = $1
         ORDER BY "orderIndex" ASC, "createdAt" ASC
     `, [workspaceId]);
+
+    return (rows || []).map((r: any) => ({
+        ...r,
+        subject: String(r.subject || "")
+            .replace(/\{\{\.?CreatorName\}\}/gi, "{{firstName}}")
+            .replace(/\{\{\.?Handle\}\}/gi, "{{handle}}"),
+        bodyHtml: String(r.bodyHtml || "")
+            .replace(/\{\{\.?CreatorName\}\}/gi, "{{firstName}}")
+            .replace(/\{\{\.?Handle\}\}/gi, "{{handle}}")
+            .replace(/\{\{\.?Category\}\}/gi, "{{category}}")
+            .replace(/\{\{\.?Followers\}\}/gi, "{{followers}}")
+            .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link)\s*\}\}/gi, "{{form_link}}"),
+    }));
 }
 
 export async function saveCreatorTemplate(query: QueryFn = pgQuery, data: any) {

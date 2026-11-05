@@ -65,8 +65,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 const lastName = item.last_name || item.lastName || (item.name ? item.name.split(" ").slice(1).join(" ") : "") || "";
                 const domain = email.split("@")[1] || "";
                 const company = item.company || item.company_name || "";
+                const customFields = item.custom_fields || {};
+                const link = customFields.form_link || customFields.intake_link || customFields.IntakeFormUrl || "";
                 const customData = JSON.stringify({
-                    ...(item.custom_fields || {}),
+                    ...customFields,
+                    ...(link ? { form_link: link, intake_link: link, IntakeFormUrl: link } : {}),
                     ...(company ? { company } : {}),
                 });
 
@@ -112,6 +115,21 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                      VALUES ${valuePlaceholders.join(", ")}`,
                     flatParams
                 );
+            }
+
+            // Sync with Creator Engine: mark enrolled creators as INVITATION_SENT & link activeCampaignId
+            const firstCampId = items.find((it) => it.campaign_id)?.campaign_id || null;
+            if (emails.length > 0) {
+                await pgQuery(
+                    `UPDATE "Creator"
+                     SET "activeCampaignId" = COALESCE($2, "activeCampaignId"),
+                         "lastContactedAt" = NOW(),
+                         "intakeStatus" = CASE WHEN "intakeStatus" = 'SCRAPED_BASELINE' THEN 'INVITATION_SENT' ELSE "intakeStatus" END,
+                         "intakeCompletionPct" = GREATEST(COALESCE("intakeCompletionPct", 30), 45),
+                         "updatedAt" = NOW()
+                     WHERE lower("primaryEmail") = ANY($1::text[])`,
+                    [emails, firstCampId]
+                ).catch((e) => console.warn("[add-contacts] Creator sync warning:", e?.message));
             }
         }
 

@@ -129,8 +129,9 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
         if (pathname.endsWith("/overview") || pathname.endsWith("/count")) {
             const memberId = searchParams.get("member_id");
             const campaignId = searchParams.get("campaign_id");
+            const creatorOnly = searchParams.get("creator_only") === "true";
 
-            const cacheKey = `${isMaster ? `master_${scope.userId}` : scope.userId}_${memberId || "all"}_${campaignId || "all"}`;
+            const cacheKey = `${isMaster ? `master_${scope.userId}` : scope.userId}_${memberId || "all"}_${campaignId || "all"}_${creatorOnly ? "creators" : "all"}`;
             const cachedOverview = uniboxOverviewCache.get(cacheKey);
             if (cachedOverview && cachedOverview.expiresAt > Date.now()) {
                 if (pathname.endsWith("/count")) {
@@ -164,6 +165,10 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             if (campaignId && campaignId !== "all") {
                 conditions.push(`l."campaignId" = $${pIdx++}`);
                 params.push(campaignId);
+            }
+
+            if (creatorOnly) {
+                conditions.push(`(EXISTS (SELECT 1 FROM "Creator" cr WHERE lower(cr."primaryEmail") = lower(l.email)) OR l."customData"->>'handle' IS NOT NULL OR l."customData"->>'form_link' IS NOT NULL OR l."customData"->>'intake_link' IS NOT NULL)`);
             }
 
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -218,16 +223,28 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 `SELECT lower("fromEmail") as email, count(*)::int as total FROM "EmailEvent" WHERE "fromEmail" IS NOT NULL GROUP BY 1`
             );
 
-            const [counts, eventCounts, mailboxes, emailEventCounts] = await Promise.all([
+            const [counts, eventCounts, mailboxes, emailEventCounts, creatorIntakeCounts] = await Promise.all([
                 countsPromise,
                 eventCountsPromise,
                 mailboxesPromise,
                 emailCountsPromise,
+                creatorOnly
+                    ? pgQuery<any>(`
+                        SELECT
+                            COUNT(*) FILTER (WHERE "intakeStatus" IN ('COMPLETED', 'PARTIALLY_FILLED', 'FORM_OPENED'))::int AS intake_replied,
+                            COUNT(*) FILTER (WHERE "intakeStatus" = 'COMPLETED')::int AS intake_completed,
+                            COUNT(*) FILTER (WHERE "intakeStatus" = 'INVITATION_SENT')::int AS intake_awaiting,
+                            COUNT(*) FILTER (WHERE "lastIntakeActivityAt" >= CURRENT_DATE AND "intakeStatus" IN ('COMPLETED', 'PARTIALLY_FILLED', 'FORM_OPENED'))::int AS intake_today,
+                            COUNT(*) FILTER (WHERE "lastIntakeActivityAt" >= NOW() - INTERVAL '7 days' AND "intakeStatus" IN ('COMPLETED', 'PARTIALLY_FILLED', 'FORM_OPENED'))::int AS intake_week
+                        FROM "Creator"
+                    `)
+                    : Promise.resolve([]),
             ]);
 
             const eventCountMap = new Map(emailEventCounts.map((r: any) => [r.email?.toLowerCase(), r.total]));
             const cData = counts[0] || {};
             const eData = eventCounts[0] || {};
+            const crData = creatorIntakeCounts?.[0] || {};
 
             const mailboxSummaries = mailboxes.map((m: any) => ({
                 id: m.id,
@@ -237,21 +254,21 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 total: eventCountMap.get(m.email?.toLowerCase()) || 0,
             }));
 
-            const repliedCount = cData.replied_leads || 0;
+            const repliedCount = (cData.replied_leads || 0) + (creatorOnly ? (crData.intake_replied || 0) : 0);
 
             const overview = {
                 total: repliedCount,
                 unread: repliedCount,
-                today: eData.today_replies || 0,
-                week: eData.week_replies || 0,
+                today: (eData.today_replies || 0) + (creatorOnly ? (crData.intake_today || 0) : 0),
+                week: (eData.week_replies || 0) + (creatorOnly ? (crData.intake_week || 0) : 0),
                 snoozed: 0,
-                awaiting_reply: cData.awaiting_reply || 0,
+                awaiting_reply: (cData.awaiting_reply || 0) + (creatorOnly ? (crData.intake_awaiting || 0) : 0),
                 awaiting_agent_draft: 0,
                 scheduled_pending: 0,
                 scheduled_pending_max: 500,
                 folders: [
                     { folder: "inbox", unread: repliedCount, total: repliedCount },
-                    { folder: "sent", unread: 0, total: eData.total_sent || 0 },
+                    { folder: "sent", unread: 0, total: (eData.total_sent || 0) + (creatorOnly ? (crData.intake_replied || 0) : 0) },
                     { folder: "drafts", unread: 0, total: 0 },
                     { folder: "archive", unread: 0, total: 0 },
                     { folder: "spam", unread: 0, total: 0 },
@@ -260,8 +277,8 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 mailboxes: mailboxSummaries,
                 tags: [],
                 categories: [
-                    { id: "cat_interested", title: "Interested", color: "#10b981", unread: cData.replied_leads || 0, total: cData.replied_leads || 0 },
-                    { id: "cat_warm", title: "Warm Lead", color: "#f59e0b", unread: 0, total: 0 },
+                    { id: "cat_interested", title: creatorOnly ? "100% Enriched / Replied" : "Interested", color: "#10b981", unread: repliedCount, total: repliedCount },
+                    { id: "cat_warm", title: creatorOnly ? "Form Opened" : "Warm Lead", color: "#f59e0b", unread: creatorOnly ? Math.max(0, (crData.intake_replied || 0) - (crData.intake_completed || 0)) : 0, total: creatorOnly ? Math.max(0, (crData.intake_replied || 0) - (crData.intake_completed || 0)) : 0 },
                 ],
                 generated_at: new Date().toISOString(),
             };
@@ -326,6 +343,75 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
         // Route: /api/v1/unibox/thread (Single Thread Message History)
         if (pathname.endsWith("/thread")) {
             const threadId = searchParams.get("thread_id") || "";
+            if (threadId.startsWith("th_creator_")) {
+                const creatorId = threadId.replace(/^th_creator_/, "");
+                const crRows = await pgQuery<any>(
+                    `SELECT * FROM "Creator" WHERE id = $1 OR lower("handle") = lower($1) LIMIT 1`,
+                    [creatorId]
+                );
+                if (!crRows || crRows.length === 0) {
+                    send(res, 200, { data: [], pagination: { has_more: false, next_cursor: null } });
+                    return;
+                }
+                const cr = crRows[0];
+                const cleanHandle = String(cr.handle || "").replace(/^@/, "");
+                const cEmail = cr.primaryEmail || `${cleanHandle}@instagram.creator`;
+                const formUrl = `https://theboredmonkey.com/creator/intake/${cr.intakeToken || cr.id}`;
+                const sentDate = cr.lastContactedAt || cr.createdAt || new Date(Date.now() - 86400000).toISOString();
+                const replyDate = cr.lastIntakeActivityAt || cr.updatedAt || new Date().toISOString();
+                const outSubj = `Collaboration Opportunity with The Bored Monkey x ${cr.fullName || `@${cleanHandle}`}`;
+                const outHtml = `<p>Hi ${cr.fullName || `@${cleanHandle}`},</p><p>Hope you're doing well!</p><p>We're reaching out from <strong>The Bored Monkey</strong> to connect with creators like you and explore potential brand collaboration opportunities.</p><p>We'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.</p><p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p><p>If you're interested, please share your details here: <a href="${formUrl}" target="_blank" style="color: #ea580c; font-weight: 600; text-decoration: underline;">${formUrl}</a></p><p>Looking forward to connecting!</p><p>Best,<br/>Team The Bored Monkey</p>`;
+                const outPlain = `Hi ${cr.fullName || `@${cleanHandle}`},\n\nHope you're doing well!\n\nWe're reaching out from The Bored Monkey to connect with creators like you and explore potential brand collaboration opportunities.\n\nIf you're interested, please share your details here: ${formUrl}\n\nBest,\nTeam The Bored Monkey`;
+
+                const langs = Array.isArray(cr.languages) && cr.languages.length ? cr.languages.join(", ") : "Hindi, English";
+                const genres = Array.isArray(cr.subGenres) && cr.subGenres.length ? cr.subGenres.join(", ") : (cr.category || "Creator");
+                const inHtml = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+                    <p>Hi Team The Bored Monkey,</p>
+                    <p>I've confirmed my creator profile and collaboration details via the Creator Intake link (${cr.intakeCompletionPct || 100}% complete):</p>
+                    <ul style="padding-left: 18px; margin: 10px 0;">
+                        <li><strong>Instagram:</strong> <a href="https://instagram.com/${cleanHandle}" target="_blank">@${cleanHandle}</a> (${cr.followersRaw || cr.followersCount || "Verified"} followers)</li>
+                        <li><strong>Primary Niche:</strong> ${cr.category || "Creator"} (${genres})</li>
+                        <li><strong>Languages:</strong> ${langs}</li>
+                        <li><strong>Location:</strong> ${[cr.city, cr.state, cr.pincode].filter(Boolean).join(", ") || "India"}</li>
+                        <li><strong>WhatsApp / Mobile:</strong> ${cr.whatsappNumber || cr.phone || "Verified on file"}</li>
+                        ${cr.contentDescription ? `<li><strong>Content Style:</strong> ${cr.contentDescription}</li>` : ""}
+                    </ul>
+                    <p>Looking forward to upcoming brand campaigns!</p>
+                    <p>Best,<br/><strong>${cr.fullName || `@${cleanHandle}`}</strong></p>
+                </div>`;
+                const inPlain = `Hi Team The Bored Monkey,\n\nI've confirmed my creator profile (@${cleanHandle} · ${cr.followersRaw || cr.followersCount} followers · ${cr.category || "Creator"}).\nWhatsApp: ${cr.whatsappNumber || cr.phone || "—"}\nLocation: ${[cr.city, cr.state, cr.pincode].filter(Boolean).join(", ") || "India"}\nLanguages: ${langs}\n${cr.contentDescription ? `Content: ${cr.contentDescription}\n` : ""}\nLooking forward to upcoming brand campaigns!`;
+
+                const messages = [
+                    {
+                        id: `msg_creator_out_${cr.id}`,
+                        email_id: cr.activeCampaignId || "creator_engine",
+                        thread_id: threadId,
+                        from_addr: ["pratik@theboredmonkey.com"],
+                        to_addr: [cEmail],
+                        subject: outSubj,
+                        snippet: outPlain.slice(0, 300),
+                        body_html: outHtml,
+                        body_plain: outPlain,
+                        internal_date: sentDate,
+                        seen: true,
+                    },
+                    {
+                        id: `msg_creator_in_${cr.id}`,
+                        email_id: cr.activeCampaignId || "creator_engine",
+                        thread_id: threadId,
+                        from_addr: [cEmail],
+                        to_addr: ["pratik@theboredmonkey.com"],
+                        subject: `Re: ${outSubj}`,
+                        snippet: inPlain.slice(0, 300),
+                        body_html: inHtml,
+                        body_plain: inPlain,
+                        internal_date: replyDate,
+                        seen: cr.intakeStatus !== "COMPLETED",
+                    },
+                ];
+                send(res, 200, { data: messages, pagination: { has_more: false, next_cursor: null } }, 0);
+                return;
+            }
             const leadId = threadId.replace(/^th_camp_/, "").replace(/^th_/, "");
 
             if (!leadId) {
@@ -448,10 +534,12 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
         if (req.method === "GET") {
             const memberId = searchParams.get("member_id");
             const campaignId = searchParams.get("campaign_id");
+            const creatorOnly = searchParams.get("creator_only") === "true";
             const folder = searchParams.get("folder") || "inbox";
             const unseen = searchParams.get("unseen") === "true";
             const since = searchParams.get("since");
             const until = searchParams.get("until");
+            const subjectQuery = searchParams.get("subject");
             const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
 
             const conditions: string[] = [];
@@ -478,6 +566,10 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             if (campaignId && campaignId !== "all") {
                 conditions.push(`l."campaignId" = $${pIdx++}`);
                 params.push(campaignId);
+            }
+
+            if (creatorOnly) {
+                conditions.push(`(EXISTS (SELECT 1 FROM "Creator" cr WHERE lower(cr."primaryEmail") = lower(l.email)) OR l."customData"->>'handle' IS NOT NULL OR l."customData"->>'form_link' IS NOT NULL OR l."customData"->>'intake_link' IS NOT NULL)`);
             }
 
             // 3. Folder filter: inbox and default "all" only show reply conversations
@@ -582,6 +674,68 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                     labels,
                 };
             });
+
+            if (creatorOnly) {
+                const crConds: string[] = [];
+                const crParams: any[] = [];
+                let crIdx = 1;
+                if (folder === "sent") {
+                    crConds.push(`"intakeStatus" != 'SCRAPED_BASELINE'`);
+                } else {
+                    crConds.push(`"intakeStatus" IN ('COMPLETED', 'PARTIALLY_FILLED', 'FORM_OPENED')`);
+                }
+                if (subjectQuery && subjectQuery.trim()) {
+                    crConds.push(`(lower("fullName") LIKE $${crIdx} OR lower("handle") LIKE $${crIdx} OR lower("primaryEmail") LIKE $${crIdx} OR lower("category") LIKE $${crIdx})`);
+                    crParams.push(`%${subjectQuery.trim().toLowerCase()}%`);
+                    crIdx++;
+                }
+                const crRows = await pgQuery<any>(
+                    `SELECT id, "handle", "fullName", "primaryEmail", "whatsappNumber", "phone",
+                            "followersRaw", "followersCount", "category", "city", "state",
+                            "intakeStatus", "intakeCompletionPct", "contentDescription",
+                            "lastIntakeActivityAt", "updatedAt"
+                     FROM "Creator"
+                     WHERE ${crConds.join(" AND ")}
+                     ORDER BY COALESCE("lastIntakeActivityAt", "updatedAt") DESC
+                     LIMIT 50`,
+                    crParams
+                );
+                const seenEmails = new Set(threadData.map((t: any) => (t.from_addr?.[0] || "").toLowerCase()));
+                for (const cr of crRows) {
+                    const cleanHandle = String(cr.handle || "").replace(/^@/, "");
+                    const cEmail = (cr.primaryEmail || `${cleanHandle}@instagram.creator`).toLowerCase();
+                    if (seenEmails.has(cEmail)) continue;
+                    seenEmails.add(cEmail);
+                    const isCompleted = cr.intakeStatus === "COMPLETED";
+                    const displayFrom = `${cr.fullName || `@${cleanHandle}`} (@${cleanHandle}) <${cEmail}>`;
+                    const subj = `Re: Collaboration Opportunity with The Bored Monkey x ${cr.fullName || `@${cleanHandle}`}`;
+                    const snip = isCompleted
+                        ? `Confirmed creator profile (${cr.followersRaw || cr.followersCount} · ${cr.category || "Creator"}${cr.city ? ` · ${cr.city}` : ""}${cr.whatsappNumber ? ` · WhatsApp: ${cr.whatsappNumber}` : ""})`
+                        : `Opened Creator Intake Form (@${cleanHandle} · ${cr.category || "Creator"} · ${cr.intakeCompletionPct || 45}% completed)`;
+                    threadData.push({
+                        id: `th_creator_${cr.id}`,
+                        email_id: "creator_engine",
+                        thread_id: `th_creator_${cr.id}`,
+                        from_addr: [cEmail],
+                        to_addr: ["pratik@theboredmonkey.com"],
+                        from: displayFrom,
+                        subject: subj,
+                        snippet: snip,
+                        internal_date: cr.lastIntakeActivityAt || cr.updatedAt || new Date().toISOString(),
+                        seen: !isCompleted,
+                        message_count: 2,
+                        has_unread: isCompleted,
+                        folder: folder === "sent" ? "sent" : "inbox",
+                        campaign_id: "creator_engine",
+                        campaign_name: `${cr.category || "Creator"} Scouting & Intake`,
+                        labels: [
+                            isCompleted
+                                ? { id: "cat_interested", title: "100% Enriched", color: "#10b981" }
+                                : { id: "cat_warm", title: "Form Opened", color: "#f59e0b" },
+                        ],
+                    });
+                }
+            }
 
             send(res, 200, {
                 data: threadData,

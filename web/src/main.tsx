@@ -93,6 +93,9 @@ import NotFound from './app/not-found';
 import CreatorsLayout from './app/app/creators/layout';
 import CreatorsPage from './app/app/creators/page';
 import CreatorTemplatesPage from './app/app/creators/templates/page';
+import CreatorDashboardPage from './app/app/creators/dashboard/page';
+import CreatorCampaignsPage from './app/app/creators/campaigns/page';
+import CreatorUniboxPage from './app/app/creators/inbox/page';
 
 import { Toaster } from '@/components/ui/toaster';
 
@@ -312,6 +315,11 @@ const router = createBrowserRouter([
             element: <TroopsMasterOnly><CreatorsLayout /></TroopsMasterOnly>,
             children: [
               { index: true, element: <CreatorsPage /> },
+              { path: "dashboard", element: <CreatorDashboardPage /> },
+              { path: "campaigns", element: <CreatorCampaignsPage /> },
+              { path: "inbox", element: <CreatorUniboxPage /> },
+              { path: "inbox/:scope", element: <CreatorUniboxPage /> },
+              { path: "inbox/:scope/:threadId", element: <CreatorUniboxPage /> },
               { path: "templates", element: <CreatorTemplatesPage /> },
             ],
           },

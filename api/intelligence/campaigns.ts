@@ -36,10 +36,17 @@ function slApiCall(endpoint: string, method: string, body?: any, apiKey?: string
 function normalizeTemplate(text: string): string {
     if (!text) return "";
     return text
-        .replace(/\{\{\s*firstName\s*\}\}/g, "{{first_name}}")
-        .replace(/\{\{\s*lastName\s*\}\}/g, "{{last_name}}")
-        .replace(/\{\{\s*CompanyName\s*\}\}/g, "{{company_name}}")
-        .replace(/\{\{\s*JobTitle\s*\}\}/g, "{{title}}");
+        .replace(/\{\{\s*\.?CreatorName\s*\}\}/gi, "{{first_name}}")
+        .replace(/\[\s*Creator\s*Name\s*\]/gi, "{{first_name}}")
+        .replace(/\{\{\s*\.?firstName\s*\}\}/gi, "{{first_name}}")
+        .replace(/\{\{\s*\.?lastName\s*\}\}/gi, "{{last_name}}")
+        .replace(/\{\{\s*\.?CompanyName\s*\}\}/gi, "{{company_name}}")
+        .replace(/\{\{\s*\.?JobTitle\s*\}\}/gi, "{{title}}")
+        .replace(/\{\{\s*\.?Handle\s*\}\}/gi, "{{handle}}")
+        .replace(/\{\{\s*\.?Category\s*\}\}/gi, "{{category}}")
+        .replace(/\{\{\s*\.?Followers\s*\}\}/gi, "{{followers}}")
+        .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link)\s*\}\}/gi, "{{form_link}}")
+        .replace(/\[\s*Form\s*Link\s*\]/gi, "{{form_link}}");
 }
 
 function deleteFromSmartlead(campaignId: string | number): Promise<boolean> {

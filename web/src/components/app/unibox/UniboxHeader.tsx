@@ -54,6 +54,8 @@ interface UniboxHeaderProps {
     onApplyCustomDateRange?: (start: string, end: string) => void;
     isMaster?: boolean;
     currentUser?: any;
+    creatorOnly?: boolean;
+    title?: string;
 }
 
 export function UniboxHeader({
@@ -69,8 +71,10 @@ export function UniboxHeader({
     onApplyCustomDateRange,
     isMaster = true,
     currentUser,
+    creatorOnly = false,
+    title,
 }: UniboxHeaderProps) {
-    const overview = useUniboxOverview();
+    const overview = useUniboxOverview(creatorOnly);
     const data = overview.data;
 
     const teamQuery = useTeamMembers();
@@ -207,7 +211,7 @@ export function UniboxHeader({
             )}
 
             <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-semibold shrink-0 hidden sm:inline">
-                Inbox
+                {title || (creatorOnly ? "Creator Replies" : "Inbox")}
             </span>
 
             {/* Team Member Filter: Master has full workspace selector; Team member locked to own profile */}

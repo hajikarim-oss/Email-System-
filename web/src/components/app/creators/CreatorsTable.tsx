@@ -24,6 +24,7 @@ import {
     SendIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { authHeaders } from "@/lib/api/standaloneMock";
 import CreatorDetailDrawer from "./CreatorDetailDrawer";
 
@@ -50,13 +51,15 @@ export default function CreatorsTable() {
     const [limit] = useState(50);
     const [loading, setLoading] = useState(true);
 
+    const [searchParams] = useSearchParams();
+
     // Filters
-    const [search, setSearch] = useState("");
-    const [debouncedSearch, setDebouncedSearch] = useState("");
-    const [category, setCategory] = useState("all");
-    const [tier, setTier] = useState<string>("all");
-    const [intakeStatus, setIntakeStatus] = useState<string>("all");
-    const [channel, setChannel] = useState<string>("all");
+    const [search, setSearch] = useState(searchParams.get("search") || "");
+    const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
+    const [category, setCategory] = useState(searchParams.get("category") || "all");
+    const [tier, setTier] = useState<string>(searchParams.get("tier") || "all");
+    const [intakeStatus, setIntakeStatus] = useState<string>(searchParams.get("intakeStatus") || "all");
+    const [channel, setChannel] = useState<string>(searchParams.get("channel") || "all");
     const [sortBy, setSortBy] = useState<string>("default");
     const [reverse, setReverse] = useState(false);
 
@@ -193,6 +196,50 @@ export default function CreatorsTable() {
         toast.success(`Exported ${target.length} creator records!`);
     };
 
+    const navigate = useNavigate();
+
+    const launchCampaignWithCreators = (list?: any[]) => {
+        const rawList = list || (selectedIds.size > 0 ? creators.filter((c) => selectedIds.has(c.id)) : []);
+        const withEmail = rawList.filter((c) => Boolean(c.primaryEmail));
+        if (rawList.length > 0 && withEmail.length === 0) {
+            toast.error("Selected creators do not have email addresses on file.");
+            return;
+        }
+        if (withEmail.length > 0) {
+            const origin = window.location.origin;
+            const drafts = withEmail.map((c) => {
+                const cleanHandle = (c.handle || "").replace(/^@/, "").trim();
+                const fullName = (c.fullName || cleanHandle || "").trim();
+                const parts = fullName.split(/\s+/);
+                const token = c.intakeToken || c.id;
+                return {
+                    id: c.id,
+                    email: c.primaryEmail,
+                    first_name: parts[0] || cleanHandle,
+                    last_name: parts.slice(1).join(" "),
+                    company: cleanHandle ? `@${cleanHandle}` : "",
+                    role: c.category || "Creator",
+                    handle: cleanHandle ? `@${cleanHandle}` : "",
+                    category: c.category || "Creator",
+                    followers: c.followersRaw || "",
+                    intake_token: token,
+                    form_link: `${origin}/creator/intake/${token}`,
+                    intake_link: `${origin}/creator/intake/${token}`,
+                    source: "database" as const,
+                };
+            });
+            try {
+                sessionStorage.setItem("tbm_preselected_creators", JSON.stringify(drafts));
+            } catch {}
+            toast.success(`Queued ${drafts.length} creator${drafts.length === 1 ? "" : "s"} for campaign!`);
+        } else if (category !== "all") {
+            try {
+                sessionStorage.setItem("tbm_preselected_creator_category", category);
+            } catch {}
+        }
+        navigate("/app/creators/campaigns?new=1");
+    };
+
     const totalPages = Math.ceil(total / limit);
 
     return (
@@ -225,10 +272,17 @@ export default function CreatorsTable() {
                         </button>
                         <button
                             onClick={exportCsv}
-                            className="h-8 px-3 rounded-md bg-[#18181B] dark:bg-white text-white dark:text-slate-900 hover:opacity-90 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                            className="h-8 px-3 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 hover:bg-slate-50 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
                         >
                             <DownloadIcon className="w-3.5 h-3.5" />
                             <span>Export CSV</span>
+                        </button>
+                        <button
+                            onClick={() => launchCampaignWithCreators()}
+                            className="h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        >
+                            <SendIcon className="w-3.5 h-3.5" />
+                            <span>{selectedIds.size > 0 ? `Campaign (${selectedIds.size})` : "New Campaign"}</span>
                         </button>
                     </div>
                 </div>
@@ -502,9 +556,18 @@ export default function CreatorsTable() {
                                     {/* Creator & Handle */}
                                     <td className="px-3 py-2">
                                         <div className="flex items-center gap-2.5 min-w-0">
-                                            <div className="size-8 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-[#5E43EC] p-0.5 shrink-0 shadow-2xs">
-                                                <div className="size-full bg-white dark:bg-zinc-900 rounded-[10px] flex items-center justify-center font-bold text-xs text-slate-900 dark:text-white">
-                                                    {c.fullName?.[0]?.toUpperCase() || "C"}
+                                            <div className="size-8 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-[#5E43EC] p-0.5 shrink-0 shadow-2xs">
+                                                <div className="size-full bg-white dark:bg-zinc-900 rounded-full flex items-center justify-center font-bold text-xs text-slate-900 dark:text-white overflow-hidden relative">
+                                                    <span>{c.fullName?.[0]?.toUpperCase() || "C"}</span>
+                                                    <img
+                                                        src={c.avatarUrl || `/creator-avatars/${(c.handle || "").replace(/^@/, "").toLowerCase()}.jpg`}
+                                                        alt=""
+                                                        loading="lazy"
+                                                        className="size-full object-cover absolute inset-0"
+                                                        onError={(e) => {
+                                                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                                                        }}
+                                                    />
                                                 </div>
                                             </div>
                                             <div className="min-w-0">
@@ -706,6 +769,13 @@ export default function CreatorsTable() {
                     <span className="font-semibold bg-[#FFE600] text-slate-900 px-2 py-0.5 rounded-full text-[11px]">
                         {selectedIds.size} selected
                     </span>
+                    <button
+                        onClick={() => launchCampaignWithCreators()}
+                        className="bg-amber-400/20 hover:bg-[#FFE600] text-[#FFE600] hover:text-slate-950 px-2.5 py-1 rounded-full font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                        <SendIcon className="w-3.5 h-3.5" />
+                        <span>Launch Campaign</span>
+                    </button>
                     <button
                         onClick={exportCsv}
                         className="hover:text-[#FFE600] font-medium flex items-center gap-1 cursor-pointer"

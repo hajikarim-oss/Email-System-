@@ -12,6 +12,8 @@ import {
     XIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
+import { CreatorRichEmailEditor } from "@/components/app/creators/CreatorRichEmailEditor";
 import { authHeaders } from "@/lib/api/standaloneMock";
 
 interface CreatorTemplate {
@@ -65,6 +67,16 @@ export default function CreatorTemplatesPage() {
         fetchTemplates();
     }, []);
 
+    const navigate = useNavigate();
+
+    const useInCampaign = (tpl: CreatorTemplate) => {
+        try {
+            sessionStorage.setItem("tbm_preselected_creator_template", JSON.stringify(tpl));
+        } catch {}
+        toast.success(`Loaded "${tpl.name}" into Creator Campaign wizard!`);
+        navigate("/app/creators/campaigns?new=1");
+    };
+
     const openEdit = (tpl: CreatorTemplate) => {
         setEditingTemplate(tpl);
         setIsNew(false);
@@ -75,19 +87,20 @@ export default function CreatorTemplatesPage() {
     };
 
     const openNew = () => {
+        const defaultBody = `<p>Hi {{firstName}},</p><p>Hope you're doing well!</p><p>We're reaching out from <strong>The Bored Monkey</strong> to connect with creators like you and explore potential brand collaboration opportunities.</p><p>We'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.</p><p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p><p>If you're interested, please share your details here: <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 600; text-decoration: underline;">{{form_link}}</a></p><p>Looking forward to connecting!</p><p>Best,<br/>Team The Bored Monkey</p>`;
         setEditingTemplate({
             id: `tpl_${Date.now()}`,
             workspaceId: "org_troops_outreach",
-            name: "New Creator Outreach Pitch",
-            subject: "Collab Invitation: {{.Brand}} x {{.Handle}} 💛",
-            bodyHtml: "<p>Hi {{.CreatorName}},</p><p>We loved your content on {{.Handle}}! Check details here: <a href=\"{{.IntakeFormUrl}}\">Lock your slot</a></p>",
+            name: "Creator Network Collaboration Invitation",
+            subject: "Collaboration Opportunity with The Bored Monkey x {{firstName}}",
+            bodyHtml: defaultBody,
             category: "COLLABORATION",
             orderIndex: templates.length,
         });
         setIsNew(true);
-        setName("New Creator Outreach Pitch");
-        setSubject("Collab Invitation: {{.Brand}} x {{.Handle}} 💛");
-        setBodyHtml("<p>Hi {{.CreatorName}},</p><p>We loved your content on {{.Handle}}! Check details here: <a href=\"{{.IntakeFormUrl}}\">Lock your slot</a></p>");
+        setName("Creator Network Collaboration Invitation");
+        setSubject("Collaboration Opportunity with The Bored Monkey x {{firstName}}");
+        setBodyHtml(defaultBody);
         setCategory("COLLABORATION");
     };
 
@@ -206,13 +219,21 @@ export default function CreatorTemplatesPage() {
                         </div>
 
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-zinc-800 text-[11px] text-slate-400">
-                            <span>Includes dynamic <code>&#123;&#123;.IntakeFormUrl&#125;&#125;</code></span>
-                            <button
-                                onClick={() => openEdit(t)}
-                                className="font-semibold text-[#5E43EC] hover:underline cursor-pointer"
-                            >
-                                Customize Copy →
-                            </button>
+                            <span>Includes dynamic <code>&#123;&#123;form_link&#125;&#125;</code></span>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => openEdit(t)}
+                                    className="font-semibold text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:underline cursor-pointer"
+                                >
+                                    Customize Copy
+                                </button>
+                                <button
+                                    onClick={() => useInCampaign(t)}
+                                    className="px-2.5 py-1 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 font-semibold border border-black/10 shadow-2xs cursor-pointer"
+                                >
+                                    Use in Campaign →
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -248,51 +269,13 @@ export default function CreatorTemplatesPage() {
                                 />
                             </div>
 
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-                                    Subject Line
-                                </label>
-                                <input
-                                    type="text"
-                                    value={subject}
-                                    onChange={(e) => setSubject(e.target.value)}
-                                    className="w-full h-9 px-3 rounded-lg border border-slate-200 dark:border-zinc-700 text-xs focus:ring-1 focus:ring-slate-900 font-medium"
-                                    required
-                                />
-                            </div>
-
-                            {/* Creator Variable Tokens Toolbar */}
-                            <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800">
-                                <span className="text-[11px] font-semibold text-slate-600 dark:text-zinc-400 block">
-                                    ⚡ Click to Insert Creator Merge Tokens:
-                                </span>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {CREATOR_VARS.map((v) => (
-                                        <button
-                                            key={v.token}
-                                            type="button"
-                                            onClick={() => insertToken(v.token)}
-                                            className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 text-[11px] font-mono hover:bg-[#FFE600] hover:text-slate-900 hover:border-amber-400 transition-colors cursor-pointer"
-                                            title={`Sample: ${v.sample}`}
-                                        >
-                                            {v.token} ({v.label})
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-                                    Email Body HTML
-                                </label>
-                                <textarea
-                                    rows={8}
-                                    value={bodyHtml}
-                                    onChange={(e) => setBodyHtml(e.target.value)}
-                                    className="w-full p-3 rounded-lg border border-slate-200 dark:border-zinc-700 text-xs font-mono focus:ring-1 focus:ring-slate-900 resize-none"
-                                    required
-                                />
-                            </div>
+                            <CreatorRichEmailEditor
+                                subject={subject}
+                                onSubjectChange={setSubject}
+                                bodyHtml={bodyHtml}
+                                bodyPlain={bodyHtml.replace(/<[^>]+>/g, "")}
+                                onBodyChange={(html) => setBodyHtml(html)}
+                            />
 
                             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-zinc-800">
                                 <button
