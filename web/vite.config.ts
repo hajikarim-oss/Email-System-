@@ -2732,7 +2732,16 @@ function databaseIntelligencePlugin() {
                         if (a.campaignId) aggMap.set(String(a.campaignId), a);
                     }
 
-                    const formatted = dbCampaigns.map((c: any) => {
+                    // Creator campaigns (registered in CreatorCampaign) are hidden from outreach lists and
+                    // returned only for `?scope=creator`, mirroring api/intelligence/campaigns.ts.
+                    const creatorLinks = await prismaQuery(`SELECT id, "smartleadCampaignId"::text AS sl FROM "CreatorCampaign"`).catch(() => []);
+                    const creatorIds = new Set<string>(creatorLinks.map((r: any) => String(r.id)));
+                    const creatorSlIds = new Set<string>(creatorLinks.filter((r: any) => r.sl).map((r: any) => String(r.sl)));
+                    const wantCreator = new URL(req.url || "", "http://localhost").searchParams.get("scope") === "creator";
+                    const isCreatorCamp = (c: any) =>
+                        creatorIds.has(String(c.id)) || (!!c.providerCampaignId && creatorSlIds.has(String(c.providerCampaignId)));
+
+                    const formatted = dbCampaigns.filter((c: any) => isCreatorCamp(c) === wantCreator).map((c: any) => {
                         const agg = aggMap.get(String(c.id)) || (c.providerCampaignId ? aggMap.get(String(c.providerCampaignId)) : null);
                         const sentCount = Math.max(c.sent || 0, agg?.sent || 0);
                         const openCount = Math.max(c.opens || 0, agg?.opens || 0);
