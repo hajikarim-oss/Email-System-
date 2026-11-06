@@ -1060,17 +1060,8 @@ function databaseIntelligencePlugin() {
     return {
         name: "database-intelligence-plugin",
         configureServer(server: any) {
-            // Automated background synchronization: runs every 2 minutes
-            const autoSyncInterval = setInterval(() => {
-                reconcileSmartleadMailboxes(false).catch((err) => {
-                    console.warn("[Vite Auto-Sync] Periodic mailbox reconciliation warning:", err?.message);
-                });
-            }, 2 * 60 * 1000);
-
-            // Initial auto-sync 5s after startup
-            setTimeout(() => {
-                reconcileSmartleadMailboxes(false).catch(() => {});
-            }, 5000);
+            // Note: Background mailbox sync runs on the dedicated API server daemon (api/index.ts)
+            // to avoid duplicate polling loops and Smartlead 429 rate limit penalties.
 
             server.middlewares.use("/api/intelligence/mailboxes", async (req: any, res: any) => {
                 try {
@@ -1079,8 +1070,6 @@ function databaseIntelligencePlugin() {
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     if (urlObj.searchParams.get("sync") === "true") {
                         await reconcileSmartleadMailboxes(true).catch(() => {});
-                    } else {
-                        reconcileSmartleadMailboxes(false).catch(() => {});
                     }
                     const payload = await getMailboxes(prismaQuery, scope);
                     res.writeHead(200, { "Content-Type": "application/json" });
@@ -1246,7 +1235,7 @@ function databaseIntelligencePlugin() {
                     const to = urlObj.searchParams.get("to") || undefined;
                     const memberId = urlObj.searchParams.get("member_id");
                     let activeScope = scope;
-                    if (scope.master && memberId && memberId !== "all") {
+                    if (scope.master && memberId && memberId !== "all" && memberId !== scope.userId) {
                         activeScope = { ...scope, userId: memberId, master: false };
                     }
                     const payload = await getDashboard({ period, from, to }, prismaQuery, activeScope);
@@ -2637,6 +2626,22 @@ function databaseIntelligencePlugin() {
                         });
 
                         if (camp) {
+                            const leadAgg = await prismaQuery(`
+                                SELECT count(*)::int AS total,
+                                       count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS sent,
+                                       count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "lastOpenAt" IS NOT NULL)::int AS opens,
+                                       count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL OR "lastRepliedAt" IS NOT NULL)::int AS replies,
+                                       count(*) FILTER (WHERE "totalBounced" > 0 OR "bounceCount" > 0 OR "lastBouncedAt" IS NOT NULL)::int AS bounces
+                                FROM "Lead"
+                                WHERE "campaignId" = $1 OR "campaignId" = $2
+                            `, [camp.id, camp.providerCampaignId || ""]).catch(() => []);
+                            const la = leadAgg?.[0] || {};
+                            const effectiveSent = Math.max(camp.sent || 0, la.sent || 0);
+                            const effectiveOpens = Math.max(camp.opens || 0, la.opens || 0);
+                            const effectiveReplies = Math.max(camp.replies || 0, la.replies || 0);
+                            const effectiveBounces = Math.max(camp.bounces || 0, la.bounces || 0);
+                            const effectiveLeads = Math.max(camp._count?.leads || 0, la.total || 0);
+
                             const mappedCamp = {
                                 id: camp.id,
                                 userId: camp.userId,
@@ -2662,15 +2667,19 @@ function databaseIntelligencePlugin() {
                                 days: camp.preferredSendDays || [1, 2, 3, 4, 5],
                                 start_time: camp.preferredSendHour ? `${String(camp.preferredSendHour).padStart(2, "0")}:00` : "10:00",
                                 end_time: "19:00",
-                                total_leads: camp._count?.leads || 0,
-                                lead_count: camp._count?.leads || 0,
-                                sent_count: camp.sent || 0,
-                                open_count: camp.opens || 0,
-                                reply_count: camp.replies || 0,
-                                bounce_count: camp.bounces || 0,
-                                open_rate: camp.sent > 0 ? Number(((camp.opens / camp.sent) * 100).toFixed(1)) : 0,
-                                reply_rate: camp.sent > 0 ? Number(((camp.replies / camp.sent) * 100).toFixed(1)) : 0,
-                                bounce_rate: camp.sent > 0 ? Number(((camp.bounces / camp.sent) * 100).toFixed(1)) : 0,
+                                total_leads: effectiveLeads,
+                                lead_count: effectiveLeads,
+                                sent: effectiveSent,
+                                sent_count: effectiveSent,
+                                opens: effectiveOpens,
+                                open_count: effectiveOpens,
+                                replies: effectiveReplies,
+                                reply_count: effectiveReplies,
+                                bounces: effectiveBounces,
+                                bounce_count: effectiveBounces,
+                                open_rate: effectiveSent > 0 ? Number(((effectiveOpens / effectiveSent) * 100).toFixed(1)) : 0,
+                                reply_rate: effectiveSent > 0 ? Number(((effectiveReplies / effectiveSent) * 100).toFixed(1)) : 0,
+                                bounce_rate: effectiveSent > 0 ? Number(((effectiveBounces / effectiveSent) * 100).toFixed(1)) : 0,
                                 smartlead_id: camp.providerCampaignId ? parseInt(camp.providerCampaignId) : undefined,
                                 smartlead_status: camp.status === "ACTIVE" ? "ACTIVE" : "PAUSED",
                                 steps: (camp.steps || []).map((s: any) => ({
@@ -2696,20 +2705,59 @@ function databaseIntelligencePlugin() {
                     // Auto-reconcile with Smartlead asynchronously in background (debounced)
                     reconcileSmartleadCampaigns().catch(() => {});
 
-                    const dbCampaigns = await prisma.campaign.findMany({
-                        where: { userId: { in: allowedUserIds } },
-                        include: {
-                            _count: { select: { leads: true } },
-                            steps: { orderBy: { stepNumber: "asc" } },
-                        },
-                        orderBy: { createdAt: "desc" },
-                    });
+                    const [dbCampaigns, leadAggs] = await Promise.all([
+                        prisma.campaign.findMany({
+                            where: { userId: { in: allowedUserIds } },
+                            include: {
+                                _count: { select: { leads: true } },
+                                steps: { orderBy: { stepNumber: "asc" } },
+                            },
+                            orderBy: { createdAt: "desc" },
+                        }),
+                        prismaQuery(`
+                            SELECT "campaignId",
+                                   count(*)::int AS total,
+                                   count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS sent,
+                                   count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "lastOpenAt" IS NOT NULL)::int AS opens,
+                                   count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL OR "lastRepliedAt" IS NOT NULL)::int AS replies,
+                                   count(*) FILTER (WHERE "totalBounced" > 0 OR "bounceCount" > 0 OR "lastBouncedAt" IS NOT NULL)::int AS bounces
+                            FROM "Lead"
+                            WHERE "campaignId" IS NOT NULL
+                            GROUP BY 1
+                        `).catch(() => []),
+                    ]);
 
-                    const formatted = dbCampaigns.map((c: any) => ({
-                        ...c,
-                        status: (c.status || "draft").toLowerCase(),
-                        total_leads: c._count?.leads || 0,
-                    }));
+                    const aggMap = new Map<string, any>();
+                    for (const a of leadAggs) {
+                        if (a.campaignId) aggMap.set(String(a.campaignId), a);
+                    }
+
+                    const formatted = dbCampaigns.map((c: any) => {
+                        const agg = aggMap.get(String(c.id)) || (c.providerCampaignId ? aggMap.get(String(c.providerCampaignId)) : null);
+                        const sentCount = Math.max(c.sent || 0, agg?.sent || 0);
+                        const openCount = Math.max(c.opens || 0, agg?.opens || 0);
+                        const replyCount = Math.max(c.replies || 0, agg?.replies || 0);
+                        const bounceCount = Math.max(c.bounces || 0, agg?.bounces || 0);
+                        const totalLeads = Math.max(c._count?.leads || 0, agg?.total || 0);
+
+                        return {
+                            ...c,
+                            status: (c.status || "draft").toLowerCase(),
+                            total_leads: totalLeads,
+                            lead_count: totalLeads,
+                            sent: sentCount,
+                            sent_count: sentCount,
+                            opens: openCount,
+                            open_count: openCount,
+                            replies: replyCount,
+                            reply_count: replyCount,
+                            bounces: bounceCount,
+                            bounce_count: bounceCount,
+                            open_rate: sentCount > 0 ? Number(((openCount / sentCount) * 100).toFixed(1)) : 0,
+                            reply_rate: sentCount > 0 ? Number(((replyCount / sentCount) * 100).toFixed(1)) : 0,
+                            bounce_rate: sentCount > 0 ? Number(((bounceCount / sentCount) * 100).toFixed(1)) : 0,
+                        };
+                    });
 
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(formatted));
@@ -2774,7 +2822,7 @@ function databaseIntelligencePlugin() {
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     const memberId = urlObj.searchParams.get("member_id");
                     let activeScope = scope;
-                    if (scope.master && memberId && memberId !== "all") {
+                    if (scope.master && memberId && memberId !== "all" && memberId !== scope.userId) {
                         activeScope = { ...scope, userId: memberId, master: false };
                     }
                     const payload = await getReport(prismaQuery, activeScope);

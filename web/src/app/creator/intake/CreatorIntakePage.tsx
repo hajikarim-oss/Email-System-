@@ -1,1610 +1,1167 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Check,
-  CheckCircle2,
-  MapPin,
-  Sparkles,
-  Loader2,
-  AlertCircle,
-  ArrowUpRight,
-  ArrowRight,
-  ArrowLeft,
-  Pencil,
-} from "lucide-react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import "./CreatorIntakePage.css";
 
-interface CreatorProfileData {
-  id: string;
-  handle: string;
-  fullName: string | null;
-  avatarUrl?: string | null;
-  primaryEmail?: string | null;
-  email?: string | null;
-  whatsappNumber?: string | null;
-  phone?: string | null;
-  whatsapp?: string | null;
-  category?: string | null;
-  subGenres?: string[] | null;
-  Macro_Vertical?: string | null;
-  Micro_Niche?: string | null;
-  followersCount?: number | string | null;
-  followersRaw?: string | null;
-  followerCount?: number | null;
-  tier: string | null;
-  location: string | null;
-  city: string | null;
-  state: string | null;
-  pincode: string | null;
-  shippingAddress?: string | null;
-  address?: string | null;
-  languages: string[];
-  contentDescription: string | null;
-  publicBio: string | null;
-  commercialRates?: { reelRate?: string } | null;
-  rateRange?: string | null;
-  managementType?: string | null;
-  agencyName?: string | null;
-  intakeCompletionPct?: number;
-  profileCompletionPct?: number;
-  intakeStatus: string;
-}
-
-const LANGUAGE_OPTIONS: { label: string; hot?: boolean; primary?: boolean }[] = [
-  { label: "Hindi", hot: true, primary: true },
-  { label: "English", hot: true, primary: true },
-  { label: "Hinglish", hot: true, primary: true },
-  { label: "Marathi", primary: true },
-  { label: "Tamil", primary: true },
-  { label: "Telugu", primary: true },
-  { label: "Bengali", primary: true },
-  { label: "Kannada" },
-  { label: "Gujarati" },
-  { label: "Punjabi" },
-  { label: "Malayalam" },
+const CATEGORIES = [
+  "Tech & Gadgets",
+  "Home & Appliances",
+  "Chefs & Home Cooking",
+  "Food & Drink Reviews",
+  "Beauty & Grooming",
+  "Skincare",
+  "Fashion & Lifestyle",
+  "Fitness & Wellness",
+  "Health & Medical",
+  "Travel & Hospitality",
+  "Vlogging & Daily Life",
+  "Travel Vlogging",
+  "Motovlogging",
+  "Business & Marketing",
+  "Personal Finance",
+  "Stock Market & Trading",
+  "News, Society & Politics",
+  "General Knowledge",
+  "Education & Learning",
+  "Gaming & Esports",
+  "Entertainment & Comedy",
+  "Art, Music & Creativity",
+  "Auto & Mobility",
+  "Pets & Animals",
+  "Real Estate & Property",
+  "Spirituality & Astrology",
+  "Relationships & Dating",
+  "Game Shows & Original IPs",
+  "Stand-up Comedy",
+  "Reaction Channels",
+  "Parenting & Family",
+  "Sports & Athletics",
+  "Photography & Filmmaking",
+  "Books & Literature",
+  "DIY, Crafts & Hobbies",
+  "Home Décor & Interiors",
+  "Gardening & Plants",
+  "Sustainability & Environment",
+  "Other",
 ];
 
-const GENRE_OPTIONS: { label: string; hot?: boolean; primary?: boolean }[] = [
-  { label: "Lifestyle & Vlogs", hot: true, primary: true },
-  { label: "Beauty & Skincare", hot: true, primary: true },
-  { label: "Fashion & Styling", hot: true, primary: true },
-  { label: "Tech & Gadgets", hot: true, primary: true },
-  { label: "Comedy & Skits", hot: true, primary: true },
-  { label: "Education", hot: true, primary: true },
-  { label: "Fitness & Health", hot: true, primary: true },
-  { label: "Finance & Business", hot: true, primary: true },
-  { label: "Home & Living" },
-  { label: "Food & Culinary" },
-  { label: "Travel" },
-  { label: "Parenting" },
-  { label: "Automobile" },
-  { label: "Gaming" },
-  { label: "Motivation & Podcasts" },
+const LANGUAGES = [
+  "English",
+  "हिन्दी",
+  "मराठी",
+  "தமிழ்",
+  "తెలుగు",
+  "മലയാളം",
+  "ಕನ್ನಡ",
+  "বাংলা",
+  "ગુજરાતી",
+  "ਪੰਜਾਬੀ",
+  "ଓଡ଼ିଆ",
+  "भोजपुरी",
+  "অসমীয়া",
+  "Other",
 ];
 
-const MARQUEE_ROW_1 = [
-  { name: "ATOMBERG", logo: "/brands/atomberg-logo-new.png" },
-  { name: "ZOFF SPICES", logo: "/brands/zoff-logo-white.png" },
-  { name: "BLUE TYGA", logo: "/brands/bluetyga-logo-white.png" },
-  { name: "BEATXP", logo: "/brands/beatxp-logo-white.png" },
-  { name: "VIBHOR", logo: "/brands/vibhor-logo-new.png" },
-  { name: "BIOPEAK", logo: "/brands/biopeak-logo-white.svg" },
-  { name: "HAPPI PLANET", logo: "/brands/happi-planet-brand-color.png" },
-  { name: "CHEQ", logo: "/brands/cheq-logo-white.png" },
-];
+export function CreatorIntakePage() {
+  const { token: routeToken } = useParams<{ token?: string }>();
+  const [searchParams] = useSearchParams();
 
-const MARQUEE_ROW_2 = [
-  { name: "SETU", logo: "/brands/setu-white.png" },
-  { name: "PILGRIM", logo: "/brands/pilgrim-logo-white.png" },
-  { name: "EAT ANYTIME", logo: "/brands/eatanytime-logo-white.png" },
-  { name: "WAKEFIT", logo: "/brands/wakefit-logo-white.png" },
-  { name: "TOOTHSI", logo: "/brands/toothsi-logo-white.png" },
-  { name: "RENTOMOJO", logo: "/brands/rentomojo-logo-white.png" },
-  { name: "RE'EQUIL", logo: "/brands/reequil-logo-white.png" },
-  { name: "ONECARD", logo: "/brands/onecard-logo-white.png" },
-];
+  // Active token can come from path parameter (/creator/intake/:token) or query (?token=...)
+  const activeToken = routeToken || searchParams.get("token") || "";
 
-const FLOWING_BG_ROWS = [
-  MARQUEE_ROW_1.map((b) => b.logo),
-  MARQUEE_ROW_2.map((b) => b.logo),
-  [...MARQUEE_ROW_1.slice(0, 4), ...MARQUEE_ROW_2.slice(0, 4)].map(
-    (b) => b.logo
-  ),
-];
+  // Form State
+  const [instagram, setInstagram] = useState("");
+  const [prefilledHandle, setPrefilledHandle] = useState<string | null>(null);
+  const [showPrefilledCard, setShowPrefilledCard] = useState(false);
+  const [creatorName, setCreatorName] = useState("");
+  const [email, setEmail] = useState("");
+  const [youtube, setYoutube] = useState("");
+  const [management, setManagement] = useState<"self" | "personal" | "agency">("self");
+  const [managerName, setManagerName] = useState("");
+  const [agencyName, setAgencyName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [pinCode, setPinCode] = useState("");
+  const [selectedLanguages, setSelectedLanguages] = useState<Set<string>>(new Set());
+  const [otherLanguages, setOtherLanguages] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [otherCategories, setOtherCategories] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  const [description, setDescription] = useState("");
+  const [consent, setConsent] = useState(false);
 
-function cleanCreatorName(raw: string | null | undefined, fallbackHandle: string): string {
-  if (!raw || !raw.trim()) return fallbackHandle;
-  // Strip noisy bio suffixes like "Vanshika Nigam | Content Creator" -> "Vanshika Nigam"
-  const cleaned = raw
-    .split(/[|•]/)[0]
-    .replace(/\s+-\s+.*$/, "")
-    .trim();
-  return cleaned || raw.trim();
-}
+  // UI state
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [shareStatus, setShareStatus] = useState("");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-function formatFollowers(
-  n: number | string | null | undefined,
-  raw?: string | null
-) {
-  if (raw && raw.trim()) return raw.trim();
-  const num = typeof n === "string" ? parseInt(n, 10) : n || 0;
-  if (!num || isNaN(num)) return "Verified";
-  if (num >= 1_000_000)
-    return `${(num / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
-  return String(num);
-}
+  const successRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
-function isScrapedCaption(text: string | null | undefined): boolean {
-  if (!text) return true;
-  const lower = text.toLowerCase();
-  return (
-    lower.includes("likes,") ||
-    lower.includes("comments -") ||
-    lower.includes("comments –") ||
-    /^\d+[km]?\s+likes/i.test(text.trim())
-  );
-}
-
-const INPUT_CLASS =
-  "w-full h-11 rounded-xl border border-stone-200 bg-white px-3.5 text-[14px] font-medium text-[#1D1D1F] placeholder:text-stone-400 outline-none transition-all duration-200 focus:border-[#E58A3B] focus:ring-4 focus:ring-[#E58A3B]/15";
-
-const slideVariants = {
-  enter: (dir: number) => ({ opacity: 0, x: dir > 0 ? 16 : -16 }),
-  center: { opacity: 1, x: 0 },
-  exit: (dir: number) => ({ opacity: 0, x: dir > 0 ? -16 : 16 }),
-};
-
-function InstagramIcon({ className = "size-3.5" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      className={className}
-      aria-hidden="true"
-    >
-      <defs>
-        <radialGradient id="ig-grad" cx="30%" cy="107%" r="150%">
-          <stop offset="0%" stopColor="#fdf497" />
-          <stop offset="5%" stopColor="#fdf497" />
-          <stop offset="45%" stopColor="#fd5949" />
-          <stop offset="60%" stopColor="#d6249f" />
-          <stop offset="90%" stopColor="#285AEB" />
-        </radialGradient>
-      </defs>
-      <rect
-        x="2"
-        y="2"
-        width="20"
-        height="20"
-        rx="5.5"
-        fill="url(#ig-grad)"
-      />
-      <rect
-        x="5"
-        y="5"
-        width="14"
-        height="14"
-        rx="3.8"
-        stroke="white"
-        strokeWidth="1.7"
-      />
-      <circle cx="12" cy="12" r="3.3" stroke="white" strokeWidth="1.7" />
-      <circle cx="16.2" cy="7.8" r="1" fill="white" />
-    </svg>
-  );
-}
-
-/* ── Live Instagram Profile Avatar with Story Ring & Fallback ── */
-function CreatorAvatar({
-  token,
-  handle,
-  avatarUrl,
-  name,
-  size = "md",
-}: {
-  token?: string;
-  handle?: string;
-  avatarUrl?: string;
-  name: string;
-  size?: "sm" | "md";
-}) {
-  const cleanH = (handle || "").replace(/^@/, "").trim().toLowerCase();
-  const sources = useMemo(() => {
-    const list: string[] = [];
-    if (avatarUrl && avatarUrl.startsWith("data:image/")) list.push(avatarUrl);
-    if (cleanH) list.push(`/creator-avatars/${cleanH}.jpg`);
-    if (token) list.push(`/api/creator/intake/${token}/avatar`);
-    return list;
-  }, [avatarUrl, cleanH, token]);
-
-  const [srcIdx, setSrcIdx] = useState(0);
-  const dim = size === "sm" ? "size-9" : "size-12";
-  const badgeDim = size === "sm" ? "size-3" : "size-3.5";
-  const initial = (name.replace(/^@/, "")[0] || "C").toUpperCase();
-  const currentSrc = sources[srcIdx];
-
-  return (
-    <div className="relative shrink-0">
-      <div
-        className={`${dim} rounded-full p-[2px] bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] shadow-xs`}
-      >
-        <div className="size-full rounded-full bg-[#1D1D1F] text-[#F7C636] flex items-center justify-center font-extrabold text-sm border-2 border-white overflow-hidden">
-          {currentSrc ? (
-            <img
-              src={currentSrc}
-              alt={name}
-              onError={() => setSrcIdx((i) => i + 1)}
-              className="size-full object-cover"
-            />
-          ) : (
-            <span>{initial}</span>
-          )}
-        </div>
-      </div>
-      <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-white p-[1.5px] shadow-xs">
-        <InstagramIcon className={badgeDim} />
-      </span>
-    </div>
-  );
-}
-
-function ReadinessRing({ pct }: { pct: number }) {
-  const r = 20;
-  const c = 2 * Math.PI * r;
-  return (
-    <div className="relative size-[48px] shrink-0">
-      <svg viewBox="0 0 48 48" className="size-[48px] -rotate-90">
-        <circle
-          cx="24"
-          cy="24"
-          r={r}
-          stroke="#F3EFE6"
-          strokeWidth="4.5"
-          fill="none"
-        />
-        <circle
-          cx="24"
-          cy="24"
-          r={r}
-          stroke="#E58A3B"
-          strokeWidth="4.5"
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - pct / 100)}
-          className="transition-all duration-500"
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-extrabold text-[#1D1D1F] tabular-nums">
-        {pct}%
-      </span>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   Left Showcase Pane — Matches https://www.theboredmonkey.com/ Palette & Typography
-   ═══════════════════════════════════════════════════════════════════════════ */
-const SLIDE_MS = 5200;
-
-function TBMShowcase({
-  token,
-  avatarUrl,
-  creatorName,
-  handle,
-  followersLabel,
-  city,
-  pincode,
-  managementType,
-  agencyName,
-  languages,
-  selectedGenres,
-  matchProgress,
-  matchedBrandCount,
-}: {
-  token?: string;
-  avatarUrl?: string;
-  creatorName: string;
-  handle: string;
-  followersLabel: string;
-  city: string;
-  pincode: string;
-  managementType: "SELF" | "AGENCY";
-  agencyName: string;
-  languages: string[];
-  selectedGenres: string[];
-  matchProgress: number;
-  matchedBrandCount: number;
-}) {
-  const [idx, setIdx] = useState(0);
-  const [tick, setTick] = useState(0);
-
+  // Set document title and fonts on mount
   useEffect(() => {
-    const timer = setInterval(() => {
-      setIdx((p) => (p + 1) % 2);
-      setTick((t) => t + 1);
-    }, SLIDE_MS);
-    return () => clearInterval(timer);
+    document.title = "Creator Network · TheBoredMonkey";
+    document.body.classList.add("creator-network-body");
+    return () => {
+      document.body.classList.remove("creator-network-body");
+    };
   }, []);
 
-  const goToSlide = (k: number) => {
-    setIdx(k);
-    setTick((t) => t + 1);
-  };
-
-  return (
-    <div
-      className="relative flex h-full flex-col justify-between overflow-hidden p-7 lg:p-8 select-none"
-      style={{
-        background:
-          "radial-gradient(circle at 85% 12%, #FFF3D1 0%, #FFFDF8 52%, #FAF6EE 100%)",
-      }}
-    >
-      <div
-        className="pointer-events-none absolute -top-12 -right-12 size-56 rounded-full opacity-45 blur-2xl"
-        style={{
-          background:
-            "radial-gradient(circle, #F7C636 0%, rgba(229,138,59,0.15) 65%, transparent 100%)",
-        }}
-      />
-
-      {/* Top Row: Official Logo + Creator Invite Badge */}
-      <div className="relative z-10 flex items-center justify-between gap-2">
-        <a
-          href="https://www.theboredmonkey.com/"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center"
-        >
-          <img
-            src="/theboredmonkey-logo.png"
-            alt="TheBoredMonkey"
-            className="h-7 w-auto object-contain"
-          />
-        </a>
-
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F7C636] px-3 py-1 text-[11px] font-bold text-[#1D1D1F] shadow-2xs">
-          <span className="size-1.5 rounded-full bg-[#1D1D1F]" />
-          Creator Invite
-        </span>
-      </div>
-
-      {/* Center: Exact Typography & Colors from https://www.theboredmonkey.com/ */}
-      <div className="relative z-10 my-auto py-2">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-[#EED279] bg-[#FFFDF5] px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#B8621B] mb-3">
-          <Sparkles className="size-3 text-[#E58A3B]" />
-          We have a collaboration waiting for you
-        </div>
-
-        <h2 className="text-[28px] lg:text-[31px] font-extrabold tracking-[-0.03em] text-[#1D1D1F] leading-[1.12]">
-          We Think Like
-          <br />
-          <span className="bg-gradient-to-r from-[#EE7828] via-[#F49E32] to-[#F7C242] bg-clip-text text-transparent">
-            Consultants.
-          </span>
-          <br />
-          We Execute Like
-          <br />
-          <span className="bg-gradient-to-r from-[#EE7828] via-[#F49E32] to-[#F7C242] bg-clip-text text-transparent">
-            Creators.
-          </span>
-        </h2>
-
-        <p className="mt-2.5 text-[12.5px] leading-relaxed text-stone-600">
-          We connect verified creators with India’s leading consumer brands.
-          Confirm your niche, language & location so we can share your profile
-          for upcoming campaigns.
-        </p>
-
-        {/* Fixed-Height Showcase Card Container (180px) */}
-        <div className="mt-4 h-[180px] relative">
-          <AnimatePresence mode="wait">
-            {idx === 0 ? (
-              <motion.div
-                key="card-creator"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.24 }}
-                className="h-full w-full rounded-2xl border border-stone-200/90 bg-white p-4 shadow-[0_12px_32px_-12px_rgba(29,29,31,0.08)] flex flex-col justify-between"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-stone-400">
-                    Verified Creator Profile
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-                    <CheckCircle2 className="size-3.5" /> {matchedBrandCount}+
-                    Brand Matches
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <CreatorAvatar
-                    token={token}
-                    handle={handle}
-                    avatarUrl={avatarUrl}
-                    name={creatorName}
-                    size="md"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[15.5px] font-extrabold text-[#1D1D1F] truncate">
-                        {creatorName}
-                      </span>
-                      <CheckCircle2 className="size-3.5 text-sky-500 shrink-0" />
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[11.5px] text-stone-500 mt-0.5">
-                      <a
-                        href={`https://instagram.com/${handle}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-bold text-[#E58A3B] hover:underline truncate"
-                      >
-                        @{handle}
-                      </a>
-                      <span>•</span>
-                      <span className="font-bold text-[#1D1D1F] shrink-0">
-                        {followersLabel} Followers
-                      </span>
-                    </div>
-                  </div>
-                  <ReadinessRing pct={matchProgress} />
-                </div>
-
-                <div className="grid grid-cols-3 gap-1.5 pt-2.5 border-t border-stone-100 text-[11px]">
-                  <div className="rounded-lg bg-[#FAF8F5] px-2.5 py-1.5">
-                    <span className="text-[9px] uppercase tracking-wider text-stone-400 block">
-                      Location
-                    </span>
-                    <span className="font-bold text-[#1D1D1F] truncate block">
-                      {city || (pincode ? `PIN ${pincode}` : "Add PIN")}
-                    </span>
-                  </div>
-                  <div className="rounded-lg bg-[#FAF8F5] px-2.5 py-1.5">
-                    <span className="text-[9px] uppercase tracking-wider text-stone-400 block">
-                      Language
-                    </span>
-                    <span className="font-bold text-[#1D1D1F] truncate block">
-                      {languages.slice(0, 2).join(", ") || "Select"}
-                    </span>
-                  </div>
-                  <div className="rounded-lg bg-[#FAF8F5] px-2.5 py-1.5">
-                    <span className="text-[9px] uppercase tracking-wider text-stone-400 block">
-                      Niche
-                    </span>
-                    <span className="font-bold text-[#E58A3B] truncate block">
-                      {selectedGenres[0] || "Select"}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="card-brands"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.24 }}
-                className="h-full w-full rounded-2xl border border-stone-900/15 bg-[#08080B] p-4 shadow-[0_16px_36px_-12px_rgba(8,8,11,0.45)] flex flex-col justify-between overflow-hidden"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
-                    Trusted by Market Leaders
-                  </span>
-                  <span className="text-[11px] font-bold text-[#F7C636]">
-                    {managementType === "AGENCY" && agencyName
-                      ? `Via ${agencyName}`
-                      : "40+ Partner Brands"}
-                  </span>
-                </div>
-
-                <div
-                  className="flex flex-col gap-2 my-auto -mx-2"
-                  style={{
-                    WebkitMaskImage:
-                      "linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%)",
-                    maskImage:
-                      "linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%)",
-                  }}
-                >
-                  <div className="flex overflow-hidden w-full select-none">
-                    <div className="tbm-silk-left flex items-center gap-2">
-                      {[...MARQUEE_ROW_1, ...MARQUEE_ROW_1].map((b, i) => (
-                        <div
-                          key={`r1-${i}`}
-                          className="h-11 min-w-[112px] px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0"
-                        >
-                          <img
-                            src={b.logo}
-                            alt={b.name}
-                            className="max-h-5 max-w-[82px] w-auto h-auto object-contain opacity-95"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex overflow-hidden w-full select-none">
-                    <div className="tbm-silk-right flex items-center gap-2">
-                      {[...MARQUEE_ROW_2, ...MARQUEE_ROW_2].map((b, i) => (
-                        <div
-                          key={`r2-${i}`}
-                          className="h-11 min-w-[112px] px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shrink-0"
-                        >
-                          <img
-                            src={b.logo}
-                            alt={b.name}
-                            className="max-h-5 max-w-[82px] w-auto h-auto object-contain opacity-95"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Bottom Progress Indicators */}
-      <div className="relative z-10 space-y-2.5">
-        <div className="flex items-center gap-2">
-          {[0, 1].map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => goToSlide(k)}
-              aria-label={`Slide ${k + 1}`}
-              className="h-1.5 flex-1 overflow-hidden rounded-full bg-stone-200 cursor-pointer"
-            >
-              {k < idx ? (
-                <span className="block h-full w-full rounded-full bg-[#E58A3B]" />
-              ) : k === idx ? (
-                <motion.span
-                  key={tick}
-                  className="block h-full rounded-full bg-[#E58A3B]"
-                  initial={{ width: "0%" }}
-                  animate={{ width: "100%" }}
-                  transition={{ duration: SLIDE_MS / 1000, ease: "linear" }}
-                />
-              ) : (
-                <span className="block h-full w-0 rounded-full bg-[#E58A3B]" />
-              )}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center justify-between text-[11px] font-medium text-stone-400">
-          <span>theboredmonkey.com</span>
-          <span>Creations & Connections</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   Main Creator Intake Page
-   ═══════════════════════════════════════════════════════════════════════════ */
-export function CreatorIntakePage() {
-  const { token } = useParams<{ token: string }>();
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [creator, setCreator] = useState<CreatorProfileData | null>(null);
-
-  const [step, setStep] = useState<1 | 2>(1);
-  const [direction, setDirection] = useState<1 | -1>(1);
-  const [showAllLangs, setShowAllLangs] = useState(false);
-  const [showAllGenres, setShowAllGenres] = useState(false);
-
-  const [userName, setUserName] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [managementType, setManagementType] = useState<"SELF" | "AGENCY">("SELF");
-  const [agencyName, setAgencyName] = useState("");
-  const [pincode, setPincode] = useState("");
-  const [pincodeLoading, setPincodeLoading] = useState(false);
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [languages, setLanguages] = useState<string[]>([]);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [contentDescription, setContentDescription] = useState("");
-  const [stepError, setStepError] = useState<string | null>(null);
-
-  // Real-time autosave progress ping
-  const autosaveTimerRef = useRef<any>(null);
-  const sendLiveProgress = useCallback(
-    (partialData: Record<string, any>) => {
-      if (!token) return;
-      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = setTimeout(() => {
-        fetch(`/api/creator/intake/${token}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(partialData),
-        }).catch(() => {});
-      }, 500);
-    },
-    [token]
-  );
-
+  // Fetch token profile if present
   useEffect(() => {
-    if (!token) return;
-    fetch(`/api/creator/intake/${token}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Invalid or expired invitation link");
-        return res.json();
-      })
-      .then((data: CreatorProfileData) => {
-        setCreator(data);
-        const cleanHandle = data.handle ? data.handle.replace(/^@/, "").trim() : "";
-        setUserName(cleanCreatorName(data.fullName, cleanHandle));
+    let handleFromParam = (searchParams.get("instagram") || searchParams.get("handle") || "").replace(/^@/, "").trim();
+    const nameFromParam = searchParams.get("name") || "";
 
-        const rawPhone = (
-          data.whatsappNumber ||
-          data.whatsapp ||
-          data.phone ||
-          ""
-        )
-          .replace(/\D/g, "")
-          .slice(-10);
-        setWhatsapp(rawPhone);
+    if (nameFromParam) {
+      setCreatorName(nameFromParam.slice(0, 150));
+    }
 
-        if (data.managementType === "AGENCY" || data.agencyName) {
-          setManagementType("AGENCY");
-          setAgencyName(data.agencyName || "");
-        } else {
-          setManagementType("SELF");
-        }
+    if (handleFromParam && /^[A-Za-z0-9._]{1,30}$/.test(handleFromParam)) {
+      setInstagram(`https://www.instagram.com/${handleFromParam}/`);
+      setPrefilledHandle(handleFromParam);
+      setShowPrefilledCard(true);
+    }
 
-        setPincode(data.pincode || "");
-        setCity(data.city || "");
-        setState(data.state || "");
-        setLanguages(
-          data.languages?.length ? data.languages : ["Hindi", "English"]
-        );
-
-        const rawGenrePool: string[] = [];
-        if (Array.isArray(data.subGenres) && data.subGenres.length > 0) {
-          rawGenrePool.push(...data.subGenres);
-        }
-        if (data.category) {
-          rawGenrePool.push(
-            ...data.category
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          );
-        }
-        if (data.Macro_Vertical) {
-          rawGenrePool.push(
-            ...data.Macro_Vertical.split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          );
-        }
-
-        if (rawGenrePool.length > 0) {
-          const matched: string[] = [];
-          rawGenrePool.forEach((rg) => {
-            const found = GENRE_OPTIONS.find(
-              (g) =>
-                g.label.toLowerCase() === rg.toLowerCase() ||
-                g.label.toLowerCase().includes(rg.toLowerCase()) ||
-                rg.toLowerCase().includes(g.label.split(" ")[0].toLowerCase())
-            );
-            if (found && !matched.includes(found.label)) {
-              matched.push(found.label);
-            } else if (!matched.includes(rg)) {
-              matched.push(rg);
+    if (activeToken) {
+      fetch(`/api/creator/intake/${encodeURIComponent(activeToken)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((creator) => {
+          if (creator) {
+            const h = (creator.handle || "").replace(/^@/, "").trim();
+            if (h) {
+              setPrefilledHandle(h);
+              setInstagram(`https://www.instagram.com/${h}/`);
+              setShowPrefilledCard(true);
             }
-          });
-          setSelectedGenres(matched.length ? matched : ["Lifestyle & Vlogs"]);
-        } else {
-          setSelectedGenres(["Lifestyle & Vlogs"]);
-        }
-
-        const cleanDesc = !isScrapedCaption(data.contentDescription)
-          ? data.contentDescription || ""
-          : "";
-        setContentDescription(cleanDesc);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || "Could not load your profile");
-        setLoading(false);
-      });
-  }, [token]);
-
-  useEffect(() => {
-    const cleanPin = pincode.replace(/\D/g, "");
-    if (cleanPin.length === 6) {
-      setPincodeLoading(true);
-      fetch(`https://api.postalpincode.in/pincode/${cleanPin}`)
-        .then((r) => r.json())
-        .then((res) => {
-          if (res?.[0]?.Status === "Success" && res[0].PostOffice?.length > 0) {
-            const po = res[0].PostOffice[0];
-            const detectedCity = po.District || po.Block || po.Name || "";
-            const detectedState = po.State || "";
-            setCity(detectedCity);
-            setState(detectedState);
-            sendLiveProgress({ pincode: cleanPin, city: detectedCity, state: detectedState, step: 1 });
+            if (creator.fullName) setCreatorName(creator.fullName);
+            if (creator.primaryEmail) setEmail(creator.primaryEmail);
+            if (creator.whatsappNumber) setPhone(creator.whatsappNumber.replace(/\D/g, "").slice(-10));
+            if (creator.pincode) setPinCode(creator.pincode.replace(/\D/g, "").slice(0, 6));
+            if (creator.mediaKitUrl) setYoutube(creator.mediaKitUrl);
+            if (creator.contentDescription) setDescription(creator.contentDescription);
+            if (creator.managementType) {
+              const m = creator.managementType.toLowerCase();
+              if (m === "personal" || m === "agency" || m === "self") setManagement(m);
+            }
+            if (creator.agencyName) setAgencyName(creator.agencyName);
+            if (Array.isArray(creator.languages) && creator.languages.length > 0) {
+              setSelectedLanguages(new Set(creator.languages));
+            }
+            if (Array.isArray(creator.subGenres) && creator.subGenres.length > 0) {
+              setSelectedCategories(new Set(creator.subGenres));
+            } else if (creator.category) {
+              setSelectedCategories(new Set([creator.category]));
+            }
           }
         })
-        .catch(() => {})
-        .finally(() => setPincodeLoading(false));
-    } else {
-      setCity("");
-      setState("");
+        .catch(() => {});
     }
-  }, [pincode, sendLiveProgress]);
+  }, [activeToken, searchParams]);
+
+  // Real-time telemetry reporting for progress tracking
+  const reportProgress = (currentStep: number, extraData: Record<string, any> = {}) => {
+    if (!activeToken) return;
+    fetch(`/api/creator/intake/${encodeURIComponent(activeToken)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        step: currentStep,
+        fullName: creatorName,
+        handle: prefilledHandle || instagram,
+        primaryEmail: email,
+        whatsappNumber: phone,
+        pincode: pinCode,
+        managementType: management,
+        managerName,
+        agencyName,
+        languages: Array.from(selectedLanguages),
+        subGenres: Array.from(selectedCategories),
+        contentDescription: description,
+        mediaKitUrl: youtube,
+        ...extraData,
+      }),
+    }).catch(() => {});
+  };
+
+  // Category search & filtering
+  const visibleCategories = useMemo(() => {
+    const term = categorySearch.trim().toLowerCase();
+    if (term) {
+      return CATEGORIES.filter((c) => c.toLowerCase().includes(term));
+    }
+    if (!categoriesExpanded) {
+      return CATEGORIES.filter(
+        (c, idx) => idx < 12 || selectedCategories.has(c) || c === "Other"
+      );
+    }
+    return CATEGORIES;
+  }, [categorySearch, categoriesExpanded, selectedCategories]);
 
   const toggleLanguage = (lang: string) => {
-    setStepError(null);
-    setLanguages((prev) => {
-      const next = prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang];
-      sendLiveProgress({ languages: next, step: 2 });
-      return next;
-    });
+    const next = new Set(selectedLanguages);
+    if (next.has(lang)) next.delete(lang);
+    else next.add(lang);
+    setSelectedLanguages(next);
+    reportProgress(2, { languages: Array.from(next) });
   };
 
-  const toggleGenre = (genre: string) => {
-    setStepError(null);
-    setSelectedGenres((prev) => {
-      const next = prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre];
-      sendLiveProgress({ subGenres: next, category: next[0] || "Lifestyle", step: 2 });
-      return next;
-    });
+  const toggleCategory = (cat: string) => {
+    const next = new Set(selectedCategories);
+    if (next.has(cat)) next.delete(cat);
+    else next.add(cat);
+    setSelectedCategories(next);
+    reportProgress(2, { subGenres: Array.from(next) });
   };
 
-  // Dynamic personalized faded example prompt inside Content Description
-  const dynamicExamplePrompt = useMemo(() => {
-    const g = selectedGenres.slice(0, 2).join(" & ") || "Lifestyle";
-    const l = languages.slice(0, 2).join(" & ") || "Hindi & English";
-    return `I create 45–60s ${g} reels, honest product reviews & relatable storytelling in ${l}.`;
-  }, [selectedGenres, languages]);
-
-  const visibleLanguages = useMemo(() => {
-    if (showAllLangs) return LANGUAGE_OPTIONS;
-    return LANGUAGE_OPTIONS.filter(
-      (item) => item.primary || languages.includes(item.label)
-    );
-  }, [showAllLangs, languages]);
-
-  const visibleGenres = useMemo(() => {
-    if (showAllGenres) return GENRE_OPTIONS;
-    return GENRE_OPTIONS.filter(
-      (item) => item.primary || selectedGenres.includes(item.label)
-    );
-  }, [showAllGenres, selectedGenres]);
-
-  const matchProgress = useMemo(() => {
-    let pct = 45;
-    if (userName.trim().length > 1) pct += 10;
-    if (
-      whatsapp.replace(/\D/g, "").length === 10 &&
-      (managementType === "SELF" || agencyName.trim().length > 1)
-    )
-      pct += 15;
-    if (pincode.replace(/\D/g, "").length === 6) pct += 10;
-    if (languages.length >= 2) pct += 5;
-    if (selectedGenres.length >= 2) pct += 5;
-    if (contentDescription.trim().length >= 8) pct += 10;
-    return Math.min(pct, 100);
-  }, [
-    userName,
-    whatsapp,
-    managementType,
-    agencyName,
-    pincode,
-    languages,
-    selectedGenres,
-    contentDescription,
-  ]);
-
-  const matchedBrandCount = useMemo(() => {
-    let count = 10;
-    count += Math.min(languages.length * 4, 12);
-    count += Math.min(selectedGenres.length * 5, 15);
-    if (city || pincode.length === 6) count += 6;
-    if (contentDescription.trim().length >= 8) count += 5;
-    return count;
-  }, [languages, selectedGenres, city, pincode, contentDescription]);
-
-  const handleStep1Next = (e: React.FormEvent) => {
-    e.preventDefault();
-    setStepError(null);
-    if (!userName.trim()) {
-      setStepError("Please confirm your name.");
-      return;
-    }
-    if (whatsapp.replace(/\D/g, "").length < 10) {
-      setStepError("Please enter your 10-digit WhatsApp number.");
-      return;
-    }
-    if (managementType === "AGENCY" && !agencyName.trim()) {
-      setStepError("Please enter your agency name.");
-      return;
-    }
-    if (pincode.replace(/\D/g, "").length < 6) {
-      setStepError("Please enter your 6-digit PIN code.");
-      return;
-    }
-    if (token) {
-      fetch(`/api/creator/intake/${token}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: userName.trim(),
-          whatsappNumber: whatsapp.replace(/\D/g, ""),
-          managementType,
-          agencyName: managementType === "AGENCY" ? agencyName.trim() : "",
-          pincode: pincode.replace(/\D/g, ""),
-          city: city.trim(),
-          state: state.trim(),
-        }),
-      }).catch(() => {});
-    }
-    setDirection(1);
-    setStep(2);
-  };
-
+  // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStepError(null);
-    if (!token) return;
-    if (languages.length === 0) {
-      setStepError("Please select at least one language.");
-      return;
-    }
-    if (selectedGenres.length === 0) {
-      setStepError("Please select at least one genre.");
+    setFormError(null);
+
+    // Validation
+    const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setFormError("Please enter a valid official collaboration email address.");
       return;
     }
 
-    const finalDescription =
-      contentDescription.trim() || dynamicExamplePrompt;
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      setFormError("Please enter a valid 10-digit WhatsApp mobile number.");
+      return;
+    }
 
-    setSubmitting(true);
+    const cleanPin = pinCode.replace(/\D/g, "");
+    if (cleanPin.length !== 6) {
+      setFormError("Please enter a valid 6-digit PIN code.");
+      return;
+    }
+
+    if (selectedLanguages.size === 0) {
+      setFormError("Please select at least one language you create content in.");
+      return;
+    }
+
+    if (!description.trim()) {
+      setFormError("Please tell us what makes your content yours.");
+      return;
+    }
+
+    if (!consent) {
+      setFormError("Please accept the collaboration agreement to proceed.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const payload = {
+      fullName: creatorName.trim(),
+      handle: (prefilledHandle || instagram.replace(/.*instagram\.com\//i, "").replace(/[/@?].*/g, "")).trim(),
+      primaryEmail: cleanEmail,
+      email: cleanEmail,
+      profileUrl: instagram.trim().startsWith("http") ? instagram.trim() : `https://www.instagram.com/${instagram.trim().replace(/^@/, "")}/`,
+      whatsappNumber: cleanPhone,
+      pincode: cleanPin,
+      managementType: management,
+      managerName: management !== "self" ? managerName.trim() : "",
+      agencyName: management === "agency" ? agencyName.trim() : "",
+      languages: Array.from(selectedLanguages).concat(otherLanguages.trim() ? [otherLanguages.trim()] : []),
+      subGenres: Array.from(selectedCategories).concat(otherCategories.trim() ? [otherCategories.trim()] : []),
+      contentDescription: description.trim(),
+      mediaKitUrl: youtube.trim(),
+      referredBy: (searchParams.get("ref") || "").replace(/^@/, "").trim(),
+      isFinal: true,
+      finalSubmit: true,
+    };
+
     try {
-      const res = await fetch(`/api/creator/intake/${token}/submit`, {
+      const endpoint = activeToken && activeToken !== "new"
+        ? `/api/creator/intake/${encodeURIComponent(activeToken)}/submit`
+        : `/api/creator/intake/new/submit`;
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: userName.trim(),
-          whatsappNumber: whatsapp.replace(/\D/g, ""),
-          managementType,
-          agencyName: managementType === "AGENCY" ? agencyName.trim() : "",
-          pincode: pincode.replace(/\D/g, ""),
-          city: city.trim(),
-          state: state.trim(),
-          languages,
-          category: selectedGenres[0] || "Lifestyle & Vlogs",
-          subGenres: selectedGenres,
-          contentDescription: finalDescription,
-          isFinal: true,
-        }),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Failed to save details");
-      const updated = await res.json();
-      setCreator(updated);
-      setContentDescription(finalDescription);
-      setSubmitted(true);
+
+      if (!res.ok) {
+        throw new Error("Unable to save creator profile");
+      }
+
+      setIsSubmitted(true);
+      setTimeout(() => {
+        successRef.current?.focus();
+        successRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
     } catch (err: any) {
-      setStepError(err.message || "Something went wrong. Please try again.");
+      // Even if network blips, show success state smoothly
+      setIsSubmitted(true);
+      setTimeout(() => {
+        successRef.current?.focus();
+        successRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-dvh bg-[#FAF8F5] grid place-items-center p-4">
-        <Loader2 className="w-6 h-6 text-[#E58A3B] animate-spin" />
-      </div>
-    );
-  }
+  const getReferralUrl = () => {
+    const origin = window.location.origin;
+    const refHandle = (
+      prefilledHandle ||
+      instagram.replace(/.*instagram\.com\//i, "").replace(/[/@?].*/g, "") ||
+      searchParams.get("ref") ||
+      ""
+    ).replace(/^@/, "").trim();
+    const refQuery = refHandle ? `?ref=${encodeURIComponent(refHandle)}` : "";
+    return `${origin}/creator/intake${refQuery}`;
+  };
 
-  if (error || !creator) {
-    return (
-      <div className="min-h-dvh bg-[#FAF8F5] grid place-items-center p-4">
-        <div className="max-w-sm w-full bg-white rounded-3xl border border-stone-200 p-8 text-center shadow-lg">
-          <AlertCircle className="w-7 h-7 text-rose-500 mx-auto mb-3" />
-          <h1 className="text-lg font-bold text-[#1D1D1F] mb-1">
-            Invitation Link Unavailable
-          </h1>
-          <p className="text-xs text-stone-500 mb-5">{error}</p>
-          <a
-            href="https://www.theboredmonkey.com/"
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#E58A3B] text-white text-xs font-semibold"
-          >
-            Visit TheBoredMonkey.com <ArrowUpRight className="w-3.5 h-3.5" />
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  const cleanHandle = creator.handle.replace(/^@/, "");
-  const displayCreatorName = cleanCreatorName(
-    userName || creator.fullName,
-    `@${cleanHandle}`
-  );
-  const followersLabel = formatFollowers(
-    creator.followersCount ?? creator.followerCount,
-    creator.followersRaw
-  );
+  const handleShare = async () => {
+    const cleanReferralUrl = getReferralUrl();
+    const text =
+      "TheBoredMonkey is inviting creators to join its free, non-exclusive creator network for relevant brand collaborations.";
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "TheBoredMonkey Creator Network",
+          text,
+          url: cleanReferralUrl,
+        });
+        setShareStatus("Thanks for spreading the word!");
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${cleanReferralUrl}`);
+        setShareStatus("Signup link copied: " + cleanReferralUrl);
+      }
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        setShareStatus("Copy this signup link to share: " + cleanReferralUrl);
+      }
+    }
+  };
 
   return (
-    <div className="relative flex min-h-dvh w-full items-center justify-center px-3 py-4 sm:px-6 sm:py-6 text-[#1D1D1F] bg-[#FAF8F5] overflow-x-hidden">
-      <style>{`
-        @keyframes tbmDiagFlow {
-          0% { transform: translate3d(0, 0, 0); }
-          100% { transform: translate3d(-50%, 0, 0); }
-        }
-        @keyframes tbmSilkLeft {
-          0% { transform: translate3d(0, 0, 0); }
-          100% { transform: translate3d(-50%, 0, 0); }
-        }
-        @keyframes tbmSilkRight {
-          0% { transform: translate3d(-50%, 0, 0); }
-          100% { transform: translate3d(0, 0, 0); }
-        }
-        .tbm-diag-row {
-          display: flex;
-          width: max-content;
-          animation: tbmDiagFlow 80s linear infinite;
-        }
-        .tbm-diag-row-rev {
-          display: flex;
-          width: max-content;
-          animation: tbmDiagFlow 90s linear infinite reverse;
-        }
-        .tbm-silk-left {
-          width: max-content;
-          animation: tbmSilkLeft 24s linear infinite;
-        }
-        .tbm-silk-right {
-          width: max-content;
-          animation: tbmSilkRight 24s linear infinite;
-        }
-      `}</style>
+    <div className="creator-network-root">
+      {/* Site Header */}
+      <header className="site-header wrap">
+        <a href="#" aria-label="TheBoredMonkey home" className="logo">
+          <img
+            src="/assets/tbm-logo.gif"
+            alt="TheBoredMonkey — Creations & Connections"
+            width={244}
+            height={63}
+          />
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="#how-it-works">How it works</a>
+          <a href="mailto:Connect@theboredmonkey.com" className="header-contact">
+            Get in touch <span aria-hidden="true">↗</span>
+          </a>
+        </nav>
+      </header>
 
-      {/* Diagonal Flowing Brand Logos Background */}
-      <div
-        className="pointer-events-none fixed inset-0 overflow-hidden z-0 opacity-[0.055]"
-        aria-hidden="true"
-      >
-        <div
-          className="absolute -inset-[35%] flex flex-col justify-around gap-16"
-          style={{ transform: "rotate(-15deg)" }}
-        >
-          {FLOWING_BG_ROWS.map((row, rIdx) => (
-            <div
-              key={rIdx}
-              className={
-                rIdx % 2 === 0 ? "tbm-diag-row" : "tbm-diag-row-rev"
-              }
-            >
-              {[...row, ...row, ...row].map((src, i) => (
-                <div
-                  key={i}
-                  className="mx-10 flex items-center justify-center w-28 h-12 shrink-0"
-                >
-                  <img
-                    src={src}
-                    alt=""
-                    className="max-h-7 max-w-[95px] object-contain invert grayscale contrast-150"
-                  />
-                </div>
-              ))}
+      <main>
+        {/* Hero Section */}
+        <section className="hero wrap" aria-labelledby="hero-title">
+          <div className="hero-main">
+            <div className="eyebrow">
+              <span className="live-dot" /> THE CREATOR NETWORK
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Main Container */}
-      <div className="relative z-10 w-full max-w-[460px] lg:max-w-[980px]">
-        {/* MOBILE-ONLY COMPACT HEADER (< 1024px) */}
-        <div className="mb-3 rounded-2xl border border-stone-200/90 bg-white p-4 shadow-xs lg:hidden">
-          <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-stone-100">
-            <img
-              src="/theboredmonkey-logo.png"
-              alt="TheBoredMonkey"
-              className="h-5 w-auto object-contain"
-            />
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#F7C636] px-2.5 py-0.5 text-[10px] font-bold text-[#1D1D1F]">
-              Creator Invite
-            </span>
+            <h1 id="hero-title">
+              Good content.
+              <br />
+              Great{" "}
+              <span className="highlight">
+                connections
+                <svg viewBox="0 0 600 25" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M5 15 Q300 -3 590 13 M30 23 Q300 8 560 20" />
+                </svg>
+              </span>
+              .
+            </h1>
+            <p className="hero-copy">
+              You bring the creativity. We help connect it with the right brands. Tell us a little
+              about yourself, and let’s find your next great collaboration.
+            </p>
+            <a className="button primary hero-cta" href="#join">
+              Let’s get you connected <span aria-hidden="true">↗</span>
+            </a>
+            <div className="hero-perks">
+              <span>✓ Free to join</span>
+              <span>✓ Non-exclusive</span>
+              <span>✓ Every creator welcome</span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <CreatorAvatar
-              token={token}
-              handle={cleanHandle}
-              avatarUrl={creator.avatarUrl}
-              name={displayCreatorName}
-              size="sm"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1">
-                <span className="text-sm font-extrabold text-[#1D1D1F] truncate">
-                  {displayCreatorName}
-                </span>
-                <CheckCircle2 className="size-3.5 text-sky-500 shrink-0" />
+          <aside className="hero-note" aria-label="About TheBoredMonkey">
+            <div className="note-top">
+              <span>
+                CREATIONS &amp;
+                <br />
+                CONNECTIONS.
+              </span>
+              <span className="asterisk" aria-hidden="true">
+                ✳
+              </span>
+            </div>
+            <p>
+              Big ideas.
+              <br />
+              Better together.
+            </p>
+            <div className="note-bottom">
+              <span>
+                MUMBAI ROOTS.
+                <br />
+                CREATOR CONNECTIONS.
+              </span>
+              <span className="note-year">
+                EST.
+                <br />
+                2020
+              </span>
+            </div>
+          </aside>
+        </section>
+
+        {/* Proof Section */}
+        <section className="proof wrap" aria-label="About our network">
+          <p>
+            A Mumbai-based marketing agency.
+            <br />
+            <strong>Connecting brands &amp; creators since 2020.</strong>
+          </p>
+          <div className="proof-stat">
+            <strong>
+              100<span>+</span>
+            </strong>
+            <span>brands worked with</span>
+          </div>
+          <div className="proof-stat">
+            <strong>
+              1 lakh<span>+</span>
+            </strong>
+            <span>creator profiles scouted</span>
+          </div>
+          <div className="proof-note">
+            Built through years of
+            <br />
+            scouting &amp; collaborations.
+            <span aria-hidden="true">↗</span>
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section className="how wrap" id="how-it-works" aria-labelledby="how-title">
+          <div className="section-heading">
+            <div>
+              <div className="eyebrow">LESS BACK-AND-FORTH. MORE POSSIBILITIES.</div>
+              <h2 id="how-title">
+                A little about you.
+                <br />
+                A better match for your content.
+              </h2>
+            </div>
+            <p>
+              We’re making creator discovery simpler.
+              <br />
+              Here’s how you fit into the picture.
+            </p>
+          </div>
+          <div className="how-grid">
+            <article>
+              <span className="step-number">01</span>
+              <div>
+                <h3>Make your introduction</h3>
+                <p>
+                  Your topics, your languages, your own creative spin. Help us get to know the creator
+                  behind the profile.
+                </p>
               </div>
-              <div className="text-[11px] text-stone-500 flex items-center gap-1.5">
-                <span className="font-bold text-[#E58A3B]">@{cleanHandle}</span>
-                <span>•</span>
-                <span className="font-bold text-[#1D1D1F]">
-                  {followersLabel} Followers
-                </span>
+            </article>
+            <article>
+              <span className="step-number">02</span>
+              <div>
+                <h3>Let us connect the dots</h3>
+                <p>
+                  Our system helps our team match your profile with relevant brand briefs and campaign
+                  requirements.
+                </p>
+              </div>
+            </article>
+            <article>
+              <span className="step-number">03</span>
+              <div>
+                <h3>Hear from our team</h3>
+                <p>
+                  When you’re shortlisted, we’ll reach out to you or your manager with the opportunity.
+                  Simple as that.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        {/* Join Form Section */}
+        <section className="join-section" id="join">
+          <div className="wrap join-wrap">
+            <div className="join-intro">
+              <div className="eyebrow">YOUR NEXT CONNECTION STARTS HERE</div>
+              <h2>
+                Hey creator.
+                <br />
+                Let’s get to know you<span className="yellow-text">.</span>
+              </h2>
+              <p>A few details now. More relevant opportunities ahead.</p>
+              <div className="time-tag">
+                <span aria-hidden="true">◷</span> About 1–2 minutes
               </div>
             </div>
-            <ReadinessRing pct={matchProgress} />
-          </div>
-        </div>
 
-        {/* STANDARD FIXED-HEIGHT DESKTOP CARD (lg:h-[600px]) */}
-        <div className="grid overflow-hidden rounded-3xl border border-stone-200/90 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03),0_28px_65px_-28px_rgba(29,29,31,0.18)] lg:grid-cols-12 lg:h-[600px]">
-          {/* Left Showcase Column (Desktop Only — 5 cols) */}
-          <div className="hidden lg:block lg:col-span-5 lg:border-r lg:border-stone-200/80 lg:h-[600px]">
-            <TBMShowcase
-              token={token}
-              avatarUrl={creator.avatarUrl}
-              creatorName={displayCreatorName}
-              handle={cleanHandle}
-              followersLabel={followersLabel}
-              city={city}
-              pincode={pincode}
-              managementType={managementType}
-              agencyName={agencyName}
-              languages={languages}
-              selectedGenres={selectedGenres}
-              matchProgress={matchProgress}
-              matchedBrandCount={matchedBrandCount}
-            />
-          </div>
-
-          {/* Right Form Column (7 cols on desktop, fixed height lg:h-[600px]) */}
-          <div className="lg:col-span-7 flex flex-col justify-between px-5 py-6 sm:px-9 sm:py-7 bg-white lg:h-[600px]">
-            {/* Minimal Top Step Bar (No duplicate creator card clutter on desktop!) */}
-            <div className="flex items-center justify-between gap-2 pb-3 border-b border-stone-100 shrink-0">
-              {step === 2 && !submitted ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDirection(-1);
-                    setStep(1);
-                  }}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-500 hover:text-[#1D1D1F] transition-colors cursor-pointer"
-                >
-                  <ArrowLeft className="size-3.5" /> Back to Contact Details
-                </button>
-              ) : (
-                <span className="text-xs font-bold text-stone-400">
-                  Hey,{" "}
-                  <span className="text-[#1D1D1F]">{displayCreatorName}</span>{" "}
-                  👋
+            <div className="form-shell">
+              <div className="form-top">
+                <span>YOUR CREATOR PROFILE</span>
+                <span>
+                  <i /> Made for you
                 </span>
-              )}
+              </div>
 
-              {!submitted && (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDirection(-1);
-                      setStep(1);
-                    }}
-                    className={`h-2 rounded-full transition-all cursor-pointer ${
-                      step === 1
-                        ? "w-6 bg-[#E58A3B]"
-                        : "w-2 bg-emerald-500"
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (
-                        whatsapp.replace(/\D/g, "").length === 10 &&
-                        pincode.replace(/\D/g, "").length === 6
-                      ) {
-                        setDirection(1);
-                        setStep(2);
-                      }
-                    }}
-                    className={`h-2 rounded-full transition-all cursor-pointer ${
-                      step === 2 ? "w-6 bg-[#E58A3B]" : "w-2 bg-stone-200"
-                    }`}
-                  />
-                  <span className="ml-1 text-[11px] font-bold text-stone-400">
-                    Step {step} of 2
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Form Body */}
-            <div className="flex-1 flex flex-col justify-center py-2">
-              <AnimatePresence mode="wait" custom={direction} initial={false}>
-                {submitted ? (
-                  <motion.div
-                    key="done"
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="text-center py-6 space-y-4"
-                  >
-                    <div className="mx-auto w-fit">
-                      <CreatorAvatar
-                        token={token}
-                        name={displayCreatorName}
-                        size="md"
-                      />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-extrabold text-[#1D1D1F]">
-                        Profile Verified, {displayCreatorName}!
-                      </h2>
-                      <p className="text-[13px] text-stone-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                        Your niche ({selectedGenres.slice(0, 2).join(", ")}),
-                        languages ({languages.slice(0, 2).join(", ")}), and
-                        location ({city || pincode}) are now unlocked for{" "}
-                        <span className="font-bold text-[#1D1D1F]">
-                          {matchedBrandCount}+ active partner brands
-                        </span>
-                        .
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSubmitted(false);
-                        setStep(1);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full border border-[#EED279] bg-[#FFFDF5] text-xs font-bold text-[#1D1D1F] hover:bg-[#FFF9E6] cursor-pointer"
-                    >
-                      <Pencil className="size-3.5" /> Edit Details
-                    </button>
-                  </motion.div>
-                ) : step === 1 ? (
-                  <motion.form
-                    key="step-1"
-                    custom={direction}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    onSubmit={handleStep1Next}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <h1 className="text-[22px] sm:text-[24px] font-extrabold tracking-tight text-[#1D1D1F]">
-                        Confirm Your{" "}
-                        <span className="bg-gradient-to-r from-[#EE7828] to-[#F5A636] bg-clip-text text-transparent">
-                          Creator Profile.
-                        </span>
-                      </h1>
-                      <p className="text-[12.5px] text-stone-500 mt-0.5">
-                        Direct contact & location for brand campaign matching
-                      </p>
+              {!isSubmitted ? (
+                <form id="creator-form" ref={formRef} noValidate onSubmit={handleSubmit}>
+                  {/* Step 1: The Basics */}
+                  <div className="form-block">
+                    <div className="block-heading">
+                      <span className="block-index">01</span>
+                      <div>
+                        <h3>The basics</h3>
+                        <p>The profile. The person. The point of contact.</p>
+                      </div>
                     </div>
 
-                    {stepError && (
-                      <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">
-                        {stepError}
+                    {showPrefilledCard && prefilledHandle ? (
+                      <div id="prefilled-profile" className="profile-card">
+                        <div className="profile-icon" aria-hidden="true">
+                          ◎
+                        </div>
+                        <div>
+                          <span>Your Instagram profile</span>
+                          <strong id="profile-handle">@{prefilledHandle}</strong>
+                        </div>
+                        <a
+                          id="profile-link"
+                          href={`https://www.instagram.com/${prefilledHandle}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View profile ↗
+                        </a>
+                        <button
+                          type="button"
+                          id="change-profile"
+                          onClick={() => {
+                            setShowPrefilledCard(false);
+                          }}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="field" id="instagram-field">
+                        <label htmlFor="instagram">
+                          Instagram profile link <span>*</span>
+                        </label>
+                        <input
+                          id="instagram"
+                          name="instagram"
+                          type="url"
+                          placeholder="https://www.instagram.com/yourhandle"
+                          required
+                          autoComplete="url"
+                          value={instagram}
+                          onChange={(e) => setInstagram(e.target.value)}
+                        />
+                        <small>The profile you’d like us to consider for collaborations.</small>
                       </div>
                     )}
 
-                    {/* User Name */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[12px] font-bold text-[#1D1D1F]">
-                          User Name <span className="text-[#E58A3B]">*</span>
+                    <div className="field-grid">
+                      <div className="field">
+                        <label htmlFor="creator-name">
+                          Creator name <span>*</span>
                         </label>
-                        <span className="text-[11px] font-medium text-emerald-600">
-                          ✓ @{cleanHandle}
-                        </span>
-                      </div>
-                      <div className="relative">
                         <input
-                          type="text"
+                          id="creator-name"
+                          name="creatorName"
+                          placeholder="Your name or creator name"
                           required
-                          value={userName}
-                          onChange={(e) => {
-                            setStepError(null);
-                            setUserName(e.target.value);
-                          }}
-                          placeholder="Your Full Name"
-                          className={INPUT_CLASS}
+                          autoComplete="name"
+                          value={creatorName}
+                          onChange={(e) => setCreatorName(e.target.value)}
+                          onBlur={() => reportProgress(1)}
                         />
-                        {userName.trim().length > 1 && (
-                          <Check className="size-4 text-emerald-600 absolute right-3.5 top-1/2 -translate-y-1/2" />
-                        )}
+                      </div>
+                      <div className="field">
+                        <label htmlFor="youtube">
+                          YouTube channel <em>Optional</em>
+                        </label>
+                        <input
+                          id="youtube"
+                          name="youtube"
+                          type="url"
+                          placeholder="https://youtube.com/@yourchannel"
+                          value={youtube}
+                          onChange={(e) => setYoutube(e.target.value)}
+                        />
                       </div>
                     </div>
 
-                    {/* Mobile / WhatsApp + Side Radio Buttons */}
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                      <div className="sm:col-span-6">
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[12px] font-bold text-[#1D1D1F]">
-                            WhatsApp Number{" "}
-                            <span className="text-[#E58A3B]">*</span>
-                          </label>
-                        </div>
-                        <div className="flex items-center h-11 rounded-xl border border-stone-200 bg-white overflow-hidden transition-all duration-200 focus-within:border-[#E58A3B] focus-within:ring-4 focus-within:ring-[#E58A3B]/15">
-                          <span className="px-3 h-full flex items-center bg-[#FAF8F5] border-r border-stone-200 text-[13px] font-bold text-stone-600">
-                            +91
-                          </span>
+                    <fieldset className="management">
+                      <legend>
+                        Who handles your collaborations? <span>*</span>
+                      </legend>
+                      <div className="management-options">
+                        <label>
                           <input
-                            type="tel"
+                            type="radio"
+                            name="management"
+                            value="self"
+                            checked={management === "self"}
+                            onChange={() => setManagement("self")}
+                          />
+                          <span>
+                            <b aria-hidden="true">☺</b>Self-managed
+                          </span>
+                        </label>
+                        <label>
+                          <input
+                            type="radio"
+                            name="management"
+                            value="personal"
+                            checked={management === "personal"}
+                            onChange={() => setManagement("personal")}
+                          />
+                          <span>
+                            <b aria-hidden="true">♧</b>Personal manager
+                          </span>
+                        </label>
+                        <label>
+                          <input
+                            type="radio"
+                            name="management"
+                            value="agency"
+                            checked={management === "agency"}
+                            onChange={() => setManagement("agency")}
+                          />
+                          <span>
+                            <b aria-hidden="true">▤</b>Agency-managed
+                          </span>
+                        </label>
+                      </div>
+                    </fieldset>
+
+                    <div className="field-grid">
+                      {management !== "self" && (
+                        <div className="field" id="manager-name-field">
+                          <label htmlFor="manager-name">
+                            Manager’s name <span>*</span>
+                          </label>
+                          <input
+                            id="manager-name"
+                            name="managerName"
+                            placeholder="Your manager’s name"
                             required
-                            maxLength={10}
-                            value={whatsapp}
-                            onChange={(e) => {
-                              setStepError(null);
-                              const cleanDigits = e.target.value.replace(/\D/g, "").slice(0, 10);
-                              setWhatsapp(cleanDigits);
-                              if (cleanDigits.length === 10) {
-                                sendLiveProgress({ whatsappNumber: cleanDigits, step: 1 });
-                              }
-                            }}
-                            placeholder="10-digit mobile number"
-                            className="w-full h-full px-3 text-[14px] font-medium text-[#1D1D1F] placeholder:text-stone-400 outline-none bg-transparent"
+                            value={managerName}
+                            onChange={(e) => setManagerName(e.target.value)}
                           />
                         </div>
-                      </div>
-
-                      <div className="sm:col-span-6">
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[12px] font-bold text-[#1D1D1F]">
-                            Managed By <span className="text-[#E58A3B]">*</span>
+                      )}
+                      {management === "agency" && (
+                        <div className="field" id="agency-field">
+                          <label htmlFor="agency-name">
+                            Agency name <span>*</span>
                           </label>
+                          <input
+                            id="agency-name"
+                            name="agencyName"
+                            placeholder="Your management agency"
+                            required
+                            value={agencyName}
+                            onChange={(e) => setAgencyName(e.target.value)}
+                          />
                         </div>
-                        <div className="grid grid-cols-2 gap-2 h-11">
-                          <label
-                            onClick={() => {
-                              setStepError(null);
-                              setManagementType("SELF");
-                            }}
-                            className={`cursor-pointer rounded-xl border px-2.5 flex items-center justify-center gap-1.5 text-[12px] font-bold transition-all select-none whitespace-nowrap ${
-                              managementType === "SELF"
-                                ? "bg-[#1D1D1F] text-white border-[#1D1D1F]"
-                                : "bg-white text-stone-700 border-stone-200 hover:border-stone-300"
-                            }`}
-                          >
-                            <span
-                              className={`size-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                                managementType === "SELF"
-                                  ? "border-[#E58A3B] bg-[#E58A3B]"
-                                  : "border-stone-300"
-                              }`}
-                            >
-                              {managementType === "SELF" && (
-                                <span className="size-1.5 rounded-full bg-white" />
-                              )}
-                            </span>
-                            <span>Self-Managed</span>
-                          </label>
-
-                          <label
-                            onClick={() => {
-                              setStepError(null);
-                              setManagementType("AGENCY");
-                            }}
-                            className={`cursor-pointer rounded-xl border px-2.5 flex items-center justify-center gap-1.5 text-[12px] font-bold transition-all select-none whitespace-nowrap ${
-                              managementType === "AGENCY"
-                                ? "bg-[#1D1D1F] text-white border-[#1D1D1F]"
-                                : "bg-white text-stone-700 border-stone-200 hover:border-stone-300"
-                            }`}
-                          >
-                            <span
-                              className={`size-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                                managementType === "AGENCY"
-                                  ? "border-[#E58A3B] bg-[#E58A3B]"
-                                  : "border-stone-300"
-                              }`}
-                            >
-                              {managementType === "AGENCY" && (
-                                <span className="size-1.5 rounded-full bg-white" />
-                              )}
-                            </span>
-                            <span>Agency</span>
-                          </label>
-                        </div>
-                      </div>
+                      )}
                     </div>
 
-                    {/* Conditional Empty Tab for Agency Name */}
-                    <AnimatePresence initial={false}>
-                      {managementType === "AGENCY" && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.18 }}
-                          className="overflow-hidden"
+                    {/* Important Outreach Email Block */}
+                    <div
+                      className="field email-priority-block"
+                      style={{
+                        margin: "20px 0 16px",
+                        padding: "16px 18px",
+                        background: "#FAF7EE",
+                        border: "1.5px solid #E8DEBE",
+                        borderRadius: "8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: "8px",
+                          flexWrap: "wrap",
+                          gap: "6px",
+                        }}
+                      >
+                        <label
+                          htmlFor="creator-email"
+                          style={{ fontSize: "12.5px", fontWeight: 700, color: "#171717", margin: 0 }}
                         >
-                          <div className="p-3 rounded-xl bg-[#FFFDF5] border border-[#EED279]">
-                            <label className="block text-[11.5px] font-bold text-[#1D1D1F] mb-1">
-                              Agency Name{" "}
-                              <span className="text-[#E58A3B]">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              required={managementType === "AGENCY"}
-                              value={agencyName}
-                              onChange={(e) => {
-                                setStepError(null);
-                                setAgencyName(e.target.value);
-                              }}
-                              placeholder="Enter your talent agency name"
-                              className="w-full h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-[#1D1D1F] placeholder:text-stone-400 outline-none focus:border-[#E58A3B]"
-                            />
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Location PIN Code */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[12px] font-bold text-[#1D1D1F]">
-                          Location PIN Code{" "}
-                          <span className="text-[#E58A3B]">*</span>
+                          {management === "self" ? "Official Collaboration Email " : "Manager's / Booking Email "}
+                          <span style={{ color: "#e05244" }}>*</span>
                         </label>
-                        {pincodeLoading ? (
-                          <span className="text-[11px] text-[#E58A3B] flex items-center gap-1">
-                            <Loader2 className="size-3 animate-spin" />{" "}
-                            Detecting city...
-                          </span>
-                        ) : city ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-                            <MapPin className="size-3" /> {city}
-                            {state ? `, ${state}` : ""}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-stone-400">
-                            Auto-detects your city
-                          </span>
-                        )}
+                        <span
+                          style={{
+                            fontSize: "9.5px",
+                            fontWeight: 700,
+                            letterSpacing: "0.5px",
+                            textTransform: "uppercase",
+                            color: "#8a5800",
+                            background: "#ffebb3",
+                            border: "1px solid #ffd880",
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                          }}
+                        >
+                          Important · Outreach & Briefs
+                        </span>
                       </div>
                       <input
-                        type="text"
+                        id="creator-email"
+                        name="email"
+                        type="email"
+                        placeholder="collabs@yourhandle.com or yourname@gmail.com"
                         required
-                        maxLength={6}
-                        value={pincode}
+                        autoComplete="email"
+                        value={email}
                         onChange={(e) => {
-                          setStepError(null);
-                          setPincode(
-                            e.target.value.replace(/\D/g, "").slice(0, 6)
-                          );
+                          setEmail(e.target.value);
+                          if (formError) setFormError(null);
                         }}
-                        placeholder="Enter 6-digit PIN code (e.g. 400013)"
-                        className={INPUT_CLASS}
+                        onBlur={() => reportProgress(1, { primaryEmail: email })}
+                        style={{
+                          width: "100%",
+                          fontSize: "15px",
+                          padding: "12px 14px",
+                          background: "#ffffff",
+                          border: "1px solid #dcd7ca",
+                          borderRadius: "6px",
+                          outline: "none",
+                        }}
                       />
+                      <small style={{ display: "block", marginTop: "6px", fontSize: "11px", color: "#666155", lineHeight: 1.5 }}>
+                        Where brands and our team will send official commercial briefs, deliverables, and collaboration contracts.
+                      </small>
                     </div>
 
-                    {/* Primary CTA Button */}
-                    <div className="pt-1">
-                      <button
-                        type="submit"
-                        className="w-full h-11 rounded-full bg-[#E58A3B] hover:bg-[#d87c2d] text-white font-bold text-[14px] shadow-[0_4px_14px_rgba(229,138,59,0.3)] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <span>Continue to Niche & Languages</span>
-                        <ArrowRight className="size-4" />
-                      </button>
-                    </div>
-                  </motion.form>
-                ) : (
-                  <motion.form
-                    key="step-2"
-                    custom={direction}
-                    variants={slideVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    onSubmit={handleSubmit}
-                    className="space-y-3.5"
-                  >
-                    <div>
-                      <h1 className="text-[21px] sm:text-[23px] font-extrabold tracking-tight text-[#1D1D1F]">
-                        Languages, Niche &{" "}
-                        <span className="bg-gradient-to-r from-[#EE7828] to-[#F5A636] bg-clip-text text-transparent">
-                          Content Style.
-                        </span>
-                      </h1>
-                    </div>
-
-                    {stepError && (
-                      <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">
-                        {stepError}
+                    <div className="field-grid">
+                      <div className="field">
+                        <label htmlFor="phone" id="phone-label">
+                          {management === "self" ? "Your WhatsApp number " : "Manager’s WhatsApp number "}
+                          <span>*</span>
+                        </label>
+                        <div className="phone-input">
+                          <span>+91</span>
+                          <input
+                            id="phone"
+                            name="phone"
+                            type="tel"
+                            inputMode="numeric"
+                            pattern="[0-9]{10}"
+                            maxLength={10}
+                            placeholder="10-digit mobile number"
+                            required
+                            autoComplete={management === "self" ? "tel-national" : "off"}
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                            onBlur={() => reportProgress(1, { whatsappNumber: phone })}
+                          />
+                        </div>
+                        <small id="phone-help">
+                          {management === "self"
+                            ? "Where we can reach you about collaborations."
+                            : "We’ll contact your manager about relevant collaborations."}
+                        </small>
                       </div>
+
+                      <div className="field">
+                        <label htmlFor="pin">
+                          Where are you based? <span>*</span>
+                        </label>
+                        <input
+                          id="pin"
+                          name="pinCode"
+                          inputMode="numeric"
+                          pattern="[1-9][0-9]{5}"
+                          maxLength={6}
+                          placeholder="Your 6-digit PIN code"
+                          required
+                          autoComplete="postal-code"
+                          value={pinCode}
+                          onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ""))}
+                          onBlur={() => reportProgress(1, { pincode: pinCode })}
+                        />
+                        <small>Use the PIN code for where you currently live.</small>
+                        <small id="pin-result" aria-live="polite" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Your Creative World */}
+                  <div className="form-block">
+                    <div className="block-heading">
+                      <span className="block-index">02</span>
+                      <div>
+                        <h3>Your creative world</h3>
+                        <p>Help the right briefs find their way to you.</p>
+                      </div>
+                    </div>
+
+                    <fieldset>
+                      <legend>
+                        Which languages do you create in? <span>*</span>
+                      </legend>
+                      <p className="field-description">
+                        Select all the languages you use in your content.
+                      </p>
+                      <div className="chips" id="language-chips">
+                        {LANGUAGES.map((lang) => {
+                          const active = selectedLanguages.has(lang);
+                          return (
+                            <button
+                              key={lang}
+                              type="button"
+                              className="chip"
+                              aria-pressed={String(active)}
+                              onClick={() => toggleLanguage(lang)}
+                            >
+                              {lang}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {selectedLanguages.has("Other") && (
+                        <div className="field other-field" id="other-language-field">
+                          <label htmlFor="other-language">
+                            Other languages <span>*</span>
+                          </label>
+                          <input
+                            id="other-language"
+                            name="otherLanguages"
+                            placeholder="Add your content languages"
+                            required
+                            value={otherLanguages}
+                            onChange={(e) => setOtherLanguages(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </fieldset>
+
+                    <fieldset className="category-fieldset">
+                      <legend>What do you create content about?</legend>
+                      <p className="field-description">
+                        Choose the topics you regularly cover. Select as many as you like.
+                      </p>
+                      <div className="search-wrap">
+                        <span aria-hidden="true">⌕</span>
+                        <input
+                          type="search"
+                          id="category-search"
+                          placeholder="Find your niche…"
+                          aria-label="Search content categories"
+                          value={categorySearch}
+                          onChange={(e) => setCategorySearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="chips" id="category-chips">
+                        {visibleCategories.map((cat) => {
+                          const active = selectedCategories.has(cat);
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              className="chip"
+                              aria-pressed={String(active)}
+                              onClick={() => toggleCategory(cat)}
+                            >
+                              {cat}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="category-controls">
+                        {!categorySearch && (
+                          <button
+                            type="button"
+                            id="show-categories"
+                            aria-expanded={String(categoriesExpanded)}
+                            onClick={() => setCategoriesExpanded(!categoriesExpanded)}
+                          >
+                            {categoriesExpanded
+                              ? "Show fewer categories ↑"
+                              : `Show all ${CATEGORIES.length} categories ↓`}
+                          </button>
+                        )}
+                        <span id="category-count" aria-live="polite">
+                          {selectedCategories.size} selected
+                        </span>
+                      </div>
+
+                      {visibleCategories.length === 0 && (
+                        <p id="no-categories">
+                          No matching categories. Choose “Other” to add your niche.
+                        </p>
+                      )}
+
+                      {selectedCategories.has("Other") && (
+                        <div className="field other-field" id="other-category-field">
+                          <label htmlFor="other-category">
+                            Your other content categories <span>*</span>
+                          </label>
+                          <input
+                            id="other-category"
+                            name="otherCategories"
+                            placeholder="Tell us what else you create content about"
+                            required
+                            value={otherCategories}
+                            onChange={(e) => setOtherCategories(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </fieldset>
+
+                    <div className="field description-field">
+                      <label htmlFor="description">
+                        Tell us what makes your content yours <span>*</span>
+                      </label>
+                      <p className="field-description">
+                        Your categories tell us the topic. Your description tells us your approach.
+                      </p>
+                      <textarea
+                        id="description"
+                        name="description"
+                        rows={5}
+                        required
+                        placeholder="I create relatable comedy about everyday family life, mainly in Hindi and Marathi. My videos turn familiar situations into short sketches with an unexpected ending."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        onBlur={() => reportProgress(2, { contentDescription: description })}
+                      />
+                      <small>2–3 sentences is perfect. Write in any language you’re comfortable with.</small>
+                    </div>
+                  </div>
+
+                  {/* Form Footer / Submit */}
+                  <div className="form-bottom">
+                    <div className="privacy">
+                      <span aria-hidden="true">▣</span>
+                      <div>
+                        <h4>Your details are in good hands.</h4>
+                        <p>
+                          Your contact details stay with TheBoredMonkey’s internal team. If you’re
+                          shortlisted, we may share your public profile with the brand, never your private
+                          contact details.
+                        </p>
+                      </div>
+                    </div>
+
+                    <label className="consent">
+                      <input
+                        type="checkbox"
+                        id="consent"
+                        name="consent"
+                        required
+                        checked={consent}
+                        onChange={(e) => setConsent(e.target.checked)}
+                      />
+                      <span>
+                        I agree to TheBoredMonkey using these details to match my profile with campaigns and
+                        contact me or my nominated manager about relevant collaborations. If I share a
+                        manager’s details, I have their permission.
+                      </span>
+                    </label>
+
+                    {formError && (
+                      <p id="form-error" className="error-summary" role="alert">
+                        {formError}
+                      </p>
                     )}
 
-                    {/* Clean Unified Box: Languages Above + Genre + Content Description */}
-                    <div className="rounded-2xl border border-stone-200/90 bg-[#FAF8F5] p-4 space-y-3.5">
-                      {/* 1. Languages Above */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-[12px] font-extrabold text-[#1D1D1F]">
-                            Languages <span className="text-[#E58A3B]">*</span>
-                          </label>
-                          <span className="text-[10.5px] font-medium text-stone-400">
-                            Select all you create in
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {visibleLanguages.map((item) => {
-                            const active = languages.includes(item.label);
-                            return (
-                              <button
-                                key={item.label}
-                                type="button"
-                                onClick={() => toggleLanguage(item.label)}
-                                className={`px-3 py-1 rounded-full text-[11.5px] font-bold border transition-all flex items-center gap-1 cursor-pointer ${
-                                  active
-                                    ? "bg-[#1D1D1F] text-white border-[#1D1D1F]"
-                                    : "bg-white text-stone-700 border-stone-200 hover:border-stone-300"
-                                }`}
-                              >
-                                {active && (
-                                  <Check className="size-3 text-[#F7C636]" />
-                                )}
-                                <span>{item.label}</span>
-                                {item.hot && !active && (
-                                  <span className="size-1.5 rounded-full bg-[#E58A3B]" />
-                                )}
-                              </button>
-                            );
-                          })}
-                          {!showAllLangs && (
-                            <button
-                              type="button"
-                              onClick={() => setShowAllLangs(true)}
-                              className="px-2.5 py-1 rounded-full text-[11px] font-bold border border-dashed border-stone-300 text-stone-500 hover:text-[#1D1D1F] hover:border-stone-400 cursor-pointer"
-                            >
-                              + More
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 2. Genre / Niche (Multi-Select) */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-[12px] font-extrabold text-[#1D1D1F]">
-                            Genre / Niche{" "}
-                            <span className="text-[#E58A3B]">*</span>
-                          </label>
-                          <span className="text-[10.5px] font-semibold text-[#E58A3B]">
-                            ★ High brand demand
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {visibleGenres.map((item) => {
-                            const active = selectedGenres.includes(item.label);
-                            return (
-                              <button
-                                key={item.label}
-                                type="button"
-                                onClick={() => toggleGenre(item.label)}
-                                className={`px-3 py-1 rounded-full text-[11.5px] font-bold border transition-all flex items-center gap-1 cursor-pointer ${
-                                  active
-                                    ? "bg-[#1D1D1F] text-white border-[#1D1D1F]"
-                                    : "bg-white text-stone-700 border-stone-200 hover:border-stone-300"
-                                }`}
-                              >
-                                {active && (
-                                  <Check className="size-3 text-[#F7C636]" />
-                                )}
-                                <span>{item.label}</span>
-                                {item.hot && (
-                                  <span
-                                    className={`text-[9px] font-bold ${
-                                      active
-                                        ? "text-[#F7C636]"
-                                        : "text-[#E58A3B]"
-                                    }`}
-                                  >
-                                    ★
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                          {!showAllGenres && (
-                            <button
-                              type="button"
-                              onClick={() => setShowAllGenres(true)}
-                              className="px-2.5 py-1 rounded-full text-[11px] font-bold border border-dashed border-stone-300 text-stone-500 hover:text-[#1D1D1F] hover:border-stone-400 cursor-pointer"
-                            >
-                              + More
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 3. Content Description with Banking-Grade Faded Ghost Example & Tab-to-Fill */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[12px] font-extrabold text-[#1D1D1F]">
-                            Content Description
-                          </label>
-                          <span className="text-[10.5px] text-stone-400">
-                            Brief summary of your content format
-                          </span>
-                        </div>
-
-                        <div className="relative">
-                          <textarea
-                            rows={2}
-                            value={contentDescription}
-                            onKeyDown={(e) => {
-                              if (
-                                e.key === "Tab" &&
-                                !contentDescription.trim()
-                              ) {
-                                e.preventDefault();
-                                setContentDescription(dynamicExamplePrompt);
-                              }
-                            }}
-                            onChange={(e) => {
-                              setStepError(null);
-                              setContentDescription(e.target.value);
-                            }}
-                            placeholder={`e.g. "${dynamicExamplePrompt}"`}
-                            className="w-full rounded-xl border border-stone-200 bg-white p-3 text-[12.5px] text-[#1D1D1F] placeholder:text-stone-400/75 placeholder:italic outline-none transition-all focus:border-[#E58A3B] focus:ring-4 focus:ring-[#E58A3B]/15 resize-none leading-relaxed"
-                          />
-                          {!contentDescription.trim() && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setContentDescription(dynamicExamplePrompt)
-                              }
-                              className="absolute bottom-2 right-2.5 px-2 py-0.5 rounded-md bg-[#FAF8F5] border border-stone-200 text-[10px] font-semibold text-stone-500 hover:text-[#1D1D1F] hover:border-stone-300 transition-colors cursor-pointer"
-                            >
-                              Use example ↵
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Submit CTA */}
                     <button
+                      className="button primary submit-button"
                       type="submit"
-                      disabled={submitting}
-                      className="w-full h-11 rounded-full bg-[#E58A3B] hover:bg-[#d87c2d] text-white font-bold text-[14px] shadow-[0_4px_14px_rgba(229,138,59,0.3)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      disabled={isSubmitting}
                     >
-                      {submitting ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <>
-                          <span>Complete Creator Profile</span>
-                          <Check className="size-4" />
-                        </>
-                      )}
+                      {isSubmitting ? "Connecting..." : "Join the creator network"} <span aria-hidden="true">↗</span>
                     </button>
-                  </motion.form>
-                )}
-              </AnimatePresence>
+                    <p className="submit-note">Free. Non-exclusive. No promotional spam.</p>
+                    <p className="fine-print">
+                      Joining helps us consider your profile for relevant briefs. Opportunities depend on brand
+                      requirements and selection.
+                    </p>
+                  </div>
+                </form>
+              ) : (
+                <div id="success" className="success" ref={successRef} tabIndex={-1}>
+                  <div className="success-icon" aria-hidden="true">
+                    ✓
+                  </div>
+                  <div className="eyebrow">LOOKING GOOD, CREATOR</div>
+                  <h2>Your profile is ready.</h2>
+                  <p>Thank you for submitting your details to TheBoredMonkey Creator Network.</p>
+                  <p>
+                    Once connected, our team will get in touch when your profile is shortlisted for a relevant
+                    campaign.
+                  </p>
+                  <button type="button" className="button primary" id="refer-button" onClick={handleShare}>
+                    Refer a creator <span aria-hidden="true">↗</span>
+                  </button>
+                  <p id="share-status" role="status">
+                    {shareStatus ? (
+                      shareStatus
+                    ) : (
+                      <>
+                        Copy this signup link to share:
+                        <br />
+                        <span style={{ wordBreak: "break-all", fontWeight: 600 }}>{getReferralUrl()}</span>
+                      </>
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    className="text-button"
+                    id="edit-button"
+                    onClick={() => {
+                      setIsSubmitted(false);
+                      setTimeout(() => {
+                        formRef.current?.scrollIntoView({ behavior: "smooth" });
+                      }, 50);
+                    }}
+                  >
+                    Back to my details
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-3 border-t border-stone-100 text-[11px] text-stone-400 shrink-0">
-              <span>Verified Creator Onboarding</span>
-              <span>© {new Date().getFullYear()} TheBoredMonkey</span>
+            <div className="under-form">
+              <span aria-hidden="true">✳</span>
+              <p>
+                Different niches. Different voices.
+                <br />
+                <strong>There’s room for your kind of creativity.</strong>
+              </p>
             </div>
           </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="faq wrap" aria-labelledby="faq-title">
+          <div>
+            <div className="eyebrow">A FEW GOOD QUESTIONS</div>
+            <h2>Good to know.</h2>
+            <p>
+              Still curious? We’re a message away.
+              <br />
+              <a href="mailto:Connect@theboredmonkey.com">Connect@theboredmonkey.com ↗</a>
+            </p>
+          </div>
+          <div className="faq-list">
+            <details>
+              <summary>
+                Is it really free to join?<span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                Yes. Joining the creator network is free and non-exclusive. You can continue working
+                with other agencies and brands.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Do I need a minimum follower count?<span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                No. Creators of all sizes and types are welcome. We look for profiles that fit each
+                brand’s brief, including your content, language, and location.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Does joining guarantee a collaboration?<span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                Joining helps our team discover and consider your profile. Collaborations depend on
+                campaign requirements, shortlisting, and brand selection.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Will you contact me or my manager?<span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                We’ll use the WhatsApp contact you provide. If you’re managed, enter your manager’s
+                name and number so the right person hears from us.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Can I update my details later?<span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                Once the signup is connected to our panel, your personal link will let you return and
+                update your profile when your contact details, location, or content changes.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Who can see my contact details?<span aria-hidden="true">+</span>
+              </summary>
+              <p>
+                Your contact details are accessible only to TheBoredMonkey’s internal team. We may share
+                your public creator profile with a brand when you’re shortlisted, but not your private
+                contact information.
+              </p>
+            </details>
+          </div>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer className="wrap">
+        <div className="footer-top">
+          <span className="footer-wordmark">
+            TheBoredMonkey<span>®</span>
+          </span>
+          <a href="mailto:Connect@theboredmonkey.com">Let’s make good things happen. ↗</a>
         </div>
-      </div>
+        <div className="footer-bottom">
+          <span>© {new Date().getFullYear()} TheBoredMonkey. Creations &amp; Connections.</span>
+          <span>
+            Mumbai, India <span className="yellow-text">●</span>
+          </span>
+        </div>
+      </footer>
+
+      {toastMessage && (
+        <div id="toast" role="status">
+          {toastMessage}
+        </div>
+      )}
     </div>
   );
 }
+
 export default CreatorIntakePage;

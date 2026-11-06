@@ -34,6 +34,7 @@ import { handleUnibox } from "../server/unibox";
 import { handleNotifications } from "../server/notifications";
 import { handleTallyApi } from "../server/tally/apiHandler";
 import { reconcileSmartleadMailboxes } from "../server/smartleadSync";
+import { syncSentEvents } from "../server/sentEventsSync";
 import creatorsHandler from "./creators";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
@@ -261,12 +262,12 @@ if (isDirectExecution) {
         console.log(`[Email System API] Listening on http://${host}:${port} (PID: ${process.pid})`);
     });
 
-    // Automated background mailbox sync daemon: runs every 2 minutes
+    // Automated background mailbox sync daemon: runs every 10 minutes
     const syncTimer = setInterval(() => {
         reconcileSmartleadMailboxes(false).catch((err) => {
             console.warn("[Background Mailbox Sync] Periodic sync error:", err?.message);
         });
-    }, 2 * 60 * 1000);
+    }, 10 * 60 * 1000);
 
     setTimeout(() => {
         reconcileSmartleadMailboxes(false).catch((err) => {
@@ -274,9 +275,20 @@ if (isDirectExecution) {
         });
     }, 5000);
 
+    // Self-healing send history: rebuilds any "sent" EmailEvent rows the webhook missed
+    // (restarts, deploys, rate limits). Idempotent + single-flight, so it is safe on every
+    // VPS pull/restart. First pass looks back 7 days to heal downtime, then 3 days each cycle.
+    const sentSyncTimer = setInterval(() => {
+        syncSentEvents({ days: 3 }).catch(() => {});
+    }, 30 * 60 * 1000);
+    setTimeout(() => {
+        syncSentEvents({ days: 7, force: true }).catch(() => {});
+    }, 90_000);
+
     const shutdown = (signal: string) => {
         console.log(`[Email System API] Received ${signal}, closing server gracefully...`);
         clearInterval(syncTimer);
+        clearInterval(sentSyncTimer);
         server.close(() => {
             console.log("[Email System API] Server closed.");
             process.exit(0);

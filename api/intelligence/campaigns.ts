@@ -35,7 +35,7 @@ function slApiCall(endpoint: string, method: string, body?: any, apiKey?: string
 
 function normalizeTemplate(text: string): string {
     if (!text) return "";
-    return text
+    let res = text
         .replace(/\{\{\s*\.?CreatorName\s*\}\}/gi, "{{first_name}}")
         .replace(/\[\s*Creator\s*Name\s*\]/gi, "{{first_name}}")
         .replace(/\{\{\s*\.?firstName\s*\}\}/gi, "{{first_name}}")
@@ -47,6 +47,7 @@ function normalizeTemplate(text: string): string {
         .replace(/\{\{\s*\.?Followers\s*\}\}/gi, "{{followers}}")
         .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link)\s*\}\}/gi, "{{form_link}}")
         .replace(/\[\s*Form\s*Link\s*\]/gi, "{{form_link}}");
+    return res;
 }
 
 function deleteFromSmartlead(campaignId: string | number): Promise<boolean> {
@@ -905,36 +906,61 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         // Automatically reconcile Smartlead campaigns so newly created campaigns register without manual sync
         await reconcileSmartleadCampaigns().catch(() => {});
 
+        // Optional `?scope=creator` returns ONLY creator campaigns (those registered in
+        // CreatorCampaign). Default behaviour (no param) hides them from outreach lists.
+        const creatorClause = parsedUrl.searchParams.get("scope") === "creator" ? "AND EXISTS" : "AND NOT EXISTS";
+
         let campaigns: any[] = [];
 
         if (scope.master) {
-            // Master sees campaigns from their active workspace team members + their own
-            campaigns = await pgQuery<any>(
-                `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
-                        COUNT(l.id)::int AS lead_count
-                 FROM "Campaign" c
-                 LEFT JOIN "Lead" l ON l."campaignId" = c.id
-                 WHERE c."userId" IN (
-                    SELECT DISTINCT ut."userId"
-                    FROM "UserTeam" ut
-                    WHERE ut."teamId" IN (
-                      SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1
-                    )
-                    UNION ALL
-                    SELECT $1 as "userId"
-                 )
-                 GROUP BY c.id
-                 ORDER BY c."createdAt" DESC`,
-                [scope.userId]
-            );
+            if (scope.isTroops) {
+                // Troops Master sees campaigns created by Troops team 
+                campaigns = await pgQuery<any>(
+                    `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
+                            COUNT(l.id)::int AS lead_count
+                     FROM "Campaign" c
+                     LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                     WHERE (c."userId" IN (SELECT id FROM "User" WHERE email LIKE '%@tbmtroop%' OR id LIKE 'usr_troops_%')
+                        OR lower(c.name) LIKE '%troops%')
+                       ${creatorClause} (
+                           SELECT 1 FROM "CreatorCampaign" cc 
+                           WHERE cc."smartleadCampaignId"::text = c."providerCampaignId" 
+                              OR cc.id = c.id
+                       )
+                     GROUP BY c.id
+                     ORDER BY c."createdAt" DESC`
+                );
+            } else {
+                // TheBoredMonkey Workspace Master sees all TBM workspace campaigns 
+                campaigns = await pgQuery<any>(
+                    `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
+                            COUNT(l.id)::int AS lead_count
+                     FROM "Campaign" c
+                     LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                     WHERE (c."userId" IS NULL OR c."userId" NOT IN (SELECT id FROM "User" WHERE email LIKE '%@tbmtroop%' OR id LIKE 'usr_troops_%'))
+                       AND (c.name IS NULL OR lower(c.name) NOT LIKE '%troops%')
+                       ${creatorClause} (
+                           SELECT 1 FROM "CreatorCampaign" cc 
+                           WHERE cc."smartleadCampaignId"::text = c."providerCampaignId" 
+                              OR cc.id = c.id
+                       )
+                     GROUP BY c.id
+                     ORDER BY c."createdAt" DESC`
+                );
+            }
         } else {
-            // Team member sees strictly their own campaigns
+            // Team member sees strictly their own outreach campaigns 
             campaigns = await pgQuery<any>(
                 `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                         COUNT(l.id)::int AS lead_count
                  FROM "Campaign" c
                  LEFT JOIN "Lead" l ON l."campaignId" = c.id
                  WHERE c."userId" = $1
+                   ${creatorClause} (
+                       SELECT 1 FROM "CreatorCampaign" cc 
+                       WHERE cc."smartleadCampaignId"::text = c."providerCampaignId" 
+                          OR cc.id = c.id
+                   )
                  GROUP BY c.id
                  ORDER BY c."createdAt" DESC`,
                 [scope.userId]

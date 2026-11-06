@@ -568,7 +568,7 @@ export function CreatorRichEmailEditor({
                                         insertHtmlAtCaret(`
 <p style="margin: 22px 0; text-align: center;">
   <a href="{{form_link}}" target="_blank" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: #ffffff; padding: 12px 28px; border-radius: 9999px; font-weight: 600; text-decoration: none; display: inline-block; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.28); font-size: 13.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-    ✨ Confirm Your Creator Profile &amp; Collaboration Details &rarr; {{intake_link}}
+    ✨ Confirm Your Creator Profile &amp; Collaboration Details &rarr; Link
   </a>
 </p>
 `);

@@ -62,10 +62,11 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
 
     try {
         // Protect internal /api/creators endpoints so only Master accounts can access them.
-        // External creator intake form routes (/api/creator/intake/:token) remain public.
+        // External creator intake form routes (/api/creator/intake/:token, /api/creator/intake/new/submit, etc.) remain public.
         const isPublicIntakeRoute =
-            pathname.startsWith("/api/creator/intake/") ||
-            pathname.startsWith("/api/v1/creator/intake/");
+            pathname.startsWith("/api/creator/intake") ||
+            pathname.startsWith("/api/v1/creator/intake") ||
+            pathname === "/api/creators/intake";
         if (!isPublicIntakeRoute) {
             const authHeader = req.headers.authorization || "";
             const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
@@ -144,13 +145,16 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
             }
         }
 
-        // 3. Public Intake Form Endpoints (/api/creator/intake/:token)
-        if (pathname.startsWith("/api/creator/intake/") || pathname.startsWith("/api/v1/creator/intake/")) {
+        // 3. Public Intake Form Endpoints (/api/creator/intake/:token, /api/creator/intake/new/submit, etc.)
+        if (pathname.startsWith("/api/creator/intake") || pathname.startsWith("/api/v1/creator/intake") || pathname === "/api/creators/intake") {
             const parts = pathname.split("/").filter(Boolean);
             const lastPart = parts[parts.length - 1];
             const isSubmit = lastPart === "submit";
             const isAvatar = lastPart === "avatar";
-            const token = isSubmit || isAvatar ? parts[parts.length - 2] : lastPart;
+            let token = isSubmit || isAvatar ? parts[parts.length - 2] : lastPart;
+            if (!token || token === "intake") {
+                token = "new";
+            }
 
             if ((method === "GET" || method === "HEAD") && isAvatar) {
                 const creator = await getCreatorByIntakeToken(undefined, token);
@@ -274,6 +278,7 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                 tier: (url.searchParams.get("tier") as any) || "all",
                 intakeStatus: (url.searchParams.get("intakeStatus") as any) || "all",
                 channel: (url.searchParams.get("channel") as any) || "all",
+                source: (url.searchParams.get("source") as any) || "all",
                 sortBy: (url.searchParams.get("sortBy") as any) || "followersCount",
                 reverse: url.searchParams.get("reverse") === "true",
                 limit: parseInt(url.searchParams.get("limit") || "50", 10),

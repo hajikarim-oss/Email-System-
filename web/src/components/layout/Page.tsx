@@ -54,12 +54,23 @@ export function PageTopbar({
     subtitle,
     children,
     className,
+    crumbs,
+    current,
+    badges,
+    actions,
 }: {
-    eyebrow: string;
+    eyebrow?: string;
     subtitle?: string;
     children?: React.ReactNode;
     className?: string;
+    crumbs?: { label: string; to?: string }[];
+    current?: string;
+    badges?: React.ReactNode;
+    actions?: React.ReactNode;
 }) {
+    const headline = eyebrow || current;
+    const content = actions || children;
+
     return (
         <div
             className={cn(
@@ -69,9 +80,28 @@ export function PageTopbar({
             )}
         >
             <div className="flex items-center gap-2.5 shrink-0 whitespace-nowrap">
-                <span className="font-editorial text-[20px] md:text-[22px] font-normal tracking-tight text-slate-950 whitespace-nowrap leading-none select-none">
-                    {eyebrow}
-                </span>
+                {crumbs && crumbs.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[12px] text-slate-500 shrink-0">
+                        {crumbs.map((c, i) => (
+                            <React.Fragment key={i}>
+                                {c.to ? (
+                                    <Link to={c.to} className="hover:text-slate-900 transition-colors">
+                                        {c.label}
+                                    </Link>
+                                ) : (
+                                    <span>{c.label}</span>
+                                )}
+                                <span className="text-slate-400">/</span>
+                            </React.Fragment>
+                        ))}
+                    </div>
+                )}
+                {headline && (
+                    <span className="font-editorial text-[20px] md:text-[22px] font-normal tracking-tight text-slate-950 whitespace-nowrap leading-none select-none">
+                        {headline}
+                    </span>
+                )}
+                {badges && <div className="flex items-center gap-1.5">{badges}</div>}
                 {subtitle && (
                     <>
                         <div className="h-4 w-px bg-stone-300 shrink-0" />
@@ -81,9 +111,9 @@ export function PageTopbar({
                     </>
                 )}
             </div>
-            {children && (
-                <div className="ml-auto flex items-center gap-2 min-w-0 flex-nowrap justify-end overflow-x-auto no-scrollbar py-1">
-                    {children}
+            {content && (
+                <div className="ml-auto flex items-center gap-2 min-w-0 flex-nowrap overflow-x-auto no-scrollbar py-1">
+                    {content}
                 </div>
             )}
         </div>

@@ -541,7 +541,7 @@ export function RichEmailEditor({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        insertHtmlAtCaret(` <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 600; text-decoration: underline;">{{form_link}}</a> `);
+                                        insertHtmlAtCaret(` <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a> `);
                                     }}
                                     className="px-2 py-0.5 rounded text-[10.5px] font-semibold bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
                                     title="Insert dedicated dynamic Creator Form Link ({{form_link}})"

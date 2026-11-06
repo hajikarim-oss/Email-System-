@@ -1,27 +1,52 @@
-import React, { useState, useMemo } from "react";
+import { NoAccess } from "@/components/layout/NoAccess";
+import { usePermission } from "@/hooks/usePermission";
+import { useUserProfile } from "@/hooks/context/user";
+import useFeatureAccess from "@/hooks/useFeatureAccess";
+import useMembers from "@/lib/api/hooks/app/organizations/useMembers";
+import useCampaigns from "@/lib/api/hooks/app/campaigns/useCampaigns";
+import useStartCampaign from "@/lib/api/hooks/app/campaigns/useStartCampaign";
+import useStopCampaign from "@/lib/api/hooks/app/campaigns/useStopCampaign";
+import useUpdateCampaign from "@/lib/api/hooks/app/campaigns/useUpdateCampaign";
+import { useConfirm } from "@/hooks/context/confirm";
+import { NewCreatorCampaignDialog } from "@/components/app/creators/NewCreatorCampaignDialog";
+import { CreatorCampaignTelemetryDialog } from "@/components/app/creators/CreatorCampaignTelemetryDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { authHeaders } from "@/lib/api/standaloneMock";
+import AdvisorRowFlag from "@/components/app/advisor/AdvisorRowFlag";
+import AdvisorSummaryBar from "@/components/app/advisor/AdvisorSummaryBar";
+import { useAdvisorEntityIndex } from "@/lib/api/hooks/app/advisor/useAdvisor";
+import LaunchCampaignDialog from "@/components/app/campaigns/LaunchCampaignDialog";
+import CampaignActionsMenu from "@/components/app/campaigns/CampaignActionsMenu";
+import toast from "react-hot-toast";
+import type { AppError } from "@/lib/api/client/normalizeError";
+import buildError from "@/lib/helper/buildError";
+import type Campaign from "@/lib/api/models/app/campaigns/Campaign";
+import type Folder from "@/lib/api/models/app/Folder";
+import { cn, hexToRgba } from "@/lib/utils";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
+    AlertTriangleIcon,
+    CalendarIcon,
+    CheckIcon,
+    CheckCircle2Icon,
+    FileTextIcon,
+    FilterIcon,
+    FolderIcon,
+    HourglassIcon,
+    Loader2Icon,
+    type LucideIcon,
+    PauseIcon,
+    PlayIcon,
     PlusIcon,
     RefreshCcwIcon,
-    PlayIcon,
-    PauseIcon,
+    SendIcon,
+    Settings2Icon,
     Trash2Icon,
-    ExternalLinkIcon,
-    ActivityIcon,
-    EyeIcon,
-    FileEditIcon,
-    CheckCircle2Icon,
-    SparklesIcon,
-    TrendingUpIcon,
-    UsersIcon,
-    FilterIcon,
-    ArrowUpRightIcon,
-    ClockIcon,
-    Loader2Icon,
 } from "lucide-react";
-import toast from "react-hot-toast";
-import { authHeaders } from "@/lib/api/standaloneMock";
+import { useCampaignActions } from "@/components/app/campaigns/useCampaignActions";
 import {
+    EmptyBlock,
     Page,
     PageBody,
     PageTopbar,
@@ -29,527 +54,851 @@ import {
     Stat,
     StatStrip,
     TopbarAction,
-    EmptyBlock,
 } from "@/components/layout/Page";
 import { SearchInput } from "@/components/ui/field";
+import {
+    campaignDisplayLabel,
+    CAMPAIGN_IDLE_TONE,
+    campaignDisplayTone,
+    campaignStatusBucket as statusBucket,
+    campaignStatusTone as statusTone,
+    isIdleCampaign,
+    isOneTimeCampaign,
+} from "@/components/app/campaigns/status";
 import {
     PopoverMenu,
     PopoverMenuContent,
     PopoverMenuItem,
     PopoverMenuLabel,
+    PopoverMenuSeparator,
     PopoverMenuTrigger,
     SelectButton,
 } from "@/components/ui/popover-menu";
-import { NewCreatorCampaignDialog } from "@/components/app/creators/NewCreatorCampaignDialog";
-import { CreatorCampaignTelemetryDialog } from "@/components/app/creators/CreatorCampaignTelemetryDialog";
-import { cn } from "@/lib/utils";
 
-type StatusFilter = "all" | "ACTIVE" | "PAUSED" | "DRAFT" | "COMPLETED";
-type SortOption = "newest" | "oldest" | "highest_open" | "name";
+type StatusFilter = "all" | "active" | "paused" | "draft" | "completed";
+type KindFilter = "all" | "sequence" | "one_time";
+type SortMode = "newest" | "oldest" | "name";
+
+const KIND_LABEL: Record<KindFilter, string> = {
+    all: "All types",
+    sequence: "Sequences",
+    one_time: "One-time emails",
+};
+
+// Initials for the member strip chips and the per-row ownership marker —
+// every chip keeps the same 16px circle so the strip reads as one rhythm.
+function memberInitials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Per-state label + leading mark for a campaign row. "active" renders the
+// animated dot-grid loader; every other state is a 14px lucide icon so the
+// fixed-width leading slot keeps each row's name aligned. The label/tone maps
+// live in components/app/campaigns/status so pickers share them.
+function CampaignStatusMark({ status, idle }: { status: string; idle?: boolean }) {
+    const tone = statusTone(status);
+    if (idle) {
+        return <HourglassIcon className={cn("w-3.5 h-3.5", CAMPAIGN_IDLE_TONE)} aria-label="Waiting for leads" />;
+    }
+    if (status === "active") {
+        return <span className={cn("campaign-grid", tone)} aria-hidden title="Sending now" />;
+    }
+    let Icon: LucideIcon = FileTextIcon;
+    let title = "Draft — not started";
+    if (status === "completed") {
+        Icon = CheckCircle2Icon;
+        title = "Finished";
+    } else if (status === "paused") {
+        Icon = PauseIcon;
+        title = "Paused";
+    } else if (status === "paused_guardrail") {
+        Icon = AlertTriangleIcon;
+        title = "Paused automatically — a deliverability guardrail was breached";
+    } else if (status === "paused_undeliverable") {
+        Icon = AlertTriangleIcon;
+        title = "Paused — address verification refused the remaining leads";
+    } else if (status === "paused_no_accounts" || status === "paused_trial_expired") {
+        Icon = AlertTriangleIcon;
+        title = status === "paused_no_accounts" ? "Paused — no sending accounts" : "Paused — trial expired";
+    }
+    return <Icon className={cn("w-3.5 h-3.5", tone)} aria-label={title} />;
+}
+
+// Read-only chips showing which folders a campaign belongs to — resolves the
+// campaign's folder ids against the user's folders, shows up to 2 then "+N".
+// Each chip is tinted with the folder's own color for a quick visual read.
+function CampaignFolderChips({ campaign, folders }: { campaign: Campaign; folders: Folder[] }) {
+    const mine = (campaign.folders ?? [])
+        .map((id) => folders.find((f) => f.id === id))
+        .filter((f): f is Folder => !!f);
+    if (mine.length === 0) return null;
+    const shown = mine.slice(0, 2);
+    const extra = mine.length - shown.length;
+    return (
+        <span className="hidden sm:flex items-center gap-1.5 shrink-0">
+            {shown.map((f) => (
+                <span
+                    key={f.id}
+                    title={f.title}
+                    className="inline-flex items-center gap-1.5 h-[18px] pl-1.5 pr-2 rounded-full text-[10.5px] font-medium text-slate-700 max-w-[130px]"
+                    style={{ backgroundColor: hexToRgba(f.color, 0.16) }}
+                >
+                    <span
+                        className="inline-block size-2 rounded-full ring-1 ring-black/5 shrink-0"
+                        style={{ backgroundColor: f.color }}
+                    />
+                    <span className="truncate">{f.title}</span>
+                </span>
+            ))}
+            {extra > 0 && (
+                <span
+                    className="inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-slate-500 bg-slate-100"
+                    title={mine.slice(2).map((f) => f.title).join(", ")}
+                >
+                    +{extra}
+                </span>
+            )}
+        </span>
+    );
+}
+
+// Per-row "move to folder" control: a folder button (revealed on hover, or
+// kept visible + sky when the campaign is already filed) that opens a popover
+// of the user's folders. Toggling an item PATCHes the campaign's `folders`
+// array; the menu stays open so several folders can be toggled at once.
+function CampaignFolderMenu({ campaign, folders }: { campaign: Campaign; folders: Folder[] }) {
+    const p = useUserProfile();
+    const update = useUpdateCampaign(campaign.id);
+    const current = campaign.folders ?? [];
+    const inCount = current.length;
+
+    function setFolders(next: string[]) {
+        update.mutate(
+            { folders: next },
+            { onError: (e) => toast.error(buildError(e as unknown as AppError)) },
+        );
+    }
+
+    return (
+        <PopoverMenu align="end">
+            <PopoverMenuTrigger asChild>
+                <button
+                    type="button"
+                    aria-label="Move to folder"
+                    title={
+                        inCount > 0
+                            ? `In ${inCount} folder${inCount === 1 ? "" : "s"}`
+                            : "Move to folder"
+                    }
+                    className={cn(
+                        "size-6 rounded flex items-center justify-center transition-opacity shrink-0",
+                        inCount > 0
+                            ? "text-slate-900 hover:bg-[#FFF9DB] opacity-100"
+                            : "text-slate-400 hover:text-slate-900 hover:bg-slate-100 opacity-100 md:opacity-0 md:group-hover:opacity-100",
+                    )}
+                >
+                    <FolderIcon className="w-3.5 h-3.5" />
+                </button>
+            </PopoverMenuTrigger>
+            <PopoverMenuContent minWidth={200}>
+                <PopoverMenuLabel>Folders</PopoverMenuLabel>
+                {folders.length === 0 ? (
+                    <PopoverMenuItem
+                        onSelect={() => p.setFoldersEdit(true)}
+                        icon={<PlusIcon className="w-3 h-3" />}
+                    >
+                        Create a folder
+                    </PopoverMenuItem>
+                ) : (
+                    folders.map((f) => {
+                        const isIn = current.includes(f.id);
+                        return (
+                            <PopoverMenuItem
+                                key={f.id}
+                                closeOnSelect={false}
+                                selected={isIn}
+                                onSelect={() =>
+                                    setFolders(
+                                        isIn
+                                            ? current.filter((x) => x !== f.id)
+                                            : [...current, f.id],
+                                    )
+                                }
+                                icon={
+                                    <span
+                                        className="inline-block size-2.5 rounded-full ring-1 ring-black/5"
+                                        style={{ backgroundColor: f.color }}
+                                    />
+                                }
+                                trailing={
+                                    isIn ? (
+                                        <CheckIcon className="w-3.5 h-3.5 text-slate-900" strokeWidth={2.5} />
+                                    ) : null
+                                }
+                            >
+                                {f.title}
+                            </PopoverMenuItem>
+                        );
+                    })
+                )}
+                {inCount > 0 && (
+                    <>
+                        <PopoverMenuSeparator />
+                        <PopoverMenuItem danger onSelect={() => setFolders([])}>
+                            Remove from all
+                        </PopoverMenuItem>
+                    </>
+                )}
+                <PopoverMenuSeparator />
+                <PopoverMenuItem
+                    onSelect={() => p.setFoldersEdit(true)}
+                    icon={<Settings2Icon className="w-3 h-3" />}
+                >
+                    Manage folders
+                </PopoverMenuItem>
+            </PopoverMenuContent>
+        </PopoverMenu>
+    );
+}
 
 export default function CreatorCampaignsPage() {
+    const p = useUserProfile();
+    const confirm = useConfirm();
+    const canView = usePermission("VIEW_CAMPAIGNS");
+    const access = useFeatureAccess();
+    const membersQuery = useMembers();
+    const startCampaign = useStartCampaign();
+    const stopCampaign = useStopCampaign();
+    const actions = useCampaignActions();
+    const [folder, setFolder] = useState<string>("");
+    const [query, setQuery] = useState<string>("");
+    const [status, setStatus] = useState<StatusFilter>("all");
+    const [kind, setKind] = useState<KindFilter>("all");
+    const [sort, setSort] = useState<SortMode>("newest");
+    const [memberFilter, setMemberFilter] = useState<string>("");
+    const [newOpen, setNewOpen] = useState<boolean>(false);
+    const [launchTarget, setLaunchTarget] = useState<Campaign | null>(null);
     const queryClient = useQueryClient();
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [sortOption, setSortOption] = useState<SortOption>("newest");
-    const [newDialogOpen, setNewDialogOpen] = useState(false);
     const [telemetryCampaign, setTelemetryCampaign] = useState<{ id: string; name: string } | null>(null);
-    const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+    const [nativeBusyId, setNativeBusyId] = useState<string | null>(null);
 
-    // Fetch native Creator Campaigns with live polling every 6 seconds
-    const {
-        data: campaigns = [],
-        isLoading,
-        isFetching,
-        refetch,
-    } = useQuery({
+    // Creator intake telemetry (links opened / filling / enriched) per campaign.
+    const creatorStatsQuery = useQuery({
         queryKey: ["creator_campaigns"],
         queryFn: async () => {
-            const res = await fetch("/api/creators/campaigns", {
-                headers: authHeaders(),
-            });
-            if (!res.ok) throw new Error("Failed to load creator campaigns");
-            return res.json();
+            const res = await fetch("/api/creators/campaigns", { headers: authHeaders() });
+            if (!res.ok) throw new Error("Failed to load creator campaign telemetry");
+            return (await res.json()) as any[];
         },
         refetchInterval: 6000,
     });
+    const creatorStats = creatorStatsQuery.data ?? [];
 
-    // Aggregate stats across all campaigns
-    const stats = useMemo(() => {
-        const totalCampaigns = campaigns.length;
-        const activeOutreach = campaigns.filter((c: any) => c.status === "ACTIVE").length;
-        const totalEnrolled = campaigns.reduce((acc: number, c: any) => acc + (Number(c.enrolledCount) || 0), 0);
-        const totalSent = campaigns.reduce((acc: number, c: any) => acc + (Number(c.sentCount) || 0), 0);
-        const totalOpened = campaigns.reduce((acc: number, c: any) => acc + (Number(c.formsOpenedCount) || 0), 0);
-        const totalFilling = campaigns.reduce((acc: number, c: any) => acc + (Number(c.partiallyFilledCount) || 0), 0);
-        const totalEnriched = campaigns.reduce((acc: number, c: any) => acc + (Number(c.completedCount) || 0), 0);
-
-        const openRate = totalSent > 0 ? ((totalOpened / totalSent) * 100).toFixed(1) : "0.0";
-        const enrichmentRate = totalSent > 0 ? ((totalEnriched / totalSent) * 100).toFixed(1) : "0.0";
-
-        return {
-            totalCampaigns,
-            activeOutreach,
-            totalEnrolled,
-            totalSent,
-            totalOpened,
-            totalFilling,
-            totalEnriched,
-            openRate,
-            enrichmentRate,
-        };
-    }, [campaigns]);
-
-    // Filtering & Sorting
-    const filteredCampaigns = useMemo(() => {
-        return campaigns
-            .filter((c: any) => {
-                if (statusFilter !== "all" && c.status !== statusFilter) return false;
-                if (searchQuery.trim()) {
-                    const q = searchQuery.toLowerCase();
-                    const matchName = (c.name || "").toLowerCase().includes(q);
-                    const matchVertical = (c.targetVertical || "").toLowerCase().includes(q);
-                    const matchSubject = (c.subject || "").toLowerCase().includes(q);
-                    if (!matchName && !matchVertical && !matchSubject) return false;
-                }
-                return true;
-            })
-            .sort((a: any, b: any) => {
-                if (sortOption === "newest") {
-                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                }
-                if (sortOption === "oldest") {
-                    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-                }
-                if (sortOption === "highest_open") {
-                    return (b.openRate || 0) - (a.openRate || 0);
-                }
-                if (sortOption === "name") {
-                    return (a.name || "").localeCompare(b.name || "");
-                }
-                return 0;
-            });
-    }, [campaigns, statusFilter, searchQuery, sortOption]);
-
-    // Toggle campaign active/paused
-    const handleToggleStatus = async (c: any, e: React.MouseEvent) => {
-        e.stopPropagation();
-        const nextStatus = c.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
-        setActionLoadingId(c.id);
+    async function toggleCampaign(id: string, currentStatus: string) {
         try {
-            const res = await fetch(`/api/creators/campaigns/${c.id}`, {
+            if (currentStatus === "active") {
+                await toast.promise(stopCampaign.mutateAsync(id), {
+                    loading: "Pausing campaign…",
+                    success: "Campaign paused",
+                    error: (e: AppError) => buildError(e),
+                });
+            } else {
+                await toast.promise(startCampaign.mutateAsync(id), {
+                    loading: "Starting campaign…",
+                    success: "Campaign started",
+                    error: (e: AppError) => buildError(e),
+                });
+            }
+        } catch {
+            /* toast.promise already surfaced */
+        }
+    }
+
+    // Row start/pause: pause asks first, start opens the launch dialog.
+    function toggleRow(c: Campaign) {
+        const cstatus = c.status ?? "draft";
+        if (cstatus === "active") {
+            confirm?.show(`Pause ${c.name}?`, () => toggleCampaign(c.id, cstatus));
+        } else {
+            setLaunchTarget(c);
+        }
+    }
+
+    const campaignsData = useCampaigns({ query, folder, scope: "creator" });
+    // One query for the surface; a step's copy problem indexes onto its parent
+    // campaign, so it flags the row even though the step has no row of its own.
+    const advisor = useAdvisorEntityIndex("campaigns");
+    const campaigns = campaignsData.campaigns ?? [];
+
+    // Ownership is stamped on each row by the live campaigns merge
+    // (`userId`); rows the database never saw belong to the master.
+    const isMaster = access.canManage;
+    const currentUserId = p.user.id;
+    const currentUserEmail = (p.user.email || "").toLowerCase();
+    const members = membersQuery.data ?? [];
+    const teamMembers = members.filter((m) => m.role !== "owner");
+    const memberByUserId = new Map(members.map((m) => [m.user_id, m]));
+    const ownerUserId = members.find((m) => m.role === "owner")?.user_id ?? p.user.id ?? "";
+    const ownerOf = (c: Campaign) => String(c.userId || (c as any).user_id || "") || ownerUserId;
+
+    const isMine = (c: Campaign) => {
+        const uId = String(c.userId || (c as any).user_id || "");
+        if (uId && uId === currentUserId) return true;
+        if (isMaster && (!uId || uId === ownerUserId)) return true;
+        if (!uId || isMaster) return true;
+        return false;
+    };
+
+    const statsFor = (c: Campaign) =>
+        creatorStats.find(
+            (s: any) => s.id === c.id || (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId)),
+        );
+    const nativeCampaigns = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        return creatorStats
+            .filter(
+                (s: any) =>
+                    !campaigns.some(
+                        (c) => c.id === s.id || (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId)),
+                    ),
+            )
+            .filter((s: any) => (!q || (s.name || "").toLowerCase().includes(q)) && (status === "all" || statusBucket(String(s.status || "").toLowerCase()) === status));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [creatorStats, campaigns, query, status]);
+
+    async function toggleNative(s: any) {
+        const next = s.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
+        setNativeBusyId(s.id);
+        try {
+            const res = await fetch(`/api/creators/campaigns/${s.id}`, {
                 method: "PATCH",
                 headers: { ...authHeaders(), "Content-Type": "application/json" },
-                body: JSON.stringify({ status: nextStatus }),
+                body: JSON.stringify({ status: next }),
             });
             if (!res.ok) throw new Error("Failed to update status");
-            toast.success(`Campaign ${nextStatus === "ACTIVE" ? "activated" : "paused"}`);
+            toast.success(`Campaign ${next === "ACTIVE" ? "activated" : "paused"}`);
             queryClient.invalidateQueries({ queryKey: ["creator_campaigns"] });
-        } catch (err: any) {
-            toast.error(err.message || "Failed to update campaign");
+        } catch (e: any) {
+            toast.error(e.message || "Failed to update campaign");
         } finally {
-            setActionLoadingId(null);
+            setNativeBusyId(null);
         }
-    };
+    }
+    function deleteNative(s: any) {
+        confirm?.show(`Delete ${s.name}?`, async () => {
+            setNativeBusyId(s.id);
+            try {
+                const res = await fetch(`/api/creators/campaigns/${s.id}`, { method: "DELETE", headers: authHeaders() });
+                if (!res.ok) throw new Error("Failed to delete campaign");
+                toast.success("Campaign deleted");
+                queryClient.invalidateQueries({ queryKey: ["creator_campaigns"] });
+            } catch (e: any) {
+                toast.error(e.message || "Failed to delete campaign");
+            } finally {
+                setNativeBusyId(null);
+            }
+        });
+    }
 
-    // Delete campaign
-    const handleDeleteCampaign = async (c: any, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!confirm(`Are you sure you want to delete "${c.name}"?`)) return;
-        setActionLoadingId(c.id);
-        try {
-            const res = await fetch(`/api/creators/campaigns/${c.id}`, {
-                method: "DELETE",
-                headers: authHeaders(),
-            });
-            if (!res.ok) throw new Error("Failed to delete campaign");
-            toast.success("Campaign deleted");
-            queryClient.invalidateQueries({ queryKey: ["creator_campaigns"] });
-        } catch (err: any) {
-            toast.error(err.message || "Failed to delete campaign");
-        } finally {
-            setActionLoadingId(null);
+    const folders = p.user.folders ?? [];
+    const activeFolder = folders.find((f) => f.id === folder);
+
+    const scopedCampaigns = useMemo(() => {
+        if (!isMaster) {
+            return campaigns;
         }
-    };
+        if (memberFilter) {
+            return campaigns.filter((c) => ownerOf(c) === memberFilter);
+        }
+        return campaigns;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [campaigns, isMaster, currentUserId, currentUserEmail, memberFilter]);
+
+    const filtered = useMemo(() => {
+        const base = scopedCampaigns.filter(
+            (c) =>
+                (status === "all" || statusBucket(c.status) === status) &&
+                (kind === "all" || (c.kind ?? "sequence") === kind),
+        );
+        const sorted = [...base];
+        if (sort === "newest") {
+            sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        } else if (sort === "oldest") {
+            sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        } else {
+            sorted.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+        }
+        return sorted;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scopedCampaigns, status, kind, sort]);
+
+    const counts = useMemo(() => {
+        const stats = { total: scopedCampaigns.length, active: 0, paused: 0, draft: 0, completed: 0 };
+        for (const c of scopedCampaigns) {
+            stats[statusBucket(c.status)]++;
+        }
+        for (const s of creatorStats.filter(
+            (s: any) => !campaigns.some((c) => c.id === s.id || (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId))),
+        )) {
+            stats.total++;
+            stats[statusBucket(String(s.status || "").toLowerCase())]++;
+        }
+        return stats;
+    }, [scopedCampaigns, creatorStats, campaigns]);
+
+    if (!canView) return <NoAccess feature="campaigns" permissionLabel="View campaigns" />;
 
     return (
         <Page>
             <PageTopbar
-                crumbs={[
-                    { label: "Troops Outreach", to: "/app" },
-                    { label: "Creators", to: "/app/creators" },
-                    { label: "Campaigns" },
-                ]}
-                current="Creator Campaigns"
-                badges={
-                    <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                        {campaigns.length} campaigns
-                    </span>
+                eyebrow="Creator Campaigns"
+                subtitle={
+                    campaignsData.isPending
+                        ? "Loading…"
+                        : campaignsData.isError
+                            ? "Failed to load"
+                            : `${scopedCampaigns.length} ${scopedCampaigns.length === 1 ? "campaign" : "campaigns"}`
                 }
-                actions={
-                    <>
-                        <button
-                            type="button"
-                            onClick={() => refetch()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:border-slate-300 rounded-md shadow-2xs transition-colors shrink-0 whitespace-nowrap cursor-pointer"
-                        >
-                            <RefreshCcwIcon className={cn("w-3.5 h-3.5", isFetching && "animate-spin text-amber-500")} />
-                            Refresh
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setNewDialogOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[12px] font-semibold text-slate-950 bg-[#FFE600] hover:bg-[#F5DC00] border border-amber-300/80 rounded-md shadow-2xs transition-all shrink-0 whitespace-nowrap cursor-pointer"
-                        >
-                            <PlusIcon className="w-3.5 h-3.5" />
-                            New campaign
-                        </button>
-                    </>
-                }
-            />
+            >
+                <TopbarAction
+                    variant="ghost"
+                    icon={<Settings2Icon className="w-3 h-3" />}
+                    onClick={() => p.setFoldersEdit(true)}
+                >
+                    Folders
+                </TopbarAction>
+                <TopbarAction
+                    icon={<PlusIcon className="w-3 h-3" />}
+                    onClick={() => setNewOpen(true)}
+                >
+                    New campaign
+                </TopbarAction>
+            </PageTopbar>
 
-            {/* Real-time Telemetry & Funnel Stat Strip */}
-            <StatStrip>
+            <StatStrip cols={5}>
                 <Stat
-                    label="All Campaigns"
-                    value={stats.totalCampaigns}
-                    sub="native creator database"
-                    active={statusFilter === "all"}
-                    onClick={() => setStatusFilter("all")}
+                    label="All"
+                    value={counts.total}
+                    sub="campaigns"
+                    onClick={() => setStatus("all")}
                 />
                 <Stat
-                    label="Active Outreach"
-                    value={stats.activeOutreach}
-                    sub="dispatching intake links"
-                    active={statusFilter === "ACTIVE"}
-                    onClick={() => setStatusFilter("ACTIVE")}
+                    label="Active"
+                    value={counts.active}
+                    sub="sending now"
+                    accent={counts.active > 0}
+                    onClick={() => setStatus("active")}
                 />
                 <Stat
-                    label="Links Opened"
-                    value={stats.totalOpened}
-                    sub={`${stats.openRate}% creator open rate`}
-                    badge="Live Telemetry"
+                    label="Paused"
+                    value={counts.paused}
+                    sub="resumable"
+                    onClick={() => setStatus("paused")}
                 />
                 <Stat
-                    label="In-Progress Intake"
-                    value={stats.totalFilling}
-                    sub="step 1 or 2 auto-saved"
+                    label="Draft"
+                    value={counts.draft}
+                    sub="not started"
+                    onClick={() => setStatus("draft")}
                 />
                 <Stat
-                    label="100% Enriched"
-                    value={stats.totalEnriched}
-                    sub={`${stats.enrichmentRate}% verified talent`}
+                    label="Done"
+                    value={counts.completed}
+                    sub="finished"
                     last
-                    badge="Roster Ready"
+                    onClick={() => setStatus("completed")}
                 />
             </StatStrip>
 
-            {/* Filters, Search & Sort */}
+            {/* Master-only team strip: each member chip shows how many
+                campaigns are theirs; selecting one narrows the list (and the
+                status counts above) to that member's work. */}
+            {access.canManage && teamMembers.length > 0 && (
+                <div className="px-5 pt-3 flex items-center gap-1.5 overflow-x-auto">
+                    <button
+                        type="button"
+                        onClick={() => setMemberFilter("")}
+                        className={cn(
+                            "inline-flex items-center gap-1.5 h-7 pl-2.5 pr-2.5 rounded-full border text-[11.5px] font-medium transition-colors shrink-0",
+                            memberFilter === ""
+                                ? "bg-slate-900 text-white border-slate-900"
+                                : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
+                        )}
+                    >
+                        Everyone
+                        <span className={cn("font-mono text-[10.5px] tabular-nums", memberFilter === "" ? "text-white/70" : "text-slate-400")}>
+                            {campaigns.length}
+                        </span>
+                    </button>
+                    {teamMembers.map((m) => {
+                        const count = campaigns.filter((c) => {
+                            const ownerId = String(c.userId || (c as any).user_id || "");
+                            const memberId = String(m.user_id || "");
+                            return ownerId === memberId;
+                        }).length;
+                        const active = memberFilter === m.user_id;
+                        return (
+                            <button
+                                key={m.user_id}
+                                type="button"
+                                title={`Campaigns owned by ${m.name || m.email || "member"}`}
+                                onClick={() => setMemberFilter(active ? "" : m.user_id)}
+                                className={cn(
+                                    "inline-flex items-center gap-1.5 h-7 pl-1 pr-2.5 rounded-full border text-[11.5px] font-medium transition-colors shrink-0",
+                                    active
+                                        ? "bg-slate-900 text-white border-slate-900"
+                                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
+                                )}
+                            >
+                                <span
+                                    className={cn(
+                                        "grid place-items-center size-4 rounded-full text-[8.5px] font-semibold shrink-0",
+                                        active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
+                                    )}
+                                >
+                                    {memberInitials(m.name || m.email || "?")}
+                                </span>
+                                {m.name || m.email || "Member"}
+                                <span className={cn("font-mono text-[10.5px] tabular-nums", active ? "text-white/70" : "text-slate-400")}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
             <SectionBar
-                label={
-                    statusFilter === "all"
-                        ? "All Creator Campaigns"
-                        : `${statusFilter.charAt(0) + statusFilter.slice(1).toLowerCase()} Campaigns`
-                }
-                count={filteredCampaigns.length}
+                label={status === "all" ? "All campaigns" : `${status[0].toUpperCase()}${status.slice(1)}`}
+                count={filtered.length + nativeCampaigns.length}
             >
                 <SearchInput
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder="Search by name, vertical, subject..."
-                    className="w-full sm:w-64"
+                    value={query}
+                    onChange={setQuery}
+                    placeholder="Search campaigns…"
+                    className="w-full sm:w-56"
                 />
 
-                {/* Status Selector */}
                 <PopoverMenu align="end">
                     <PopoverMenuTrigger asChild>
                         <SelectButton
-                            icon={<FilterIcon className="w-3.5 h-3.5 text-slate-500" />}
-                            label={
-                                statusFilter === "all"
-                                    ? "All statuses"
-                                    : statusFilter.charAt(0) + statusFilter.slice(1).toLowerCase()
-                            }
+                            icon={<FolderIcon className="w-3.5 h-3.5" />}
+                            label={activeFolder?.title ?? "All folders"}
                         />
                     </PopoverMenuTrigger>
-                    <PopoverMenuContent minWidth={180}>
-                        <PopoverMenuLabel>Filter by Status</PopoverMenuLabel>
+                    <PopoverMenuContent minWidth={200}>
+                        <PopoverMenuLabel>Folders</PopoverMenuLabel>
                         <PopoverMenuItem
-                            selected={statusFilter === "all"}
-                            onSelect={() => setStatusFilter("all")}
+                            onSelect={() => setFolder("")}
+                            selected={!folder}
                         >
-                            All statuses ({campaigns.length})
+                            All folders
                         </PopoverMenuItem>
+                        {folders.map((f) => (
+                            <PopoverMenuItem
+                                key={f.id}
+                                onSelect={() => setFolder(folder === f.id ? "" : f.id)}
+                                icon={<span className="inline-block size-2 rounded-full" style={{ backgroundColor: f.color }} />}
+                                selected={folder === f.id}
+                            >
+                                {f.title}
+                            </PopoverMenuItem>
+                        ))}
+                        <PopoverMenuSeparator />
                         <PopoverMenuItem
-                            selected={statusFilter === "ACTIVE"}
-                            onSelect={() => setStatusFilter("ACTIVE")}
+                            onSelect={() => p.setFoldersEdit(true)}
+                            icon={<Settings2Icon className="w-3 h-3" />}
                         >
-                            Active ({campaigns.filter((c: any) => c.status === "ACTIVE").length})
-                        </PopoverMenuItem>
-                        <PopoverMenuItem
-                            selected={statusFilter === "PAUSED"}
-                            onSelect={() => setStatusFilter("PAUSED")}
-                        >
-                            Paused ({campaigns.filter((c: any) => c.status === "PAUSED").length})
-                        </PopoverMenuItem>
-                        <PopoverMenuItem
-                            selected={statusFilter === "DRAFT"}
-                            onSelect={() => setStatusFilter("DRAFT")}
-                        >
-                            Draft ({campaigns.filter((c: any) => c.status === "DRAFT").length})
-                        </PopoverMenuItem>
-                        <PopoverMenuItem
-                            selected={statusFilter === "COMPLETED"}
-                            onSelect={() => setStatusFilter("COMPLETED")}
-                        >
-                            Completed ({campaigns.filter((c: any) => c.status === "COMPLETED").length})
+                            Manage folders
                         </PopoverMenuItem>
                     </PopoverMenuContent>
                 </PopoverMenu>
 
-                {/* Sort Selector */}
                 <PopoverMenu align="end">
                     <PopoverMenuTrigger asChild>
                         <SelectButton
-                            icon={<TrendingUpIcon className="w-3.5 h-3.5 text-slate-500" />}
-                            label={
-                                sortOption === "newest"
-                                    ? "Newest first"
-                                    : sortOption === "oldest"
-                                    ? "Oldest first"
-                                    : sortOption === "highest_open"
-                                    ? "Highest link open"
-                                    : "Name (A–Z)"
-                            }
+                            icon={<SendIcon className="w-3.5 h-3.5" />}
+                            label={KIND_LABEL[kind]}
                         />
                     </PopoverMenuTrigger>
                     <PopoverMenuContent minWidth={180}>
-                        <PopoverMenuLabel>Sort Campaigns</PopoverMenuLabel>
+                        <PopoverMenuLabel>Type</PopoverMenuLabel>
+                        {(Object.keys(KIND_LABEL) as KindFilter[]).map((k) => (
+                            <PopoverMenuItem key={k} selected={kind === k} onSelect={() => setKind(k)}>
+                                {KIND_LABEL[k]}
+                            </PopoverMenuItem>
+                        ))}
+                    </PopoverMenuContent>
+                </PopoverMenu>
+
+                <PopoverMenu align="end">
+                    <PopoverMenuTrigger asChild>
+                        <SelectButton
+                            icon={<FilterIcon className="w-3.5 h-3.5" />}
+                            label={
+                                sort === "newest"
+                                    ? "Newest"
+                                    : sort === "oldest"
+                                        ? "Oldest"
+                                        : "Name"
+                            }
+                        />
+                    </PopoverMenuTrigger>
+                    <PopoverMenuContent>
+                        <PopoverMenuLabel>Sort</PopoverMenuLabel>
                         <PopoverMenuItem
-                            selected={sortOption === "newest"}
-                            onSelect={() => setSortOption("newest")}
+                            selected={sort === "newest"}
+                            onSelect={() => setSort("newest")}
                         >
                             Newest first
                         </PopoverMenuItem>
                         <PopoverMenuItem
-                            selected={sortOption === "highest_open"}
-                            onSelect={() => setSortOption("highest_open")}
-                        >
-                            Highest link open rate
-                        </PopoverMenuItem>
-                        <PopoverMenuItem
-                            selected={sortOption === "name"}
-                            onSelect={() => setSortOption("name")}
-                        >
-                            Name (A–Z)
-                        </PopoverMenuItem>
-                        <PopoverMenuItem
-                            selected={sortOption === "oldest"}
-                            onSelect={() => setSortOption("oldest")}
+                            selected={sort === "oldest"}
+                            onSelect={() => setSort("oldest")}
                         >
                             Oldest first
+                        </PopoverMenuItem>
+                        <PopoverMenuItem
+                            selected={sort === "name"}
+                            onSelect={() => setSort("name")}
+                        >
+                            Name (A–Z)
                         </PopoverMenuItem>
                     </PopoverMenuContent>
                 </PopoverMenu>
             </SectionBar>
 
-            {/* Campaign Table / Feed */}
             <PageBody>
-                {isLoading ? (
-                    <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
-                        <Loader2Icon className="w-6 h-6 animate-spin text-amber-500" />
-                        <span className="text-xs">Loading creator campaigns & real-time telemetry...</span>
-                    </div>
-                ) : filteredCampaigns.length === 0 ? (
-                    <EmptyBlock
-                        title={campaigns.length === 0 ? "No creator campaigns yet" : "No matching campaigns"}
-                        body={
-                            campaigns.length === 0
-                                ? "Create your first dedicated creator outreach campaign with real-time intake telemetry."
-                                : "Try clearing filters or search to view other campaigns."
+                <AdvisorSummaryBar
+                    surface="campaigns"
+                    noun="campaign"
+                    nounPlural="campaigns"
+                    className="mx-5 mt-3"
+                />
+                {campaignsData.isPending ? (
+                    <SkeletonRows />
+                ) : campaignsData.isError ? (
+                    <ErrorState
+                        message={
+                            campaignsData.error?.message ||
+                            "The request failed. The backend may be down or returning an error."
                         }
-                        cta={
-                            <TopbarAction
-                                icon={<PlusIcon className="w-3 h-3" />}
-                                onClick={() => setNewDialogOpen(true)}
-                            >
-                                New creator campaign
-                            </TopbarAction>
-                        }
+                        onRetry={() => campaignsData.refetch()}
+                        isRefetching={campaignsData.isFetching}
                     />
-                ) : (
-                    <div className="divide-y divide-slate-100 bg-white">
-                        {filteredCampaigns.map((c: any) => {
-                            const isActionLoading = actionLoadingId === c.id;
-                            const openPercent = c.sentCount > 0 ? Math.round((c.formsOpenedCount / c.sentCount) * 100) : 0;
-                            const fillPercent = c.formsOpenedCount > 0 ? Math.round((c.partiallyFilledCount / c.formsOpenedCount) * 100) : 0;
-                            const completePercent = c.sentCount > 0 ? Math.round((c.completedCount / c.sentCount) * 100) : 0;
-
-                            return (
-                                <div
-                                    key={c.id}
-                                    className="group px-5 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
+                ) : filtered.length === 0 && nativeCampaigns.length === 0 ? (
+                    campaigns.length === 0 ? (
+                        <EmptyBlock
+                            title="No campaigns yet"
+                            body="Create your first creator campaign to start collecting creator details."
+                            cta={
+                                <TopbarAction
+                                    icon={<PlusIcon className="w-3 h-3" />}
+                                    onClick={() => setNewOpen(true)}
                                 >
-                                    {/* Left: Campaign Identity & Target Vertical */}
-                                    <div className="flex items-start gap-3 min-w-0 max-w-xl">
-                                        {/* Status Dot / Icon */}
-                                        <div className="mt-1 shrink-0">
-                                            {c.status === "ACTIVE" ? (
-                                                <span className="relative flex size-2.5">
-                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                                    <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500" />
-                                                </span>
-                                            ) : c.status === "PAUSED" ? (
-                                                <span className="inline-block size-2.5 rounded-full bg-amber-400" />
-                                            ) : c.status === "COMPLETED" ? (
-                                                <span className="inline-block size-2.5 rounded-full bg-blue-500" />
-                                            ) : (
-                                                <span className="inline-block size-2.5 rounded-full bg-slate-300" />
-                                            )}
-                                        </div>
-
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="text-[13.5px] font-semibold text-slate-900 truncate">
-                                                    {c.name}
-                                                </span>
-                                                {c.targetVertical && (
-                                                    <span className="px-2 py-0.5 text-[10.5px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60 rounded-full">
-                                                        {c.targetVertical}
-                                                    </span>
-                                                )}
-                                                <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                                    {c.id.replace(/^creator_cmp_/, "#")}
-                                                </span>
-                                            </div>
-
-                                            <div className="flex items-center gap-3 mt-1 text-[11.5px] text-slate-500">
-                                                <span className="truncate max-w-[280px]">
-                                                    Subject: <span className="text-slate-700 italic font-normal">"{c.subject}"</span>
-                                                </span>
-                                                <span className="hidden sm:inline text-slate-300">•</span>
-                                                <span className="hidden sm:inline font-mono text-[11px] text-slate-400">
-                                                    {new Date(c.createdAt).toLocaleDateString("en-US", {
-                                                        month: "short",
-                                                        day: "numeric",
-                                                        year: "numeric",
-                                                    })}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Middle: Live Conversion Funnel (Sent -> Opened -> Filling -> 100% Enriched) */}
-                                    <div className="grid grid-cols-4 gap-2 sm:gap-4 shrink-0 py-1 px-3 bg-slate-50/90 rounded-lg border border-slate-200/60">
-                                        {/* Step 1: Enrolled / Sent */}
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400">
-                                                Dispatched
-                                            </span>
-                                            <div className="flex items-baseline gap-1 mt-0.5">
-                                                <span className="font-mono text-[13px] font-bold text-slate-800">
-                                                    {c.sentCount || 0}
-                                                </span>
-                                                <span className="text-[10.5px] text-slate-400">creators</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Step 2: Form Opened */}
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] uppercase font-semibold tracking-wider text-amber-700 flex items-center gap-1">
-                                                <EyeIcon className="w-2.5 h-2.5" />
-                                                Opened
-                                            </span>
-                                            <div className="flex items-baseline gap-1 mt-0.5">
-                                                <span className="font-mono text-[13px] font-bold text-amber-800">
-                                                    {c.formsOpenedCount || 0}
-                                                </span>
-                                                <span className="text-[10.5px] text-amber-600 font-mono">
-                                                    ({openPercent}%)
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Step 3: Filling Intake Form */}
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] uppercase font-semibold tracking-wider text-blue-700 flex items-center gap-1">
-                                                <FileEditIcon className="w-2.5 h-2.5" />
-                                                Filling
-                                            </span>
-                                            <div className="flex items-baseline gap-1 mt-0.5">
-                                                <span className="font-mono text-[13px] font-bold text-blue-800">
-                                                    {c.partiallyFilledCount || 0}
-                                                </span>
-                                                <span className="text-[10.5px] text-blue-600 font-mono">
-                                                    ({fillPercent}%)
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Step 4: 100% Enriched */}
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] uppercase font-semibold tracking-wider text-emerald-700 flex items-center gap-1">
-                                                <CheckCircle2Icon className="w-2.5 h-2.5" />
-                                                Enriched
-                                            </span>
-                                            <div className="flex items-baseline gap-1 mt-0.5">
-                                                <span className="font-mono text-[13px] font-bold text-emerald-800">
-                                                    {c.completedCount || 0}
-                                                </span>
-                                                <span className="text-[10.5px] text-emerald-600 font-mono">
-                                                    ({completePercent}%)
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Right: Actions (Telemetry Drawer, Toggle, Delete) */}
-                                    <div className="flex items-center gap-2 shrink-0 self-end lg:self-center">
-                                        {/* Telemetry Button */}
-                                        <button
-                                            type="button"
-                                            onClick={() => setTelemetryCampaign({ id: c.id, name: c.name })}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-md shadow-2xs transition-colors cursor-pointer"
-                                            title="View real-time intake telemetry & enrolled creators"
+                                    New campaign
+                                </TopbarAction>
+                            }
+                        />
+                    ) : (
+                        <EmptyBlock
+                            title={`No ${status} campaigns`}
+                            body={`Switch to “All” to see every sequence.`}
+                            cta={
+                                <TopbarAction onClick={() => setStatus("all")} variant="ghost">
+                                    Show all
+                                </TopbarAction>
+                            }
+                        />
+                    )
+                ) : (
+                    <div className="divide-y divide-slate-200/60">
+                        {filtered.map((c) => {
+                            const cstatus = (c.status ?? "draft").toLowerCase();
+                            const stateLabel = campaignDisplayLabel(c);
+                            const StateIcon =
+                                cstatus === "active" ? PauseIcon : PlayIcon;
+                            const rowOwner = ownerOf(c);
+                            const rowMember =
+                                access.canManage && rowOwner && rowOwner !== ownerUserId
+                                    ? memberByUserId.get(rowOwner)
+                                    : null;
+                            return (
+                                <Link
+                                    key={c.id}
+                                    to={`/app/creators/campaigns/${c.id}`}
+                                    className="group h-11 px-5 flex items-center gap-3 hover:bg-slate-50 transition-colors"
+                                >
+                                    {/* Fixed-width leading slot so every row's name aligns,
+                                        whatever state mark (loader or icon) sits in it. */}
+                                    <span className="shrink-0 w-3.5 flex items-center justify-center">
+                                        <CampaignStatusMark status={cstatus} idle={isIdleCampaign(c)} />
+                                    </span>
+                                    <span className="text-[12.5px] text-slate-900 font-medium truncate max-w-[40%]">
+                                        {c.name}
+                                    </span>
+                                    {rowMember && (
+                                        <span
+                                            title={`Owned by ${rowMember.name || rowMember.email || "member"}`}
+                                            className="grid place-items-center size-4 rounded-full bg-slate-100 text-slate-500 text-[8.5px] font-semibold shrink-0 ring-1 ring-slate-200/80"
                                         >
-                                            <ActivityIcon className="w-3.5 h-3.5 text-amber-600" />
-                                            <span>Telemetry</span>
-                                            <ArrowUpRightIcon className="w-3 h-3 text-slate-400" />
-                                        </button>
-
-                                        {/* Toggle Active/Paused */}
-                                        <button
-                                            type="button"
-                                            disabled={isActionLoading}
-                                            onClick={(e) => handleToggleStatus(c, e)}
-                                            className={cn(
-                                                "size-8 rounded-md flex items-center justify-center border transition-all cursor-pointer disabled:opacity-40",
-                                                c.status === "ACTIVE"
-                                                    ? "text-slate-600 hover:text-slate-900 bg-white border-slate-200 hover:bg-slate-50"
-                                                    : "text-amber-900 bg-amber-50 border-amber-200 hover:bg-[#FFE600] hover:text-slate-950"
-                                            )}
-                                            title={c.status === "ACTIVE" ? "Pause campaign" : "Activate campaign"}
+                                            {memberInitials(rowMember.name || rowMember.email || "?")}
+                                        </span>
+                                    )}
+                                    <span
+                                        className="font-mono text-[10.5px] text-slate-500 tabular-nums shrink-0 hidden sm:inline bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80"
+                                        title={`Full ID: ${c.id}`}
+                                    >
+                                        {c.providerCampaignId ? `#${c.providerCampaignId}` : `#${c.id.replace(/^cmp_/, "").slice(-6)}`}
+                                    </span>
+                                    {isOneTimeCampaign(c) && (
+                                        <span
+                                            title="One-time email: a single message, no follow-ups"
+                                            className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200/60 text-[10px] font-medium uppercase tracking-[0.1em] shrink-0"
                                         >
-                                            {isActionLoading ? (
-                                                <Loader2Icon className="w-3.5 h-3.5 animate-spin text-slate-500" />
-                                            ) : c.status === "ACTIVE" ? (
-                                                <PauseIcon className="w-3.5 h-3.5" />
-                                            ) : (
-                                                <PlayIcon className="w-3.5 h-3.5 fill-current" />
-                                            )}
-                                        </button>
-
-                                        {/* Delete Campaign */}
+                                            <SendIcon className="w-2.5 h-2.5" />
+                                            One-time
+                                        </span>
+                                    )}
+                                    {(() => {
+                                        const cs = statsFor(c);
+                                        return cs ? (
+                                            <span
+                                                title="Creator intake telemetry"
+                                                className="hidden md:inline-flex items-center gap-1.5 font-mono text-[10.5px] tabular-nums shrink-0 text-slate-500"
+                                            >
+                                                <span className="text-orange-600">{cs.formsOpenedCount ?? 0} opened</span>
+                                                <span className="text-blue-600">{cs.partiallyFilledCount ?? 0} filling</span>
+                                                <span className="text-emerald-600">{cs.completedCount ?? 0} enriched</span>
+                                            </span>
+                                        ) : null;
+                                    })()}
+                                    <AdvisorRowFlag findings={advisor.get(c.id)} subject={c.name} />
+                                    <CampaignFolderChips campaign={c} folders={folders} />
+                                    {c.description && (
+                                        <span className="text-[11.5px] text-slate-400 truncate hidden md:inline">
+                                            {c.description}
+                                        </span>
+                                    )}
+                                    <span className={cn("ml-auto text-[10px] uppercase tracking-[0.1em] font-medium shrink-0", campaignDisplayTone(c))}>
+                                        {stateLabel}
+                                    </span>
+                                    <span className="font-mono text-[10.5px] text-slate-400 tabular-nums items-center gap-1 shrink-0 hidden sm:flex">
+                                        <CalendarIcon className="w-3 h-3" />
+                                        {c.created_at
+                                            ? new Date(c.created_at).toLocaleDateString("en-US", {
+                                                month: "short",
+                                                day: "numeric",
+                                            })
+                                            : "—"}
+                                    </span>
+                                    <CampaignFolderMenu campaign={c} folders={folders} />
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            toggleRow(c);
+                                        }}
+                                        disabled={
+                                            (cstatus === "active" && stopCampaign.isPending) ||
+                                            (cstatus !== "active" && startCampaign.isPending)
+                                        }
+                                        className={cn(
+                                            "size-6 rounded flex items-center justify-center transition-all shrink-0 disabled:opacity-30 cursor-pointer",
+                                            cstatus === "active"
+                                                ? "text-slate-400 hover:text-slate-900 hover:bg-slate-100 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                                                : "text-slate-700 bg-amber-50 hover:bg-[#FFE600] hover:text-slate-950 border border-amber-200/60 opacity-100 shadow-2xs"
+                                        )}
+                                        aria-label={
+                                            cstatus === "active" ? "Pause campaign" : "Start campaign"
+                                        }
+                                    >
+                                        <StateIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                    {access.isOwner && (
                                         <button
                                             type="button"
-                                            disabled={isActionLoading}
-                                            onClick={(e) => handleDeleteCampaign(c, e)}
-                                            className="size-8 rounded-md flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-colors cursor-pointer"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                actions.requestDelete(c);
+                                            }}
+                                            disabled={actions.deleting}
+                                            className="size-6 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30 cursor-pointer"
                                             title="Delete campaign"
+                                            aria-label="Delete campaign"
                                         >
                                             <Trash2Icon className="w-3.5 h-3.5" />
                                         </button>
-                                    </div>
+                                    )}
+                                    <CampaignActionsMenu
+                                        campaign={c}
+                                        variant="row"
+                                        onToggle={() => toggleRow(c)}
+                                    />
+                                </Link>
+                            );
+                        })}
+                        {nativeCampaigns.map((s: any) => {
+                            const nstatus = String(s.status || "draft").toLowerCase();
+                            const NIcon = nstatus === "active" ? PauseIcon : PlayIcon;
+                            return (
+                                <div
+                                    key={s.id}
+                                    onClick={() => setTelemetryCampaign({ id: s.id, name: s.name })}
+                                    className="group h-11 px-5 flex items-center gap-3 hover:bg-slate-50 transition-colors cursor-pointer"
+                                >
+                                    <span className="shrink-0 w-3.5 flex items-center justify-center">
+                                        <CampaignStatusMark status={nstatus} />
+                                    </span>
+                                    <span className="text-[12.5px] text-slate-900 font-medium truncate max-w-[40%]">{s.name}</span>
+                                    <span
+                                        className="font-mono text-[10.5px] text-slate-500 tabular-nums shrink-0 hidden sm:inline bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80"
+                                        title={`Full ID: ${s.id}`}
+                                    >
+                                        #{String(s.id).slice(-6)}
+                                    </span>
+                                    <span className="hidden md:inline-flex items-center gap-1.5 font-mono text-[10.5px] tabular-nums shrink-0 text-slate-500">
+                                        <span>{s.sentCount ?? 0} dispatched</span>
+                                        <span className="text-orange-600">{s.formsOpenedCount ?? 0} opened</span>
+                                        <span className="text-blue-600">{s.partiallyFilledCount ?? 0} filling</span>
+                                        <span className="text-emerald-600">{s.completedCount ?? 0} enriched</span>
+                                    </span>
+                                    <span className={cn("ml-auto text-[10px] uppercase tracking-[0.1em] font-medium shrink-0", statusTone(nstatus))}>
+                                        {nstatus === "completed" ? "Finished" : nstatus}
+                                    </span>
+                                    <span className="font-mono text-[10.5px] text-slate-400 tabular-nums items-center gap-1 shrink-0 hidden sm:flex">
+                                        <CalendarIcon className="w-3 h-3" />
+                                        {s.createdAt ? new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleNative(s);
+                                        }}
+                                        disabled={nativeBusyId === s.id}
+                                        className="size-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all shrink-0 disabled:opacity-30 cursor-pointer"
+                                        aria-label={nstatus === "active" ? "Pause campaign" : "Start campaign"}
+                                    >
+                                        <NIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteNative(s);
+                                        }}
+                                        disabled={nativeBusyId === s.id}
+                                        className="size-6 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 disabled:opacity-30 cursor-pointer"
+                                        aria-label="Delete campaign"
+                                    >
+                                        <Trash2Icon className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             );
                         })}
@@ -557,21 +906,83 @@ export default function CreatorCampaignsPage() {
                 )}
             </PageBody>
 
-            {/* Campaign Wizard Dialog */}
             <NewCreatorCampaignDialog
-                open={newDialogOpen}
+                open={newOpen}
                 onClose={() => {
-                    setNewDialogOpen(false);
+                    setNewOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ["campaigns"] });
                     queryClient.invalidateQueries({ queryKey: ["creator_campaigns"] });
                 }}
             />
-
-            {/* Real-time Telemetry Dialog */}
             <CreatorCampaignTelemetryDialog
                 campaignId={telemetryCampaign?.id ?? null}
                 campaignName={telemetryCampaign?.name}
                 onClose={() => setTelemetryCampaign(null)}
             />
+            <LaunchCampaignDialog
+                campaign={launchTarget}
+                onClose={() => setLaunchTarget(null)}
+                onConfirm={(id, options) => startCampaign.mutateAsync({ id, options })}
+            />
         </Page>
+    );
+}
+
+function ErrorState({
+    message,
+    onRetry,
+    isRefetching,
+}: {
+    message: string;
+    onRetry: () => void;
+    isRefetching: boolean;
+}) {
+    return (
+        <div className="px-5 py-12 text-center">
+            <div className="mx-auto mb-3 size-8 rounded-md bg-red-50 text-red-600 flex items-center justify-center">
+                <AlertTriangleIcon className="w-4 h-4" />
+            </div>
+            <p className="text-[12.5px] text-slate-900 font-medium">Couldn't load campaigns</p>
+            <p className="text-[11.5px] text-slate-500 mt-1 max-w-[44ch] mx-auto leading-relaxed">
+                {message}
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-1.5">
+                <button
+                    type="button"
+                    onClick={onRetry}
+                    disabled={isRefetching}
+                    className="h-7 px-2.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium inline-flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                >
+                    {isRefetching ? (
+                        <Loader2Icon className="w-3 h-3 animate-spin" />
+                    ) : (
+                        <RefreshCcwIcon className="w-3 h-3" />
+                    )}
+                    Try again
+                </button>
+                <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="h-7 px-2.5 rounded-md border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-[12px] font-medium transition-colors"
+                >
+                    Reload page
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function SkeletonRows() {
+    return (
+        <div className="divide-y divide-slate-200/60">
+            {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-11 px-5 flex items-center gap-3">
+                    <div className="size-1.5 rounded-full bg-slate-200" />
+                    <div className="h-3 w-44 bg-slate-100 rounded animate-pulse" />
+                    <div className="font-mono h-3 w-12 bg-slate-100 rounded animate-pulse" />
+                    <div className="ml-auto h-3 w-16 bg-slate-100 rounded animate-pulse" />
+                </div>
+            ))}
+        </div>
     );
 }

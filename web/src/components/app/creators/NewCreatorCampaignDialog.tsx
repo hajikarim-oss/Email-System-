@@ -112,8 +112,8 @@ function stepsFor(kind: CampaignKind): readonly StepDef[] {
 }
 
 const DEFAULT_CREATOR_SUBJECT = "Collaboration Opportunity with The Bored Monkey x {{firstName}}";
-const DEFAULT_CREATOR_BODY_HTML = `<p>Hi {{firstName}},</p><p>Hope you're doing well!</p><p>We're reaching out from <strong>The Bored Monkey</strong> to connect with creators like you and explore potential brand collaboration opportunities.</p><p>We'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.</p><p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p><p>If you're interested, please share your details here: <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 600; text-decoration: underline;">{{form_link}}</a></p><p>Looking forward to connecting!</p><p>Best,<br/>Team The Bored Monkey</p>`;
-const DEFAULT_CREATOR_BODY_PLAIN = `Hi {{firstName}},\n\nHope you're doing well!\n\nWe're reaching out from The Bored Monkey to connect with creators like you and explore potential brand collaboration opportunities.\n\nWe'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.\n\nNo spam, no random promotions just genuine collaboration opportunities that are relevant to you.\n\nIf you're interested, please share your details here: {{form_link}}\n\nLooking forward to connecting!\n\nBest,\nTeam The Bored Monkey`;
+const DEFAULT_CREATOR_BODY_HTML = `<p>Hi {{firstName}},</p><p>Hope you're doing well!</p><p>We're reaching out from <strong>The Bored Monkey</strong> to connect with creators like you and explore potential brand collaboration opportunities.</p><p>We'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.</p><p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p><p>If you're interested, please share your details here: <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a></p><p>Looking forward to connecting!</p><p>Best,<br/>Team The Bored Monkey</p>`;
+const DEFAULT_CREATOR_BODY_PLAIN = `Hi {{firstName}},\n\nHope you're doing well!\n\nWe're reaching out from The Bored Monkey to connect with creators like you and explore potential brand collaboration opportunities.\n\nWe'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.\n\nNo spam, no random promotions just genuine collaboration opportunities that are relevant to you.\n\nIf you're interested, please share your details here: Link ({{form_link}})\n\nLooking forward to connecting!\n\nBest,\nTeam The Bored Monkey`;
 
 let seqCounter = 0;
 const newSequence = (wait: number): SequenceDraft => ({
@@ -619,15 +619,17 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                         // Register native CreatorCampaign & enrollments in PostgreSQL
                         try {
                             const creatorIds = draft.selectedContacts.map((c) => c.id).filter(Boolean);
+                            const firstSeq = draft.sequences?.[0];
                             await fetch("/api/creators/campaigns", {
                                 method: "POST",
-                                headers: authHeaders(),
+                                headers: { ...authHeaders(), "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     name: draft.name.trim(),
                                     targetVertical: draft.selectedContacts?.[0]?.category || null,
-                                    subject: draft.steps?.[0]?.subject || "Creator Collaboration Proposal",
-                                    bodyHtml: draft.steps?.[0]?.body || "",
+                                    subject: firstSeq?.subject || "Creator Collaboration Proposal",
+                                    bodyHtml: firstSeq?.body_html || firstSeq?.body_plain || "",
                                     creatorIds,
+                                    smartleadCampaignId: created?.smartlead_id || (created?.providerCampaignId ? parseInt(created.providerCampaignId, 10) : null),
                                 }),
                             });
                         } catch (e) {
@@ -639,12 +641,12 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                 }
 
                 toast.success(draft.selectedContacts.length > 0
-                    ? `Campaign created with ${draft.selectedContacts.length} contact${draft.selectedContacts.length === 1 ? "" : "s"}. Start it from the campaign page.`
-                    : "Campaign created as draft. Start it from the campaign page.");
+                    ? `Creator campaign created with ${draft.selectedContacts.length} creator${draft.selectedContacts.length === 1 ? "" : "s"}.`
+                    : "Creator campaign created as draft.");
 
                 try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
                 onClose();
-                if (created?.id) navigate(`/app/campaigns/${created.id}`);
+                navigate("/app/creators/campaigns");
             } catch (err) {
                 toast.error(buildError(err as AppError));
             }
@@ -730,16 +732,15 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
             toast.success(at ? `Scheduled for ${fmtDateTime(at)}.` : "Sending now.");
             try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
             onClose();
-            navigate(`/app/campaigns/${created.id}`);
+            navigate("/app/creators/campaigns");
         } catch (err) {
             // Past the create call the campaign exists as a draft: say so and
-            // hand over to the campaign page, where the launch dialog can
-            // explain a refused start (an empty segment, a risky list).
+            // hand over to the creator campaign page
             const message = buildError(err as AppError);
             if (createdID) {
                 toast.error(`${message} The email was saved as a draft; start it from its page.`);
                 onClose();
-                navigate(`/app/campaigns/${createdID}`);
+                navigate("/app/creators/campaigns");
             } else {
                 toast.error(message);
             }
@@ -1657,7 +1658,7 @@ function EmailsStep({
 <p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p>
 <p style="margin: 22px 0; text-align: center;">
   <a href="{{form_link}}" target="_blank" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: #ffffff; padding: 12px 28px; border-radius: 9999px; font-weight: 600; text-decoration: none; display: inline-block; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.28); font-size: 13.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-    ✨ Confirm Your Creator Profile &amp; Collaboration Details &rarr; {{intake_link}}
+    ✨ Confirm Your Creator Profile &amp; Collaboration Details &rarr; Link
   </a>
 </p>
 <p>Looking forward to connecting!</p>
@@ -1672,7 +1673,7 @@ function EmailsStep({
 <p>We're reaching out from <strong>The Bored Monkey</strong> to connect with creators like you and explore potential brand collaboration opportunities.</p>
 <p>We'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.</p>
 <p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p>
-<p>If you're interested, please share your details here: <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 600; text-decoration: underline;">{{form_link}}</a></p>
+<p>If you're interested, please share your details here: <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a></p>
 <p>Looking forward to connecting!</p>
 <p>Best,<br/>Team The Bored Monkey</p>`,
         },

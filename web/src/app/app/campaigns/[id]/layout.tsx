@@ -53,6 +53,8 @@ const STATUS_PILL: Record<string, string> = {
 
 export default function CampaignLayout() {
     const { pathname } = useLocation();
+    // Same pages are mounted under Creators > Campaigns; keep navigation inside that section.
+    const basePath = pathname.startsWith("/app/creators/campaigns") ? "/app/creators/campaigns" : "/app/campaigns";
     const { id } = useParams();
     const navigate = useNavigate();
     const campaignData = useCampaign(id ?? "");
@@ -74,7 +76,7 @@ export default function CampaignLayout() {
             const detail = (e as CustomEvent<CampaignDeletedDetail>).detail;
             if (detail?.id !== id) return;
             toast(`"${detail.name || "This campaign"}" was deleted by a teammate`);
-            navigate("/app/campaigns", { replace: true });
+            navigate(basePath, { replace: true });
         };
         window.addEventListener(CAMPAIGN_DELETED_EVENT, onDeleted);
         return () => window.removeEventListener(CAMPAIGN_DELETED_EVENT, onDeleted);
@@ -104,7 +106,7 @@ export default function CampaignLayout() {
                     It may have been deleted, or you don't have access in this workspace.
                 </p>
                 <Link
-                    to="/app/campaigns"
+                    to={basePath}
                     className="mt-4 inline-flex items-center h-8 px-3 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 border border-black/10 font-semibold shadow-xs cursor-pointer text-[12px] font-medium transition-colors"
                 >
                     Back to campaigns
@@ -162,7 +164,7 @@ export default function CampaignLayout() {
                 <div className="px-3 sm:px-5 pt-3 sm:pt-4 pb-3 flex items-start gap-3 bg-white border-b border-slate-200/80">
                     <div className="min-w-0">
                         <Link
-                            to="/app/campaigns"
+                            to={basePath}
                             className="inline-flex items-center gap-1 h-6 -ml-1.5 px-1.5 mb-1 rounded-md text-[11.5px] text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
                             <ArrowLeftIcon className="w-3 h-3" />
@@ -233,7 +235,7 @@ export default function CampaignLayout() {
                             campaign={campaign}
                             variant="header"
                             onToggle={canToggle ? onToggle : undefined}
-                            afterDelete={() => navigate("/app/campaigns", { replace: true })}
+                            afterDelete={() => navigate(basePath, { replace: true })}
                         />
                     </div>
                 </div>
@@ -242,7 +244,7 @@ export default function CampaignLayout() {
 
                 <div className="shrink-0 px-3 flex items-center gap-1 border-b border-slate-200 bg-white overflow-x-auto no-scrollbar">
                     {TABS.map(({ label, path, Icon }) => {
-                        const fullPath = `/app/campaigns/${id}${path}`;
+                        const fullPath = `${basePath}/${id}${path}`;
                         const isTabActive = pathname.replace(/\/$/, "") === fullPath.replace(/\/$/, "");
                         return (
                             <Link

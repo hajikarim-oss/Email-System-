@@ -11,9 +11,10 @@ interface UseCampaignsProps {
     folder: string;
     limit?: number;
     enabled?: boolean;
+    scope?: string;
 }
 
-export default function useCampaigns({ query, folder, limit = DEFAULT_PAGINATION_LIMIT, enabled = true }: UseCampaignsProps) {
+export default function useCampaigns({ query, folder, limit = DEFAULT_PAGINATION_LIMIT, enabled = true, scope = "" }: UseCampaignsProps) {
     const queryClient = useQueryClient();
 
     // Get current user to include in cache key (prevents cross-user cache pollution)
@@ -47,13 +48,13 @@ export default function useCampaigns({ query, folder, limit = DEFAULT_PAGINATION
         GetCampaigns,
         Error,
         InfiniteData<GetCampaigns, string | null>,
-        [string, string, string, string, number, string],
+        [string, string, string, string, number, string, string],
         string | null
     >({
         // Include userId in cache key FIRST to ensure proper isolation
         // Add cache-buster timestamp to force fresh data on each user change
-        queryKey: ["campaigns", "list", query, folder, limit, userId || "loading"],
-        queryFn: async ({ pageParam }) => getCampaigns(query, pageParam, folder, limit),
+        queryKey: ["campaigns", "list", query, folder, limit, userId || "loading", scope],
+        queryFn: async ({ pageParam }) => getCampaigns(query, pageParam, folder, limit, scope || undefined),
         initialPageParam: null,
         getNextPageParam: (lastPage) => {
             if (lastPage?.pagination?.has_more) {

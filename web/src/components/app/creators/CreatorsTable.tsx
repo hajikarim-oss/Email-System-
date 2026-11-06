@@ -60,6 +60,7 @@ export default function CreatorsTable() {
     const [tier, setTier] = useState<string>(searchParams.get("tier") || "all");
     const [intakeStatus, setIntakeStatus] = useState<string>(searchParams.get("intakeStatus") || "all");
     const [channel, setChannel] = useState<string>(searchParams.get("channel") || "all");
+    const [source, setSource] = useState<string>(searchParams.get("source") || "all");
     const [sortBy, setSortBy] = useState<string>("default");
     const [reverse, setReverse] = useState(false);
 
@@ -74,7 +75,7 @@ export default function CreatorsTable() {
         categories: [],
         tiers: [],
         statuses: [],
-        overview: { total: 6441, emailReady: 4111, whatsappReady: 562, enriched: 48 },
+        overview: { total: 6442, emailReady: 4111, whatsappReady: 474, enriched: 43, referredCount: 1, newSignupsCount: 1 },
     });
 
     // Debounce search
@@ -113,6 +114,7 @@ export default function CreatorsTable() {
                 tier: tier === "all" ? "" : tier,
                 intakeStatus: intakeStatus === "all" ? "" : intakeStatus,
                 channel: channel === "all" ? "" : channel,
+                source: source === "all" ? "" : source,
                 sortBy,
                 reverse: reverse ? "true" : "false",
                 limit: String(limit),
@@ -130,7 +132,7 @@ export default function CreatorsTable() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, category, tier, intakeStatus, channel, sortBy, reverse, page, limit]);
+    }, [debouncedSearch, category, tier, intakeStatus, channel, source, sortBy, reverse, page, limit]);
 
     useEffect(() => {
         fetchCreators();
@@ -288,15 +290,20 @@ export default function CreatorsTable() {
                 </div>
 
                 {/* StatStrip with 1-click filter shortcuts */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
                     <div
                         onClick={() => {
                             setCategory("all");
                             setIntakeStatus("all");
                             setChannel("all");
+                            setSource("all");
                             setPage(1);
                         }}
-                        className="p-3 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-slate-300 transition-all cursor-pointer"
+                        className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                            category === "all" && intakeStatus === "all" && channel === "all" && source === "all"
+                                ? "border-slate-400 bg-white shadow-2xs"
+                                : "border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-slate-300"
+                        }`}
                     >
                         <span className="text-[11px] font-medium text-slate-500 block">Total Scouted Talent</span>
                         <span className="text-lg font-bold text-slate-900 dark:text-white">
@@ -309,7 +316,11 @@ export default function CreatorsTable() {
                             setChannel("email");
                             setPage(1);
                         }}
-                        className="p-3 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-slate-300 transition-all cursor-pointer"
+                        className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                            channel === "email"
+                                ? "border-blue-400 bg-blue-50/50 shadow-2xs"
+                                : "border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-slate-300"
+                        }`}
                     >
                         <span className="text-[11px] font-medium text-slate-500 block">Email Outreach Ready</span>
                         <span className="text-lg font-bold text-slate-900 dark:text-white">
@@ -322,7 +333,11 @@ export default function CreatorsTable() {
                             setChannel("phone");
                             setPage(1);
                         }}
-                        className="p-3 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-slate-300 transition-all cursor-pointer"
+                        className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                            channel === "phone"
+                                ? "border-emerald-400 bg-emerald-50/50 shadow-2xs"
+                                : "border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-slate-300"
+                        }`}
                     >
                         <span className="text-[11px] font-medium text-slate-500 block">WhatsApp / Phone Ready</span>
                         <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
@@ -332,14 +347,40 @@ export default function CreatorsTable() {
 
                     <div
                         onClick={() => {
-                            setIntakeStatus("COMPLETED");
+                            setIntakeStatus(intakeStatus === "COMPLETED" ? "all" : "COMPLETED");
                             setPage(1);
                         }}
-                        className="p-3 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-purple-300 transition-all cursor-pointer"
+                        className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                            intakeStatus === "COMPLETED"
+                                ? "border-purple-400 bg-purple-50/50 shadow-2xs"
+                                : "border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-purple-300"
+                        }`}
                     >
                         <span className="text-[11px] font-medium text-slate-500 block">100% Enriched Roster</span>
                         <span className="text-lg font-bold text-[#5E43EC]">
                             {facets.overview.enriched.toLocaleString()}
+                        </span>
+                    </div>
+
+                    <div
+                        onClick={() => {
+                            setSource(source === "referred" ? "all" : "referred");
+                            setCategory("all");
+                            setIntakeStatus("all");
+                            setPage(1);
+                        }}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                            source === "referred"
+                                ? "border-amber-500 bg-amber-50/80 dark:bg-amber-950/50 shadow-2xs ring-1 ring-amber-400"
+                                : "border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 hover:border-amber-300"
+                        }`}
+                    >
+                        <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400 flex items-center justify-between">
+                            <span>Referred & New Talent</span>
+                            <span className="text-[9px] bg-amber-200/90 text-amber-950 font-bold px-1.5 py-0.2 rounded-full">NEW</span>
+                        </span>
+                        <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                            {(facets.overview.referredCount ?? 0).toLocaleString()}
                         </span>
                     </div>
                 </div>
@@ -351,10 +392,11 @@ export default function CreatorsTable() {
                         onClick={() => {
                             setCategory("all");
                             setIntakeStatus("all");
+                            setSource("all");
                             setPage(1);
                         }}
                         className={`px-3 py-1 rounded-full font-medium shrink-0 transition-all cursor-pointer ${
-                            category === "all" && intakeStatus === "all"
+                            category === "all" && intakeStatus === "all" && source === "all"
                                 ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold shadow-2xs"
                                 : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
                         }`}
@@ -365,8 +407,26 @@ export default function CreatorsTable() {
                     <button
                         type="button"
                         onClick={() => {
+                            setSource(source === "referred" ? "all" : "referred");
+                            setCategory("all");
+                            setIntakeStatus("all");
+                            setPage(1);
+                        }}
+                        className={`px-3 py-1 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
+                            source === "referred"
+                                ? "bg-amber-500 text-slate-950 font-bold shadow-2xs ring-2 ring-amber-400/50"
+                                : "bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100"
+                        }`}
+                    >
+                        <span>🤝 Referred Talent ({facets.overview.referredCount ?? 0})</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => {
                             setIntakeStatus(intakeStatus === "COMPLETED" ? "all" : "COMPLETED");
                             setCategory("all");
+                            setSource("all");
                             setPage(1);
                         }}
                         className={`px-3 py-1 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
@@ -452,6 +512,25 @@ export default function CreatorsTable() {
                             </button>
                         ))}
                     </div>
+
+                    {/* Source Filter */}
+                    <select
+                        value={source}
+                        onChange={(e) => {
+                            setSource(e.target.value);
+                            setPage(1);
+                        }}
+                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
+                            source === "referred"
+                                ? "border-amber-400 bg-amber-50 text-amber-950 font-semibold ring-1 ring-amber-400/50"
+                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                        }`}
+                    >
+                        <option value="all">All Sources</option>
+                        <option value="referred">🤝 Referred Talent ({facets.overview.referredCount ?? 0})</option>
+                        <option value="new">✨ All New Signups ({facets.overview.newSignupsCount ?? 0})</option>
+                        <option value="scouted">Scouted Database</option>
+                    </select>
 
                     {/* Channel Filter */}
                     <select
@@ -579,16 +658,30 @@ export default function CreatorsTable() {
                                                         <span className="size-1.5 rounded-full bg-sky-500 shrink-0" title="Verified" />
                                                     )}
                                                 </div>
-                                                <a
-                                                    href={c.profileUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="text-[11px] text-[#5E43EC] hover:underline flex items-center gap-0.5"
-                                                >
-                                                    <span>{c.handle}</span>
-                                                    <ExternalLinkIcon className="w-2.5 h-2.5 text-slate-400" />
-                                                </a>
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <a
+                                                        href={c.profileUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="text-[11px] text-[#5E43EC] hover:underline flex items-center gap-0.5"
+                                                    >
+                                                        <span>{c.handle}</span>
+                                                        <ExternalLinkIcon className="w-2.5 h-2.5 text-slate-400" />
+                                                    </a>
+                                                    {c.discoveryKeyword?.startsWith("referral:") ? (
+                                                        <span
+                                                            title={`Referred by @${c.discoveryKeyword.replace(/^referral:/, "").trim()}`}
+                                                            className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-amber-900 bg-amber-100/90 dark:bg-amber-950/60 dark:text-amber-300 px-1.5 py-0.2 rounded border border-amber-300/80"
+                                                        >
+                                                            🤝 Ref by @{c.discoveryKeyword.replace(/^referral:/, "").trim()}
+                                                        </span>
+                                                    ) : c.discoveryKeyword === "direct_submission" || c.discoveryKeyword === "organic_referral" ? (
+                                                        <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-sky-900 bg-sky-100/90 dark:bg-sky-950/60 dark:text-sky-300 px-1.5 py-0.2 rounded border border-sky-300/80">
+                                                            ✨ New Signup
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         </div>
                                     </td>

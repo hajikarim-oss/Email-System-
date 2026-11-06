@@ -142,7 +142,7 @@ class DatabaseClusterManager {
         ssl: { rejectUnauthorized: false },
         max: 15,
         idleTimeoutMillis: 30_000,
-        connectionTimeoutMillis: 10_000,
+        connectionTimeoutMillis: 30_000,
       };
 
       const pool = new Pool(poolConfig);
@@ -239,6 +239,16 @@ class DatabaseClusterManager {
           record.status = "ONLINE";
           record.lastHealthyAt = new Date();
           record.consecutiveFailures = 0;
+
+          // Automatic Failback: When primary leader (Tokyo) is online and healthy, restore leadership to primary
+          if (id === "primary" && this.currentLeaderId !== "primary") {
+            console.log(`\n🔄 [DBCluster FAILBACK] Primary leader (Tokyo) is online and responsive (${latency}ms). Restoring leadership to primary.`);
+            this.currentLeaderId = "primary";
+            record.isCurrentLeader = true;
+            for (const [otherId, otherRec] of this.health.entries()) {
+              if (otherId !== "primary") otherRec.isCurrentLeader = false;
+            }
+          }
         } catch (err: any) {
           record.consecutiveFailures++;
           record.latencyMs = null;
@@ -350,9 +360,9 @@ class DatabaseClusterManager {
             err.message?.includes("timeout");
 
           if (isNetworkError && attempts < 2) {
-            // Failover to standby node immediately
+            // Read from standby node for this query without permanently demoting primary
             const standby: NodeId = targetNode === "primary" ? "replica2" : "replica3";
-            this.triggerFailover(standby, `Read query failed on ${targetNode}: ${err.message}`);
+            console.warn(`[DBCluster] Read query transient issue on ${targetNode} (${err.message}). Falling back to ${standby} for this query.`);
             targetNode = standby;
             continue;
           }

@@ -6,8 +6,9 @@ export interface CreatorSearchParams {
     search?: string;
     category?: string;
     tier?: "all" | "nano" | "micro" | "mid" | "macro" | "mega";
-    intakeStatus?: "all" | "SCRAPED_BASELINE" | "INVITATION_SENT" | "FORM_OPENED" | "PARTIALLY_FILLED" | "COMPLETED";
+    intakeStatus?: "all" | "SCRAPED_BASELINE" | "INVITATION_SENT" | "FORM_OPENED" | "PARTIALLY_FILLED" | "COMPLETED" | "REFERRED";
     channel?: "all" | "email" | "phone" | "dual";
+    source?: "all" | "referred" | "new" | "organic" | "scouted";
     sortBy?: "followersCount" | "fullName" | "createdAt" | "intakeCompletionPct" | "handle";
     reverse?: boolean;
     limit?: number;
@@ -25,9 +26,19 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
 
     if (params.search && params.search.trim()) {
         const s = `%${params.search.trim().toLowerCase()}%`;
-        conditions.push(`(lower("handle") LIKE $${pIdx} OR lower("fullName") LIKE $${pIdx} OR lower("publicBio") LIKE $${pIdx} OR lower("primaryEmail") LIKE $${pIdx})`);
+        conditions.push(`(lower("handle") LIKE $${pIdx} OR lower("fullName") LIKE $${pIdx} OR lower("publicBio") LIKE $${pIdx} OR lower("primaryEmail") LIKE $${pIdx} OR lower("discoveryKeyword") LIKE $${pIdx})`);
         values.push(s);
         pIdx++;
+    }
+
+    if (params.source && params.source !== "all") {
+        if (params.source === "referred") {
+            conditions.push(`"discoveryKeyword" LIKE 'referral:%'`);
+        } else if (params.source === "new" || params.source === "organic") {
+            conditions.push(`("discoveryKeyword" LIKE 'referral:%' OR "discoveryKeyword" IN ('direct_submission', 'organic_referral'))`);
+        } else if (params.source === "scouted") {
+            conditions.push(`("discoveryKeyword" IS NULL OR ("discoveryKeyword" NOT LIKE 'referral:%' AND "discoveryKeyword" NOT IN ('direct_submission', 'organic_referral')))`);
+        }
     }
 
     if (params.category && params.category !== "all" && params.category !== "") {
@@ -51,9 +62,13 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     }
 
     if (params.intakeStatus && params.intakeStatus !== "all") {
-        conditions.push(`"intakeStatus" = $${pIdx}`);
-        values.push(params.intakeStatus);
-        pIdx++;
+        if (params.intakeStatus === "REFERRED") {
+            conditions.push(`"discoveryKeyword" LIKE 'referral:%'`);
+        } else {
+            conditions.push(`"intakeStatus" = $${pIdx}`);
+            values.push(params.intakeStatus);
+            pIdx++;
+        }
     }
 
     if (params.channel && params.channel !== "all") {
@@ -87,7 +102,7 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
             "intakeStatus", "intakeToken", "intakeCompletionPct", "lastIntakeActivityAt",
             "whatsappNumber", "pincode", "city", "state", "shippingAddress",
             "contentDescription", "collabType", "commercialRates", "mediaKitUrl",
-            "managementType", "agencyName",
+            "managementType", "agencyName", "discoveryKeyword",
             "upiId", "panNumber", "activeCampaignId", "lastContactedAt", "createdAt", "updatedAt"
         FROM "Creator"
         WHERE ${whereClause}
@@ -163,7 +178,9 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
                 count(*) FILTER (WHERE "phone" IS NOT NULL OR "whatsappNumber" IS NOT NULL)::int as whatsapp_ready,
                 count(*) FILTER (WHERE "intakeStatus" = 'COMPLETED' OR "intakeCompletionPct" >= 80)::int as enriched,
                 count(*) FILTER (WHERE "intakeStatus" IN ('FORM_OPENED', 'VIEWED', 'PARTIALLY_FILLED', 'COMPLETED'))::int as form_opened,
-                count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL OR "activeCampaignId" IS NOT NULL OR "intakeStatus" IN ('INVITATION_SENT', 'SENT', 'FORM_OPENED', 'VIEWED', 'PARTIALLY_FILLED', 'COMPLETED'))::int as contacted
+                count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL OR "activeCampaignId" IS NOT NULL OR "intakeStatus" IN ('INVITATION_SENT', 'SENT', 'FORM_OPENED', 'VIEWED', 'PARTIALLY_FILLED', 'COMPLETED'))::int as contacted,
+                count(*) FILTER (WHERE "discoveryKeyword" LIKE 'referral:%')::int as referred_count,
+                count(*) FILTER (WHERE "discoveryKeyword" LIKE 'referral:%' OR "discoveryKeyword" IN ('direct_submission', 'organic_referral'))::int as new_signups_count
             FROM "Creator"
             WHERE "workspaceId" = $1
         `, [workspaceId]),
@@ -171,10 +188,10 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
         query<any>(`
             SELECT "id", "handle", "fullName", "category", "followersRaw", "city", "state",
                    "primaryEmail", "whatsappNumber", "phone", "intakeStatus", "intakeCompletionPct",
-                   "intakeToken", "lastIntakeActivityAt", "updatedAt"
+                   "intakeToken", "discoveryKeyword", "lastIntakeActivityAt", "updatedAt"
             FROM "Creator"
             WHERE "workspaceId" = $1
-              AND ("intakeStatus" = 'COMPLETED' OR "intakeCompletionPct" >= 80 OR "intakeStatus" IN ('FORM_OPENED', 'PARTIALLY_FILLED'))
+              AND ("intakeStatus" = 'COMPLETED' OR "intakeCompletionPct" >= 80 OR "intakeStatus" IN ('FORM_OPENED', 'PARTIALLY_FILLED') OR "discoveryKeyword" LIKE 'referral:%')
             ORDER BY COALESCE("lastIntakeActivityAt", "updatedAt") DESC
             LIMIT 25
         `, [workspaceId]),
@@ -186,6 +203,8 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
     const enriched = countsRow?.[0]?.enriched || 0;
     const formOpened = countsRow?.[0]?.form_opened || 0;
     const contacted = countsRow?.[0]?.contacted || 0;
+    const referredCount = countsRow?.[0]?.referred_count || 0;
+    const newSignupsCount = countsRow?.[0]?.new_signups_count || 0;
 
     return {
         total,
@@ -194,6 +213,8 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
         enrichedCount: enriched,
         formOpenedCount: formOpened,
         contactedCount: contacted,
+        referredCount,
+        newSignupsCount,
         categories: catRows,
         tiers: tierRows,
         statuses: statusRows,
@@ -205,6 +226,8 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
             enriched,
             formOpened,
             contacted,
+            referredCount,
+            newSignupsCount,
         },
     };
 }
@@ -268,13 +291,47 @@ export async function getCreatorByIntakeToken(query: QueryFn = pgQuery, token: s
 }
 
 export async function saveCreatorIntake(query: QueryFn = pgQuery, token: string, data: any) {
-    const creator = await query<any>(`
+    let creator = await query<any>(`
         SELECT id, "intakeCompletionPct", "intakeStatus" FROM "Creator" 
         WHERE "intakeToken" = $1 OR "id" = $1 OR "externalCreatorId" = $1 OR lower("handle") = lower($1)
         LIMIT 1
     `, [token]);
 
-    if (!creator?.[0]) return null;
+    if (!creator?.[0]) {
+        const cleanHandle = String(data.handle || token || "creator").replace(/^@/, "").trim().toLowerCase();
+        const cleanName = String(data.fullName || cleanHandle).trim();
+        const cleanEmail = (data.primaryEmail || data.email) ? String(data.primaryEmail || data.email).trim().toLowerCase() : null;
+        const genToken = token && token !== "public" && token !== "new" ? token : `tok_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const newId = `cr_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const primaryCat = Array.isArray(data.subGenres) && data.subGenres[0] ? data.subGenres[0] : (data.category || "General");
+
+        const inserted = await query<any>(`
+            INSERT INTO "Creator" (
+                "id", "workspaceId", "handle", "platform", "fullName", "profileUrl", 
+                "primaryEmail", "category", "intakeToken", "intakeStatus", "intakeCompletionPct", "createdAt", "updatedAt"
+            ) VALUES (
+                $1, 'org_troops_outreach', $2, 'instagram', $3, $4, 
+                $5, $6, $7, 'COMPLETED', 100, NOW(), NOW()
+            )
+            ON CONFLICT ("handle", "workspaceId") DO UPDATE SET "updatedAt" = NOW()
+            RETURNING id, "intakeCompletionPct", "intakeStatus"
+        `, [
+            newId,
+            cleanHandle,
+            cleanName,
+            data.profileUrl || `https://www.instagram.com/${cleanHandle}/`,
+            cleanEmail,
+            primaryCat,
+            genToken
+        ]).catch(() => null);
+
+        if (inserted?.[0]) {
+            creator = inserted;
+        } else {
+            return null;
+        }
+    }
+
     const cId = creator[0].id;
     const currentStatus = creator[0].intakeStatus;
 
@@ -290,6 +347,13 @@ export async function saveCreatorIntake(query: QueryFn = pgQuery, token: string,
     if (data.handle !== undefined) {
         sets.push(`"handle" = $${pIdx++}`);
         values.push(String(data.handle).trim());
+    }
+    if (data.primaryEmail !== undefined || data.email !== undefined) {
+        const em = String(data.primaryEmail || data.email || "").trim().toLowerCase();
+        if (em) {
+            sets.push(`"primaryEmail" = $${pIdx++}`);
+            values.push(em);
+        }
     }
     if (data.whatsappNumber !== undefined) {
         sets.push(`"whatsappNumber" = $${pIdx++}`);
@@ -343,9 +407,16 @@ export async function saveCreatorIntake(query: QueryFn = pgQuery, token: string,
         sets.push(`"managementType" = $${pIdx++}`);
         values.push(String(data.managementType).trim());
     }
-    if (data.agencyName !== undefined) {
-        sets.push(`"agencyName" = $${pIdx++}`);
-        values.push(String(data.agencyName).trim());
+    if (data.agencyName !== undefined || data.managerName !== undefined) {
+        const agName = String(data.agencyName || data.managerName || "").trim();
+        if (agName) {
+            sets.push(`"agencyName" = $${pIdx++}`);
+            values.push(agName);
+        }
+    }
+    if (data.referredBy) {
+        sets.push(`"discoveryKeyword" = COALESCE("discoveryKeyword", $${pIdx++})`);
+        values.push(`referral:${String(data.referredBy).trim()}`);
     }
 
     // Determine step completed & granular real-time progress
@@ -433,7 +504,7 @@ export async function saveCreatorIntake(query: QueryFn = pgQuery, token: string,
 }
 
 export async function getCreatorTemplates(query: QueryFn = pgQuery, workspaceId = "org_troops_outreach") {
-    const defaultBody = `<p>Hi {{firstName}},</p><p>Hope you're doing well!</p><p>We're reaching out from <strong>The Bored Monkey</strong> to connect with creators like you and explore potential brand collaboration opportunities.</p><p>We'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.</p><p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p><p>If you're interested, please share your details here: <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 600; text-decoration: underline;">{{form_link}}</a></p><p>Looking forward to connecting!</p><p>Best,<br/>Team The Bored Monkey</p>`;
+    const defaultBody = `<p>Hi {{firstName}},</p><p>Hope you're doing well!</p><p>We're reaching out from <strong>The Bored Monkey</strong> to connect with creators like you and explore potential brand collaboration opportunities.</p><p>We'd love to have your details in our creator network so we can reach out whenever a campaign matches your content and audience. We believe in keeping communication meaningful, so you won't receive unnecessary or irrelevant messages from us.</p><p>No spam, no random promotions just genuine collaboration opportunities that are relevant to you.</p><p>If you're interested, please share your details here: <a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a></p><p>Looking forward to connecting!</p><p>Best,<br/>Team The Bored Monkey</p>`;
     try {
         await query(`
             INSERT INTO "CreatorTemplate" ("id", "workspaceId", "name", "subject", "bodyHtml", "category", "orderIndex")

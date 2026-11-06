@@ -144,6 +144,22 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                         ? "Full 100% commercial profile enriched by creator via intake form."
                                         : "Baseline 30% data scouted. Send creator intake link to capture WhatsApp, PIN code, and commercial rates."}
                                 </p>
+                                {creator.discoveryKeyword?.startsWith("referral:") && (
+                                    <div className="pt-2 border-t border-slate-200/80 dark:border-zinc-800 flex items-center justify-between text-xs">
+                                        <span className="text-slate-500">Acquisition Source:</span>
+                                        <span className="font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/90 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200">
+                                            🤝 Referred by @{creator.discoveryKeyword.replace(/^referral:/, "").trim()}
+                                        </span>
+                                    </div>
+                                )}
+                                {(creator.discoveryKeyword === "direct_submission" || creator.discoveryKeyword === "organic_referral") && (
+                                    <div className="pt-2 border-t border-slate-200/80 dark:border-zinc-800 flex items-center justify-between text-xs">
+                                        <span className="text-slate-500">Acquisition Source:</span>
+                                        <span className="font-semibold text-sky-800 dark:text-sky-300 bg-sky-100/90 dark:bg-sky-950/60 px-2 py-0.5 rounded border border-sky-200">
+                                            ✨ Direct Self-Signup
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Audience Metrics Grid */}

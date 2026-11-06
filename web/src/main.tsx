@@ -283,7 +283,19 @@ const router = createBrowserRouter([
         element: <CreatorIntakePage />,
       },
       {
+        path: "creator/intake",
+        element: <CreatorIntakePage />,
+      },
+      {
         path: "intake/:token",
+        element: <CreatorIntakePage />,
+      },
+      {
+        path: "intake",
+        element: <CreatorIntakePage />,
+      },
+      {
+        path: "join",
         element: <CreatorIntakePage />,
       },
       {
@@ -324,7 +336,24 @@ const router = createBrowserRouter([
             children: [
               { index: true, element: <CreatorsPage /> },
               { path: "dashboard", element: <CreatorDashboardPage /> },
-              { path: "campaigns", element: <CreatorCampaignsPage /> },
+              {
+                path: "campaigns",
+                children: [
+                  { index: true, element: <CreatorCampaignsPage /> },
+                  {
+                    path: ":id",
+                    element: <CampaignLayout />,
+                    children: [
+                      { index: true, element: <CampaignPreview /> },
+                      { path: "leads", element: <CampaignLeads /> },
+                      { path: "preferences", element: <CampaignPreferences /> },
+                      { path: "schedule", element: <CampaignSchedule /> },
+                      { path: "steps", element: <CampaignSteps /> },
+                      { path: "template", element: <CampaignTemplatePage /> },
+                    ],
+                  },
+                ],
+              },
               { path: "inbox", element: <CreatorUniboxPage /> },
               { path: "inbox/:scope", element: <CreatorUniboxPage /> },
               { path: "inbox/:scope/:threadId", element: <CreatorUniboxPage /> },

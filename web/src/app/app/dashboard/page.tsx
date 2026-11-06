@@ -412,7 +412,7 @@ export default function DashboardPage() {
             ? Math.round(((lifetime.delivered || 0) / lifetime.messages_tracked) * 100)
             : 0;
     const activeCampaignsCount = safeCampaigns.filter((c) => c && c.status === "active").length;
-    const totalContactsCount = lifetime?.leads_total ?? 29694;
+    const totalContactsCount = lifetime?.leads_total ?? 0;
     const crmLeadTotal = lifetime?.leads_total ?? totalContactsCount;
 
     // Window-responsive metrics from the live dashboard telemetry
@@ -3160,8 +3160,8 @@ export default function DashboardPage() {
                                                     isNearLimit
                                                         ? "bg-amber-500"
                                                         : sent > 0
-                                                        ? "bg-[#18181B]"
-                                                        : "bg-slate-200 dark:bg-zinc-700"
+                                                            ? "bg-[#18181B]"
+                                                            : "bg-slate-200 dark:bg-zinc-700"
                                                 )}
                                                 style={{ width: `${Math.max(sent > 0 ? 10 : 4, pct)}%` }}
                                             />
