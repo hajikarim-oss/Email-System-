@@ -10,11 +10,15 @@
 import {
     AlertOctagonIcon,
     BanIcon,
+    CheckIcon,
+    CopyIcon,
+    ExternalLinkIcon,
     MailIcon,
     MailOpenIcon,
     MailWarningIcon,
     MousePointerClickIcon,
     ReplyIcon,
+    SparklesIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import type ContactDetail from "@/lib/api/models/app/contacts/ContactDetail";
@@ -45,6 +49,23 @@ export default function OverviewTab({
     const confirm = useConfirm();
     const write = useWriteGuard("MANAGE_CONTACTS");
     const removeSuppression = useRemoveSuppression();
+    const [copiedForm, setCopiedForm] = React.useState(false);
+
+    const formLink = contact.custom_fields?.form_link || contact.custom_fields?.intake_link || contact.custom_fields?.IntakeFormUrl || contact.form_link || contact.intake_link || (() => {
+        const rawH = (contact.custom_fields?.handle || (contact.company?.startsWith("@") ? contact.company : "")).replace(/^@/, "");
+        if (!rawH && !contact.email) return "";
+        const token = contact.custom_fields?.intakeToken || contact.custom_fields?.intake_token || contact.id || rawH || contact.email.split("@")[0];
+        return `${typeof window !== "undefined" ? window.location.origin : "https://tbmoutreach.tech"}/creator/intake/${encodeURIComponent(token)}`;
+    })();
+
+    function copyForm() {
+        if (!formLink) return;
+        navigator.clipboard.writeText(formLink).then(() => {
+            setCopiedForm(true);
+            toast.success("Creator intake link copied to clipboard!");
+            setTimeout(() => setCopiedForm(false), 1500);
+        });
+    }
 
     function askLift() {
         if (!supp) return;
@@ -226,6 +247,41 @@ export default function OverviewTab({
                     />
                 </div>
             </Section>
+
+            {formLink && (
+                <Section title="Creator Intake Form">
+                    <div className="rounded-md border border-amber-200/80 bg-amber-50/50 p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-semibold text-slate-900 flex items-center gap-1.5">
+                                <SparklesIcon className="w-3.5 h-3.5 text-amber-600" />
+                                Personalized Intake Form
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={copyForm}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                                >
+                                    {copiedForm ? <CheckIcon className="w-3 h-3 text-emerald-600" /> : <CopyIcon className="w-3 h-3 text-slate-500" />}
+                                    <span>{copiedForm ? "Copied" : "Copy Form Link"}</span>
+                                </button>
+                                <a
+                                    href={formLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-[#ea580c] hover:bg-[#c2410c] text-white transition-colors shadow-2xs cursor-pointer"
+                                >
+                                    <ExternalLinkIcon className="w-3 h-3" />
+                                    <span>Open Form</span>
+                                </a>
+                            </div>
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-600 bg-white p-2 rounded border border-amber-200/60 break-all select-all">
+                            {formLink}
+                        </div>
+                    </div>
+                </Section>
+            )}
 
             <Section title="Profile">
                 <div className="rounded-md border border-slate-200 bg-white overflow-hidden">

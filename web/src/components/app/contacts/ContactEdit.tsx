@@ -17,7 +17,7 @@
 
 import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarPlusIcon, CheckIcon, CopyIcon, Loader2Icon, MailIcon, XIcon } from "lucide-react";
+import { CalendarPlusIcon, CheckIcon, CopyIcon, ExternalLinkIcon, Loader2Icon, MailIcon, SparklesIcon, XIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import useUpdateContact from "@/lib/api/hooks/app/contacts/useUpdateContact";
 import useContact from "@/lib/api/hooks/app/contacts/useContact";
@@ -334,11 +334,28 @@ function ContactHeader({
     onClose: () => void;
 }) {
     const [copied, setCopied] = React.useState(false);
+    const [copiedForm, setCopiedForm] = React.useState(false);
     const [meetingOpen, setMeetingOpen] = React.useState(false);
     function copy() {
         navigator.clipboard.writeText(contact.email).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 1200);
+        });
+    }
+
+    const formLink = contact.custom_fields?.form_link || contact.custom_fields?.intake_link || contact.custom_fields?.IntakeFormUrl || contact.form_link || contact.intake_link || (() => {
+        const rawH = (contact.custom_fields?.handle || (contact.company?.startsWith("@") ? contact.company : "")).replace(/^@/, "");
+        if (!rawH && !contact.email) return "";
+        const token = contact.custom_fields?.intakeToken || contact.custom_fields?.intake_token || contact.id || rawH || contact.email.split("@")[0];
+        return `${typeof window !== "undefined" ? window.location.origin : "https://tbmoutreach.tech"}/creator/intake/${encodeURIComponent(token)}`;
+    })();
+
+    function copyForm() {
+        if (!formLink) return;
+        navigator.clipboard.writeText(formLink).then(() => {
+            setCopiedForm(true);
+            toast.success("Creator intake link copied to clipboard!");
+            setTimeout(() => setCopiedForm(false), 1500);
         });
     }
     const initials = initialsFrom(contact, displayName);
@@ -432,6 +449,44 @@ function ContactHeader({
                 <XIcon className="w-3.5 h-3.5" />
             </button>
             </header>
+            {formLink && (
+                <div className="px-4 py-2.5 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border-b border-amber-200/70 flex items-center justify-between gap-2.5 shrink-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <div className="size-6 rounded-md bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <SparklesIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-[11.5px] font-semibold text-slate-900 leading-tight">
+                                Creator Intake Link
+                            </div>
+                            <div className="text-[10.5px] font-mono text-slate-500 truncate max-w-[210px] sm:max-w-[250px]" title={formLink}>
+                                {formLink}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                            type="button"
+                            onClick={copyForm}
+                            className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-white border border-amber-300 text-slate-800 hover:bg-amber-50 text-[11px] font-medium transition-colors shadow-2xs cursor-pointer"
+                            title="Copy intake form link"
+                        >
+                            {copiedForm ? <CheckIcon className="w-3 h-3 text-emerald-600" /> : <CopyIcon className="w-3 h-3 text-slate-500" />}
+                            <span>{copiedForm ? "Copied" : "Copy Link"}</span>
+                        </button>
+                        <a
+                            href={formLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-[#ea580c] hover:bg-[#c2410c] text-white text-[11px] font-medium transition-colors shadow-2xs cursor-pointer"
+                            title="Open live intake form in new tab"
+                        >
+                            <ExternalLinkIcon className="w-3 h-3" />
+                            <span>Open ↗</span>
+                        </a>
+                    </div>
+                </div>
+            )}
             <NewMeetingDialog
                 open={meetingOpen}
                 onClose={() => setMeetingOpen(false)}

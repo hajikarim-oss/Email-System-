@@ -236,6 +236,19 @@ function mapLead(l: any, campaignScoped: boolean) {
         }
     }
 
+    const appOrigin = process.env.APP_URL || "https://tbmoutreach.tech";
+    const rawHandle = (custom.handle || (companyName.startsWith("@") ? companyName : "")).replace(/^@/, "");
+    let formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || "";
+    if (!formLink && (rawHandle || (l.campaignId && String(l.lastCampaign || "").toLowerCase().includes("creator")))) {
+        const token = custom.intakeToken || custom.intake_token || l.id || rawHandle || String(l.email || "").split("@")[0];
+        formLink = `${appOrigin}/creator/intake/${encodeURIComponent(token)}`;
+    }
+    if (formLink) {
+        custom.form_link = formLink;
+        custom.intake_link = formLink;
+        custom.IntakeFormUrl = formLink;
+    }
+
     return {
         id: l.id,
         first_name: l.firstName || (l.email ? String(l.email).split("@")[0] : "") || "Prospect",
@@ -245,6 +258,8 @@ function mapLead(l: any, campaignScoped: boolean) {
         is_email_handler: isHandler,
         email_handler: isHandler ? rawDomain.split(".")[0].charAt(0).toUpperCase() + rawDomain.split(".")[0].slice(1) : null,
         phone: "",
+        form_link: formLink || undefined,
+        intake_link: formLink || undefined,
         custom_fields: custom,
         subscribed: isSub,
         status: isSub ? "active" : "unsubscribed",
@@ -253,16 +268,14 @@ function mapLead(l: any, campaignScoped: boolean) {
         campaign_lead: campaignLead,
         categories: [
             ...(leadCategoryObj ? [leadCategoryObj] : []),
-            {
+            ...(!campaignScoped && ["DORMANT_REPLIED", "COLD_REENGAGEMENT", "WARM_STALE", "BURNED"].includes(l.outreachState) ? [{
                 id: l.outreachState === "DORMANT_REPLIED"
                     ? "cat_dormant"
                     : l.outreachState === "COLD_REENGAGEMENT"
                       ? "cat_cold"
                       : l.outreachState === "WARM_STALE"
                         ? "cat_warm"
-                        : l.outreachState === "BURNED"
-                          ? "cat_burned"
-                          : l.outreachState || "UNKNOWN",
+                        : "cat_burned",
                 title: stateLabel,
                 color:
                     l.outreachState === "DORMANT_REPLIED"
@@ -272,7 +285,7 @@ function mapLead(l: any, campaignScoped: boolean) {
                           : l.outreachState === "WARM_STALE"
                             ? "#f59e0b"
                             : "#8b5cf6",
-            },
+            }] : []),
         ],
         domain: isHandler ? "" : l.domain || rawDomain,
         temporal_state: {

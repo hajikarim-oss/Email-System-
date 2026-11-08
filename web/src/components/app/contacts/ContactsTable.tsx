@@ -19,8 +19,10 @@ import {
     CableIcon,
     CheckIcon,
     ClockIcon,
+    CopyIcon,
     CornerUpLeftIcon,
     DownloadIcon,
+    ExternalLinkIcon,
     InfoIcon,
     LayersIcon,
     Loader2Icon,
@@ -1308,7 +1310,7 @@ function ContactsTableBody({
                         <Th className="max-w-0 w-full md:max-w-none md:w-auto">Name</Th>
                         <Th className="hidden md:table-cell">Company / Domain</Th>
                         {embedded ? (
-                            <Th className="hidden lg:table-cell">Phone</Th>
+                            <Th className="hidden lg:table-cell">Form Link</Th>
                         ) : (
                             <>
                                 <Th className="hidden lg:table-cell w-36">Outreach State</Th>
@@ -1358,10 +1360,28 @@ function ContactsTableBody({
                 <tbody>
                     {contacts.map((c) => {
                         const isSel = isRowSelected(c.id);
-                        const name =
+                        const rawName =
                             (c.first_name || c.last_name)
                                 ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()
                                 : c.email;
+                        const parts = rawName.split(/\s*\|\s*/);
+                        const primaryName = parts[0] || rawName;
+                        const subtitle = parts.length > 1 ? parts.slice(1).join(" · ") : "";
+
+                        const leadFormLink = (c as any).form_link || (c as any).intake_link || c.custom_fields?.form_link || c.custom_fields?.intake_link || c.custom_fields?.IntakeFormUrl || (() => {
+                            const rawH = (c.custom_fields?.handle || (c.company?.startsWith("@") ? c.company : "")).replace(/^@/, "");
+                            if (!rawH && !c.email) return "";
+                            const token = c.custom_fields?.intakeToken || c.custom_fields?.intake_token || c.id || rawH || c.email.split("@")[0];
+                            return `${typeof window !== "undefined" ? window.location.origin : "https://tbmoutreach.tech"}/creator/intake/${encodeURIComponent(token)}`;
+                        })();
+
+                        const filteredCategories = (c.categories || []).filter(cat =>
+                            !cat.title?.toLowerCase().includes("contact") &&
+                            !cat.id?.toLowerCase().includes("unknown") &&
+                            !cat.id?.toLowerCase().includes("never") &&
+                            cat.title !== "NEVER REACHED"
+                        );
+
                         // In the campaign Leads view, terminal leads (replied /
                         // bounced / unsubscribed) are "already processed" — render
                         // them muted so the eye lands on what's still in flight.
@@ -1407,20 +1427,17 @@ function ContactsTableBody({
                                         </div>
                                         <div className="min-w-0">
                                             <div className={`text-[12.5px] font-medium truncate leading-tight flex items-center gap-1.5 ${processed ? "text-slate-400" : "text-slate-900"}`}>
-                                                <span className="truncate">{name}</span>
-                                                {c.categories && c.categories.length > 0 && (
+                                                <span className="truncate" title={rawName}>{primaryName}</span>
+                                                {subtitle && (
+                                                    <span className="hidden xl:inline-block text-[10.5px] font-normal text-slate-400 truncate max-w-[150px]" title={subtitle}>
+                                                        · {subtitle}
+                                                    </span>
+                                                )}
+                                                {filteredCategories.length > 0 && (
                                                     <span className="inline-flex items-center gap-0.5 shrink-0">
-                                                        {c.categories.slice(0, 2).map((cat) => (
+                                                        {filteredCategories.slice(0, 2).map((cat) => (
                                                             <CategoryChip key={cat.id} category={cat} compact />
                                                         ))}
-                                                        {c.categories.length > 2 && (
-                                                            <span
-                                                                className="inline-flex items-center h-4 px-1 rounded text-[10px] font-medium bg-slate-100 text-slate-500"
-                                                                title={c.categories.slice(2).map((x) => x.title).join(", ")}
-                                                            >
-                                                                +{c.categories.length - 2}
-                                                            </span>
-                                                        )}
                                                     </span>
                                                 )}
                                             </div>
@@ -1433,14 +1450,30 @@ function ContactsTableBody({
                                     </div>
                                 </td>
                                 <td className="px-3 text-[12px] text-slate-600 truncate hidden md:table-cell">
-                                    {c.is_email_handler ? (
+                                    {c.company?.startsWith("@") ? (
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <span className="inline-flex items-center gap-1 text-pink-600 bg-pink-50 px-2 py-0.5 rounded border border-pink-200 text-[11px] font-semibold">
+                                                <span className="text-[10px]">📷</span>
+                                                <a
+                                                    href={`https://instagram.com/${c.company.replace(/^@/, '')}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="hover:underline"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    title="Open Instagram Profile"
+                                                >
+                                                    {c.company}
+                                                </a>
+                                            </span>
+                                        </span>
+                                    ) : c.is_email_handler ? (
                                         <span className="inline-flex items-center gap-1.5 text-slate-400" title={`Personal email handler (${c.email.split("@")[1] || "webmail"})`}>
                                             <MailIcon className="w-3 h-3 text-slate-400" />
                                             <span className="truncate italic text-[11.5px]">{c.company}</span>
                                         </span>
                                     ) : (c.company || c.domain) ? (
                                         <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
-                                            <Building2Icon className="w-3 h-3 text-slate-400" />
+                                            <Building2Icon className="w-3 h-3 text-slate-400 shrink-0" />
                                             <span className="truncate">{c.company || c.domain}</span>
                                         </span>
                                     ) : (
@@ -1448,9 +1481,33 @@ function ContactsTableBody({
                                     )}
                                 </td>
                                 {embedded ? (
-                                    <td className="px-3 text-[12px] text-slate-600 truncate hidden lg:table-cell font-mono">
-                                        {c.phone ? (
-                                            <span className="inline-flex items-center gap-1.5">
+                                    <td className="px-3 text-[12px] text-slate-600 whitespace-nowrap hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
+                                        {leadFormLink ? (
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(leadFormLink);
+                                                        toast.success("Form link copied to clipboard!");
+                                                    }}
+                                                    className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-medium transition-colors cursor-pointer shadow-2xs"
+                                                    title={`Copy link: ${leadFormLink}`}
+                                                >
+                                                    <CopyIcon className="w-3 h-3 text-amber-600" />
+                                                    <span>Link</span>
+                                                </button>
+                                                <a
+                                                    href={leadFormLink}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="size-6 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+                                                    title="Open live intake form in new tab"
+                                                >
+                                                    <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                                </a>
+                                            </div>
+                                        ) : c.phone ? (
+                                            <span className="inline-flex items-center gap-1.5 font-mono text-[11.5px]">
                                                 <PhoneIcon className="w-3 h-3 text-slate-400" />
                                                 {c.phone}
                                             </span>

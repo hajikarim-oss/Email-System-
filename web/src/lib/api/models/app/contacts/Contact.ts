@@ -71,6 +71,8 @@ export default interface Contact {
     email: string;
     company: string;
     phone: string;
+    form_link?: string;
+    intake_link?: string;
 
     custom_fields: Record<string, string>;
 
