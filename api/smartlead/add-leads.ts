@@ -129,18 +129,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     const lName = l.last_name || l.lastName || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
                     const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
                     const jobTitle = l.title || l.role || l.custom_fields?.title || "Decision Maker";
+                    const custom = (typeof l.customData === "object" && l.customData) ? l.customData : (l.custom_fields || {});
+                    const formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || l.intake_link || l.form_link || "";
                     return {
                         email: l.email.trim(),
                         first_name: fName.trim(),
                         last_name: lName.trim(),
                         company_name: cName,
                         custom_fields: {
+                            ...custom,
                             title: jobTitle,
+                            job_title: jobTitle,
+                            JobTitle: jobTitle,
                             firstName: fName.trim(),
+                            first_name: fName.trim(),
                             lastName: lName.trim(),
+                            last_name: lName.trim(),
                             company: cName,
                             company_name: cName,
-                            ...(l.custom_fields || {}),
+                            CompanyName: cName,
+                            ...(formLink ? { form_link: formLink, intake_link: formLink, IntakeFormUrl: formLink, link: formLink, Link: formLink } : {}),
                         },
                     };
                 });

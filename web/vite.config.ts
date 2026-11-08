@@ -330,23 +330,38 @@ function apiCall(endpoint: string, method: string = "GET", body?: any, customKey
 function smartleadApiPlugin() {
     function normalizeToSmartleadTemplate(text: string): string {
         if (!text) return "";
-        return text
+        let res = text
             .replace(/&nbsp;/g, " ")
             // Strip any styled span badges so variable outputs are smooth, clean, and match paragraph styling
             .replace(/<span[^>]*style="[^"]*(?:background|border|monospace)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
             .replace(/<span[^>]*class="[^"]*(?:variable-badge|token-badge)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
             // First name
-            .replace(/\{\{\s*(\.?first_?name|first|fname)\s*\}\}/gi, "{{first_name}}")
-            .replace(/\[\s*(First\s*Name|Name)\s*\]/gi, "{{first_name}}")
+            .replace(/\{\{\s*(\.?first_?name|CreatorName|firstName|first|fname)\s*\}\}/gi, "{{firstName}}")
+            .replace(/\[\s*(Creator\s*Name|First\s*Name|Name)\s*\]/gi, "{{firstName}}")
             // Last name / surname
-            .replace(/\{\{\s*(\.?last_?name|last|lname|surname)\s*\}\}/gi, "{{last_name}}")
-            .replace(/\[\s*(Last\s*Name|Surname)\s*\]/gi, "{{last_name}}")
+            .replace(/\{\{\s*(\.?last_?name|lastName|last|lname|surname)\s*\}\}/gi, "{{lastName}}")
+            .replace(/\[\s*(Last\s*Name|Surname)\s*\]/gi, "{{lastName}}")
             // Company / brand
-            .replace(/\{\{\s*(\.?company_?name|company|org|organization|brand)\s*\}\}/gi, "{{company_name}}")
-            .replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand|Org)\s*\]/gi, "{{company_name}}")
+            .replace(/\{\{\s*(\.?company_?name|company|CompanyName|org|organization|brand)\s*\}\}/gi, "{{company}}")
+            .replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand|Org)\s*\]/gi, "{{company}}")
             // Title / role
-            .replace(/\{\{\s*(\.?job_?title|title|role|position)\s*\}\}/gi, "{{title}}")
-            .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}");
+            .replace(/\{\{\s*(\.?job_?title|title|JobTitle|role|position)\s*\}\}/gi, "{{title}}")
+            .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}")
+            .replace(/\{\{\s*\.?Handle\s*\}\}/gi, "{{handle}}")
+            .replace(/\{\{\s*\.?Category\s*\}\}/gi, "{{category}}")
+            .replace(/\{\{\s*\.?Followers\s*\}\}/gi, "{{followers}}")
+            .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link|Link|link)\s*\}\}/gi, "{{form_link}}")
+            .replace(/\[\s*Form\s*Link\s*\]/gi, "{{form_link}}");
+
+        // Standardize anchor tags with {{form_link}} as href to display highlighted "Link"
+        res = res.replace(/<a\b[^>]*href=[\x27\x22]\{\{form_link\}\}[\x27\x22][^>]*>([\s\S]*?)<\/a>/gi,
+            `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
+
+        // Wrap any remaining bare {{form_link}} not inside an href attribute into highlighted "Link" anchor
+        res = res.replace(/(?<!href=[\x27\x22])\{\{form_link\}\}/gi,
+            `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
+
+        return res;
     }
 
     function cleanCompanyName(nameOrDomain?: string): string {
@@ -789,19 +804,28 @@ function smartleadApiPlugin() {
                                 const lName = l.last_name || l.lastName || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
                                 const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
                                 const jobTitle = l.title || l.role || l.custom_fields?.title || "Executive";
+                                const custom = (typeof l.customData === "object" && l.customData) ? l.customData : (l.custom_fields || {});
+                                const formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || l.intake_link || l.form_link || "";
+                                const rawHandle = (custom.handle || (cName.startsWith("@") ? cName : "")).replace(/^@/, "");
                                 return {
                                     email: l.email,
                                     first_name: fName,
                                     last_name: lName,
                                     company_name: cName,
                                     custom_fields: {
+                                        ...custom,
                                         title: jobTitle,
+                                        job_title: jobTitle,
+                                        JobTitle: jobTitle,
                                         firstName: fName,
-                                        lastName: lName,
-                                        company: cName,
                                         first_name: fName,
+                                        lastName: lName,
                                         last_name: lName,
+                                        company: cName,
                                         company_name: cName,
+                                        CompanyName: cName,
+                                        ...(formLink ? { form_link: formLink, intake_link: formLink, IntakeFormUrl: formLink, link: formLink, Link: formLink } : {}),
+                                        ...(rawHandle ? { handle: `@${rawHandle}` } : {}),
                                     },
                                 };
                             });

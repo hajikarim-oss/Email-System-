@@ -68,26 +68,37 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             const sequences = steps.map((s: any, idx: number) => {
                 const subject = (s.subject || "")
-                    .replace(/\{\{firstName\}\}/g, "{{first_name}}")
-                    .replace(/\{\{lastName\}\}/g, "{{last_name}}")
-                    .replace(/\{\{CompanyName\}\}/g, "{{company}}")
-                    .replace(/\{\{JobTitle\}\}/g, "{{title}}");
+                    .replace(/\{\{\s*(\.?first_?name|CreatorName|firstName|first|fname)\s*\}\}/gi, "{{firstName}}")
+                    .replace(/\[\s*(Creator\s*Name|First\s*Name|Name)\s*\]/gi, "{{firstName}}")
+                    .replace(/\{\{\s*(\.?last_?name|lastName|last|lname|surname)\s*\}\}/gi, "{{lastName}}")
+                    .replace(/\[\s*(Last\s*Name|Surname)\s*\]/gi, "{{lastName}}")
+                    .replace(/\{\{\s*(\.?company_?name|company|CompanyName|org|organization|brand)\s*\}\}/gi, "{{company}}")
+                    .replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand|Org)\s*\]/gi, "{{company}}")
+                    .replace(/\{\{\s*(\.?job_?title|title|JobTitle|role|position)\s*\}\}/gi, "{{title}}")
+                    .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}");
 
                 const rawBody = s.body_html || s.body_plain || "";
                 let email_body = rawBody
-                    .replace(/\{\{firstName\}\}/g, "{{first_name}}")
-                    .replace(/\{\{lastName\}\}/g, "{{last_name}}")
-                    .replace(/\{\{CompanyName\}\}/g, "{{company}}")
-                    .replace(/\{\{JobTitle\}\}/g, "{{title}}")
-                    .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link)\s*\}\}/gi, "{{form_link}}")
+                    .replace(/\{\{\s*(\.?first_?name|CreatorName|firstName|first|fname)\s*\}\}/gi, "{{firstName}}")
+                    .replace(/\[\s*(Creator\s*Name|First\s*Name|Name)\s*\]/gi, "{{firstName}}")
+                    .replace(/\{\{\s*(\.?last_?name|lastName|last|lname|surname)\s*\}\}/gi, "{{lastName}}")
+                    .replace(/\[\s*(Last\s*Name|Surname)\s*\]/gi, "{{lastName}}")
+                    .replace(/\{\{\s*(\.?company_?name|company|CompanyName|org|organization|brand)\s*\}\}/gi, "{{company}}")
+                    .replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand|Org)\s*\]/gi, "{{company}}")
+                    .replace(/\{\{\s*(\.?job_?title|title|JobTitle|role|position)\s*\}\}/gi, "{{title}}")
+                    .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}")
+                    .replace(/\{\{\s*\.?Handle\s*\}\}/gi, "{{handle}}")
+                    .replace(/\{\{\s*\.?Category\s*\}\}/gi, "{{category}}")
+                    .replace(/\{\{\s*\.?Followers\s*\}\}/gi, "{{followers}}")
+                    .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link|Link|link)\s*\}\}/gi, "{{form_link}}")
                     .replace(/\[\s*Form\s*Link\s*\]/gi, "{{form_link}}");
 
                 // Standardize anchor tags with {{form_link}} as href to display highlighted "Link"
-                email_body = email_body.replace(/<a\s+[^>]*href=['"]\{\{form_link\}\}['"][^>]*>([\s\S]*?)<\/a>/gi,
+                email_body = email_body.replace(/<a\b[^>]*href=[\x27\x22]\{\{form_link\}\}[\x27\x22][^>]*>([\s\S]*?)<\/a>/gi,
                     `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
 
                 // Wrap any remaining bare {{form_link}} not inside an href attribute into highlighted "Link" anchor
-                email_body = email_body.replace(/(?<!href=['"])\{\{form_link\}\}/gi,
+                email_body = email_body.replace(/(?<!href=[\x27\x22])\{\{form_link\}\}/gi,
                     `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
 
                 return {

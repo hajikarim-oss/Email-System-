@@ -36,24 +36,26 @@ function slApiCall(endpoint: string, method: string, body?: any, apiKey?: string
 function normalizeTemplate(text: string): string {
     if (!text) return "";
     let res = text
-        .replace(/\{\{\s*\.?CreatorName\s*\}\}/gi, "{{first_name}}")
-        .replace(/\[\s*Creator\s*Name\s*\]/gi, "{{first_name}}")
-        .replace(/\{\{\s*\.?firstName\s*\}\}/gi, "{{first_name}}")
-        .replace(/\{\{\s*\.?lastName\s*\}\}/gi, "{{last_name}}")
-        .replace(/\{\{\s*\.?CompanyName\s*\}\}/gi, "{{company_name}}")
-        .replace(/\{\{\s*\.?JobTitle\s*\}\}/gi, "{{title}}")
+        .replace(/\{\{\s*(\.?first_?name|CreatorName|firstName|first|fname)\s*\}\}/gi, "{{firstName}}")
+        .replace(/\[\s*(Creator\s*Name|First\s*Name|Name)\s*\]/gi, "{{firstName}}")
+        .replace(/\{\{\s*(\.?last_?name|lastName|last|lname|surname)\s*\}\}/gi, "{{lastName}}")
+        .replace(/\[\s*(Last\s*Name|Surname)\s*\]/gi, "{{lastName}}")
+        .replace(/\{\{\s*(\.?company_?name|company|CompanyName|org|organization|brand)\s*\}\}/gi, "{{company}}")
+        .replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand|Org)\s*\]/gi, "{{company}}")
+        .replace(/\{\{\s*(\.?job_?title|title|JobTitle|role|position)\s*\}\}/gi, "{{title}}")
+        .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}")
         .replace(/\{\{\s*\.?Handle\s*\}\}/gi, "{{handle}}")
         .replace(/\{\{\s*\.?Category\s*\}\}/gi, "{{category}}")
         .replace(/\{\{\s*\.?Followers\s*\}\}/gi, "{{followers}}")
-        .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link)\s*\}\}/gi, "{{form_link}}")
+        .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link|Link|link)\s*\}\}/gi, "{{form_link}}")
         .replace(/\[\s*Form\s*Link\s*\]/gi, "{{form_link}}");
 
     // Standardize anchor tags with {{form_link}} as href to display highlighted "Link"
-    res = res.replace(/<a\s+[^>]*href=['"]\{\{form_link\}\}['"][^>]*>([\s\S]*?)<\/a>/gi,
+    res = res.replace(/<a\b[^>]*href=[\x27\x22]\{\{form_link\}\}[\x27\x22][^>]*>([\s\S]*?)<\/a>/gi,
         `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
 
     // Wrap any remaining bare {{form_link}} not inside an href attribute into highlighted "Link" anchor
-    res = res.replace(/(?<!href=['"])\{\{form_link\}\}/gi,
+    res = res.replace(/(?<!href=[\x27\x22])\{\{form_link\}\}/gi,
         `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
 
     return res;
@@ -332,8 +334,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 } catch {}
 
                 const hasBareFormLink = existingSeqs.some((es: any) =>
-                    /(?<!href=['"])\{\{form_link\}\}/i.test(es.email_body || "") ||
-                    /\{\{\s*(\.?IntakeFormUrl|intake_link)\s*\}\}/i.test(es.email_body || "")
+                    /(?<!href=[\x27\x22])\{\{form_link\}\}/i.test(es.email_body || "") ||
+                    /\{\{\s*(\.?IntakeFormUrl|intake_link)\s*\}\}/i.test(es.email_body || "") ||
+                    /\{\{\s*(\.?first_name|CreatorName)\s*\}\}/i.test(es.email_body || "") ||
+                    /\{\{\s*(\.?first_name|CreatorName)\s*\}\}/i.test(es.subject || "")
                 );
 
                 if (existingSeqs.length === 0 || hasBareFormLink) {
@@ -428,12 +432,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
 
                 const customFields: Record<string, any> = {
+                    ...custom,
                     company: companyName,
                     company_name: companyName,
+                    CompanyName: companyName,
                     title: title,
+                    job_title: title,
+                    JobTitle: title,
                     firstName: fName,
+                    first_name: fName,
                     lastName: lName,
-                    ...custom,
+                    last_name: lName,
                 };
 
                 if (formLink) {
