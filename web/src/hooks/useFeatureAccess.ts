@@ -60,6 +60,8 @@ export interface FeatureAccess {
     hasWebhooks: boolean;
     /** Convenience: viewer is the current org's owner. */
     isOwner: boolean;
+    /** Convenience: viewer is Master / Admin. */
+    isMaster: boolean;
     /** Owner OR admin. */
     canManage: boolean;
     /** True only for Troops Workspace Masters (Pratik or Master Monu in Troops Outreach). */
@@ -122,6 +124,7 @@ export default function useFeatureAccess(): FeatureAccess {
         hasTeam: true,
         hasWebhooks: true,
         isOwner: isMaster,
+        isMaster,
         canManage: isMaster,
         canViewCreators,
         canViewFinance,

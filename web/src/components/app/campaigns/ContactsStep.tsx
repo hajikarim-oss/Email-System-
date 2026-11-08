@@ -9,6 +9,9 @@ import Request from "@/lib/api/client/Request";
 export interface ContactDraftItem {
     id?: string; email: string; first_name?: string; last_name?: string; company?: string; role?: string;
     source: "database" | "csv" | "manual";
+    custom_fields?: Record<string, string>;
+    form_link?: string;
+    intake_link?: string;
 }
 interface NormalizedContact {
     id: string; email: string; first_name: string; last_name: string; company: string; role: string;
