@@ -54,7 +54,7 @@ function apiCall(endpoint: string, method: string = "GET", body?: any, customKey
 
 function normalizeToSmartleadTemplate(text: string): string {
     if (!text) return "";
-    return text
+    let res = text
         .replace(/&nbsp;/g, " ")
         .replace(/<span[^>]*style="[^"]*(?:background|border|monospace)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
         .replace(/<span[^>]*class="[^"]*(?:variable-badge|token-badge)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
@@ -65,7 +65,22 @@ function normalizeToSmartleadTemplate(text: string): string {
         .replace(/\{\{\s*(\.?company_?name|company|org|organization|brand)\s*\}\}/gi, "{{company_name}}")
         .replace(/\[\s*(Company\s*Name|Company|Brand\s*Name|Brand|Org)\s*\]/gi, "{{company_name}}")
         .replace(/\{\{\s*(\.?job_?title|title|role|position)\s*\}\}/gi, "{{title}}")
-        .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}");
+        .replace(/\[\s*(Job\s*Title|Title|Role|Position)\s*\]/gi, "{{title}}")
+        .replace(/\{\{\s*\.?CreatorName\s*\}\}/gi, "{{first_name}}")
+        .replace(/\[\s*Creator\s*Name\s*\]/gi, "{{first_name}}")
+        .replace(/\{\{\s*\.?Handle\s*\}\}/gi, "{{handle}}")
+        .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link)\s*\}\}/gi, "{{form_link}}")
+        .replace(/\[\s*Form\s*Link\s*\]/gi, "{{form_link}}");
+
+    // Standardize anchor tags with {{form_link}} as href to display highlighted "Link"
+    res = res.replace(/<a\s+[^>]*href=['"]\{\{form_link\}\}['"][^>]*>([\s\S]*?)<\/a>/gi,
+        `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
+
+    // Wrap any remaining bare {{form_link}} not inside an href attribute into highlighted "Link" anchor
+    res = res.replace(/(?<!href=['"])\{\{form_link\}\}/gi,
+        `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
+
+    return res;
 }
 
 // Detect and warn about spam-trigger phrases
@@ -477,11 +492,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             // 5. Leads
             const rawLeads = parsed.leads || [];
             if (rawLeads.length > 0) {
+                const appOrigin = process.env.APP_URL || "https://tbmoutreach.tech";
                 const leadList = rawLeads.map((l: any) => {
                     const fName = l.first_name || l.firstName || (l.name ? l.name.split(" ")[0] : "") || (l.email ? l.email.split("@")[0] : "Prospect");
                     const lName = l.last_name || l.lastName || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
                     const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
                     const jobTitle = l.title || l.role || l.custom_fields?.title || "Executive";
+                    const custom = (typeof l.customData === "object" && l.customData) ? l.customData : (l.custom_fields || {});
+                    let formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || l.intake_link || l.form_link || "";
+                    const rawHandle = (custom.handle || (cName.startsWith("@") ? cName : "")).replace(/^@/, "");
+                    if (!formLink && rawHandle) {
+                        const token = custom.intake_token || custom.intakeToken || l.id || rawHandle || l.email.split("@")[0];
+                        formLink = `${appOrigin}/creator/intake/${encodeURIComponent(token)}`;
+                    }
+
                     return {
                         email: l.email,
                         first_name: fName,
@@ -495,6 +519,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                             first_name: fName,
                             last_name: lName,
                             company_name: cName,
+                            ...custom,
+                            ...(formLink ? { form_link: formLink, intake_link: formLink, IntakeFormUrl: formLink, link: formLink, Link: formLink } : {}),
+                            ...(rawHandle ? { handle: `@${rawHandle}` } : {}),
                         },
                     };
                 });
@@ -627,9 +654,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                             const firstName = (lead.first_name || lead.firstName || (lead.name ? lead.name.split(" ")[0] : "") || (lead.email ? lead.email.split("@")[0] : "Prospect")).slice(0, 100);
                             const lastName = (lead.last_name || lead.lastName || (lead.name ? lead.name.split(" ").slice(1).join(" ") : "") || "").slice(0, 100);
                             const email = (lead.email || "").toLowerCase().trim();
+                            const custom = (typeof lead.customData === "object" && lead.customData) ? lead.customData : (lead.custom_fields || {});
                             const customData = JSON.stringify({
-                                company: lead.company || lead.company_name || lead.custom_fields?.company || "",
-                                title: lead.title || lead.role || lead.custom_fields?.title || "",
+                                company: lead.company || lead.company_name || custom.company || "",
+                                title: lead.title || lead.role || custom.title || "",
+                                ...custom,
                             });
 
                             values.push(`(gen_random_uuid()::text, $${pIdx}, $${pIdx+1}, $${pIdx+2}, $${pIdx+3}, $${pIdx+4}::jsonb, 'smartlead', 'ACTIVE', NOW(), NOW())`);

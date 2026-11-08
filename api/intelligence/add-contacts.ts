@@ -66,10 +66,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 const domain = email.split("@")[1] || "";
                 const company = item.company || item.company_name || "";
                 const customFields = item.custom_fields || {};
-                const link = customFields.form_link || customFields.intake_link || customFields.IntakeFormUrl || "";
+                const link = customFields.form_link || customFields.intake_link || customFields.IntakeFormUrl || item.form_link || item.intake_link || "";
                 const customData = JSON.stringify({
                     ...customFields,
-                    ...(link ? { form_link: link, intake_link: link, IntakeFormUrl: link } : {}),
+                    ...(link ? { form_link: link, intake_link: link, IntakeFormUrl: link, link, Link: link } : {}),
                     ...(company ? { company } : {}),
                 });
 

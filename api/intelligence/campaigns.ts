@@ -47,6 +47,15 @@ function normalizeTemplate(text: string): string {
         .replace(/\{\{\s*\.?Followers\s*\}\}/gi, "{{followers}}")
         .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link)\s*\}\}/gi, "{{form_link}}")
         .replace(/\[\s*Form\s*Link\s*\]/gi, "{{form_link}}");
+
+    // Standardize anchor tags with {{form_link}} as href to display highlighted "Link"
+    res = res.replace(/<a\s+[^>]*href=['"]\{\{form_link\}\}['"][^>]*>([\s\S]*?)<\/a>/gi,
+        `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
+
+    // Wrap any remaining bare {{form_link}} not inside an href attribute into highlighted "Link" anchor
+    res = res.replace(/(?<!href=['"])\{\{form_link\}\}/gi,
+        `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
+
     return res;
 }
 
@@ -322,17 +331,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     if (Array.isArray(seqCheck.data)) existingSeqs = seqCheck.data;
                 } catch {}
 
-                if (existingSeqs.length === 0) {
-                    const sequences = steps.map((s: any, idx: number) => ({
-                        seq_number: idx + 1,
-                        seq_delay_details: { delay_in_days: s.delayDays || (idx === 0 ? 0 : 3) },
-                        subject: normalizeTemplate(
-                            idx === 0
-                                ? (s.subject || "Discussion regarding partnership")
-                                : (s.subject && !/^step\s*\d+$/i.test(s.subject.trim()) ? s.subject : "")
-                        ),
-                        email_body: normalizeTemplate(s.bodyTemplate || ""),
-                    }));
+                const hasBareFormLink = existingSeqs.some((es: any) =>
+                    /(?<!href=['"])\{\{form_link\}\}/i.test(es.email_body || "") ||
+                    /\{\{\s*(\.?IntakeFormUrl|intake_link)\s*\}\}/i.test(es.email_body || "")
+                );
+
+                if (existingSeqs.length === 0 || hasBareFormLink) {
+                    const sequences = steps.map((s: any, idx: number) => {
+                        const existing = existingSeqs[idx];
+                        return {
+                            ...(existing?.id ? { id: existing.id } : {}),
+                            seq_number: idx + 1,
+                            seq_delay_details: { delay_in_days: s.delayDays || (idx === 0 ? 0 : 3) },
+                            subject: normalizeTemplate(
+                                idx === 0
+                                    ? (s.subject || "Discussion regarding partnership")
+                                    : (s.subject && !/^step\s*\d+$/i.test(s.subject.trim()) ? s.subject : "")
+                            ),
+                            email_body: normalizeTemplate(s.bodyTemplate || existing?.email_body || ""),
+                        };
+                    });
                     const seqRes = await slApiCall(`/campaigns/${smartleadId}/sequences`, "POST", { sequences }, apiKey);
                     if (seqRes.status >= 300) console.error("[Launch] Sequences error:", seqRes.data);
                 }
@@ -358,7 +376,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }, apiKey);
             if (mbLinkRes.status >= 300) console.error("[Launch] Mailbox link error:", mbLinkRes.data);
 
-            // 6. Check existing leads in Smartlead & upload missing leads in batches of 50
+            // 6. Check existing leads in Smartlead & upload missing leads in batches of 100
             let slTotalLeads = 0;
             try {
                 const slLeadsCheck = await slApiCall(`/campaigns/${smartleadId}/leads?limit=1`, "GET", undefined, apiKey);
@@ -366,34 +384,84 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             } catch {}
 
             console.log(`[Launch] Campaign #${smartleadId} has ${slTotalLeads} leads in Smartlead, ${leads.length} in DB`);
-            if (slTotalLeads < leads.length) {
+
+            const hasFormLinkInSteps = steps.some((s: any) =>
+                (s.bodyTemplate || "").includes("form_link") ||
+                (s.bodyTemplate || "").includes("intake_link") ||
+                (s.bodyTemplate || "").includes("IntakeFormUrl")
+            );
+            const isCreatorCampaign = (camp.name || "").toLowerCase().includes("creator") || hasFormLinkInSteps;
+
+            const leadEmails = leads.map((l: any) => (l.email || "").toLowerCase().trim()).filter(Boolean);
+            const creatorMap = new Map<string, any>();
+            try {
+                if (leadEmails.length > 0) {
+                    const cRows = await pgQuery<any>(
+                        `SELECT "id", "primaryEmail", "handle", "intakeToken" FROM "Creator" WHERE lower("primaryEmail") = ANY($1::text[])`,
+                        [leadEmails]
+                    );
+                    for (const cr of cRows) {
+                        if (cr.primaryEmail) creatorMap.set(cr.primaryEmail.toLowerCase().trim(), cr);
+                    }
+                }
+            } catch (err) {
+                console.warn("[Launch] Could not query Creator table for enrichment:", err);
+            }
+
+            const formatLead = (l: any) => {
+                const custom = (typeof l.customData === "object" && l.customData) ? l.customData : {};
+                const emailLower = (l.email || "").toLowerCase().trim();
+                const matchedCreator = creatorMap.get(emailLower);
+                const rawCompany = custom.company || custom.company_name || l.company || l.company_name || "";
+                const isHandleCompany = rawCompany.startsWith("@");
+                const cleanHandle = (matchedCreator?.handle || custom.handle || (isHandleCompany ? rawCompany : "")).replace(/^@/, "");
+                const companyName = isHandleCompany ? rawCompany : (custom.company || custom.company_name || l.company || l.company_name || "");
+                const title = custom.title || custom.role || l.title || l.role || "";
+                const fName = l.firstName || l.first_name || (l.name ? l.name.split(" ")[0] : "") || (l.email ? l.email.split("@")[0] : "Prospect");
+                const lName = l.lastName || l.last_name || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
+
+                const appOrigin = process.env.APP_URL || "https://tbmoutreach.tech";
+                let formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || "";
+                if (!formLink && (isCreatorCampaign || matchedCreator || isHandleCompany || cleanHandle)) {
+                    const token = matchedCreator?.intakeToken || custom.intake_token || custom.intakeToken || matchedCreator?.id || l.id || cleanHandle || emailLower.split("@")[0];
+                    formLink = `${appOrigin}/creator/intake/${encodeURIComponent(token)}`;
+                }
+
+                const customFields: Record<string, any> = {
+                    company: companyName,
+                    company_name: companyName,
+                    title: title,
+                    firstName: fName,
+                    lastName: lName,
+                    ...custom,
+                };
+
+                if (formLink) {
+                    customFields.form_link = formLink;
+                    customFields.intake_link = formLink;
+                    customFields.IntakeFormUrl = formLink;
+                    customFields.link = formLink;
+                    customFields.Link = formLink;
+                }
+                if (cleanHandle) {
+                    customFields.handle = `@${cleanHandle}`;
+                }
+
+                return {
+                    email: l.email,
+                    first_name: fName,
+                    last_name: lName,
+                    company_name: companyName,
+                    custom_fields: customFields,
+                };
+            };
+
+            // If Smartlead lead count is less than DB, or if it's a creator campaign (to ensure custom fields like form_link are refreshed), upload/sync leads
+            if (slTotalLeads < leads.length || isCreatorCampaign) {
                 const BATCH_SIZE = 100;
                 for (let i = 0; i < leads.length; i += BATCH_SIZE * 2) {
                     const b1 = leads.slice(i, i + BATCH_SIZE);
                     const b2 = leads.slice(i + BATCH_SIZE, i + BATCH_SIZE * 2);
-                    
-                    const formatLead = (l: any) => {
-                        const custom = (typeof l.customData === "object" && l.customData) ? l.customData : {};
-                        const companyName = custom.company || custom.company_name || l.company || l.company_name || "";
-                        const title = custom.title || custom.role || l.title || l.role || "";
-                        const fName = l.firstName || l.first_name || (l.name ? l.name.split(" ")[0] : "") || (l.email ? l.email.split("@")[0] : "Prospect");
-                        const lName = l.lastName || l.last_name || (l.name ? l.name.split(" ").slice(1).join(" ") : "") || "";
-
-                        return {
-                            email: l.email,
-                            first_name: fName,
-                            last_name: lName,
-                            company_name: companyName,
-                            custom_fields: {
-                                company: companyName,
-                                company_name: companyName,
-                                title: title,
-                                firstName: fName,
-                                lastName: lName,
-                                ...custom,
-                            },
-                        };
-                    };
 
                     const tasks = [slApiCall(`/campaigns/${smartleadId}/leads`, "POST", { lead_list: b1.map(formatLead) }, apiKey)];
                     if (b2.length > 0) {

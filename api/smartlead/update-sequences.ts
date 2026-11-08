@@ -74,11 +74,21 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     .replace(/\{\{JobTitle\}\}/g, "{{title}}");
 
                 const rawBody = s.body_html || s.body_plain || "";
-                const email_body = rawBody
+                let email_body = rawBody
                     .replace(/\{\{firstName\}\}/g, "{{first_name}}")
                     .replace(/\{\{lastName\}\}/g, "{{last_name}}")
                     .replace(/\{\{CompanyName\}\}/g, "{{company}}")
-                    .replace(/\{\{JobTitle\}\}/g, "{{title}}");
+                    .replace(/\{\{JobTitle\}\}/g, "{{title}}")
+                    .replace(/\{\{\s*(\.?IntakeFormUrl|intake_link|form_link)\s*\}\}/gi, "{{form_link}}")
+                    .replace(/\[\s*Form\s*Link\s*\]/gi, "{{form_link}}");
+
+                // Standardize anchor tags with {{form_link}} as href to display highlighted "Link"
+                email_body = email_body.replace(/<a\s+[^>]*href=['"]\{\{form_link\}\}['"][^>]*>([\s\S]*?)<\/a>/gi,
+                    `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
+
+                // Wrap any remaining bare {{form_link}} not inside an href attribute into highlighted "Link" anchor
+                email_body = email_body.replace(/(?<!href=['"])\{\{form_link\}\}/gi,
+                    `<a href="{{form_link}}" target="_blank" style="color: #ea580c; font-weight: 700; text-decoration: underline;">Link</a>`);
 
                 return {
                     id: null,

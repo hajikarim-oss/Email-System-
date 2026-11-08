@@ -1467,6 +1467,14 @@ function databaseIntelligencePlugin() {
                                 : null;
                             const existingAny = existingInCamp || await prisma.lead.findFirst({ where: { email } });
 
+                            const customFields = item.custom_fields || {};
+                            const link = customFields.form_link || customFields.intake_link || item.form_link || item.intake_link || "";
+                            const mergedCustom = {
+                                ...(customFields || {}),
+                                ...(company ? { company } : {}),
+                                ...(link ? { form_link: link, intake_link: link, IntakeFormUrl: link, link, Link: link } : {}),
+                            };
+
                             if (existingInCamp) {
                                 await prisma.lead.update({
                                     where: { id: existingInCamp.id },
@@ -1477,8 +1485,7 @@ function databaseIntelligencePlugin() {
                                         domain: existingInCamp.domain || domain,
                                         customData: {
                                             ...(typeof existingInCamp.customData === "object" ? existingInCamp.customData : {}),
-                                            ...(item.custom_fields || {}),
-                                            ...(company ? { company } : {}),
+                                            ...mergedCustom,
                                         },
                                     },
                                 });
@@ -1493,8 +1500,7 @@ function databaseIntelligencePlugin() {
                                         domain: existingAny.domain || domain,
                                         customData: {
                                             ...(typeof existingAny.customData === "object" ? existingAny.customData : {}),
-                                            ...(item.custom_fields || {}),
-                                            ...(company ? { company } : {}),
+                                            ...mergedCustom,
                                         },
                                     },
                                 });
@@ -1508,10 +1514,7 @@ function databaseIntelligencePlugin() {
                                         domain,
                                         status: "ACTIVE",
                                         outreachState: "NEVER_REACHED",
-                                        customData: {
-                                            ...(item.custom_fields || {}),
-                                            ...(company ? { company } : {}),
-                                        },
+                                        customData: mergedCustom,
                                     },
                                 });
                             }

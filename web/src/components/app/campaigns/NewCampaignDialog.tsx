@@ -523,7 +523,13 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                                 phone: "",
                                 campaign_id: created.id,
                                 campaigns: [created.id],
-                                custom_fields: (c.role ? { role: c.role, company: cleanC } : { company: cleanC }) as Record<string, string>,
+                                custom_fields: {
+                                    ...(c.custom_fields || {}),
+                                    company: cleanC,
+                                    ...(c.role ? { role: c.role } : {}),
+                                    ...((c as any).form_link ? { form_link: (c as any).form_link } : {}),
+                                    ...((c as any).intake_link ? { intake_link: (c as any).intake_link } : {}),
+                                } as Record<string, string>,
                                 source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
                             };
                         });
@@ -599,7 +605,13 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                             phone: "",
                             campaign_id: created.id,
                             campaigns: [created.id],
-                            custom_fields: (c.role ? { role: c.role, company: cleanC } : { company: cleanC }) as Record<string, string>,
+                            custom_fields: {
+                                ...(c.custom_fields || {}),
+                                company: cleanC,
+                                ...(c.role ? { role: c.role } : {}),
+                                ...((c as any).form_link ? { form_link: (c as any).form_link } : {}),
+                                ...((c as any).intake_link ? { intake_link: (c as any).intake_link } : {}),
+                            } as Record<string, string>,
                             source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
                         };
                     });
@@ -730,7 +742,13 @@ export function NewCampaignDialog({ open, onClose }: Props) {
                             phone: "",
                             campaign_id: created.id,
                             campaigns: [created.id],
-                            custom_fields: (c.role ? { role: c.role, company: cleanC } : { company: cleanC }) as Record<string, string>,
+                            custom_fields: {
+                                ...(c.custom_fields || {}),
+                                company: cleanC,
+                                ...(c.role ? { role: c.role } : {}),
+                                ...((c as any).form_link ? { form_link: (c as any).form_link } : {}),
+                                ...((c as any).intake_link ? { intake_link: (c as any).intake_link } : {}),
+                            } as Record<string, string>,
                             source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
                         };
                     });
