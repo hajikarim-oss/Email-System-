@@ -1116,6 +1116,9 @@ function ContactsTableBody({
         email: string;
         company: string;
         phone: string;
+        form_link?: string;
+        intake_link?: string;
+        custom_fields?: Record<string, string>;
         subscribed: boolean;
         campaigns: { id: string }[];
         categories?: { id: string; title: string; color: string }[];
@@ -1368,10 +1371,12 @@ function ContactsTableBody({
                         const primaryName = parts[0] || rawName;
                         const subtitle = parts.length > 1 ? parts.slice(1).join(" · ") : "";
 
-                        const leadFormLink = (c as any).form_link || (c as any).intake_link || c.custom_fields?.form_link || c.custom_fields?.intake_link || c.custom_fields?.IntakeFormUrl || (() => {
-                            const rawH = (c.custom_fields?.handle || (c.company?.startsWith("@") ? c.company : "")).replace(/^@/, "");
+                        const cAny = c as any;
+                        const customFields = (cAny.custom_fields || {}) as Record<string, string>;
+                        const leadFormLink = cAny.form_link || cAny.intake_link || customFields.form_link || customFields.intake_link || customFields.IntakeFormUrl || (() => {
+                            const rawH = (customFields.handle || (c.company?.startsWith("@") ? c.company : "")).replace(/^@/, "");
                             if (!rawH && !c.email) return "";
-                            const token = c.custom_fields?.intakeToken || c.custom_fields?.intake_token || c.id || rawH || c.email.split("@")[0];
+                            const token = customFields.intakeToken || customFields.intake_token || c.id || rawH || c.email.split("@")[0];
                             return `${typeof window !== "undefined" ? window.location.origin : "https://tbmoutreach.tech"}/creator/intake/${encodeURIComponent(token)}`;
                         })();
 
