@@ -7,6 +7,7 @@
 //   - Latest activity rail
 //   - Profile rows for the fields not already in the panel header
 
+import React from "react";
 import {
     AlertOctagonIcon,
     BanIcon,

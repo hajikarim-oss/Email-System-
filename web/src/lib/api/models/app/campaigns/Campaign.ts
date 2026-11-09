@@ -11,6 +11,8 @@ export default interface Campaign {
     kind: CampaignKind;
 
     userId: string;  // Campaign owner/creator ID
+    providerCampaignId?: string | null;
+    smartlead_id?: number | null;
 
     stop_on_reply: boolean;
     open_tracking: boolean;
