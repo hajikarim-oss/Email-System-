@@ -367,6 +367,7 @@ function smartleadApiPlugin() {
     function cleanCompanyName(nameOrDomain?: string): string {
         if (!nameOrDomain) return "TheBoredMonkey";
         let cleaned = nameOrDomain.trim();
+        if (cleaned.startsWith("@")) return cleaned;
         if (cleaned.includes("@")) {
             cleaned = cleaned.split("@")[1] || cleaned;
         }
@@ -805,8 +806,15 @@ function smartleadApiPlugin() {
                                 const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
                                 const jobTitle = l.title || l.role || l.custom_fields?.title || "Executive";
                                 const custom = (typeof l.customData === "object" && l.customData) ? l.customData : (l.custom_fields || {});
-                                const formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || l.intake_link || l.form_link || "";
+                                let formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || l.intake_link || l.form_link || "";
                                 const rawHandle = (custom.handle || (cName.startsWith("@") ? cName : "")).replace(/^@/, "");
+                                if (!formLink && rawHandle) {
+                                    const token = custom.intake_token || custom.intakeToken || l.id || rawHandle || l.email.split("@")[0];
+                                    formLink = `https://tbmoutreach.tech/creator/intake/${encodeURIComponent(token)}`;
+                                }
+                                if (formLink) {
+                                    formLink = String(formLink).replace(/^https?:\/\/(www\.)?(theboredmonkey\.com|app\.theboredmonkey\.com|localhost:\d+)/i, "https://tbmoutreach.tech");
+                                }
                                 return {
                                     email: l.email,
                                     first_name: fName,
@@ -2021,13 +2029,21 @@ function databaseIntelligencePlugin() {
                                     body_html: s.bodyTemplate || "",
                                     wait_after: s.delayDays ?? 0,
                                 })),
-                                leads: leads.map((l: any) => ({
-                                    email: l.email,
-                                    first_name: l.firstName || "",
-                                    last_name: l.lastName || "",
-                                    company: (l.customData as any)?.company || "",
-                                    title: (l.customData as any)?.title || "",
-                                })),
+                                leads: leads.map((l: any) => {
+                                    const cd = (typeof l.customData === "object" && l.customData) ? l.customData : {};
+                                    return {
+                                        id: l.id,
+                                        email: l.email,
+                                        first_name: l.firstName || cd.firstName || cd.first_name || "",
+                                        last_name: l.lastName || cd.lastName || cd.last_name || "",
+                                        company: cd.company || cd.company_name || "",
+                                        title: cd.title || cd.job_title || "",
+                                        form_link: cd.form_link || cd.intake_link || cd.IntakeFormUrl || "",
+                                        intake_link: cd.intake_link || cd.form_link || cd.IntakeFormUrl || "",
+                                        customData: cd,
+                                        custom_fields: cd,
+                                    };
+                                }),
                                 sender_email: senderEmail,
                                 mailbox_ids: mailboxIds,
                                 timezone: camp.sendTimezone || "Asia/Kolkata",
@@ -2063,11 +2079,23 @@ function databaseIntelligencePlugin() {
                                         providerCampaignId: String(syncRes.data.smartlead_id),
                                     },
                                 });
+                                await prismaQuery(
+                                    `UPDATE "CreatorCampaign"
+                                     SET "smartleadCampaignId" = $1, "status" = 'ACTIVE', "updatedAt" = NOW()
+                                     WHERE id = $2 OR lower(trim(name)) = lower(trim($3))`,
+                                    [Number(syncRes.data.smartlead_id) || null, camp.id, camp.name]
+                                ).catch(() => {});
                             } else {
                                 await prisma.campaign.update({
                                     where: { id: camp.id },
                                     data: { status: "ACTIVE" },
                                 });
+                                await prismaQuery(
+                                    `UPDATE "CreatorCampaign"
+                                     SET "status" = 'ACTIVE', "updatedAt" = NOW()
+                                     WHERE id = $1 OR lower(trim(name)) = lower(trim($2))`,
+                                    [camp.id, camp.name]
+                                ).catch(() => {});
                             }
 
                             res.writeHead(200, { "Content-Type": "application/json" });
@@ -2761,12 +2789,15 @@ function databaseIntelligencePlugin() {
 
                     // Creator campaigns (registered in CreatorCampaign) are hidden from outreach lists and
                     // returned only for `?scope=creator`, mirroring api/intelligence/campaigns.ts.
-                    const creatorLinks = await prismaQuery(`SELECT id, "smartleadCampaignId"::text AS sl FROM "CreatorCampaign"`).catch(() => []);
+                    const creatorLinks = await prismaQuery(`SELECT id, "smartleadCampaignId"::text AS sl, lower(trim(name)) AS name_key FROM "CreatorCampaign"`).catch(() => []);
                     const creatorIds = new Set<string>(creatorLinks.map((r: any) => String(r.id)));
                     const creatorSlIds = new Set<string>(creatorLinks.filter((r: any) => r.sl).map((r: any) => String(r.sl)));
+                    const creatorNames = new Set<string>(creatorLinks.filter((r: any) => r.name_key).map((r: any) => String(r.name_key)));
                     const wantCreator = new URL(req.url || "", "http://localhost").searchParams.get("scope") === "creator";
                     const isCreatorCamp = (c: any) =>
-                        creatorIds.has(String(c.id)) || (!!c.providerCampaignId && creatorSlIds.has(String(c.providerCampaignId)));
+                        creatorIds.has(String(c.id)) ||
+                        (!!c.providerCampaignId && creatorSlIds.has(String(c.providerCampaignId))) ||
+                        (!!c.name && creatorNames.has(String(c.name).trim().toLowerCase()));
 
                     const formatted = dbCampaigns.filter((c: any) => isCreatorCamp(c) === wantCreator).map((c: any) => {
                         const agg = aggMap.get(String(c.id)) || (c.providerCampaignId ? aggMap.get(String(c.providerCampaignId)) : null);

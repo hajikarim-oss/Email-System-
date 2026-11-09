@@ -150,7 +150,8 @@ export function CreatorCampaignTelemetryDialog({
                             const isCompleted = enr.status === "COMPLETED";
                             const isPartial = enr.status === "PARTIALLY_FILLED";
                             const isOpened = enr.status === "FORM_OPENED";
-                            const formLink = enr.formLink || `https://theboredmonkey.com/creator/intake/${enr.intakeToken || enr.handle}`;
+                            const rawFormLink = enr.formLink || `https://tbmoutreach.tech/creator/intake/${enr.intakeToken || enr.handle}`;
+                            const formLink = String(rawFormLink).replace(/^https?:\/\/(www\.)?(theboredmonkey\.com|app\.theboredmonkey\.com|localhost:\d+)/i, "https://tbmoutreach.tech");
 
                             return (
                                 <div

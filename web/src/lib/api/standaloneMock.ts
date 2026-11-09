@@ -500,6 +500,7 @@ async function loadStorageLazy<T>(key: string, pick: (core: any) => T): Promise<
 export function cleanCompanyName(nameOrDomain?: string): string {
     if (!nameOrDomain) return "TheBoredMonkey";
     let cleaned = nameOrDomain.trim();
+    if (cleaned.startsWith("@")) return cleaned;
     if (cleaned.includes("@")) {
         cleaned = cleaned.split("@")[1] || cleaned;
     }

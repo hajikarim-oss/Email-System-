@@ -567,7 +567,10 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                 if (draft.selectedContacts.length > 0) {
                     try {
                         const toAdd: AddContact[] = draft.selectedContacts.map((c) => {
-                            const cleanC = cleanCompanyName(c.company || "");
+                            const rawCompany = c.handle || c.company || "";
+                            const cleanC = rawCompany.startsWith("@") ? rawCompany : cleanCompanyName(rawCompany);
+                            const token = c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, "");
+                            const dedicatedLink = `https://tbmoutreach.tech/creator/intake/${encodeURIComponent(token)}`;
                             return {
                                 first_name: c.first_name || "",
                                 last_name: c.last_name || "",
@@ -582,9 +585,11 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                                     handle: c.handle || cleanC || "",
                                     category: c.category || c.role || "",
                                     followers: c.followers || "",
-                                    form_link: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
-                                    intake_link: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
-                                    IntakeFormUrl: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
+                                    form_link: dedicatedLink,
+                                    intake_link: dedicatedLink,
+                                    IntakeFormUrl: dedicatedLink,
+                                    link: dedicatedLink,
+                                    Link: dedicatedLink,
                                 } as Record<string, string>,
                                 source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
                             };
@@ -601,6 +606,9 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                                 status: "pending",
                                 campaign_id: created.id,
                                 campaigns: [created.id],
+                                custom_fields: c.custom_fields,
+                                form_link: (c.custom_fields as any)?.form_link,
+                                intake_link: (c.custom_fields as any)?.intake_link,
                                 campaign_lead: {
                                     status: "pending",
                                     sent: 0,
@@ -615,38 +623,40 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                             localStorage.setItem(`tbm_core_data_v5_campaign_leads_${created.id}`, JSON.stringify(leadsCache));
                         } catch {}
                         await addContactsMutation.mutateAsync(toAdd);
-
-                        // Register native CreatorCampaign & enrollments in PostgreSQL
-                        try {
-                            const creatorIds = draft.selectedContacts.map((c) => c.id).filter(Boolean);
-                            const firstSeq = draft.sequences?.[0];
-                            await fetch("/api/creators/campaigns", {
-                                method: "POST",
-                                headers: { ...authHeaders(), "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                    name: draft.name.trim(),
-                                    targetVertical: draft.selectedContacts?.[0]?.category || null,
-                                    subject: firstSeq?.subject || "Creator Collaboration Proposal",
-                                    bodyHtml: firstSeq?.body_html || firstSeq?.body_plain || "",
-                                    creatorIds,
-                                    smartleadCampaignId: created?.smartlead_id || (created?.providerCampaignId ? parseInt(created.providerCampaignId, 10) : null),
-                                }),
-                            });
-                        } catch (e) {
-                            console.warn("[NewCreatorCampaignDialog] Creator campaign registration warning:", e);
-                        }
                     } catch (cErr) {
                         console.warn("Could not auto-enrol contacts:", cErr);
                     }
                 }
 
+                // Always register native CreatorCampaign with matching Campaign.id in PostgreSQL
+                try {
+                    const creatorIds = draft.selectedContacts.map((c) => c.id).filter(Boolean);
+                    const firstSeq = draft.sequences?.[0];
+                    await fetch("/api/creators/campaigns", {
+                        method: "POST",
+                        headers: { ...authHeaders(), "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            id: created.id,
+                            status: startImmediately ? "ACTIVE" : "DRAFT",
+                            name: draft.name.trim(),
+                            targetVertical: draft.selectedContacts?.[0]?.category || null,
+                            subject: firstSeq?.subject || "Creator Collaboration Proposal",
+                            bodyHtml: firstSeq?.body_html || firstSeq?.body_plain || "",
+                            creatorIds,
+                            smartleadCampaignId: created?.smartlead_id || (created?.providerCampaignId ? parseInt(created.providerCampaignId, 10) : null),
+                        }),
+                    });
+                } catch (e) {
+                    console.warn("[NewCreatorCampaignDialog] Creator campaign registration warning:", e);
+                }
+
                 toast.success(draft.selectedContacts.length > 0
-                    ? `Creator campaign created with ${draft.selectedContacts.length} creator${draft.selectedContacts.length === 1 ? "" : "s"}.`
-                    : "Creator campaign created as draft.");
+                    ? `Creator campaign created with ${draft.selectedContacts.length} creator${draft.selectedContacts.length === 1 ? "" : "s"}. Start it from the campaign page.`
+                    : "Creator campaign created as draft. Start it from the campaign page.");
 
                 try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
                 onClose();
-                navigate("/app/creators/campaigns");
+                navigate(created?.id ? `/app/creators/campaigns/${created.id}` : "/app/creators/campaigns");
             } catch (err) {
                 toast.error(buildError(err as AppError));
             }
@@ -672,7 +682,10 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
             if (draft.selectedContacts.length > 0) {
                 try {
                     const toAdd: AddContact[] = draft.selectedContacts.map((c) => {
-                        const cleanC = cleanCompanyName(c.company || "");
+                        const rawCompany = c.handle || c.company || "";
+                        const cleanC = rawCompany.startsWith("@") ? rawCompany : cleanCompanyName(rawCompany);
+                        const token = c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, "");
+                        const dedicatedLink = `https://tbmoutreach.tech/creator/intake/${encodeURIComponent(token)}`;
                         return {
                             first_name: c.first_name || "",
                             last_name: c.last_name || "",
@@ -682,15 +695,17 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                             campaign_id: created.id,
                             campaigns: [created.id],
                             custom_fields: {
-                                    role: c.category || c.role || "",
-                                    company: c.handle || cleanC || "",
-                                    handle: c.handle || cleanC || "",
-                                    category: c.category || c.role || "",
-                                    followers: c.followers || "",
-                                    form_link: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
-                                    intake_link: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
-                                    IntakeFormUrl: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
-                                } as Record<string, string>,
+                                role: c.category || c.role || "",
+                                company: c.handle || cleanC || "",
+                                handle: c.handle || cleanC || "",
+                                category: c.category || c.role || "",
+                                followers: c.followers || "",
+                                form_link: dedicatedLink,
+                                intake_link: dedicatedLink,
+                                IntakeFormUrl: dedicatedLink,
+                                link: dedicatedLink,
+                                Link: dedicatedLink,
+                            } as Record<string, string>,
                             source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
                         };
                     });
@@ -706,6 +721,9 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                             status: "pending",
                             campaign_id: created.id,
                             campaigns: [created.id],
+                            custom_fields: c.custom_fields,
+                            form_link: (c.custom_fields as any)?.form_link,
+                            intake_link: (c.custom_fields as any)?.intake_link,
                             campaign_lead: {
                                 status: "pending",
                                 sent: 0,
@@ -725,6 +743,25 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                 }
             }
 
+            try {
+                const creatorIds = draft.selectedContacts.map((c) => c.id).filter(Boolean);
+                const firstSeq = draft.sequences?.[0];
+                await fetch("/api/creators/campaigns", {
+                    method: "POST",
+                    headers: { ...authHeaders(), "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: created.id,
+                        status: "ACTIVE",
+                        name: draft.name.trim(),
+                        targetVertical: draft.selectedContacts?.[0]?.category || null,
+                        subject: firstSeq?.subject || "Creator Collaboration Proposal",
+                        bodyHtml: firstSeq?.body_html || firstSeq?.body_plain || "",
+                        creatorIds,
+                        smartleadCampaignId: created?.smartlead_id || (created?.providerCampaignId ? parseInt(created.providerCampaignId, 10) : null),
+                    }),
+                });
+            } catch {}
+
             if (draft.segmentIds.length > 0) {
                 await linkSegments.mutateAsync({ campaignId: created.id, segmentIds: draft.segmentIds });
             }
@@ -732,7 +769,7 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
             toast.success(at ? `Scheduled for ${fmtDateTime(at)}.` : "Sending now.");
             try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
             onClose();
-            navigate("/app/creators/campaigns");
+            navigate(created?.id ? `/app/creators/campaigns/${created.id}` : "/app/creators/campaigns");
         } catch (err) {
             // Past the create call the campaign exists as a draft: say so and
             // hand over to the creator campaign page
@@ -740,7 +777,7 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
             if (createdID) {
                 toast.error(`${message} The email was saved as a draft; start it from its page.`);
                 onClose();
-                navigate("/app/creators/campaigns");
+                navigate(`/app/creators/campaigns/${createdID}`);
             } else {
                 toast.error(message);
             }
@@ -811,7 +848,10 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
             if (draft.selectedContacts.length > 0) {
                 try {
                     const toAdd: AddContact[] = draft.selectedContacts.map((c) => {
-                        const cleanC = cleanCompanyName(c.company || "");
+                        const rawCompany = c.handle || c.company || "";
+                        const cleanC = rawCompany.startsWith("@") ? rawCompany : cleanCompanyName(rawCompany);
+                        const token = c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, "");
+                        const dedicatedLink = `https://tbmoutreach.tech/creator/intake/${encodeURIComponent(token)}`;
                         return {
                             first_name: c.first_name || "",
                             last_name: c.last_name || "",
@@ -821,21 +861,42 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
                             campaign_id: created.id,
                             campaigns: [created.id],
                             custom_fields: {
-                                    role: c.category || c.role || "",
-                                    company: c.handle || cleanC || "",
-                                    handle: c.handle || cleanC || "",
-                                    category: c.category || c.role || "",
-                                    followers: c.followers || "",
-                                    form_link: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
-                                    intake_link: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
-                                    IntakeFormUrl: c.intake_link || `${typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com"}/creator/intake/${encodeURIComponent(c.intake_token || c.id || (c.handle || c.email.split("@")[0]).replace(/^@/, ""))}`,
-                                } as Record<string, string>,
+                                role: c.category || c.role || "",
+                                company: c.handle || cleanC || "",
+                                handle: c.handle || cleanC || "",
+                                category: c.category || c.role || "",
+                                followers: c.followers || "",
+                                form_link: dedicatedLink,
+                                intake_link: dedicatedLink,
+                                IntakeFormUrl: dedicatedLink,
+                                link: dedicatedLink,
+                                Link: dedicatedLink,
+                            } as Record<string, string>,
                             source: c.source === "database" ? ("campaign" as const) : ("manual" as const),
                         };
                     });
                     await addContactsMutation.mutateAsync(toAdd);
                 } catch {}
             }
+
+            try {
+                const creatorIds = draft.selectedContacts.map((c) => c.id).filter(Boolean);
+                const firstSeq = draft.sequences?.[0];
+                await fetch("/api/creators/campaigns", {
+                    method: "POST",
+                    headers: { ...authHeaders(), "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: created.id,
+                        status: "DRAFT",
+                        name: cleanName,
+                        targetVertical: draft.selectedContacts?.[0]?.category || null,
+                        subject: firstSeq?.subject || "Creator Collaboration Proposal",
+                        bodyHtml: firstSeq?.body_html || firstSeq?.body_plain || "",
+                        creatorIds,
+                        smartleadCampaignId: created?.smartlead_id || (created?.providerCampaignId ? parseInt(created.providerCampaignId, 10) : null),
+                    }),
+                });
+            } catch {}
 
             // 2. Dispatch actual test email and sequences
             await sendTestCampaign(created.id, [
@@ -850,7 +911,7 @@ export function NewCreatorCampaignDialog({ open, onClose }: Props) {
 
             try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
             onClose();
-            if (created?.id) navigate(`/app/campaigns/${created.id}`);
+            if (created?.id) navigate(`/app/creators/campaigns/${created.id}`);
         } catch (err: any) {
             console.error("Test campaign error:", err);
             toast.error(err?.message || "Failed to dispatch test campaign.");

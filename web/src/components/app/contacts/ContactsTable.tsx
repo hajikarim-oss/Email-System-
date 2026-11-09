@@ -1373,12 +1373,15 @@ function ContactsTableBody({
 
                         const cAny = c as any;
                         const customFields = (cAny.custom_fields || {}) as Record<string, string>;
-                        const leadFormLink = cAny.form_link || cAny.intake_link || customFields.form_link || customFields.intake_link || customFields.IntakeFormUrl || (() => {
+                        const rawLeadFormLink = cAny.form_link || cAny.intake_link || customFields.form_link || customFields.intake_link || customFields.IntakeFormUrl || (() => {
                             const rawH = (customFields.handle || (c.company?.startsWith("@") ? c.company : "")).replace(/^@/, "");
                             if (!rawH && !c.email) return "";
                             const token = customFields.intakeToken || customFields.intake_token || c.id || rawH || c.email.split("@")[0];
-                            return `${typeof window !== "undefined" ? window.location.origin : "https://tbmoutreach.tech"}/creator/intake/${encodeURIComponent(token)}`;
+                            return `https://tbmoutreach.tech/creator/intake/${encodeURIComponent(token)}`;
                         })();
+                        const leadFormLink = rawLeadFormLink
+                            ? String(rawLeadFormLink).replace(/^https?:\/\/(www\.)?(theboredmonkey\.com|app\.theboredmonkey\.com|localhost:\d+)/i, "https://tbmoutreach.tech")
+                            : "";
 
                         const filteredCategories = (c.categories || []).filter(cat =>
                             !cat.title?.toLowerCase().includes("contact") &&

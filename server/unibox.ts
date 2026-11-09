@@ -356,7 +356,7 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
                 const cr = crRows[0];
                 const cleanHandle = String(cr.handle || "").replace(/^@/, "");
                 const cEmail = cr.primaryEmail || `${cleanHandle}@instagram.creator`;
-                const formUrl = `https://theboredmonkey.com/creator/intake/${cr.intakeToken || cr.id}`;
+                const formUrl = `https://tbmoutreach.tech/creator/intake/${cr.intakeToken || cr.id}`;
                 const sentDate = cr.lastContactedAt || cr.createdAt || new Date(Date.now() - 86400000).toISOString();
                 const replyDate = cr.lastIntakeActivityAt || cr.updatedAt || new Date().toISOString();
                 const outSubj = `Collaboration Opportunity with The Bored Monkey x ${cr.fullName || `@${cleanHandle}`}`;

@@ -320,6 +320,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             } else {
                 await pgQuery(`UPDATE "Campaign" SET status = 'ACTIVE', "updatedAt" = NOW() WHERE id = $1`, [camp.id]);
             }
+            await pgQuery(
+                `UPDATE "CreatorCampaign"
+                 SET "smartleadCampaignId" = COALESCE($1, "smartleadCampaignId"), "status" = 'ACTIVE', "updatedAt" = NOW()
+                 WHERE id = $2 OR lower(trim(name)) = lower(trim($3))`,
+                [Number(smartleadId) || null, camp.id, camp.name]
+            ).catch(() => {});
 
             // 4. Ensure sequences are present in Smartlead
             const steps = await pgQuery<any>(
@@ -429,6 +435,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 if (!formLink && (isCreatorCampaign || matchedCreator || isHandleCompany || cleanHandle)) {
                     const token = matchedCreator?.intakeToken || custom.intake_token || custom.intakeToken || matchedCreator?.id || l.id || cleanHandle || emailLower.split("@")[0];
                     formLink = `${appOrigin}/creator/intake/${encodeURIComponent(token)}`;
+                }
+                if (formLink) {
+                    formLink = String(formLink).replace(/^https?:\/\/(www\.)?(theboredmonkey\.com|app\.theboredmonkey\.com|localhost:\d+)/i, "https://tbmoutreach.tech");
                 }
 
                 const customFields: Record<string, any> = {
@@ -1001,8 +1010,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         OR lower(c.name) LIKE '%troops%')
                        ${creatorClause} (
                            SELECT 1 FROM "CreatorCampaign" cc 
-                           WHERE cc."smartleadCampaignId"::text = c."providerCampaignId" 
+                           WHERE (c."providerCampaignId" IS NOT NULL AND cc."smartleadCampaignId"::text = c."providerCampaignId")
                               OR cc.id = c.id
+                              OR lower(trim(cc.name)) = lower(trim(c.name))
                        )
                      GROUP BY c.id
                      ORDER BY c."createdAt" DESC`
@@ -1018,8 +1028,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                        AND (c.name IS NULL OR lower(c.name) NOT LIKE '%troops%')
                        ${creatorClause} (
                            SELECT 1 FROM "CreatorCampaign" cc 
-                           WHERE cc."smartleadCampaignId"::text = c."providerCampaignId" 
+                           WHERE (c."providerCampaignId" IS NOT NULL AND cc."smartleadCampaignId"::text = c."providerCampaignId")
                               OR cc.id = c.id
+                              OR lower(trim(cc.name)) = lower(trim(c.name))
                        )
                      GROUP BY c.id
                      ORDER BY c."createdAt" DESC`
@@ -1035,8 +1046,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                  WHERE c."userId" = $1
                    ${creatorClause} (
                        SELECT 1 FROM "CreatorCampaign" cc 
-                       WHERE cc."smartleadCampaignId"::text = c."providerCampaignId" 
+                       WHERE (c."providerCampaignId" IS NOT NULL AND cc."smartleadCampaignId"::text = c."providerCampaignId")
                           OR cc.id = c.id
+                          OR lower(trim(cc.name)) = lower(trim(c.name))
                    )
                  GROUP BY c.id
                  ORDER BY c."createdAt" DESC`,

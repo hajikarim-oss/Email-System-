@@ -244,7 +244,38 @@ export async function getCreatorByIntakeToken(query: QueryFn = pgQuery, token: s
         LIMIT 1
     `, [token]);
 
-    const creator = rows?.[0] || null;
+    let creator = rows?.[0] || null;
+    if (!creator) {
+        // Fallback: check Lead table for CSV/manual creator leads enrolled in a campaign
+        const leadRows = await query<any>(`
+            SELECT id, email, "firstName", "lastName", "customData"
+            FROM "Lead"
+            WHERE id = $1
+               OR ("customData"->>'intake_token') = $1
+               OR ("customData"->>'intakeToken') = $1
+               OR lower(replace(COALESCE("customData"->>'handle', "customData"->>'company', ''), '@', '')) = lower(replace($1, '@', ''))
+            LIMIT 1
+        `, [token]).catch(() => []);
+        const lead = leadRows?.[0];
+        if (lead) {
+            const custom = (typeof lead.customData === "object" && lead.customData) ? lead.customData : {};
+            const rawHandle = String(custom.handle || (String(custom.company || "").startsWith("@") ? custom.company : "") || token).replace(/^@/, "").trim();
+            const fullName = `${lead.firstName || ""} ${lead.lastName || ""}`.trim() || rawHandle;
+            creator = {
+                id: lead.id,
+                handle: rawHandle,
+                platform: "instagram",
+                fullName,
+                primaryEmail: lead.email,
+                category: custom.category || "Creator",
+                followersRaw: custom.followers || "",
+                profileUrl: custom.profile_url || `https://www.instagram.com/${rawHandle}/`,
+                intakeToken: token,
+                intakeStatus: "FORM_OPENED",
+                intakeCompletionPct: 50,
+            };
+        }
+    }
     if (creator) {
         // Real-time link open telemetry: mark as FORM_OPENED if not yet filled
         const needsOpenedUpdate = creator.intakeStatus === "SCRAPED_BASELINE" || creator.intakeStatus === "INVITATION_SENT";

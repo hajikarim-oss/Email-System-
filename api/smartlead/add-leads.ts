@@ -53,6 +53,7 @@ function apiCall(endpoint: string, method: string = "GET", body?: any, customKey
 function cleanCompanyName(nameOrDomain?: string): string {
     if (!nameOrDomain) return "Enterprise Client";
     let cleaned = nameOrDomain.trim();
+    if (cleaned.startsWith("@")) return cleaned;
     if (cleaned.includes("@")) {
         cleaned = cleaned.split("@")[1] || cleaned;
     }
@@ -130,7 +131,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     const cName = cleanCompanyName(l.company || l.company_name || l.custom_fields?.company);
                     const jobTitle = l.title || l.role || l.custom_fields?.title || "Decision Maker";
                     const custom = (typeof l.customData === "object" && l.customData) ? l.customData : (l.custom_fields || {});
-                    const formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || l.intake_link || l.form_link || "";
+                    let formLink = custom.form_link || custom.intake_link || custom.IntakeFormUrl || l.intake_link || l.form_link || "";
+                    if (formLink) {
+                        formLink = String(formLink).replace(/^https?:\/\/(www\.)?(theboredmonkey\.com|app\.theboredmonkey\.com|localhost:\d+)/i, "https://tbmoutreach.tech");
+                    }
                     return {
                         email: l.email.trim(),
                         first_name: fName.trim(),

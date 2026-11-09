@@ -51,12 +51,15 @@ export default function OverviewTab({
     const removeSuppression = useRemoveSuppression();
     const [copiedForm, setCopiedForm] = React.useState(false);
 
-    const formLink = contact.custom_fields?.form_link || contact.custom_fields?.intake_link || contact.custom_fields?.IntakeFormUrl || contact.form_link || contact.intake_link || (() => {
+    const rawFormLink = contact.custom_fields?.form_link || contact.custom_fields?.intake_link || contact.custom_fields?.IntakeFormUrl || contact.form_link || contact.intake_link || (() => {
         const rawH = (contact.custom_fields?.handle || (contact.company?.startsWith("@") ? contact.company : "")).replace(/^@/, "");
         if (!rawH && !contact.email) return "";
         const token = contact.custom_fields?.intakeToken || contact.custom_fields?.intake_token || contact.id || rawH || contact.email.split("@")[0];
-        return `${typeof window !== "undefined" ? window.location.origin : "https://tbmoutreach.tech"}/creator/intake/${encodeURIComponent(token)}`;
+        return `https://tbmoutreach.tech/creator/intake/${encodeURIComponent(token)}`;
     })();
+    const formLink = rawFormLink
+        ? String(rawFormLink).replace(/^https?:\/\/(www\.)?(theboredmonkey\.com|app\.theboredmonkey\.com|localhost:\d+)/i, "https://tbmoutreach.tech")
+        : "";
 
     function copyForm() {
         if (!formLink) return;

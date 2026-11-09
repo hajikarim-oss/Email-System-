@@ -354,7 +354,10 @@ export default function CreatorCampaignsPage() {
 
     const statsFor = (c: Campaign) =>
         creatorStats.find(
-            (s: any) => s.id === c.id || (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId)),
+            (s: any) =>
+                s.id === c.id ||
+                (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId)) ||
+                (c.name && s.name && String(s.name).trim().toLowerCase() === String(c.name).trim().toLowerCase()),
         );
     const nativeCampaigns = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -362,7 +365,10 @@ export default function CreatorCampaignsPage() {
             .filter(
                 (s: any) =>
                     !campaigns.some(
-                        (c) => c.id === s.id || (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId)),
+                        (c) =>
+                            c.id === s.id ||
+                            (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId)) ||
+                            (c.name && s.name && String(s.name).trim().toLowerCase() === String(c.name).trim().toLowerCase()),
                     ),
             )
             .filter((s: any) => (!q || (s.name || "").toLowerCase().includes(q)) && (status === "all" || statusBucket(String(s.status || "").toLowerCase()) === status));
@@ -441,7 +447,13 @@ export default function CreatorCampaignsPage() {
             stats[statusBucket(c.status)]++;
         }
         for (const s of creatorStats.filter(
-            (s: any) => !campaigns.some((c) => c.id === s.id || (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId))),
+            (s: any) =>
+                !campaigns.some(
+                    (c) =>
+                        c.id === s.id ||
+                        (c.providerCampaignId && String(s.smartleadCampaignId ?? "") === String(c.providerCampaignId)) ||
+                        (c.name && s.name && String(s.name).trim().toLowerCase() === String(c.name).trim().toLowerCase()),
+                ),
         )) {
             stats.total++;
             stats[statusBucket(String(s.status || "").toLowerCase())]++;
@@ -847,9 +859,9 @@ export default function CreatorCampaignsPage() {
                             const nstatus = String(s.status || "draft").toLowerCase();
                             const NIcon = nstatus === "active" ? PauseIcon : PlayIcon;
                             return (
-                                <div
+                                <Link
                                     key={s.id}
-                                    onClick={() => setTelemetryCampaign({ id: s.id, name: s.name })}
+                                    to={`/app/creators/campaigns/${s.id}`}
                                     className="group h-11 px-5 flex items-center gap-3 hover:bg-slate-50 transition-colors cursor-pointer"
                                 >
                                     <span className="shrink-0 w-3.5 flex items-center justify-center">
@@ -860,7 +872,7 @@ export default function CreatorCampaignsPage() {
                                         className="font-mono text-[10.5px] text-slate-500 tabular-nums shrink-0 hidden sm:inline bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80"
                                         title={`Full ID: ${s.id}`}
                                     >
-                                        #{String(s.id).slice(-6)}
+                                        {s.smartleadCampaignId ? `#${s.smartleadCampaignId}` : `#${String(s.id).slice(-6)}`}
                                     </span>
                                     <span className="hidden md:inline-flex items-center gap-1.5 font-mono text-[10.5px] tabular-nums shrink-0 text-slate-500">
                                         <span>{s.sentCount ?? 0} dispatched</span>
@@ -878,6 +890,7 @@ export default function CreatorCampaignsPage() {
                                     <button
                                         type="button"
                                         onClick={(e) => {
+                                            e.preventDefault();
                                             e.stopPropagation();
                                             toggleNative(s);
                                         }}
@@ -890,6 +903,7 @@ export default function CreatorCampaignsPage() {
                                     <button
                                         type="button"
                                         onClick={(e) => {
+                                            e.preventDefault();
                                             e.stopPropagation();
                                             deleteNative(s);
                                         }}
@@ -899,7 +913,7 @@ export default function CreatorCampaignsPage() {
                                     >
                                         <Trash2Icon className="w-3.5 h-3.5" />
                                     </button>
-                                </div>
+                                </Link>
                             );
                         })}
                     </div>

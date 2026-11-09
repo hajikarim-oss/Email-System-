@@ -108,6 +108,7 @@ function detectSpamTriggers(text: string): string[] {
 function cleanCompanyName(nameOrDomain?: string): string {
     if (!nameOrDomain) return "TheBoredMonkey";
     let cleaned = nameOrDomain.trim();
+    if (cleaned.startsWith("@")) return cleaned;
     if (cleaned.includes("@")) {
         cleaned = cleaned.split("@")[1] || cleaned;
     }
@@ -505,6 +506,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         const token = custom.intake_token || custom.intakeToken || l.id || rawHandle || l.email.split("@")[0];
                         formLink = `${appOrigin}/creator/intake/${encodeURIComponent(token)}`;
                     }
+                    if (formLink) {
+                        formLink = String(formLink).replace(/^https?:\/\/(www\.)?(theboredmonkey\.com|app\.theboredmonkey\.com|localhost:\d+)/i, "https://tbmoutreach.tech");
+                    }
 
                     return {
                         email: l.email,
@@ -630,6 +634,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     dbCampaignId = insertRes?.[0]?.id || null;
                 }
                 console.log(`[Smartlead Sync] Campaign saved to database: ${dbCampaignId}`);
+                if (dbCampaignId) {
+                    await pgQuery(
+                        `UPDATE "CreatorCampaign"
+                         SET "smartleadCampaignId" = $1, "status" = $2, "updatedAt" = NOW()
+                         WHERE id = $3 OR lower(trim(name)) = lower(trim($4))`,
+                        [Number(smartleadId) || null, targetDbStatus, dbCampaignId, campaignName]
+                    ).catch(() => {});
+                }
             } catch (dbErr: any) {
                 console.error("[Smartlead Sync] Database persistence warning:", dbErr.message);
             }

@@ -376,7 +376,7 @@ export function CreatorsStep({ selectedContacts, onChangeSelected }: CreatorsSte
     };
 
     const creatorToDraft = (c: NormalizedCreator): CreatorDraftItem => {
-        const origin = typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com";
+        const origin = "https://tbmoutreach.tech";
         const intakeLink = `${origin}/creator/intake/${c.intake_token || c.id}`;
         return {
             id: c.id,
@@ -654,7 +654,7 @@ export function CreatorsStep({ selectedContacts, onChangeSelected }: CreatorsSte
                     setChecking(false);
                 } else {
                     setCsvError("");
-                    const origin = typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com";
+                    const origin = "https://tbmoutreach.tech";
                     const toAdd: CreatorDraftItem[] = parsed.map(row => ({
                         email: row.email,
                         first_name: row.first_name || "",
@@ -685,7 +685,7 @@ export function CreatorsStep({ selectedContacts, onChangeSelected }: CreatorsSte
         if (field === "email") {
             if (value && nextRows.length > 0) {
                 setCsvError("");
-                const origin = typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com";
+                const origin = "https://tbmoutreach.tech";
                 const toAdd: CreatorDraftItem[] = nextRows.map(r => ({
                     email: r.email,
                     first_name: r.first_name || "",
@@ -706,7 +706,7 @@ export function CreatorsStep({ selectedContacts, onChangeSelected }: CreatorsSte
 
     const crossCheckCsv = () => {
         if (!csvRows.length) return;
-        const origin = typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com";
+        const origin = "https://tbmoutreach.tech";
         const toAdd: CreatorDraftItem[] = csvRows.map(r => ({
             email: r.email,
             first_name: r.first_name || "",
@@ -732,7 +732,7 @@ export function CreatorsStep({ selectedContacts, onChangeSelected }: CreatorsSte
         const em = mEmail.trim();
         if (!em || !em.includes("@")) { toast.error("Valid email required"); return; }
         if (isSel(em)) { toast.error("Already queued"); return; }
-        const origin = typeof window !== "undefined" ? window.location.origin : "https://app.theboredmonkey.com";
+        const origin = "https://tbmoutreach.tech";
         const cleanHandle = mHandle.trim().replace(/^@/, "");
         const token = cleanHandle || em.split("@")[0];
         setMEmail(""); setMFirst(""); setMLast(""); setMHandle(""); setMCategory("");

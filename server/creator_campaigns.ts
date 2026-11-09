@@ -105,29 +105,41 @@ export async function getCreatorCampaignById(query: QueryFn = pgQuery, campaignI
 }
 
 export async function createCreatorCampaign(query: QueryFn = pgQuery, data: {
+    id?: string;
     workspaceId?: string;
     name: string;
+    status?: string;
     targetVertical?: string;
     targetTiers?: string[];
     templateId?: string;
     subject?: string;
     bodyHtml?: string;
     creatorIds?: string[];
+    smartleadCampaignId?: number | null;
 }) {
-    const id = `cc_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+    const id = data.id || `cc_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
     const ws = data.workspaceId || "org_troops_outreach";
     const name = data.name.trim();
+    const status = (data.status || "DRAFT").toUpperCase();
     const subject = data.subject || "Collaboration with The Bored Monkey";
     const bodyHtml = data.bodyHtml || "Hi {{firstName}}, we would love to collaborate! Fill in your profile here: {{form_link}}";
     const targetVertical = data.targetVertical || null;
     const targetTiers = data.targetTiers || [];
+    const smartleadId = data.smartleadCampaignId ? Number(data.smartleadCampaignId) : null;
 
     await query(`
         INSERT INTO "CreatorCampaign" (
             "id", "workspaceId", "name", "status", "targetVertical", "targetTiers",
-            "templateId", "subject", "bodyHtml", "startedAt", "createdAt", "updatedAt"
-        ) VALUES ($1, $2, $3, 'ACTIVE', $4, $5, $6, $7, $8, NOW(), NOW(), NOW())
-    `, [id, ws, name, targetVertical, targetTiers, data.templateId || null, subject, bodyHtml]);
+            "templateId", "subject", "bodyHtml", "smartleadCampaignId", "startedAt", "createdAt", "updatedAt"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW(), NOW())
+        ON CONFLICT ("id") DO UPDATE SET
+            "name" = EXCLUDED."name",
+            "status" = EXCLUDED."status",
+            "subject" = EXCLUDED."subject",
+            "bodyHtml" = EXCLUDED."bodyHtml",
+            "smartleadCampaignId" = COALESCE(EXCLUDED."smartleadCampaignId", "CreatorCampaign"."smartleadCampaignId"),
+            "updatedAt" = NOW()
+    `, [id, ws, name, status, targetVertical, targetTiers, data.templateId || null, subject, bodyHtml, smartleadId]);
 
     // Batch enroll creators directly in SQL for instant sub-second execution
     if (Array.isArray(data.creatorIds) && data.creatorIds.length > 0) {
@@ -145,7 +157,7 @@ export async function createCreatorCampaign(query: QueryFn = pgQuery, data: {
                 cr."primaryEmail",
                 cr."handle",
                 COALESCE(cr."intakeToken", cr."handle"),
-                'https://theboredmonkey.com/creator/intake/' || COALESCE(cr."intakeToken", cr."handle"),
+                'https://tbmoutreach.tech/creator/intake/' || COALESCE(cr."intakeToken", cr."handle"),
                 'INVITATION_SENT',
                 45,
                 NOW(),
@@ -181,7 +193,7 @@ export async function createCreatorCampaign(query: QueryFn = pgQuery, data: {
                 cr."primaryEmail",
                 cr."handle",
                 COALESCE(cr."intakeToken", cr."handle"),
-                'https://theboredmonkey.com/creator/intake/' || COALESCE(cr."intakeToken", cr."handle"),
+                'https://tbmoutreach.tech/creator/intake/' || COALESCE(cr."intakeToken", cr."handle"),
                 'INVITATION_SENT',
                 45,
                 NOW(),
@@ -239,6 +251,10 @@ export async function updateCreatorCampaign(query: QueryFn = pgQuery, campaignId
     if (updates.bodyHtml !== undefined) {
         sets.push(`"bodyHtml" = $${idx++}`);
         vals.push(updates.bodyHtml);
+    }
+    if (updates.smartleadCampaignId !== undefined) {
+        sets.push(`"smartleadCampaignId" = $${idx++}`);
+        vals.push(updates.smartleadCampaignId);
     }
 
     if (sets.length === 0) return null;
