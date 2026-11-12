@@ -1,0 +1,759 @@
+{
+  "version": "1.0.0",
+  "description": "Deterministic Enterprise & Large Brand domain list for Brand.tier = LARGE classification. Seeded with the top 100 workspace Brand domains by totalContacts plus known India & global enterprise brands.",
+  "top100WorkspaceBrandDomainsByContacts": [
+    {
+      "domain": "ril.com",
+      "name": "Ril",
+      "totalContacts": 265
+    },
+    {
+      "domain": "unilever.com",
+      "name": "Unilever",
+      "totalContacts": 175
+    },
+    {
+      "domain": "eurekaforbes.com",
+      "name": "Eurekaforbes",
+      "totalContacts": 159
+    },
+    {
+      "domain": "monsterenergy.com",
+      "name": "Monsterenergy",
+      "totalContacts": 127
+    },
+    {
+      "domain": "loreal.com",
+      "name": "Loreal",
+      "totalContacts": 126
+    },
+    {
+      "domain": "wella.com",
+      "name": "Wella",
+      "totalContacts": 115
+    },
+    {
+      "domain": "samsung.com",
+      "name": "Samsung",
+      "totalContacts": 112
+    },
+    {
+      "domain": "havells.com",
+      "name": "Havells",
+      "totalContacts": 107
+    },
+    {
+      "domain": "clorox.com",
+      "name": "Clorox",
+      "totalContacts": 100
+    },
+    {
+      "domain": "nykaa.com",
+      "name": "Nykaa",
+      "totalContacts": 95
+    },
+    {
+      "domain": "cbrands.com",
+      "name": "Cbrands",
+      "totalContacts": 80
+    },
+    {
+      "domain": "pg.com",
+      "name": "Pg",
+      "totalContacts": 78
+    },
+    {
+      "domain": "amazon.com",
+      "name": "Amazon",
+      "totalContacts": 76
+    },
+    {
+      "domain": "flipkart.com",
+      "name": "Flipkart",
+      "totalContacts": 73
+    },
+    {
+      "domain": "foreverliving.com",
+      "name": "Foreverliving",
+      "totalContacts": 73
+    },
+    {
+      "domain": "philips.com",
+      "name": "Philips",
+      "totalContacts": 69
+    },
+    {
+      "domain": "compass-usa.com",
+      "name": "Compass-usa",
+      "totalContacts": 66
+    },
+    {
+      "domain": "arvind.in",
+      "name": "Arvind",
+      "totalContacts": 65
+    },
+    {
+      "domain": "paytm.com",
+      "name": "Paytm",
+      "totalContacts": 62
+    },
+    {
+      "domain": "titan.co.in",
+      "name": "Titan",
+      "totalContacts": 60
+    },
+    {
+      "domain": "bajajfinserv.in",
+      "name": "Bajajfinserv",
+      "totalContacts": 59
+    },
+    {
+      "domain": "sharkninja.com",
+      "name": "Sharkninja",
+      "totalContacts": 56
+    },
+    {
+      "domain": "garmin.com",
+      "name": "Garmin",
+      "totalContacts": 52
+    },
+    {
+      "domain": "lge.com",
+      "name": "Lge",
+      "totalContacts": 52
+    },
+    {
+      "domain": "servpro.com",
+      "name": "Servpro",
+      "totalContacts": 51
+    },
+    {
+      "domain": "uscellular.com",
+      "name": "Uscellular",
+      "totalContacts": 48
+    },
+    {
+      "domain": "heart.org",
+      "name": "Heart",
+      "totalContacts": 47
+    },
+    {
+      "domain": "rbi.com",
+      "name": "Rbi",
+      "totalContacts": 47
+    },
+    {
+      "domain": "dsgroup.com",
+      "name": "Dsgroup",
+      "totalContacts": 44
+    },
+    {
+      "domain": "shahi.co.in",
+      "name": "Shahi",
+      "totalContacts": 44
+    },
+    {
+      "domain": "jdecoffee.com",
+      "name": "Jdecoffee",
+      "totalContacts": 42
+    },
+    {
+      "domain": "myntra.com",
+      "name": "Myntra",
+      "totalContacts": 41
+    },
+    {
+      "domain": "cartier.com",
+      "name": "Cartier",
+      "totalContacts": 40
+    },
+    {
+      "domain": "cipla.com",
+      "name": "Cipla",
+      "totalContacts": 38
+    },
+    {
+      "domain": "doterra.com",
+      "name": "Doterra",
+      "totalContacts": 38
+    },
+    {
+      "domain": "conagra.com",
+      "name": "Conagra",
+      "totalContacts": 37
+    },
+    {
+      "domain": "emamigroup.com",
+      "name": "Emamigroup",
+      "totalContacts": 37
+    },
+    {
+      "domain": "revlon.com",
+      "name": "Revlon",
+      "totalContacts": 35
+    },
+    {
+      "domain": "dabur.com",
+      "name": "Dabur",
+      "totalContacts": 34
+    },
+    {
+      "domain": "mccain.com",
+      "name": "Mccain",
+      "totalContacts": 34
+    },
+    {
+      "domain": "vfc.com",
+      "name": "Vfc",
+      "totalContacts": 34
+    },
+    {
+      "domain": "caratlane.com",
+      "name": "Caratlane",
+      "totalContacts": 33
+    },
+    {
+      "domain": "benefitcosmetics.com",
+      "name": "Benefitcosmetics",
+      "totalContacts": 32
+    },
+    {
+      "domain": "indiamart.com",
+      "name": "Indiamart",
+      "totalContacts": 32
+    },
+    {
+      "domain": "lotusherbals.com",
+      "name": "Lotusherbals",
+      "totalContacts": 32
+    },
+    {
+      "domain": "loccitane.com",
+      "name": "Loccitane",
+      "totalContacts": 31
+    },
+    {
+      "domain": "mamaearth.in",
+      "name": "Mamaearth",
+      "totalContacts": 30
+    },
+    {
+      "domain": "pernod-ricard.com",
+      "name": "Pernod-ricard",
+      "totalContacts": 30
+    },
+    {
+      "domain": "swarovski.com",
+      "name": "Swarovski",
+      "totalContacts": 30
+    },
+    {
+      "domain": "teladochealth.com",
+      "name": "Teladochealth",
+      "totalContacts": 30
+    },
+    {
+      "domain": "bluestarindia.com",
+      "name": "Bluestarindia",
+      "totalContacts": 29
+    },
+    {
+      "domain": "mcarthurglen.com",
+      "name": "Mcarthurglen",
+      "totalContacts": 28
+    },
+    {
+      "domain": "mytheresa.com",
+      "name": "Mytheresa",
+      "totalContacts": 28
+    },
+    {
+      "domain": "onepeloton.com",
+      "name": "Onepeloton",
+      "totalContacts": 28
+    },
+    {
+      "domain": "xiaomi.com",
+      "name": "Xiaomi",
+      "totalContacts": 28
+    },
+    {
+      "domain": "bose.com",
+      "name": "Bose",
+      "totalContacts": 27
+    },
+    {
+      "domain": "poshmark.com",
+      "name": "Poshmark",
+      "totalContacts": 27
+    },
+    {
+      "domain": "safeshopindia.com",
+      "name": "Safeshopindia",
+      "totalContacts": 27
+    },
+    {
+      "domain": "clubmahindra.com",
+      "name": "Clubmahindra",
+      "totalContacts": 26
+    },
+    {
+      "domain": "deckers.com",
+      "name": "Deckers",
+      "totalContacts": 26
+    },
+    {
+      "domain": "schwans.com",
+      "name": "Schwans",
+      "totalContacts": 26
+    },
+    {
+      "domain": "adityabirlacapital.com",
+      "name": "Adityabirlacapital",
+      "totalContacts": 25
+    },
+    {
+      "domain": "itc.in",
+      "name": "Itc",
+      "totalContacts": 25
+    },
+    {
+      "domain": "marriott.com",
+      "name": "Marriott",
+      "totalContacts": 25
+    },
+    {
+      "domain": "nuskin.com",
+      "name": "Nuskin",
+      "totalContacts": 25
+    },
+    {
+      "domain": "amway.com",
+      "name": "Amway",
+      "totalContacts": 24
+    },
+    {
+      "domain": "atomberg.com",
+      "name": "Atomberg",
+      "totalContacts": 24
+    },
+    {
+      "domain": "cricut.com",
+      "name": "Cricut",
+      "totalContacts": 24
+    },
+    {
+      "domain": "orra.co.in",
+      "name": "Orra",
+      "totalContacts": 24
+    },
+    {
+      "domain": "alza.cz",
+      "name": "Alza",
+      "totalContacts": 23
+    },
+    {
+      "domain": "foxtale.in",
+      "name": "Foxtale",
+      "totalContacts": 23
+    },
+    {
+      "domain": "headspace.com",
+      "name": "Headspace",
+      "totalContacts": 23
+    },
+    {
+      "domain": "kilo.health",
+      "name": "Kilo",
+      "totalContacts": 23
+    },
+    {
+      "domain": "oakley.com",
+      "name": "Oakley",
+      "totalContacts": 23
+    },
+    {
+      "domain": "abfrl.adityabirla.com",
+      "name": "Abfrl",
+      "totalContacts": 22
+    },
+    {
+      "domain": "croma.com",
+      "name": "Croma",
+      "totalContacts": 22
+    },
+    {
+      "domain": "irobot.com",
+      "name": "Irobot",
+      "totalContacts": 22
+    },
+    {
+      "domain": "marchon.com",
+      "name": "Marchon",
+      "totalContacts": 22
+    },
+    {
+      "domain": "myvestige.com",
+      "name": "Myvestige",
+      "totalContacts": 22
+    },
+    {
+      "domain": "tweglobal.com",
+      "name": "Tweglobal",
+      "totalContacts": 22
+    },
+    {
+      "domain": "boat-lifestyle.com",
+      "name": "Boat-lifestyle",
+      "totalContacts": 21
+    },
+    {
+      "domain": "creditkarma.com",
+      "name": "Creditkarma",
+      "totalContacts": 21
+    },
+    {
+      "domain": "kissusa.com",
+      "name": "Kissusa",
+      "totalContacts": 21
+    },
+    {
+      "domain": "landmarkgroup.in",
+      "name": "Landmarkgroup",
+      "totalContacts": 21
+    },
+    {
+      "domain": "att.com",
+      "name": "Att",
+      "totalContacts": 20
+    },
+    {
+      "domain": "crocs.com",
+      "name": "Crocs",
+      "totalContacts": 20
+    },
+    {
+      "domain": "esprit.com",
+      "name": "Esprit",
+      "totalContacts": 20
+    },
+    {
+      "domain": "homeserveusa.com",
+      "name": "Homeserveusa",
+      "totalContacts": 20
+    },
+    {
+      "domain": "hyatt.com",
+      "name": "Hyatt",
+      "totalContacts": 20
+    },
+    {
+      "domain": "jazwares.com",
+      "name": "Jazwares",
+      "totalContacts": 20
+    },
+    {
+      "domain": "kendrascott.com",
+      "name": "Kendrascott",
+      "totalContacts": 20
+    },
+    {
+      "domain": "nrg.com",
+      "name": "Nrg",
+      "totalContacts": 20
+    },
+    {
+      "domain": "policybazaar.com",
+      "name": "Policybazaar",
+      "totalContacts": 20
+    },
+    {
+      "domain": "prakashchemicals.com",
+      "name": "Prakashchemicals",
+      "totalContacts": 20
+    },
+    {
+      "domain": "razer.com",
+      "name": "Razer",
+      "totalContacts": 20
+    },
+    {
+      "domain": "converse.com",
+      "name": "Converse",
+      "totalContacts": 19
+    },
+    {
+      "domain": "drmartens.com",
+      "name": "Drmartens",
+      "totalContacts": 19
+    },
+    {
+      "domain": "kapiva.in",
+      "name": "Kapiva",
+      "totalContacts": 19
+    },
+    {
+      "domain": "lionco.com",
+      "name": "Lionco",
+      "totalContacts": 19
+    },
+    {
+      "domain": "mdlz.com",
+      "name": "Mdlz",
+      "totalContacts": 19
+    }
+  ],
+  "domains": [
+    "ril.com",
+    "unilever.com",
+    "eurekaforbes.com",
+    "monsterenergy.com",
+    "loreal.com",
+    "wella.com",
+    "samsung.com",
+    "havells.com",
+    "clorox.com",
+    "nykaa.com",
+    "cbrands.com",
+    "pg.com",
+    "amazon.com",
+    "flipkart.com",
+    "foreverliving.com",
+    "philips.com",
+    "compass-usa.com",
+    "arvind.in",
+    "paytm.com",
+    "titan.co.in",
+    "bajajfinserv.in",
+    "sharkninja.com",
+    "garmin.com",
+    "lge.com",
+    "servpro.com",
+    "uscellular.com",
+    "heart.org",
+    "rbi.com",
+    "dsgroup.com",
+    "shahi.co.in",
+    "jdecoffee.com",
+    "myntra.com",
+    "cartier.com",
+    "cipla.com",
+    "doterra.com",
+    "conagra.com",
+    "emamigroup.com",
+    "revlon.com",
+    "dabur.com",
+    "mccain.com",
+    "vfc.com",
+    "caratlane.com",
+    "benefitcosmetics.com",
+    "indiamart.com",
+    "lotusherbals.com",
+    "loccitane.com",
+    "mamaearth.in",
+    "pernod-ricard.com",
+    "swarovski.com",
+    "teladochealth.com",
+    "bluestarindia.com",
+    "mcarthurglen.com",
+    "mytheresa.com",
+    "onepeloton.com",
+    "xiaomi.com",
+    "bose.com",
+    "poshmark.com",
+    "safeshopindia.com",
+    "clubmahindra.com",
+    "deckers.com",
+    "schwans.com",
+    "adityabirlacapital.com",
+    "itc.in",
+    "marriott.com",
+    "nuskin.com",
+    "amway.com",
+    "atomberg.com",
+    "cricut.com",
+    "orra.co.in",
+    "alza.cz",
+    "foxtale.in",
+    "headspace.com",
+    "kilo.health",
+    "oakley.com",
+    "abfrl.adityabirla.com",
+    "croma.com",
+    "irobot.com",
+    "marchon.com",
+    "myvestige.com",
+    "tweglobal.com",
+    "boat-lifestyle.com",
+    "creditkarma.com",
+    "kissusa.com",
+    "landmarkgroup.in",
+    "att.com",
+    "crocs.com",
+    "esprit.com",
+    "homeserveusa.com",
+    "hyatt.com",
+    "jazwares.com",
+    "kendrascott.com",
+    "nrg.com",
+    "policybazaar.com",
+    "prakashchemicals.com",
+    "razer.com",
+    "converse.com",
+    "drmartens.com",
+    "kapiva.in",
+    "lionco.com",
+    "mdlz.com",
+    "hul.co.in",
+    "itcportal.com",
+    "marico.com",
+    "godrejcp.com",
+    "nestle.com",
+    "in.nestle.com",
+    "britannia.co.in",
+    "parleproducts.com",
+    "amul.coop",
+    "haldirams.com",
+    "pepsico.com",
+    "coca-colacompany.com",
+    "asianpaints.com",
+    "pidilite.com",
+    "bergerpaints.com",
+    "tata.com",
+    "tatamotors.com",
+    "tatasteel.com",
+    "mahindra.com",
+    "maruti.co.in",
+    "heromotocorp.com",
+    "bajajauto.co.in",
+    "tvsmotor.com",
+    "royalenfield.com",
+    "airtel.com",
+    "jio.com",
+    "vodafoneidea.com",
+    "hdfcbank.com",
+    "icicibank.com",
+    "axisbank.com",
+    "sbi.co.in",
+    "kotak.com",
+    "zomato.com",
+    "swiggy.in",
+    "zeptonow.com",
+    "blinkit.com",
+    "bigbasket.com",
+    "meesho.com",
+    "ajio.com",
+    "tatacliq.com",
+    "jiomart.com",
+    "nykaafashion.com",
+    "purplle.com",
+    "honasa.in",
+    "sugarcosmetics.com",
+    "lenskart.com",
+    "wakefit.co",
+    "urbancompany.com",
+    "olaelectric.com",
+    "olacabs.com",
+    "makemytrip.com",
+    "goibibo.com",
+    "cleartrip.com",
+    "oyo.com",
+    "byjus.com",
+    "unacademy.com",
+    "upgrad.com",
+    "physicswallah.live",
+    "cred.club",
+    "phonepe.com",
+    "razorpay.com",
+    "groww.in",
+    "zerodha.com",
+    "upstox.com",
+    "pine-labs.com",
+    "bharatpe.com",
+    "delhivery.com",
+    "shadowfax.in",
+    "shiprocket.com",
+    "cars24.com",
+    "spinny.com",
+    "cardekho.com",
+    "firstcry.com",
+    "licious.in",
+    "countrydelight.in",
+    "rebel-foods.com",
+    "curefit.com",
+    "cult.fit",
+    "healthkart.com",
+    "pharmeasy.in",
+    "1mg.com",
+    "netmeds.com",
+    "apollohospitals.com",
+    "maxhealthcare.in",
+    "fortishealthcare.com",
+    "sunpharma.com",
+    "drreddys.com",
+    "lupin.com",
+    "biocon.com",
+    "torrentpharma.com",
+    "mankindpharma.com",
+    "zyduslife.com",
+    "glenmarkpharma.com",
+    "alkemlabs.com",
+    "adidas.com",
+    "nike.com",
+    "puma.com",
+    "skechers.com",
+    "levi.com",
+    "hm.com",
+    "zara.com",
+    "uniqlo.com",
+    "decathlon.com",
+    "ikea.com",
+    "apple.com",
+    "sony.com",
+    "dell.com",
+    "hp.com",
+    "lenovo.com",
+    "asus.com",
+    "mi.com",
+    "oneplus.com",
+    "vivo.com",
+    "oppo.com",
+    "realme.com",
+    "nothing.tech",
+    "jbl.com",
+    "harman.com",
+    "whirlpool.com",
+    "voltas.com",
+    "daikinindia.com",
+    "crompton.co.in",
+    "orientelectric.com",
+    "vguard.in",
+    "symphonylimited.com",
+    "bajajel.com",
+    "usha.com",
+    "ttkpalladio.com",
+    "ttkprestige.com",
+    "wonderchef.com",
+    "milton.in",
+    "cello.in",
+    "sleepwellproducts.com",
+    "kurlon.com",
+    "centuryply.com",
+    "greenply.com",
+    "kajariaeternity.com",
+    "somanyceramics.com",
+    "hindware.com",
+    "jaquar.com",
+    "astralpipes.com",
+    "supreme.co.in",
+    "finolex.com",
+    "polycab.com",
+    "kei-ind.com",
+    "ceat.com",
+    "mrftyres.com",
+    "apollotyres.com",
+    "jktyre.com",
+    "castrol.com",
+    "shell.com"
+  ]
+}

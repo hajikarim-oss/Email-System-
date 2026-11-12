@@ -67,6 +67,9 @@ import OAuthLayout from './app/oauth/layout';
 import OAuthConsentPage from './app/oauth/authorize/page';
 import IntegrationsPage from './app/app/integrations/page';
 import AutomationsPage from './app/app/automations/page';
+import BrainReviewPage from './app/app/brain/page';
+import ThesisReviewPage from './app/app/brain/theses/page';
+import Phase0ApprovalsPage from './app/app/brain/approvals/page';
 import AutomationBuilderPage from './app/app/automations/[id]/page';
 import AuditPage from './app/app/audit/page';
 import SettingsLayout from './app/app/settings/layout';
@@ -461,6 +464,18 @@ const router = createBrowserRouter([
           {
             path: "automations",
             element: <ManagerOnly><AutomationsPage /></ManagerOnly>,
+          },
+          {
+            path: "brain",
+            element: <BrainReviewPage />,
+          },
+          {
+            path: "brain/theses",
+            element: <ThesisReviewPage />,
+          },
+          {
+            path: "brain/approvals",
+            element: <Phase0ApprovalsPage />,
           },
           {
             path: "automations/:id",

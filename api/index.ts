@@ -36,6 +36,7 @@ import { handleTallyApi } from "../server/tally/apiHandler";
 import { reconcileSmartleadMailboxes } from "../server/smartleadSync";
 import { syncSentEvents } from "../server/sentEventsSync";
 import creatorsHandler from "./creators";
+import brainHandler from "./brain";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => unknown | Promise<unknown>;
 
@@ -72,6 +73,10 @@ const routes: Record<string, Handler> = {
     "/api/creators/templates": creatorsHandler,
     "/api/v1/creators/templates": creatorsHandler,
     "/api/smartlead/status": smartleadStatus,
+    "/api/brain/drafts": brainHandler,
+    "/api/brain/approve": brainHandler,
+    "/api/brain/proposals": brainHandler,
+    "/api/brain/approve-proposal": brainHandler,
     "/api/smartlead/sync-mailboxes": async (_req, res) => {
         try {
             const result = await reconcileSmartleadMailboxes(true);
@@ -188,6 +193,7 @@ const prefixes: [string, Handler][] = [
     ["/api/creator/intake", creatorsHandler],
     ["/api/v1/creator/intake", creatorsHandler],
     ["/api/tally", handleTallyApi],
+    ["/api/brain", brainHandler],
 ];
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

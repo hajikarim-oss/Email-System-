@@ -187,6 +187,7 @@ const sections: NavSection[] = [
             { title: "Templates", requires: "subscription", url: "/app/templates", icon: FileTextIcon, indicator: "templates", rolesAllowed: "manage" },
             { title: "Integrations", requires: "subscription", url: "/app/integrations", icon: CableIcon, indicator: "integrations", permission: "USE_INTEGRATIONS", permissionLabel: "Use integrations", rolesAllowed: "manage" },
             { title: "Automations", requires: "subscription", url: "/app/automations", icon: ZapIcon, permission: "USE_INTEGRATIONS", permissionLabel: "Use integrations", rolesAllowed: "manage" },
+            { title: "AI Outreach Brain", url: "/app/brain", icon: SparklesIcon },
             { title: "API Keys", requires: "subscription", url: "/app/api-keys", icon: KeyIcon, indicator: "apikeys", permission: "MANAGE_API_KEYS", permissionLabel: "Manage API keys", rolesAllowed: "manage" },
             { title: "Audit log", requires: "subscription", url: "/app/audit", icon: ListChecksIcon, rolesAllowed: "manage" },
         ],

@@ -24,6 +24,7 @@ import { handleNotifications } from "../server/notifications";
 import { reconcileSmartleadCampaigns, reconcileSmartleadMailboxes, ensureImmediateSendingSchedule } from "../server/smartleadSync";
 import { handleTallyApi } from "../server/tally/apiHandler";
 import creatorsHandler from "../api/creators/index";
+import brainHandler from "../api/brain";
 
 const cjsRequire = createRequire(import.meta.url);
 
@@ -2969,6 +2970,22 @@ function creatorsApiPlugin() {
     };
 }
 
+function brainApiPlugin() {
+    return {
+        name: "local-brain-api-plugin",
+        configureServer(server: any) {
+            server.middlewares.use((req: any, res: any, next: any) => {
+                const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
+                if (path === "/api/brain" || path.startsWith("/api/brain/")) {
+                    brainHandler(req, res);
+                    return;
+                }
+                next();
+            });
+        },
+    };
+}
+
 export default defineConfig({
     plugins: [
         react(),
@@ -2979,6 +2996,7 @@ export default defineConfig({
         authApiPlugin(),
         tallyApiPlugin(),
         creatorsApiPlugin(),
+        brainApiPlugin(),
         ...sentryPlugins,
     ],
     build: {

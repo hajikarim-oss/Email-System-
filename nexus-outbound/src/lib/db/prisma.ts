@@ -49,9 +49,14 @@ if (process.env.NODE_ENV !== "production") {
  * - Read Queries: Auto-failover to Standby (Replica 2) if Primary fails with a connection/network drop.
  * - Mutation Queries (create, update, delete): Execute on Primary, and replicate to Standby & Backup.
  */
+const isIsolatedReplica3 =
+  (process.env.BRAIN_DB_TARGET || process.env.DB_TARGET_NODE || "").toLowerCase() === "replica3";
+
 export const prisma =
   globalForPrisma.prisma ??
-  primaryPrisma.$extends({
+  (isIsolatedReplica3 && backupPrisma
+    ? backupPrisma
+    : primaryPrisma.$extends({
     query: {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
@@ -130,7 +135,7 @@ export const prisma =
         },
       },
     },
-  });
+  }));
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

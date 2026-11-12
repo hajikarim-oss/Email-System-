@@ -16,10 +16,11 @@
 // event being lost. "no_lead" / "unsupported" mean respond 200, a retry
 // cannot help.
 
-import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { pgQuery } from "./pg";
+import { classifyReplyDeterministic } from "./automation/pipeline/replyClassifier";
 
 export type SmartleadEventOutcome =
     // Row written (or already there on a retry).
@@ -142,16 +143,31 @@ async function advanceLead(
                 [lead.id, now],
             );
             return;
-        case "replied":
+        case "replied": {
+            const rawBody = (payload.reply_message && (payload.reply_message.text || payload.reply_message.html)) || payload.reply_body || payload.preview_text || "";
+            const subject = payload.subject || "";
+            const classification = classifyReplyDeterministic({
+                text: rawBody,
+                subject,
+                contactEmail: email,
+            });
+
+            // True prospect engagement vs automated noise
+            const isOOOorAuto = classification.dbClassification === 'OOO' || classification.dbClassification === 'AUTO_RESPONDER';
+            const status = isOOOorAuto ? 'ACTIVE' : 'REPLIED';
+            const leadCategory = isOOOorAuto ? 'NOT_WORKING' : 'WORKING';
+
             await pgQuery(
-                `UPDATE "Lead" SET "status" = 'REPLIED', "repliedAt" = $2::timestamptz,
-                        "lastRepliedAt" = $2::timestamptz, "totalReplied" = "totalReplied" + 1,
-                        "totalInbound" = "totalInbound" + 1, "leadCategory" = 'WORKING',
-                        "updatedAt" = $2::timestamptz
+                `UPDATE "Lead" SET "status" = $2, "repliedAt" = $3::timestamptz,
+                        "lastRepliedAt" = $3::timestamptz, "totalReplied" = "totalReplied" + 1,
+                        "totalInbound" = "totalInbound" + 1, "leadCategory" = $4,
+                        "replyClassification" = $5,
+                        "updatedAt" = $3::timestamptz
                  WHERE id = $1`,
-                [lead.id, now],
+                [lead.id, status, now, leadCategory, classification.dbClassification],
             );
             return;
+        }
         case "bounced": {
             const newCount = lead.bounceCount + 1;
             const hard = isHardBounce(payload) || newCount >= 3;
@@ -265,15 +281,19 @@ export async function recordSmartleadEvent(payload: Record<string, any>): Promis
                  FROM "Lead" l
                  JOIN "Campaign" c ON c.id = l."campaignId"
                  WHERE lower(l."email") = $1 AND (c."providerCampaignId" = $2 OR c.id = $2)
+                 ORDER BY (CASE WHEN l."brandId" IS NOT NULL THEN 0 ELSE 1 END), l."createdAt" DESC
                  LIMIT 1`,
                 [email, String(providerCampaignId)],
             );
             lead = byCampaignAndEmail[0];
         }
 
-        if (!lead && !providerCampaignId) {
+        if (!lead) {
             const byEmail = await pgQuery<{ id: string; bounceCount: number }>(
-                `SELECT id, "bounceCount" FROM "Lead" WHERE lower("email") = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+                `SELECT id, "bounceCount" FROM "Lead"
+                 WHERE lower("email") = $1
+                 ORDER BY (CASE WHEN "brandId" IS NOT NULL THEN 0 ELSE 1 END), "createdAt" DESC
+                 LIMIT 1`,
                 [email],
             );
             lead = byEmail[0];
@@ -327,6 +347,25 @@ export async function recordSmartleadEvent(payload: Record<string, any>): Promis
         if (inserted.length === 0) return "persisted";
 
         await advanceLead(lead, eventType, payload, email, now);
+
+        // DQ-02: Direct reply attachment to originating DraftGeneration row
+        if (eventType === "replied" && inserted[0]?.id) {
+            const rawBody = (payload.reply_message && (payload.reply_message.text || payload.reply_message.html)) || payload.reply_body || payload.preview_text || "";
+            const subject = payload.subject || "";
+            const classification = classifyReplyDeterministic({
+                text: rawBody,
+                subject,
+                contactEmail: email,
+            });
+            const seqStep = Number.parseInt(String(payload.sequence_number || payload.step || 1), 10) || 1;
+            await pgQuery(
+                `UPDATE "DraftGeneration"
+                 SET "repliedEventId" = $1, "replyClassification" = $2
+                 WHERE ("leadId" = $3 OR lower("leadEmail") = $5) AND "sequenceStep" = $4`,
+                [inserted[0].id, classification.dbClassification, lead.id, seqStep, email]
+            ).catch((err: any) => console.warn('[smartleadWebhook] DQ-02 attachment warning:', err?.message));
+        }
+
         return "persisted";
     } finally {
         releaseWriteLock();

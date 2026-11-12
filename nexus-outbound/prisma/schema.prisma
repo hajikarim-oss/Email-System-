@@ -382,6 +382,11 @@ model Lead {
   // Timezone-aware sending (drawback fix #6)
   timezone       String?      // IANA timezone (e.g. "America/New_York"), detected or from CSV
 
+  // AI Brain classification fields (additive)
+  designation    String?
+  designationRaw String?
+  categoryKey    String?
+
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -400,6 +405,7 @@ model Lead {
   @@index([leadScore])
   @@index([campaignId, leadScore])
   @@index([providerLeadId])
+  @@index([categoryKey, designation])
 }
 
 // ─────────────────────────────────────────────
@@ -560,6 +566,8 @@ model Brand {
   id                    String        @id @default(cuid())
   domain                String        @unique // e.g. "unilever.com", "atomberg.com"
   name                  String?       // "Unilever", "Atomberg"
+  tier                  String?       // "LARGE" | "MID" | "GROWTH"
+  categoryKey           String?
   totalContacts         Int           @default(0)
   cleanContacts         Int           @default(0)
   burnedContacts        Int           @default(0)
@@ -577,6 +585,7 @@ model Brand {
   @@index([domain])
   @@index([outreachState])
   @@index([recencyBucket])
+  @@index([categoryKey, tier])
 }
 
 // ─────────────────────────────────────────────
@@ -595,4 +604,171 @@ model ContactSegment {
   lastCount   Int       @default(0)
 
   @@index([name])
+}
+
+// ─────────────────────────────────────────────
+// AI OUTREACH BRAIN MODELS (Additive v2.2)
+// ─────────────────────────────────────────────
+
+model DraftGeneration {
+  id                  String   @id @default(cuid())
+  leadId              String
+  emailMessageId      String?  @unique
+  repliedEventId      String?
+  replyClassification String?
+  campaignId          String?
+  leadEmail           String?
+  sequenceStep        Int      @default(1)
+
+  playbookId          String?
+  experimentVariant   String?
+  angleKey            String?
+  primaryProofId      String?
+  followupProofIds    String[]
+  categoryKey         String?
+  designation         String?
+
+  briefJson           Json?
+  hookSignalId        String?
+
+  plannerModel        String?
+  writerModel         String?
+  subject             String
+  body                String
+  followups           Json?
+  finalSubject        String?
+  finalBody           String?
+  humanEdited         Boolean  @default(false)
+  editDistance        Float?
+
+  hardViolations      Json?
+  softViolations      Json?
+  validatorPass       Boolean  @default(false)
+  riskScore           Int?
+  riskBand            String?
+  riskReasons         Json?
+  routing             String
+  status              String   @default("DRAFTED")
+
+  promptVersionIds    Json?
+  tokensIn            Int?
+  tokensOut           Int?
+  costUsd             Decimal? @db.Decimal(10, 6)
+  latencyMs           Int?
+
+  createdAt           DateTime @default(now())
+  @@index([leadId, createdAt])
+  @@index([categoryKey, designation, angleKey])
+  @@index([status, routing])
+  @@index([emailMessageId])
+  @@index([leadEmail, campaignId, sequenceStep])
+  @@index([campaignId])
+}
+
+model ProviderUsage {
+  id        String   @id @default(cuid())
+  kind      String
+  provider  String
+  model     String?
+  tokensIn  Int?
+  tokensOut Int?
+  units     Int?
+  costUsd   Decimal? @db.Decimal(10, 6)
+  leadId    String?
+  draftId   String?
+  at        DateTime @default(now())
+  @@index([at])
+  @@index([kind, at])
+  @@index([draftId])
+}
+
+model ProofPoint {
+  id                String   @id @default(cuid())
+  title             String
+  summary           String
+  clientName        String?
+  categories        String[]
+  metrics           Json
+  approvedToMention Boolean  @default(false)
+  sourceNote        String?
+  verifiedAt        DateTime?
+  expiresAt         DateTime?
+  active            Boolean  @default(true)
+  @@index([categories])
+  @@index([active, approvedToMention])
+}
+
+model Playbook {
+  id          String   @id @default(cuid())
+  categoryKey String
+  designation String
+  angleKey    String
+  angleName   String
+  description String
+  dos         String[]
+  donts       String[]
+  ctaOptions  String[]
+  toneNotes   String?
+  version     Int      @default(1)
+  status      String   @default("DRAFT")
+  origin      String   @default("SYSTEM_PROPOSAL")
+  @@unique([categoryKey, designation, angleKey, version])
+  @@index([categoryKey, designation, status])
+}
+
+model KnowledgeChunk {
+  id     String   @id @default(cuid())
+  kind   String
+  text   String
+  tags   String[]
+  active Boolean  @default(true)
+  @@index([kind, active])
+}
+
+model BrandResearch {
+  id          String    @id @default(cuid())
+  brandId     String    @unique
+  categoryKey String?
+  signals     Json
+  summary     String?
+  status      String    @default("OK")
+  expiresAt   DateTime?
+  @@index([status, expiresAt])
+}
+
+model SystemControl {
+  id               String   @id @default("singleton")
+  killSwitch       Boolean  @default(false)
+  pausedMailboxIds String[]
+  reason           String?
+  setBy            String?
+  at               DateTime @default(now())
+}
+
+model EvalCase {
+  id            String   @id @default(cuid())
+  leadSnapshot  Json
+  approvedEmail Json
+  tags          String[]
+  createdAt     DateTime @default(now())
+}
+
+model ChangeProposal {
+  id         String   @id @default(cuid())
+  kind       String
+  diffJson   Json
+  rationale  String
+  evidence   Json
+  status     String   @default("PENDING")
+  rolloutPct Int      @default(0)
+  createdAt  DateTime @default(now())
+}
+
+model PromptVersion {
+  id        String   @id @default(cuid())
+  role      String
+  text      String
+  hash      String   @unique
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
 }

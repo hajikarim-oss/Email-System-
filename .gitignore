@@ -50,10 +50,13 @@ __pycache__/
 *.sqlite3
 
 # Large Data Exports & Raw Dumps (>50MB)
-data/
-**/data/*.csv
-**/data/*.json
-**/data/*.db
+data/*
+!data/categories.map.json
+!data/designations.map.json
+!data/enterprise_domains.json
+!data/banned_phrases.json
+!data/brand_acronyms.json
+!data/sanctioned_links.json
 
 # Scratch and temporary scripts
 scratch/

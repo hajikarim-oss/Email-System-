@@ -13,9 +13,27 @@
  * 4. Active Health Heartbeat & Latency Telemetry.
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Pool } from "pg";
 import type { PoolConfig } from "pg";
 import type { QueryFn, QueryRow } from "./types";
+
+function resolveIsolatedNode(): NodeId | null {
+  const fromEnv = (process.env.BRAIN_DB_TARGET || process.env.DB_TARGET_NODE || "").trim().toLowerCase();
+  if (fromEnv === "replica3" || fromEnv === "replica2" || fromEnv === "primary") {
+    return fromEnv as NodeId;
+  }
+  try {
+    const content = fs.readFileSync(path.resolve(process.cwd(), ".env"), "utf8");
+    const m = content.match(/^\s*(?:BRAIN_DB_TARGET|DB_TARGET_NODE)\s*=\s*(.+)\s*$/m);
+    if (m) {
+      const val = m[1].trim().replace(/^["']|["']$/g, "").toLowerCase();
+      if (val === "replica3" || val === "replica2" || val === "primary") return val as NodeId;
+    }
+  } catch {}
+  return null;
+}
 
 export type NodeId = "primary" | "replica2" | "replica3";
 export type NodeRole = "LEADER" | "STANDBY" | "BACKUP";
@@ -99,7 +117,8 @@ export const CLUSTER_CONFIGS: Record<NodeId, ClusterNodeConfig> = {
 class DatabaseClusterManager {
   private pools: Map<NodeId, Pool> = new Map();
   private health: Map<NodeId, NodeHealth> = new Map();
-  private currentLeaderId: NodeId = "primary";
+  private isolatedNode: NodeId | null = resolveIsolatedNode();
+  private currentLeaderId: NodeId = resolveIsolatedNode() || "primary";
   private syncQueue: QueuedMutation[] = [];
   private isProcessingQueue = false;
   private heartbeatTimer: NodeJS.Timeout | null = null;
@@ -240,8 +259,8 @@ class DatabaseClusterManager {
           record.lastHealthyAt = new Date();
           record.consecutiveFailures = 0;
 
-          // Automatic Failback: When primary leader (Tokyo) is online and healthy, restore leadership to primary
-          if (id === "primary" && this.currentLeaderId !== "primary") {
+          // Automatic Failback: When primary leader (Tokyo) is online and healthy, restore leadership to primary (unless pinned to isolated node)
+          if (!this.isolatedNode && id === "primary" && this.currentLeaderId !== "primary") {
             console.log(`\n🔄 [DBCluster FAILBACK] Primary leader (Tokyo) is online and responsive (${latency}ms). Restoring leadership to primary.`);
             this.currentLeaderId = "primary";
             record.isCurrentLeader = true;
@@ -390,6 +409,11 @@ class DatabaseClusterManager {
       const fallbackPool = this.getPool(standby);
       leaderResult = await fallbackPool.query(sql, params as any[]);
       leaderNode = standby;
+    }
+
+    // If pinned to an isolated node (e.g. BRAIN_DB_TARGET=replica3 for local dev/testing), do NOT fan out writes to Primary or other replicas!
+    if (this.isolatedNode) {
+      return (leaderResult?.rows || []) as unknown as T[];
     }
 
     // Now replicate the write to all other replica nodes

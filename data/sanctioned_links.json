@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "description": "Allowlisted domains and URLs permitted inside generated outreach drafts.",
+  "allowedDomains": [
+    "theboredmonkey.in",
+    "www.theboredmonkey.in",
+    "calendly.com",
+    "cal.com",
+    "drive.google.com",
+    "docs.google.com",
+    "youtube.com",
+    "www.youtube.com",
+    "youtu.be",
+    "instagram.com",
+    "www.instagram.com",
+    "linkedin.com",
+    "www.linkedin.com"
+  ],
+  "sanctionedLinks": [
+    "https://theboredmonkey.in",
+    "https://www.theboredmonkey.in"
+  ]
+}
+
