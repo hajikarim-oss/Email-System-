@@ -90,4 +90,31 @@
   - Head-to-head rounds: 6 Ties, 3 Wins for `gpt-4o-mini`, 0 Wins for `gpt-4o`.
 - **Decision**: Select **`gpt-4o-mini`** as the dedicated production writer model for the Brain pipeline. It demonstrates superior adherence to deterministic formatting constraints (<= 7 word subjects, zero meeting asks, variable syntax preservation) at 1/16th the token cost. gpt-4o is rejected due to prompt boundary regression and prohibitive unit economics (\$39.61 vs \$2.38 per 10k sends).
 
+---
+
+## D-10: Strategic Sequencing — Path A Formally Adopted (PIE §0.5)
+- **Context**: PIE is an additive architectural layer designed to reason about brand business situations, while Track 0 directly fixes the historical click-to-reply bottleneck.
+- **Decision**: **Path A is adopted**:
+  1. Ship Track 0 (T0-1 through T0-6) and the current Outreach Brain to Primary after owner review of the 84 pending drafts.
+  2. Build and validate PIE on Replica 3 in parallel without blocking production traffic or the proven CTA lever.
+  3. PIE is evaluated in stages: Phase 3 (thesis sharpness $\ge 4.0$ vs owner gold standard), Phase 4 (edit rate $< 30\%$), and Phase 5 (real prospect reply rate beating the 0.14% baseline).
+
+---
+
+## D-11: PIE Value Beyond Cold Email & Knowledge Base Curation Commitment (PIE §0.5)
+- **Context**: PIE’s return on investment depends on the thesis being reused across the entire client lifecycle, not just generating cold outreach emails.
+- **Decision**:
+  - **Two non-email uses of the PartnershipThesis**:
+    1. *Account Management Call Prep*: AM reads the top grounded gap and proof point before every HIGH-tier prospect discovery call.
+    2. *Pitch Deck Customization*: The diagnosis and category benchmark delta become Slide 1 of every pilot-category pitch deck.
+  - **Accountable Curator**: Owner / Lead Partnerships Architect commits ~4 hours during Phase 0 seeding and ~1 hour/month ongoing to maintain Capability Graph and Category Benchmark accuracy.
+  - **Ad-Library Fallback**: If ad-library live data is unavailable, Phase 1 completeness gate degrades from $\ge 70\%$ to $\ge 50\%$ (dossier proceeds with website, careers, and catalog data) rather than stalling the pipeline.
+
+---
+
+## D-12: Hard Gate Precondition — Layer 6 (L6 Pitch Gen) Blocked Pending Phase 3 Thesis Gate
+- **Context**: The PIE engine must prove it produces a sharp, grounded business diagnosis before building email rendering machinery.
+- **Decision**: **Do NOT build Layer 6 (pitch/email generation) yet.** Layer 6 is strictly downstream of Phase 3. The engine must first generate a real F&B diagnosis and achieve owner sign-off on thesis sharpness ($\ge 4.0/5$) on Replica 3 before any thesis is wired into email rendering.
+
+
 

@@ -210,6 +210,19 @@ export async function runRegressionEvalSuite(): Promise<EvalSuiteReport> {
       },
       expected: 'PASS',
     },
+    // 15. Track 0 (T0-2): Unresolved variable at send time
+    {
+      id: 'tc_t02_unresolved_variable_send_time',
+      name: 'Unresolved {{company}} literal at send time is blocked',
+      type: 'VALIDATOR',
+      input: {
+        subject: 'Quick question for {{company}}',
+        body: 'Hi Snehal, noticed your products at {{company}}.',
+        stepNumber: 1,
+        isSendTime: true,
+      },
+      expected: 'FAIL',
+    },
   ];
 
   const results: EvalCaseResult[] = [];

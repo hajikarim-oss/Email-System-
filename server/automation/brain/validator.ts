@@ -33,6 +33,8 @@ export interface ValidateDraftInput {
   // Track 0 (T0-3): true when the lead is a free-mail address with no brand data,
   // so brand personalization ({{company}}, scraped signals) cannot safely resolve.
   leadIsFreeMailNoBrand?: boolean;
+  // Track 0 (T0-2): send-time strict gate: blocks unresolved literal {{...}} variables at dispatch
+  isSendTime?: boolean;
 }
 
 // Track 0 (T0-4): generic / vague client references that violate the proof
@@ -335,6 +337,22 @@ export function validateEmailDraft(input: ValidateDraftInput): ValidationResult 
     }
   }
 
+  // 12. Send-Time Unresolved Variable Gate (Track 0 / T0-2):
+  //     Any unresolved literal {{variable}} in the subject or body at dispatch time
+  //     is a catastrophic personalization failure and must be hard-blocked.
+  if (input.isSendTime) {
+    const unmergedTags = fullText.match(/\{\{[^}]+\}\}/g);
+    if (unmergedTags && unmergedTags.length > 0) {
+      const distinct = Array.from(new Set(unmergedTags));
+      issues.push({
+        code: 'UNRESOLVED_TEMPLATE_VARIABLE',
+        field: 'body',
+        message: `Unresolved template variable(s) detected at send time: ${distinct.join(', ')}. Dispatch blocked.`,
+        severity: 'ERROR',
+      });
+    }
+  }
+
   const hasErrors = issues.some((i) => i.severity === 'ERROR');
 
   return {
@@ -344,4 +362,17 @@ export function validateEmailDraft(input: ValidateDraftInput): ValidationResult 
     extractedNumbers,
     extractedUrls,
   };
+}
+
+/**
+ * Deterministic Send-Time Validator (T0-2)
+ * Call immediately before handing an email payload to Smartlead dispatch.
+ */
+export function validateSendTimeDraft(subject: string, body: string): ValidationResult {
+  return validateEmailDraft({
+    subject,
+    body,
+    stepNumber: 1,
+    isSendTime: true,
+  });
 }
