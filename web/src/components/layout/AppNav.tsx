@@ -33,6 +33,8 @@ import {
     ZapIcon,
     ReceiptIcon,
     LandmarkIcon,
+    SearchIcon,
+    TargetIcon,
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { useAppStore } from "@/stores";
@@ -152,6 +154,7 @@ const sections: NavSection[] = [
             { title: "Accounts", url: "/app/emails", icon: MailIcon, indicator: "accounts", advisorSurface: "emails", permission: "MANAGE_EMAILS", permissionLabel: "Manage mailboxes" },
             { title: "Campaigns", requires: "subscription", url: "/app/campaigns", icon: MegaphoneIcon, indicator: "campaigns", advisorSurface: "campaigns", permission: "VIEW_CAMPAIGNS", permissionLabel: "View campaigns" },
             { title: "Contacts", requires: "subscription", url: "/app/contacts", icon: UsersIcon, indicator: "contacts", advisorSurface: "contacts", permission: "VIEW_CONTACTS", permissionLabel: "View contacts" },
+            { title: "Apollo Leads", url: "/app/apollo", icon: SearchIcon, indicator: "contacts" },
             { title: "Creators", requires: "subscription", url: "/app/creators", icon: SparklesIcon, indicator: "contacts", permission: "VIEW_CONTACTS", permissionLabel: "View creators", rolesAllowed: "troops_master" },
             { title: "Forms", requires: "subscription", url: "/app/forms", icon: ClipboardListIcon, permission: "VIEW_CONTACTS", permissionLabel: "View contacts", rolesAllowed: "manage" },
             { title: "Analytics", requires: "subscription", url: "/app/analytics", icon: BarChart3Icon, indicator: "analytics", permission: "VIEW_ANALYTICS", permissionLabel: "View analytics" },
@@ -188,6 +191,7 @@ const sections: NavSection[] = [
             { title: "Integrations", requires: "subscription", url: "/app/integrations", icon: CableIcon, indicator: "integrations", permission: "USE_INTEGRATIONS", permissionLabel: "Use integrations", rolesAllowed: "manage" },
             { title: "Automations", requires: "subscription", url: "/app/automations", icon: ZapIcon, permission: "USE_INTEGRATIONS", permissionLabel: "Use integrations", rolesAllowed: "manage" },
             { title: "AI Outreach Brain", url: "/app/brain", icon: SparklesIcon },
+            { title: "PIE Theses", url: "/app/brain/theses", icon: TargetIcon },
             { title: "API Keys", requires: "subscription", url: "/app/api-keys", icon: KeyIcon, indicator: "apikeys", permission: "MANAGE_API_KEYS", permissionLabel: "Manage API keys", rolesAllowed: "manage" },
             { title: "Audit log", requires: "subscription", url: "/app/audit", icon: ListChecksIcon, rolesAllowed: "manage" },
         ],

@@ -70,6 +70,7 @@ import AutomationsPage from './app/app/automations/page';
 import BrainReviewPage from './app/app/brain/page';
 import ThesisReviewPage from './app/app/brain/theses/page';
 import Phase0ApprovalsPage from './app/app/brain/approvals/page';
+import ApolloLeadExplorerPage from './app/app/apollo/page';
 import AutomationBuilderPage from './app/app/automations/[id]/page';
 import AuditPage from './app/app/audit/page';
 import SettingsLayout from './app/app/settings/layout';
@@ -476,6 +477,10 @@ const router = createBrowserRouter([
           {
             path: "brain/approvals",
             element: <Phase0ApprovalsPage />,
+          },
+          {
+            path: "apollo",
+            element: <ApolloLeadExplorerPage />,
           },
           {
             path: "automations/:id",

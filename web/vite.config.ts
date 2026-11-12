@@ -25,6 +25,7 @@ import { reconcileSmartleadCampaigns, reconcileSmartleadMailboxes, ensureImmedia
 import { handleTallyApi } from "../server/tally/apiHandler";
 import creatorsHandler from "../api/creators/index";
 import brainHandler from "../api/brain";
+import apolloHandler from "../api/apollo";
 
 const cjsRequire = createRequire(import.meta.url);
 
@@ -2986,6 +2987,22 @@ function brainApiPlugin() {
     };
 }
 
+function apolloApiPlugin() {
+    return {
+        name: "local-apollo-api-plugin",
+        configureServer(server: any) {
+            server.middlewares.use((req: any, res: any, next: any) => {
+                const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
+                if (path === "/api/apollo" || path.startsWith("/api/apollo/")) {
+                    apolloHandler(req, res);
+                    return;
+                }
+                next();
+            });
+        },
+    };
+}
+
 export default defineConfig({
     plugins: [
         react(),
@@ -2997,6 +3014,7 @@ export default defineConfig({
         tallyApiPlugin(),
         creatorsApiPlugin(),
         brainApiPlugin(),
+        apolloApiPlugin(),
         ...sentryPlugins,
     ],
     build: {
