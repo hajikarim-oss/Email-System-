@@ -210,7 +210,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const origin = req.headers.origin;
     const allowedOrigins = process.env.ALLOWED_ORIGINS
         ? process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
-        : ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://localhost:3001"];
+        : [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://localhost:3001",
+            "https://tbmoutreach.tech",
+            "https://www.tbmoutreach.tech",
+            "http://201.18.217.65",
+          ];
 
     if (origin && (allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production")) {
         res.setHeader("Access-Control-Allow-Origin", origin);
