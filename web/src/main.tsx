@@ -141,6 +141,7 @@ import TheBoredMonkeyCloudSettingsPage from './app/app/settings/warmbly-cloud/pa
 import SetupPage from './app/setup/page';
 import SSOCallbackPage from './app/auth/sso/page';
 import CreatorIntakePage from './app/creator/intake/CreatorIntakePage';
+import { PrivacyPolicyPage, TermsOfServicePage, DataDeletionPage } from './app/legal/LegalPages';
 
 // React-Query defaults tuned for a dashboard. The library's
 // out-of-the-box behaviour treats every query as immediately stale
@@ -281,6 +282,18 @@ const router = createBrowserRouter([
             element: <OAuthConsentPage />,
           },
         ],
+      },
+      {
+        path: "privacy",
+        element: <PrivacyPolicyPage />,
+      },
+      {
+        path: "terms",
+        element: <TermsOfServicePage />,
+      },
+      {
+        path: "data-deletion",
+        element: <DataDeletionPage />,
       },
       {
         path: "creator/intake/:token",
