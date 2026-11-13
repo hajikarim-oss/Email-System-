@@ -1,5 +1,6 @@
 import type { QueryFn } from "./types";
 import { pgQuery } from "./pg";
+import { ensureInstagramColumns } from "./instagram_graph";
 
 export interface CreatorSearchParams {
     workspaceId?: string;
@@ -16,6 +17,7 @@ export interface CreatorSearchParams {
 }
 
 export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSearchParams) {
+    await ensureInstagramColumns(query);
     const workspaceId = params.workspaceId || "org_troops_outreach";
     const limit = Math.min(Math.max(params.limit || 50, 1), 200);
     const offset = Math.max(params.offset || 0, 0);
@@ -103,7 +105,9 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
             "whatsappNumber", "pincode", "city", "state", "shippingAddress",
             "contentDescription", "collabType", "commercialRates", "mediaKitUrl",
             "managementType", "agencyName", "discoveryKeyword",
-            "upiId", "panNumber", "activeCampaignId", "lastContactedAt", "createdAt", "updatedAt"
+            "upiId", "panNumber", "activeCampaignId", "lastContactedAt",
+            "instagramInsights", "igConnected", "igLastSyncedAt",
+            "createdAt", "updatedAt"
         FROM "Creator"
         WHERE ${whereClause}
         ORDER BY ${orderClause}
@@ -448,6 +452,14 @@ export async function saveCreatorIntake(query: QueryFn = pgQuery, token: string,
     if (data.referredBy) {
         sets.push(`"discoveryKeyword" = COALESCE("discoveryKeyword", $${pIdx++})`);
         values.push(`referral:${String(data.referredBy).trim()}`);
+    }
+    if (data.instagramInsights && typeof data.instagramInsights === "object") {
+        sets.push(`"instagramInsights" = $${pIdx++}::jsonb`);
+        values.push(JSON.stringify(data.instagramInsights));
+    }
+    if (data.igConnected === true) {
+        sets.push(`"igConnected" = true`);
+        sets.push(`"igLastSyncedAt" = NOW()`);
     }
 
     // Determine step completed & granular real-time progress

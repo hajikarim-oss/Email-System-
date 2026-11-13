@@ -4,6 +4,8 @@ import {
   enrichAndSavePerson,
   enrichAndSaveBatch,
   getSavedApolloLeads,
+  getApolloTemplatesAndSequences,
+  getApolloCampaignDetails,
 } from '../server/apolloService';
 
 function sendJson(res: ServerResponse, status: number, data: any) {
@@ -55,8 +57,12 @@ export default async function apolloHandler(req: IncomingMessage, res: ServerRes
         person_locations: body.person_locations,
         organization_num_employees_ranges: body.organization_num_employees_ranges,
         q_organization_domains: body.q_organization_domains,
+        q_organization_keyword_tags: body.q_organization_keyword_tags,
+        organization_industry_tag_ids: body.organization_industry_tag_ids,
+        categoryKey: body.categoryKey,
         page: body.page || 1,
         per_page: body.per_page || 25,
+        autoVerifyAndStore: Boolean(body.autoVerifyAndStore),
       });
       return sendJson(res, 200, results);
     }
@@ -92,9 +98,33 @@ export default async function apolloHandler(req: IncomingMessage, res: ServerRes
       return sendJson(res, 200, data);
     }
 
+    // 4. GET /api/apollo/templates
+    if (pathname === '/api/apollo/templates' && method === 'GET') {
+      const data = await getApolloTemplatesAndSequences();
+      return sendJson(res, 200, data);
+    }
+
+    // 4b. GET /api/apollo/sequence?id=...
+    if (pathname === '/api/apollo/sequence' && method === 'GET') {
+      const id = url.searchParams.get('id');
+      if (!id) return sendJson(res, 400, { error: 'Sequence id is required' });
+      const data = await getApolloCampaignDetails(id);
+      return sendJson(res, 200, data);
+    }
+
+    // 5. DELETE /api/apollo/lead
+    if (pathname === '/api/apollo/lead' && method === 'DELETE') {
+      const leadId = url.searchParams.get('id');
+      if (!leadId) return sendJson(res, 400, { error: 'leadId is required' });
+      const { db } = await import('../server/db');
+      await db.query(`DELETE FROM "Lead" WHERE id = $1`, [leadId]);
+      return sendJson(res, 200, { success: true, deletedId: leadId });
+    }
+
     return sendJson(res, 404, { error: `Not found: ${pathname}` });
   } catch (err: any) {
     console.error('[apolloHandler error]', err);
     return sendJson(res, 500, { error: err.message || 'Internal server error' });
   }
 }
+

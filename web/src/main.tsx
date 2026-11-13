@@ -323,6 +323,7 @@ const router = createBrowserRouter([
             element: <ContactsLayout />,
             children: [
               { index: true, element: <ContactsPage /> },
+              { path: "apollo", element: <ApolloLeadExplorerPage /> },
               {
                 path: "segments",
                 children: [
@@ -480,7 +481,7 @@ const router = createBrowserRouter([
           },
           {
             path: "apollo",
-            element: <ApolloLeadExplorerPage />,
+            element: <Navigate to="/app/contacts/apollo" replace />,
           },
           {
             path: "automations/:id",

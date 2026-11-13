@@ -47,6 +47,10 @@
   { "pattern": "jewelry", "value": "jewelry_accessories" },
   { "pattern": "jewellery", "value": "jewelry_accessories" },
   { "pattern": "accessories", "value": "jewelry_accessories" },
-  { "pattern": "watch", "value": "jewelry_accessories" }
+  { "pattern": "watch", "value": "jewelry_accessories" },
+  { "pattern": "saas", "value": "fintech_saas" },
+  { "pattern": "software", "value": "fintech_saas" },
+  { "pattern": "fintech", "value": "fintech_saas" },
+  { "pattern": "it services", "value": "fintech_saas" }
 ]
 

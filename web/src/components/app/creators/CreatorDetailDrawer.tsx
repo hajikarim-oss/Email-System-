@@ -27,8 +27,28 @@ interface CreatorDetailDrawerProps {
 export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: CreatorDetailDrawerProps) {
     const [activeTab, setActiveTab] = useState<"overview" | "commercials" | "intake" | "history">("overview");
     const [copied, setCopied] = useState(false);
+    const [syncingIg, setSyncingIg] = useState(false);
+    const [localIgInsights, setLocalIgInsights] = useState<any>(creator?.instagramInsights || null);
 
     if (!creator) return null;
+
+    const igData = localIgInsights || creator.instagramInsights || {};
+    const handleSyncIg = async () => {
+        setSyncingIg(true);
+        try {
+            const tok = creator.intakeToken || creator.id;
+            const res = await fetch(`/api/creator/intake/${encodeURIComponent(tok)}/ig-lookup?handle=${encodeURIComponent(creator.handle || "")}`);
+            if (!res.ok) throw new Error("Failed to sync Instagram insights");
+            const data = await res.json();
+            setLocalIgInsights(data);
+            if (onUpdate) onUpdate({ ...creator, instagramInsights: data });
+            toast.success("Instagram profile & insights synced!");
+        } catch (err: any) {
+            toast.error(err?.message || "Unable to sync Instagram insights");
+        } finally {
+            setSyncingIg(false);
+        }
+    };
 
     const intakeUrl = `${window.location.origin}/creator/intake/${creator.intakeToken || creator.id}`;
 
@@ -167,20 +187,71 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                 <div className="p-3 rounded-xl border border-slate-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-900">
                                     <span className="text-[11px] text-slate-400 block">Followers</span>
                                     <span className="text-base font-bold text-slate-900 dark:text-white">
-                                        {creator.followersRaw}
+                                        {igData?.followersRaw || creator.followersRaw}
                                     </span>
                                 </div>
                                 <div className="p-3 rounded-xl border border-slate-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-900">
                                     <span className="text-[11px] text-slate-400 block">Following</span>
                                     <span className="text-base font-bold text-slate-900 dark:text-white">
-                                        {creator.followingCount ? Number(creator.followingCount).toLocaleString() : "–"}
+                                        {(igData?.followingCount ?? creator.followingCount) ? Number(igData?.followingCount ?? creator.followingCount).toLocaleString() : "–"}
                                     </span>
                                 </div>
                                 <div className="p-3 rounded-xl border border-slate-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-900">
                                     <span className="text-[11px] text-slate-400 block">Posts</span>
                                     <span className="text-base font-bold text-slate-900 dark:text-white">
-                                        {creator.postsCount ? Number(creator.postsCount).toLocaleString() : "–"}
+                                        {(igData?.postsCount ?? creator.postsCount) ? Number(igData?.postsCount ?? creator.postsCount).toLocaleString() : "–"}
                                     </span>
+                                </div>
+                            </div>
+
+                            {/* Instagram Graph API Insights Card */}
+                            <div className="p-4 rounded-xl border border-amber-200/80 bg-amber-50/40 dark:bg-zinc-900 dark:border-zinc-800 space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <InstagramIcon className="w-4 h-4 text-amber-700" />
+                                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                            Instagram Graph API Insights
+                                        </span>
+                                        {(creator.igConnected || igData?.igConnected) && (
+                                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                                ✓ Creator Linked
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleSyncIg}
+                                        disabled={syncingIg}
+                                        className="px-2.5 py-1 rounded-md bg-[#FFE600] hover:bg-amber-400 text-slate-900 font-semibold text-[11px] transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {syncingIg ? "Syncing…" : "↻ Sync Graph Insights"}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="p-2.5 rounded-lg bg-white dark:bg-zinc-800 border border-amber-200/50 dark:border-zinc-700">
+                                        <span className="text-[10.5px] text-slate-400 block">Engagement Rate</span>
+                                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                            {igData?.engagementRatePct ? `${igData.engagementRatePct}%` : "–"}
+                                        </span>
+                                    </div>
+                                    <div className="p-2.5 rounded-lg bg-white dark:bg-zinc-800 border border-amber-200/50 dark:border-zinc-700">
+                                        <span className="text-[10.5px] text-slate-400 block">Avg Likes / Post</span>
+                                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                            {igData?.avgLikes ? Number(igData.avgLikes).toLocaleString() : "–"}
+                                        </span>
+                                    </div>
+                                    <div className="p-2.5 rounded-lg bg-white dark:bg-zinc-800 border border-amber-200/50 dark:border-zinc-700">
+                                        <span className="text-[10.5px] text-slate-400 block">
+                                            {igData?.reach28d ? "28d Reach" : "Est. Reel Views"}
+                                        </span>
+                                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                            {igData?.reach28d
+                                                ? Number(igData.reach28d).toLocaleString()
+                                                : igData?.avgReelViews
+                                                  ? Number(igData.avgReelViews).toLocaleString()
+                                                  : "–"}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 

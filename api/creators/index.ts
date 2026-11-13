@@ -18,6 +18,11 @@ import {
     updateCreatorCampaign,
     deleteCreatorCampaign,
 } from "../../server/creator_campaigns";
+import {
+    lookupAndSyncInstagramProfile,
+    getInstagramOAuthConfig,
+    completeInstagramOAuthCallback,
+} from "../../server/instagram_graph";
 
 const avatarCache = new Map<string, { buf: Buffer; type: string }>();
 
@@ -149,11 +154,77 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
         if (pathname.startsWith("/api/creator/intake") || pathname.startsWith("/api/v1/creator/intake") || pathname === "/api/creators/intake") {
             const parts = pathname.split("/").filter(Boolean);
             const lastPart = parts[parts.length - 1];
+
+            // 3a. Instagram Graph OAuth Callback (/api/creator/intake/ig-callback)
+            if (lastPart === "ig-callback") {
+                const code = url.searchParams.get("code") || "";
+                const state = url.searchParams.get("state") || "";
+                const proto = (req.headers["x-forwarded-proto"] as string) || "https";
+                const host = req.headers.host || "tbmoutreach.tech";
+                const defaultOrigin = host.includes("localhost") ? `http://${host}` : `${proto}://${host}`;
+                const result = await completeInstagramOAuthCallback(undefined, {
+                    code,
+                    state,
+                    defaultOrigin,
+                });
+                const payloadJson = JSON.stringify({
+                    type: "TBM_IG_OAUTH_COMPLETE",
+                    handle: result.handle,
+                    token: result.token,
+                    insights: result.insights,
+                });
+                res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+                res.end(`<!DOCTYPE html><html><head><title>Instagram Connected · TheBoredMonkey</title></head><body style="font-family:sans-serif;background:#faf9f6;color:#171717;display:grid;place-items:center;height:90vh;text-align:center;"><div><h2 style="margin-bottom:8px;">✓ Instagram Profile &amp; Insights Linked</h2><p style="color:#72716c;font-size:14px;">Returning to your creator form...</p></div><script>
+                    try {
+                        if (window.opener && !window.opener.closed) {
+                            window.opener.postMessage(${payloadJson}, "*");
+                            setTimeout(function() { window.close(); }, 350);
+                        } else {
+                            window.location.replace(${JSON.stringify(result.redirectUrl)});
+                        }
+                    } catch (e) {
+                        window.location.replace(${JSON.stringify(result.redirectUrl)});
+                    }
+                </script></body></html>`);
+                return;
+            }
+
             const isSubmit = lastPart === "submit";
             const isAvatar = lastPart === "avatar";
-            let token = isSubmit || isAvatar ? parts[parts.length - 2] : lastPart;
+            const isIgLookup = lastPart === "ig-lookup";
+            const isIgOAuthUrl = lastPart === "ig-oauth-url";
+            let token = isSubmit || isAvatar || isIgLookup || isIgOAuthUrl ? parts[parts.length - 2] : lastPart;
             if (!token || token === "intake") {
                 token = "new";
+            }
+
+            // 3b. Instagram Graph Profile & Insights Lookup (/api/creator/intake/:token/ig-lookup)
+            if (isIgLookup) {
+                const body = method === "POST" ? await parseBody(req) : {};
+                const handleParam = url.searchParams.get("handle") || body.handle || "";
+                const markConnected = url.searchParams.get("connect") === "1" || body.connect === true;
+                const insights = await lookupAndSyncInstagramProfile(undefined, {
+                    token,
+                    handle: handleParam,
+                    markConnected,
+                });
+                if (!insights) {
+                    return sendJson(res, 404, { error: "instagram_profile_not_found" });
+                }
+                return sendJson(res, 200, insights);
+            }
+
+            // 3c. Instagram OAuth URL Generator (/api/creator/intake/:token/ig-oauth-url)
+            if (isIgOAuthUrl) {
+                const handleParam = url.searchParams.get("handle") || "";
+                const proto = (req.headers["x-forwarded-proto"] as string) || (req.headers.host?.includes("localhost") ? "http" : "https");
+                const origin = (url.searchParams.get("origin") || `${proto}://${req.headers.host || "tbmoutreach.tech"}`).trim();
+                const cfg = getInstagramOAuthConfig({
+                    token,
+                    handle: handleParam,
+                    origin,
+                });
+                return sendJson(res, 200, cfg);
             }
 
             if ((method === "GET" || method === "HEAD") && isAvatar) {
@@ -259,7 +330,20 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
             }
         }
 
-        // 4. Single Creator by ID
+        // 4. Single Creator by ID or Sync Instagram
+        if ((pathname.startsWith("/api/creators/") || pathname.startsWith("/api/v1/creators/")) && pathname.split("/").length === 5 && pathname.endsWith("/sync-instagram") && method === "POST") {
+            const parts = pathname.split("/").filter(Boolean);
+            const id = parts[parts.length - 2];
+            const body = await parseBody(req);
+            const insights = await lookupAndSyncInstagramProfile(undefined, {
+                token: id,
+                handle: body.handle || "",
+                markConnected: Boolean(body.connect),
+            });
+            const updatedCreator = await getCreatorById(undefined, id);
+            return sendJson(res, 200, { creator: updatedCreator, insights });
+        }
+
         if ((pathname.startsWith("/api/creators/") || pathname.startsWith("/api/v1/creators/")) && pathname.split("/").length === 4) {
             const id = pathname.split("/").pop();
             if (id && id !== "facets" && id !== "templates") {

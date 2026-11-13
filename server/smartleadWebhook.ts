@@ -21,6 +21,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { pgQuery } from "./pg";
 import { classifyReplyDeterministic } from "./automation/pipeline/replyClassifier";
+import { classifyAndPersist } from "./automation/brain/pie/replyClassifierLLM";
 
 export type SmartleadEventOutcome =
     // Row written (or already there on a retry).
@@ -364,6 +365,27 @@ export async function recordSmartleadEvent(payload: Record<string, any>): Promis
                  WHERE ("leadId" = $3 OR lower("leadEmail") = $5) AND "sequenceStep" = $4`,
                 [inserted[0].id, classification.dbClassification, lead.id, seqStep, email]
             ).catch((err: any) => console.warn('[smartleadWebhook] DQ-02 attachment warning:', err?.message));
+
+            // L7: persist the reply into the Replica-3 learning store so the
+            // feedback loop accumulates data over time. Best-effort and
+            // deterministic-only (noLLM) — a store failure or model latency must
+            // never break the webhook's idempotent retry contract.
+            try {
+                await classifyAndPersist(
+                    {
+                        text: rawBody,
+                        subject,
+                        contactEmail: email,
+                        leadId: lead.id,
+                        campaignId: providerCampaignId ? String(providerCampaignId) : null,
+                        sequenceStep: seqStep,
+                        repliedEventId: inserted[0].id,
+                    },
+                    { noLLM: true },
+                );
+            } catch (err: any) {
+                console.warn('[smartleadWebhook] L7 learning-store persist warning:', err?.message);
+            }
         }
 
         return "persisted";

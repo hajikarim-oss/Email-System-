@@ -3,13 +3,14 @@
 
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BanIcon, LayersIcon, TagIcon, UsersIcon } from "lucide-react";
+import { BanIcon, LayersIcon, TagIcon, UsersIcon, SearchIcon } from "lucide-react";
 
 import { NoAccess } from "@/components/layout/NoAccess";
 import { usePermission } from "@/hooks/usePermission";
 
 const TABS = [
     { label: "All contacts", path: "", Icon: UsersIcon },
+    { label: "Apollo Search", path: "/apollo", Icon: SearchIcon },
     { label: "Segments", path: "/segments", Icon: LayersIcon },
     { label: "Categories", path: "/categories", Icon: TagIcon },
     { label: "Suppression list", path: "/suppressions", Icon: BanIcon },

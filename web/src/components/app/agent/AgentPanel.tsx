@@ -1862,10 +1862,10 @@ function ApprovalCard({
 }
 
 const STARTERS = [
-    "Which leads went cold and need a follow-up?",
-    "Summarize replies in my inbox from this week",
-    "Draft a reply to my latest positive reply",
-    "How are my campaigns performing?",
+    "Give me a full workspace report",
+    "Which campaigns are winning, and which are wasting sends?",
+    "What's dragging my reply rate, and how do I fix it?",
+    "Summarize this week's replies and who needs a human",
 ];
 
 function EmptyState({ onPick }: { onPick: (q: string) => void }) {
@@ -1875,9 +1875,13 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
             <div className="text-[13px] font-semibold text-slate-900">
                 How can I help?
             </div>
-            <p className="text-[12px] text-slate-500 mt-1 leading-relaxed max-w-[280px]">
-                Ask me to find contacts, check a campaign, draft a reply, or set up a
-                draft campaign. I ask before changing anything.
+            <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF9DB] border border-amber-200 text-[10px] font-semibold text-slate-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Full workspace access
+            </span>
+            <p className="text-[12px] text-slate-500 mt-2 leading-relaxed max-w-[290px]">
+                Your senior operator across every campaign, lead and reply. Ask for a
+                report, a diagnosis, or a draft — I ground every answer in your live data
+                and ask before changing anything.
             </p>
             <div className="mt-4 w-full max-w-[320px] space-y-1.5">
                 {STARTERS.map((q) => (

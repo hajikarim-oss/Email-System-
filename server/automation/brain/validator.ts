@@ -106,7 +106,7 @@ export function validateEmailDraft(input: ValidateDraftInput): ValidationResult 
   const brokenTagPattern = /\{\{(?!\s*(?:firstName|company|First Name|Company)\s*\}\})[^}]+\}\}/g;
   const unclosedTagPattern = /\{[^{]|(?<!\{)\{firstName\}|(?<!\{)\{company\}/;
 
-  if (stepNumber === 1) {
+  if (stepNumber === 1 && !input.isSendTime) {
     if (!body.includes('{{firstName}}') && !body.includes('{{First Name}}')) {
       issues.push({
         code: 'MISSING_FIRST_NAME_TAG',

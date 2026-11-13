@@ -512,7 +512,10 @@ export function UniboxHeader({
 
             <div className="h-4 w-px bg-slate-200 shrink-0 hidden sm:block" />
 
-            <div className="flex items-center gap-3.5 min-w-0">
+            {/* Metric strip — primary pair (unread / awaiting) stays prominent;
+                the secondary context metrics are grouped behind a divider, muted,
+                and shed first as the strip narrows, so the eye lands on what matters. */}
+            <div className="flex items-center gap-3 min-w-0">
                 <Stat
                     label="unread"
                     value={data?.unread ?? 0}
@@ -520,19 +523,20 @@ export function UniboxHeader({
                     muted={!data || data.unread === 0}
                 />
                 <Stat label="awaiting" value={data?.awaiting_reply ?? 0} />
-                <Stat label="today" value={data?.today ?? 0} />
-                <Stat label="week" value={data?.week ?? 0} />
+                <div className="h-3.5 w-px bg-slate-200 shrink-0 hidden md:block" />
+                <Stat label="today" value={data?.today ?? 0} muted className="hidden md:inline-flex" />
+                <Stat label="week" value={data?.week ?? 0} muted className="hidden md:inline-flex" />
                 <Stat
                     label="snoozed"
                     value={data?.snoozed ?? 0}
                     muted
-                    className="hidden sm:inline-flex"
+                    className="hidden lg:inline-flex"
                 />
                 <Stat
                     label="mailboxes"
                     value={data?.mailboxes?.length ?? 0}
                     muted
-                    className="hidden sm:inline-flex"
+                    className="hidden lg:inline-flex"
                 />
             </div>
 

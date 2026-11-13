@@ -12,6 +12,21 @@ export interface BrainConfigFlags {
   ROUTER_ENABLED: boolean;
   SMARTLEAD_AUTO_SEND: boolean;
   LEARNING_LOOP_ENABLED: boolean;
+  REPLY_LLM_CLASSIFIER_ENABLED: boolean;
+  // 'off' = deterministic only; 'ambiguous' = LLM only when deterministic is unsure
+  // (cheapest useful); 'every' = LLM reads every real reply (most accurate, highest cost).
+  REPLY_LLM_MODE: 'off' | 'ambiguous' | 'every';
+  // When on, PIE escalations are mirrored into the app's Notification table so they
+  // appear in the UI bell. Default off: escalations stay in the Replica-3 store.
+  PIE_BELL_BRIDGE_ENABLED: boolean;
+}
+
+/** Resolve the reply-classification LLM mode from env, with backward-compat. */
+export function getReplyLlmMode(): 'off' | 'ambiguous' | 'every' {
+  const raw = (process.env.REPLY_LLM_MODE || '').trim().toLowerCase();
+  if (raw === 'every' || raw === 'ambiguous' || raw === 'off') return raw;
+  // Back-compat: the old boolean flag means "ambiguous".
+  return getBrainFlags().REPLY_LLM_CLASSIFIER_ENABLED ? 'ambiguous' : 'off';
 }
 
 export function getBrainFlags(): BrainConfigFlags {
@@ -35,6 +50,15 @@ export function getBrainFlags(): BrainConfigFlags {
     ROUTER_ENABLED: bool('ROUTER_ENABLED', false),
     SMARTLEAD_AUTO_SEND: bool('SMARTLEAD_AUTO_SEND', false),
     LEARNING_LOOP_ENABLED: bool('LEARNING_LOOP_ENABLED', false),
+    // L7: LLM refinement of ambiguous replies. OFF by default so no OpenAI spend
+    // happens unless explicitly enabled; deterministic classification always runs.
+    REPLY_LLM_CLASSIFIER_ENABLED: bool('REPLY_LLM_CLASSIFIER_ENABLED', false),
+    REPLY_LLM_MODE: ((): 'off' | 'ambiguous' | 'every' => {
+      const raw = (process.env.REPLY_LLM_MODE || '').trim().toLowerCase();
+      if (raw === 'every' || raw === 'ambiguous' || raw === 'off') return raw;
+      return bool('REPLY_LLM_CLASSIFIER_ENABLED', false) ? 'ambiguous' : 'off';
+    })(),
+    PIE_BELL_BRIDGE_ENABLED: bool('PIE_BELL_BRIDGE_ENABLED', false),
   };
 }
 

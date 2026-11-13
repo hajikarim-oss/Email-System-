@@ -1019,6 +1019,89 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
                 <>
                 {subTab==="database"&&(
                     <div className="space-y-3">
+                        {/* Selected Contacts Tray at the Top */}
+                        {selectedContacts.length > 0 && (
+                            <div className="rounded-lg border border-stone-300 bg-stone-50/90 p-3 space-y-2 shadow-xs">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-stone-900 text-white text-[10px] font-bold">
+                                            {selectedContacts.length}
+                                        </span>
+                                        <span className="text-[12px] font-bold text-stone-900">
+                                            Selected Contacts for Campaign
+                                        </span>
+                                        <span className="text-[11px] text-stone-500">
+                                            (Review your selected decision-makers)
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => onChangeSelected([])}
+                                        className="text-[11px] text-stone-400 hover:text-red-600 transition font-medium"
+                                    >
+                                        Deselect all
+                                    </button>
+                                </div>
+
+                                <div className="max-h-[160px] overflow-y-auto divide-y divide-stone-200/60 bg-white rounded-md border border-stone-200 shadow-2xs">
+                                    {selectedContacts.map((c) => (
+                                        <div
+                                            key={c.email}
+                                            className="px-3 py-2 flex items-center justify-between gap-3 text-xs hover:bg-stone-50/60 transition"
+                                        >
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-[10px] font-semibold text-stone-700 shrink-0 border border-stone-200">
+                                                    {(c.first_name?.[0] || c.email[0] || "?").toUpperCase()}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-stone-900 truncate">
+                                                        {c.first_name || c.last_name
+                                                            ? `${c.first_name || ""} ${c.last_name || ""}`.trim()
+                                                            : c.email}
+                                                    </p>
+                                                    <p className="text-[11px] text-stone-500 truncate flex items-center gap-1.5">
+                                                        <span>{c.email}</span>
+                                                        {c.company && (
+                                                            <span className="text-stone-700 font-medium">
+                                                                • {c.company}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {c.role && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 font-medium border border-stone-200/50">
+                                                        {c.role}
+                                                    </span>
+                                                )}
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                                                    {c.source === "database" ? "Selected from DB" : c.source.toUpperCase()}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        onChangeSelected(
+                                                            selectedContacts.filter(
+                                                                (s) =>
+                                                                    s.email.toLowerCase() !==
+                                                                    c.email.toLowerCase()
+                                                            )
+                                                        )
+                                                    }
+                                                    className="p-1 text-stone-400 hover:text-red-600 rounded hover:bg-stone-100 transition"
+                                                    title="Remove contact from campaign"
+                                                >
+                                                    <XIcon className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                             <div className="relative flex-1"><SearchIcon className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400"/><input type="text" value={dbSearch} onChange={e=>setDbSearch(e.target.value)} placeholder="Search name, email, company..." className="w-full h-8 pl-8 pr-3 text-[12px] rounded-md border border-slate-200 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FFE600]/30 focus:border-slate-800"/></div>
                             <select value={dbOutreachFilter} onChange={e=>setDbOutreachFilter(e.target.value)} className="h-8 px-2 text-[11.5px] rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none"><option value="all">All States</option><option value="NEVER_REACHED">Never Reached</option><option value="DORMANT_REPLIED">Replied (Dormant)</option><option value="WARM_STALE">Warm - Stale</option><option value="COLD_REENGAGEMENT">Cold - Re-engage</option><option value="BURNED">Burned</option></select>

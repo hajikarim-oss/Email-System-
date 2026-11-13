@@ -28,6 +28,13 @@ import {
     Trash2Icon,
     UsersIcon,
     XIcon,
+    SparklesIcon,
+    CheckCircle2Icon,
+    RefreshCwIcon,
+    SlidersHorizontalIcon,
+    BuildingIcon,
+    FileTextIcon,
+    TargetIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -66,6 +73,7 @@ import { cn } from "@/lib/utils";
 interface Props {
     open: boolean;
     onClose: () => void;
+    initialContacts?: ContactDraftItem[];
 }
 
 type SequenceDraft = {
@@ -93,7 +101,7 @@ const SEQUENCE_STEPS: readonly StepDef[] = [
     { key: "contacts", label: "Contacts", icon: UsersIcon },
     { key: "schedule", label: "Schedule", icon: CalendarClockIcon },
     { key: "sending", label: "Sending", icon: SendIcon },
-    { key: "email", label: "First email", icon: MailIcon },
+    { key: "email", label: "Email Writer", icon: SparklesIcon },
 ];
 
 // A one-time email asks for the message before the audience, and ends on the
@@ -279,7 +287,7 @@ function fmtDateTime(d: Date): string {
     return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export function NewCampaignDialog({ open, onClose }: Props) {
+export function NewCampaignDialog({ open, onClose, initialContacts }: Props) {
     const navigate = useNavigate();
     const profile = useUserProfile();
     const { isMaster } = useFeatureAccess();
@@ -341,24 +349,34 @@ export function NewCampaignDialog({ open, onClose }: Props) {
             setDraftRestored(false);
             return;
         }
+        let baseDraft = initialDraft(defaultTimezone);
         try {
             const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (parsed.name?.trim()) {
-                    setDraft({
-                        ...initialDraft(defaultTimezone),
+                    baseDraft = {
+                        ...baseDraft,
                         ...parsed,
                         sequences: parsed.sequences?.length ? parsed.sequences : [newSequence(0)],
-                    });
+                    };
                     setDraftRestored(true);
-                    return;
                 }
             }
         } catch {}
-        setDraft(initialDraft(defaultTimezone));
-        setDraftRestored(false);
-    }, [open, defaultTimezone]);
+
+        if (initialContacts && initialContacts.length > 0) {
+            baseDraft = {
+                ...baseDraft,
+                selectedContacts: initialContacts,
+            };
+        }
+
+        setDraft(baseDraft);
+        if (!initialContacts?.length) {
+            setDraftRestored(false);
+        }
+    }, [open, defaultTimezone, initialContacts]);
 
     React.useEffect(() => {
         if (!open || !dirty) return;
@@ -1565,128 +1583,736 @@ function EmailsStep({
     const update = (i: number, p: Partial<SequenceDraft>) =>
         patch({ sequences: draft.sequences.map((s, idx) => (idx === i ? { ...s, ...p } : s)) });
 
-    return (
-        <div className="w-full">
-            <StepIntro
-                title={oneTime ? "What does the email say?" : "What does the first email say?"}
-                hint={
-                    oneTime
-                        ? "This is the whole send. You can polish it in the full editor on the Steps tab afterwards."
-                        : "Optional. Skip this to write it in the full editor on the Steps tab afterwards."
-                }
-            />
+    const hasContacts = draft.selectedContacts && draft.selectedContacts.length > 0;
+    const [viewMode, setViewMode] = React.useState<"ai_writer" | "sequence_editor">(
+        hasContacts ? "ai_writer" : "sequence_editor"
+    );
+    const [activeContactIdx, setActiveContactIdx] = React.useState(0);
 
-            {!oneTime && (
-                <div className="mb-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-500">
-                    <button type="button" onClick={() => goToKey("schedule")} className="hover:text-slate-900 hover:underline underline-offset-2">
-                        {daysLabel(draft.days)}, {fmt12(draft.startTime)} to {fmt12(draft.endTime)}
-                        {draft.entryDelayMinutes > 0
-                            ? `, first email after ${entryDelayLabel(draft.entryDelayMinutes).toLowerCase()}`
-                            : ""}
+    // Per-contact personalized pitches & grounded thesis assignments
+    const [pitches, setPitches] = React.useState<
+        Record<
+            string,
+            {
+                subject: string;
+                body: string;
+                approved: boolean;
+                hasGroundedThesis?: boolean;
+                benchmarkDim?: string;
+                impliedProblem?: string;
+                citedProof?: { clientName: string; metricRaw: string; categoryKey: string } | null;
+                valid?: boolean;
+                validationIssues?: string[];
+            }
+        >
+    >(() => {
+        const init: Record<string, any> = {};
+        for (const c of draft.selectedContacts || []) {
+            const firstName = c.first_name || (c.email.split("@")[0] || "");
+            const company = c.company || "your brand";
+            init[c.email] = {
+                subject: `Creator acquisition angle for ${company}`,
+                body: `Hi ${firstName},\n\nReaching out regarding ${company}'s creator strategy.\n\nOpen to checking out how the workflow operates?`,
+                approved: false,
+                hasGroundedThesis: false,
+            };
+        }
+        return init;
+    });
+
+    // Generate real grounded pitches via Layer 6 (L6)
+    const [isGeneratingPitches, setIsGeneratingPitches] = React.useState(false);
+    React.useEffect(() => {
+        if (!draft.selectedContacts || draft.selectedContacts.length === 0) return;
+
+        setIsGeneratingPitches(true);
+        fetch("/api/brain/pitch/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contacts: draft.selectedContacts.map((c) => ({
+                    id: c.id,
+                    email: c.email,
+                    firstName: c.first_name,
+                    lastName: c.last_name,
+                    company: c.company,
+                    role: c.role,
+                    brandId: c.custom_fields?.brandId || (c as any).brandId,
+                })),
+            }),
+        })
+            .then((r) => r.json())
+            .then((d) => {
+                if (d.pitches && Array.isArray(d.pitches)) {
+                    setPitches((prev) => {
+                        const next = { ...prev };
+                        for (const p of d.pitches) {
+                            next[p.contactEmail] = {
+                                subject: prev[p.contactEmail]?.approved ? prev[p.contactEmail].subject : p.subject,
+                                body: prev[p.contactEmail]?.approved ? prev[p.contactEmail].body : p.body,
+                                steps: p.steps || [],
+                                approved: prev[p.contactEmail]?.approved || false,
+                                hasGroundedThesis: p.hasGroundedThesis,
+                                benchmarkDim: p.benchmarkDim,
+                                impliedProblem: p.impliedProblem,
+                                citedProof: p.citedProof,
+                                valid: p.valid,
+                                validationIssues: p.validationIssues || [],
+                            };
+                        }
+                        return next;
+                    });
+
+                    // Sync the full 3-step sequence into draft.sequences
+                    const activeP = d.pitches[activeContactIdx] || d.pitches[0];
+                    if (activeP && activeP.steps && activeP.steps.length > 0) {
+                        patch({
+                            sequences: activeP.steps.map((st: any, idx: number) => ({
+                                subject: st.subject,
+                                body_plain: st.body,
+                                body_html: st.bodyHtml || `<p>${st.body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`,
+                                wait_after: idx === 0 ? 0 : st.delayDays || (idx === 1 ? 2 : 3),
+                            })),
+                        });
+                    }
+                }
+            })
+            .catch((err) => console.warn("[EmailsStep] L6 Pitch generation fallback:", err))
+            .finally(() => setIsGeneratingPitches(false));
+    }, [draft.selectedContacts]);
+
+    // Sync active contact pitch & sequence steps into draft.sequences
+    const syncActivePitchToSequence = (subject: string, body: string, steps?: any[]) => {
+        if (steps && steps.length > 0) {
+            patch({
+                sequences: steps.map((s, idx) => ({
+                    subject: s.subject,
+                    body_plain: s.body,
+                    body_html: s.bodyHtml || `<p>${s.body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`,
+                    wait_after: idx === 0 ? 0 : s.delayDays || (idx === 1 ? 2 : 3),
+                })),
+            });
+        } else {
+            if (!draft.sequences[0]) return;
+            update(0, {
+                subject,
+                body_plain: body,
+                body_html: `<p>${body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`,
+            });
+        }
+    };
+
+    const currentContact = draft.selectedContacts[activeContactIdx];
+    const currentPitch = currentContact ? pitches[currentContact.email] : null;
+
+    // Real PIE Thesis state for current contact
+    const [realThesis, setRealThesis] = React.useState<any | null>(null);
+    const [realGaps, setRealGaps] = React.useState<any[]>([]);
+    const [isLoadingThesis, setIsLoadingThesis] = React.useState<boolean>(false);
+    const [isGeneratingThesis, setIsGeneratingThesis] = React.useState<boolean>(false);
+
+    React.useEffect(() => {
+        if (!currentContact) return;
+        setRealThesis(null);
+        setRealGaps([]);
+        const brandId = currentContact.custom_fields?.brandId || (currentContact as any).brandId;
+        if (!brandId) return;
+
+        setIsLoadingThesis(true);
+        fetch(`/api/brain/thesis?brandId=${encodeURIComponent(brandId)}`)
+            .then((r) => r.json())
+            .then((d) => {
+                if (d.thesis) {
+                    setRealThesis(d.thesis);
+                    setRealGaps(d.gaps || []);
+                }
+            })
+            .catch(() => {})
+            .finally(() => setIsLoadingThesis(false));
+    }, [currentContact?.email]);
+
+    const handleRunPieEngine = async () => {
+        const brandId = currentContact?.custom_fields?.brandId || (currentContact as any)?.brandId;
+        if (!brandId) {
+            toast.error("Contact has no linked Brand ID");
+            return;
+        }
+        setIsGeneratingThesis(true);
+        try {
+            const res = await fetch("/api/brain/pie/run", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ brandId }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to run PIE Engine");
+
+            toast.success("PIE Gap Engine generated strategic thesis!");
+            // Reload thesis
+            const tRes = await fetch(`/api/brain/thesis?brandId=${encodeURIComponent(brandId)}`);
+            const tData = await tRes.json();
+            setRealThesis(tData.thesis);
+            setRealGaps(tData.gaps || []);
+
+            // Regenerate grounded pitch with new thesis
+            const pRes = await fetch("/api/brain/pitch/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contact: {
+                        id: currentContact.id,
+                        email: currentContact.email,
+                        firstName: currentContact.first_name,
+                        lastName: currentContact.last_name,
+                        company: currentContact.company,
+                        role: currentContact.role,
+                        brandId,
+                    },
+                }),
+            });
+            const pData = await pRes.json();
+            if (pData.pitch) {
+                setPitches((prev) => ({
+                    ...prev,
+                    [currentContact.email]: {
+                        subject: pData.pitch.subject,
+                        body: pData.pitch.body,
+                        steps: pData.pitch.steps || [],
+                        approved: false,
+                        hasGroundedThesis: pData.pitch.hasGroundedThesis,
+                        benchmarkDim: pData.pitch.benchmarkDim,
+                        impliedProblem: pData.pitch.impliedProblem,
+                        citedProof: pData.pitch.citedProof,
+                        valid: pData.pitch.valid,
+                        validationIssues: pData.pitch.validationIssues || [],
+                    },
+                }));
+                syncActivePitchToSequence(pData.pitch.subject, pData.pitch.body, pData.pitch.steps);
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Failed to generate thesis");
+        } finally {
+            setIsGeneratingThesis(false);
+        }
+    };
+
+    const handlePitchChange = (subject: string, body: string) => {
+        if (!currentContact) return;
+        let updatedSteps: any[] = [];
+        setPitches((prev) => {
+            const existing = prev[currentContact.email] || {};
+            const existingSteps = existing.steps || [];
+            updatedSteps =
+                existingSteps.length > 0
+                    ? [{ ...existingSteps[0], subject, body }, ...existingSteps.slice(1)]
+                    : [];
+            return {
+                ...prev,
+                [currentContact.email]: {
+                    ...existing,
+                    subject,
+                    body,
+                    steps: updatedSteps,
+                },
+            };
+        });
+        syncActivePitchToSequence(subject, body, updatedSteps);
+    };
+
+    // Build the approve payload and persist an approved pitch to the DB
+    // (DraftGeneration on Replica 3). Best-effort: never blocks the UI.
+    const buildApprovalPayload = (contact: any, pitch: any) => ({
+        contact: {
+            email: contact.email,
+            firstName: contact.first_name,
+            lastName: contact.last_name,
+            company: contact.company,
+            role: contact.role,
+            brandId: contact.custom_fields?.brandId || contact.brandId,
+            leadId: contact.custom_fields?.leadId || contact.id,
+        },
+        subject: pitch.subject,
+        body: pitch.body,
+        steps: pitch.steps || [],
+        valid: pitch.valid,
+        validationIssues: pitch.validationIssues || [],
+        humanEdited: false,
+    });
+
+    const persistApproval = (contact: any, pitch: any) => {
+        if (!pitch) return;
+        fetch("/api/brain/pitch/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(buildApprovalPayload(contact, pitch)),
+        }).catch((err) => console.warn("[EmailsStep] approve persist warning:", err));
+    };
+
+    const toggleApproveCurrent = () => {
+        if (!currentContact || !currentPitch) return;
+        const nextApproved = !currentPitch.approved;
+        setPitches((prev) => ({
+            ...prev,
+            [currentContact.email]: {
+                ...prev[currentContact.email],
+                approved: nextApproved,
+            },
+        }));
+        if (nextApproved) {
+            persistApproval(currentContact, currentPitch);
+            toast.success(`Pitch approved for ${currentContact.first_name || currentContact.email}`);
+            if (activeContactIdx < draft.selectedContacts.length - 1) {
+                setActiveContactIdx((i) => i + 1);
+            }
+        }
+    };
+
+    const approveAllPitches = () => {
+        setPitches((prev) => {
+            const next = { ...prev };
+            for (const key of Object.keys(next)) {
+                next[key].approved = true;
+            }
+            return next;
+        });
+        const approvals = (draft.selectedContacts || [])
+            .map((c) => {
+                const p = pitches[c.email];
+                return p ? buildApprovalPayload(c, p) : null;
+            })
+            .filter(Boolean);
+        if (approvals.length > 0) {
+            fetch("/api/brain/pitch/approve", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ approvals }),
+            }).catch((err) => console.warn("[EmailsStep] approve-all persist warning:", err));
+        }
+        toast.success(`All ${draft.selectedContacts.length} pitches approved!`);
+    };
+
+    const approvedCount = Object.values(pitches).filter((p) => p.approved).length;
+
+    return (
+        <div className="w-full space-y-4">
+            {/* Top Bar & Mode Switcher */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-md bg-stone-900 text-amber-300">
+                        <SparklesIcon className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            AI Email Writer & Thesis Reviewer
+                            {hasContacts && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    {approvedCount} of {draft.selectedContacts.length} Approved
+                                </span>
+                            )}
+                        </h3>
+                        <p className="text-[11px] text-slate-500">
+                            Crafted cold pitches backed by strategic PIE Theses per decision-maker.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-1 p-0.5 rounded-md bg-slate-100 border border-slate-200 text-xs">
+                    <button
+                        type="button"
+                        onClick={() => setViewMode("ai_writer")}
+                        className={`px-3 py-1 rounded font-medium transition ${
+                            viewMode === "ai_writer"
+                                ? "bg-white text-slate-900 shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                        }`}
+                    >
+                        AI Theses Pitches ({draft.selectedContacts.length})
                     </button>
-                    <span className="text-slate-300">·</span>
-                    <button type="button" onClick={() => goToKey("sending")} className="hover:text-slate-900 hover:underline underline-offset-2">
-                        {draft.dailyLimit}/day per mailbox
+                    <button
+                        type="button"
+                        onClick={() => setViewMode("sequence_editor")}
+                        className={`px-3 py-1 rounded font-medium transition ${
+                            viewMode === "sequence_editor"
+                                ? "bg-white text-slate-900 shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                        }`}
+                    >
+                        Sequence & Follow-ups
                     </button>
-                    <span className="text-slate-300">·</span>
-                    <button type="button" onClick={() => goToKey("sending")} className="hover:text-slate-900 hover:underline underline-offset-2">
-                        {draft.emailTagIds.length === 0
-                            ? "all mailboxes"
-                            : `${draft.emailTagIds.length} tag${draft.emailTagIds.length === 1 ? "" : "s"}`}
-                    </button>
-                    <PencilLineIcon className="w-3 h-3 text-slate-300 ml-0.5" />
+                </div>
+            </div>
+
+            {/* MODE 1: AI WRITER WITH THESES PER CONTACT */}
+            {viewMode === "ai_writer" && (
+                <div className="space-y-4">
+                    {!hasContacts ? (
+                        <div className="p-8 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                            <UsersIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                            <p className="text-sm font-semibold text-slate-700">No contacts selected yet</p>
+                            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                                Go back to Step 2 ("Contacts") to select leads, or use the Sequence tab to write a universal template.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => goToKey("contacts")}
+                                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-slate-900 text-white hover:bg-slate-800"
+                            >
+                                <ChevronLeftIcon className="w-3.5 h-3.5" />
+                                Go to Contacts Step
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Contact Carousel Tabs */}
+                            <div className="flex items-center justify-between gap-2 bg-slate-50/80 p-2 rounded-lg border border-slate-200/80 overflow-x-auto">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    {draft.selectedContacts.map((c, idx) => {
+                                        const p = pitches[c.email];
+                                        const isActive = idx === activeContactIdx;
+                                        return (
+                                            <button
+                                                key={c.email}
+                                                type="button"
+                                                onClick={() => {
+                                                    setActiveContactIdx(idx);
+                                                    if (p) syncActivePitchToSequence(p.subject, p.body, p.steps);
+                                                }}
+                                                className={`px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 border transition shrink-0 ${
+                                                    isActive
+                                                        ? "bg-stone-900 text-white border-stone-900 shadow-xs"
+                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                <span className="truncate max-w-[120px]">
+                                                    {c.first_name || c.email.split("@")[0]}
+                                                </span>
+                                                {p?.approved ? (
+                                                    <CheckCircle2Icon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                                ) : (
+                                                    <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={approveAllPitches}
+                                        className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded transition"
+                                    >
+                                        Approve All ({draft.selectedContacts.length})
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Active Contact Pitch Workspace */}
+                            {currentContact && currentPitch && (
+                                <div className="border border-slate-200 rounded-lg bg-white overflow-hidden shadow-2xs space-y-3 p-4">
+                                    {/* Contact & Real PIE Thesis Selection Bar */}
+                                    <div className="space-y-3 bg-stone-50/70 p-3.5 rounded-lg border border-stone-200">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold text-stone-900">
+                                                        {currentContact.first_name || currentContact.email}
+                                                    </span>
+                                                    {currentContact.role && (
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-700 font-medium">
+                                                            {currentContact.role}
+                                                        </span>
+                                                    )}
+                                                    {currentContact.company && (
+                                                        <span className="text-xs text-stone-600 font-medium flex items-center gap-1">
+                                                            <BuildingIcon className="w-3 h-3 text-stone-400" />
+                                                            {currentContact.company}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[11px] font-mono text-stone-400">{currentContact.email}</p>
+                                            </div>
+
+                                            {/* Real PIE Thesis Action */}
+                                            <div className="flex items-center gap-2">
+                                                {realThesis ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                            PIE Fit: {realThesis.fitScore}/100 ({realThesis.tier})
+                                                        </span>
+                                                        <span className="text-[11px] text-stone-500 font-medium">
+                                                            {realGaps.length} Gaps Detected
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleRunPieEngine}
+                                                        disabled={isGeneratingThesis}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-stone-900 text-white text-[11px] font-semibold hover:bg-stone-800 transition disabled:opacity-50"
+                                                    >
+                                                        {isGeneratingThesis ? (
+                                                            <RefreshCwIcon className="w-3 h-3 animate-spin" />
+                                                        ) : (
+                                                            <SparklesIcon className="w-3 h-3 text-amber-300" />
+                                                        )}
+                                                        {isGeneratingThesis ? "Running Gap Engine..." : "⚡ Run Gap Engine"}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Real PIE Intelligence Breakdown */}
+                                        {realThesis && realGaps.length > 0 && (
+                                            <div className="p-2.5 rounded bg-white border border-stone-200 text-xs space-y-1">
+                                                <div className="flex items-center justify-between text-[11px] font-semibold text-stone-700">
+                                                    <span className="text-amber-800 font-bold flex items-center gap-1">
+                                                        <TargetIcon className="w-3.5 h-3.5 text-amber-600" />
+                                                        Primary Gap: {realGaps[0].benchmarkDim || "Performance Video"}
+                                                    </span>
+                                                    {realGaps[0].proofClient && (
+                                                        <span className="text-emerald-700 font-medium">
+                                                            Case Study: {realGaps[0].proofClient} ({realGaps[0].proofMetric})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[11px] text-stone-600">
+                                                    <strong>Problem:</strong> {realGaps[0].impliedProblem}
+                                                </p>
+                                                <p className="text-[11px] text-stone-500">
+                                                    <strong>Impact:</strong> {realGaps[0].businessImpact}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Subject Line Input */}
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-semibold text-slate-600 flex items-center justify-between">
+                                            <span>Subject Line:</span>
+                                            <span className="text-[10px] text-slate-400 font-normal">
+                                                Tokens: +{"{{company}}"}, +{"{{first_name}}"}
+                                            </span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={currentPitch.subject}
+                                            onChange={(e) => handlePitchChange(e.target.value, currentPitch.body)}
+                                            className="w-full text-xs font-medium px-3 py-1.5 rounded-md border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
+                                            placeholder="Subject line for this contact..."
+                                        />
+                                    </div>
+
+                                    {/* Email Body Editor */}
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-semibold text-slate-600 flex items-center justify-between">
+                                            <span>Tailored Cold Email Pitch:</span>
+                                            {currentPitch.citedProof ? (
+                                                <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-semibold flex items-center gap-1">
+                                                    <CheckCircle2Icon className="w-3 h-3 text-emerald-600" />
+                                                    Grounded Proof: {currentPitch.citedProof.clientName} ({currentPitch.citedProof.metricRaw})
+                                                </span>
+                                            ) : currentPitch.hasGroundedThesis ? (
+                                                <span className="text-[10px] text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-300 font-semibold flex items-center gap-1">
+                                                    <TargetIcon className="w-3 h-3 text-blue-600" />
+                                                    Grounded Gap: {currentPitch.benchmarkDim || "Strategic Gap"}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] text-stone-700 bg-stone-100 px-2 py-0.5 rounded border border-stone-300 font-medium">
+                                                    Role-Tailored (Zero Fabrication)
+                                                </span>
+                                            )}
+                                        </label>
+                                        <textarea
+                                            rows={9}
+                                            value={currentPitch.body}
+                                            onChange={(e) => handlePitchChange(currentPitch.subject, e.target.value)}
+                                            className="w-full text-xs font-mono leading-relaxed p-3 rounded-md border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 resize-none"
+                                            placeholder="Write tailored email pitch..."
+                                        />
+                                        {currentPitch.validationIssues && currentPitch.validationIssues.length > 0 && (
+                                            <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800 space-y-0.5">
+                                                {currentPitch.validationIssues.map((iss, i) => (
+                                                    <p key={i}>⚠ {iss}</p>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Bottom Approval Footer */}
+                                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveContactIdx(Math.max(0, activeContactIdx - 1))}
+                                                disabled={activeContactIdx === 0}
+                                                className="px-2.5 py-1 text-xs rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                                            >
+                                                Previous Lead
+                                            </button>
+                                            <span className="text-xs text-slate-500 font-medium">
+                                                {activeContactIdx + 1} of {draft.selectedContacts.length}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setActiveContactIdx(
+                                                        Math.min(draft.selectedContacts.length - 1, activeContactIdx + 1)
+                                                    )
+                                                }
+                                                disabled={activeContactIdx === draft.selectedContacts.length - 1}
+                                                className="px-2.5 py-1 text-xs rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                                            >
+                                                Next Lead
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={toggleApproveCurrent}
+                                            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold shadow-xs transition ${
+                                                currentPitch.approved
+                                                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                    : "bg-stone-900 hover:bg-stone-800 text-white"
+                                            }`}
+                                        >
+                                            <CheckCircle2Icon className="w-3.5 h-3.5" />
+                                            {currentPitch.approved
+                                                ? "✓ Approved (Click to Unapprove)"
+                                                : `Approve Pitch for ${currentContact.first_name || "Lead"}`}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             )}
 
-            <div className="space-y-3">
-                <AnimatePresence initial={false}>
-                    {draft.sequences.map((seq, i) => (
-                        <motion.div
-                            key={seq.id}
-                            layout
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={{ duration: 0.16 }}
-                            className="border border-slate-200 rounded-md overflow-hidden"
-                        >
-                            <div className="h-9 px-3 flex items-center gap-2 bg-slate-50/60 border-b border-slate-100">
-                                <span className="size-5 rounded-full bg-white ring-1 ring-inset ring-slate-200 text-[10.5px] font-semibold text-slate-600 inline-flex items-center justify-center tabular-nums">
-                                    {i + 1}
-                                </span>
-                                <span className="text-[12px] text-slate-900 font-medium">
-                                    {oneTime ? "Email" : i === 0 ? "First email" : `Follow-up ${i}`}
-                                </span>
-                                {i > 0 && (
-                                    <div className="flex items-center gap-1.5 ml-1">
-                                        <span className="text-[11px] text-slate-500">after</span>
-                                        <NumberInput
-                                            value={seq.wait_after}
-                                            min={0}
-                                            max={60}
-                                            onChange={(v) => update(i, { wait_after: v })}
-                                            className="w-20"
-                                        />
-                                        <span className="text-[11px] text-slate-500">
-                                            day{seq.wait_after === 1 ? "" : "s"}
-                                        </span>
-                                    </div>
-                                )}
-                                {i > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            patch({ sequences: draft.sequences.filter((_, idx) => idx !== i) })
+            {/* MODE 2: SEQUENCE & FOLLOW-UPS EDITOR */}
+            {viewMode === "sequence_editor" && (
+                <div className="space-y-3">
+                    <StepIntro
+                        title={oneTime ? "What does the email say?" : "Sequence Template & Follow-ups"}
+                        hint={
+                            oneTime
+                                ? "This is the whole send. You can polish it in the full editor on the Steps tab afterwards."
+                                : "Fallback sequence template and follow-up touches sent to contacts after their primary pitch."
+                        }
+                    />
+
+                    {!oneTime && (
+                        <div className="mb-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-500">
+                            <button
+                                type="button"
+                                onClick={() => goToKey("schedule")}
+                                className="hover:text-slate-900 hover:underline underline-offset-2"
+                            >
+                                {daysLabel(draft.days)}, {fmt12(draft.startTime)} to {fmt12(draft.endTime)}
+                                {draft.entryDelayMinutes > 0
+                                    ? `, first email after ${entryDelayLabel(draft.entryDelayMinutes).toLowerCase()}`
+                                    : ""}
+                            </button>
+                            <span className="text-slate-300">·</span>
+                            <button
+                                type="button"
+                                onClick={() => goToKey("sending")}
+                                className="hover:text-slate-900 hover:underline underline-offset-2"
+                            >
+                                {draft.dailyLimit}/day per mailbox
+                            </button>
+                            <span className="text-slate-300">·</span>
+                            <button
+                                type="button"
+                                onClick={() => goToKey("sending")}
+                                className="hover:text-slate-900 hover:underline underline-offset-2"
+                            >
+                                {draft.emailTagIds.length === 0
+                                    ? "all mailboxes"
+                                    : `${draft.emailTagIds.length} tag${draft.emailTagIds.length === 1 ? "" : "s"}`}
+                            </button>
+                            <PencilLineIcon className="w-3 h-3 text-slate-300 ml-0.5" />
+                        </div>
+                    )}
+
+                    <AnimatePresence initial={false}>
+                        {draft.sequences.map((seq, i) => (
+                            <motion.div
+                                key={seq.id}
+                                layout
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -6 }}
+                                transition={{ duration: 0.16 }}
+                                className="border border-slate-200 rounded-md overflow-hidden bg-white"
+                            >
+                                <div className="h-9 px-3 flex items-center gap-2 bg-slate-50/60 border-b border-slate-100">
+                                    <span className="size-5 rounded-full bg-white ring-1 ring-inset ring-slate-200 text-[10.5px] font-semibold text-slate-600 inline-flex items-center justify-center tabular-nums">
+                                        {i + 1}
+                                    </span>
+                                    <span className="text-[12px] text-slate-900 font-medium">
+                                        {oneTime ? "Email" : i === 0 ? "First email" : `Follow-up ${i}`}
+                                    </span>
+                                    {i > 0 && (
+                                        <div className="flex items-center gap-1.5 ml-1">
+                                            <span className="text-[11px] text-slate-500">after</span>
+                                            <NumberInput
+                                                value={seq.wait_after}
+                                                min={0}
+                                                max={60}
+                                                onChange={(v) => update(i, { wait_after: v })}
+                                                className="w-20"
+                                            />
+                                            <span className="text-[11px] text-slate-500">
+                                                day{seq.wait_after === 1 ? "" : "s"}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {i > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                patch({ sequences: draft.sequences.filter((_, idx) => idx !== i) })
+                                            }
+                                            aria-label="Remove follow-up"
+                                            className="ml-auto size-6 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center transition-colors"
+                                        >
+                                            <Trash2Icon className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="p-3">
+                                    <RichEmailEditor
+                                        subject={seq.subject}
+                                        onSubjectChange={(v) => update(i, { subject: v })}
+                                        bodyHtml={seq.body_html || ""}
+                                        bodyPlain={seq.body_plain || ""}
+                                        onBodyChange={(html, plain) => update(i, { body_html: html, body_plain: plain })}
+                                        isFollowUp={i > 0}
+                                        stepIndex={i}
+                                        placeholder={
+                                            i === 0
+                                                ? "Hi {{.FirstName}},\n\nNoticed {{.Company}} is ..."
+                                                : "Just bumping this up in case it slipped past."
                                         }
-                                        aria-label="Remove follow-up"
-                                        className="ml-auto size-6 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center transition-colors"
-                                    >
-                                        <Trash2Icon className="w-3 h-3" />
-                                    </button>
-                                )}
-                            </div>
-                            <div className="p-3">
-                                <RichEmailEditor
-                                    subject={seq.subject}
-                                    onSubjectChange={(v) => update(i, { subject: v })}
-                                    bodyHtml={seq.body_html || ""}
-                                    bodyPlain={seq.body_plain || ""}
-                                    onBodyChange={(html, plain) => update(i, { body_html: html, body_plain: plain })}
-                                    isFollowUp={i > 0}
-                                    stepIndex={i}
-                                    placeholder={
-                                        i === 0
-                                            ? "Hi {{.FirstName}},\n\nNoticed {{.Company}} is ..."
-                                            : "Just bumping this up in case it slipped past."
-                                    }
-                                />
-                            </div>
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
+                                    />
+                                </div>
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
 
-                {oneTime ? (
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                        No follow-ups here by design. Want a reminder a few days later? Create a sequence instead.
-                    </p>
-                ) : (
-                    <button
-                        type="button"
-                        onClick={() => patch({ sequences: [...draft.sequences, newSequence(1)] })}
-                        className="w-full h-8 rounded-md border border-dashed border-slate-200 text-[12px] text-slate-500 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 inline-flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                        <PlusIcon className="w-3 h-3" />
-                        Add a follow-up (after 24h)
-                    </button>
-                )}
-
-                <p className="text-[10.5px] text-slate-400 leading-relaxed">
-                    Personalise with <code className="font-mono">{"{{.FirstName}}"}</code>,{" "}
-                    <code className="font-mono">{"{{.Company}}"}</code>, custom fields like{" "}
-                    <code className="font-mono">{"{{.role}}"}</code>, and conditionals like{" "}
-                    <code className="font-mono">{"{{if .Company}}...{{end}}"}</code>. HTML is generated for you.
-                </p>
-            </div>
+                    {!oneTime && (
+                        <button
+                            type="button"
+                            onClick={() => patch({ sequences: [...draft.sequences, newSequence(1)] })}
+                            className="w-full h-8 rounded-md border border-dashed border-slate-200 text-[12px] text-slate-500 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 inline-flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                            <PlusIcon className="w-3 h-3" />
+                            Add a follow-up (after 24h)
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

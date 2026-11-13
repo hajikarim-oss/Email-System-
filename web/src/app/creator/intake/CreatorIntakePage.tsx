@@ -96,6 +96,11 @@ export function CreatorIntakePage() {
   const [shareStatus, setShareStatus] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Instagram Graph API & Insights State
+  const [igInsights, setIgInsights] = useState<any | null>(null);
+  const [igConnected, setIgConnected] = useState(false);
+  const [igLoading, setIgLoading] = useState(false);
+
   const successRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -153,11 +158,151 @@ export function CreatorIntakePage() {
             } else if (creator.category) {
               setSelectedCategories(new Set([creator.category]));
             }
+            if (creator.instagramInsights && typeof creator.instagramInsights === "object" && Object.keys(creator.instagramInsights).length > 0) {
+              setIgInsights(creator.instagramInsights);
+            } else if (creator.followersRaw || creator.followersCount) {
+              setIgInsights({
+                handle: h,
+                followersRaw: creator.followersRaw,
+                followersCount: creator.followersCount,
+                followingCount: creator.followingCount,
+                postsCount: creator.postsCount,
+                biography: creator.publicBio,
+                igConnected: Boolean(creator.igConnected),
+              });
+            }
+            if (creator.igConnected) {
+              setIgConnected(true);
+            }
           }
         })
         .catch(() => {});
     }
   }, [activeToken, searchParams]);
+
+  // Auto-fetch Instagram Graph Business Discovery insights when handle is present
+  const fetchIgProfileInsights = async (targetHandle: string, connectFlag = false) => {
+    const cleanH = targetHandle
+      .replace(/.*instagram\.com\//i, "")
+      .replace(/[/?#].*/g, "")
+      .replace(/^@/, "")
+      .trim();
+    if (!cleanH || !/^[A-Za-z0-9._]{1,30}$/.test(cleanH)) return null;
+    setIgLoading(true);
+    try {
+      const tok = activeToken || "new";
+      const res = await fetch(
+        `/api/creator/intake/${encodeURIComponent(tok)}/ig-lookup?handle=${encodeURIComponent(cleanH)}${connectFlag ? "&connect=1" : ""}`
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data) {
+        setIgInsights(data);
+        if (connectFlag || data.igConnected) setIgConnected(true);
+        if (data.fullName && !creatorName.trim()) {
+          setCreatorName(data.fullName);
+        }
+        if (data.biography && !description.trim()) {
+          setDescription(data.biography);
+        }
+        setPrefilledHandle(cleanH);
+        setInstagram(`https://www.instagram.com/${cleanH}/`);
+        setShowPrefilledCard(true);
+      }
+      return data;
+    } catch {
+      return null;
+    } finally {
+      setIgLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const h = (prefilledHandle || "").replace(/^@/, "").trim();
+    if (h) {
+      fetchIgProfileInsights(h, searchParams.get("ig_connected") === "1");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefilledHandle]);
+
+  // Listen for OAuth popup completion postMessage
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === "TBM_IG_OAUTH_COMPLETE") {
+        if (event.data.insights) {
+          setIgInsights(event.data.insights);
+          if (event.data.insights.fullName && !creatorName.trim()) {
+            setCreatorName(event.data.insights.fullName);
+          }
+          if (event.data.insights.biography && !description.trim()) {
+            setDescription(event.data.insights.biography);
+          }
+        }
+        if (event.data.handle) {
+          const cleanH = String(event.data.handle).replace(/^@/, "").trim();
+          setPrefilledHandle(cleanH);
+          setInstagram(`https://www.instagram.com/${cleanH}/`);
+          setShowPrefilledCard(true);
+        }
+        setIgConnected(true);
+        setToastMessage("✓ Instagram profile & verified insights linked!");
+        setTimeout(() => setToastMessage(null), 4000);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [creatorName, description]);
+
+  // Handler for the highlighted "Link Instagram & Sync Insights" button
+  const handleConnectInstagram = async () => {
+    const currentH = (
+      prefilledHandle ||
+      instagram.replace(/.*instagram\.com\//i, "").replace(/[/?#].*/g, "")
+    )
+      .replace(/^@/, "")
+      .trim();
+
+    setIgLoading(true);
+    try {
+      const tok = activeToken || "new";
+      const cfgRes = await fetch(
+        `/api/creator/intake/${encodeURIComponent(tok)}/ig-oauth-url?handle=${encodeURIComponent(currentH)}&origin=${encodeURIComponent(window.location.origin)}`
+      );
+      const cfg = cfgRes.ok ? await cfgRes.json() : null;
+
+      if (cfg?.configured && cfg?.oauthUrl) {
+        const w = 560;
+        const h = 680;
+        const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+        const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+        window.open(
+          cfg.oauthUrl,
+          "tbm_ig_oauth",
+          `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+        setIgLoading(false);
+        return;
+      }
+
+      // Instant Graph Discovery & Profile Sync when OAuth redirect isn't required
+      if (!currentH) {
+        setToastMessage("Please enter your Instagram @handle or profile link first.");
+        setTimeout(() => setToastMessage(null), 3500);
+        setIgLoading(false);
+        return;
+      }
+
+      const synced = await fetchIgProfileInsights(currentH, true);
+      if (synced) {
+        setIgConnected(true);
+        reportProgress(1, { instagramInsights: synced, igConnected: true });
+        setToastMessage(`✓ Linked @${synced.handle} · ${synced.followersRaw || "Verified"} followers & insights synced!`);
+        setTimeout(() => setToastMessage(null), 4000);
+      }
+    } catch {
+      setIgLoading(false);
+    }
+  };
 
   // Real-time telemetry reporting for progress tracking
   const reportProgress = (currentStep: number, extraData: Record<string, any> = {}) => {
@@ -272,6 +417,8 @@ export function CreatorIntakePage() {
       contentDescription: description.trim(),
       mediaKitUrl: youtube.trim(),
       referredBy: (searchParams.get("ref") || "").replace(/^@/, "").trim(),
+      instagramInsights: igInsights || undefined,
+      igConnected,
       isFinal: true,
       finalSubmit: true,
     };
@@ -545,10 +692,56 @@ export function CreatorIntakePage() {
                         <div className="profile-icon" aria-hidden="true">
                           ◎
                         </div>
-                        <div>
-                          <span>Your Instagram profile</span>
+                        <div className="profile-meta">
+                          <span>
+                            Your Instagram profile
+                            {igConnected && (
+                              <b className="ig-verified-pill">✓ Insights Linked</b>
+                            )}
+                          </span>
                           <strong id="profile-handle">@{prefilledHandle}</strong>
+                          {igInsights && (igInsights.followersRaw || igInsights.engagementRatePct || igInsights.postsCount) && (
+                            <div className="ig-insights-mini">
+                              {igInsights.followersRaw && (
+                                <span>
+                                  <strong>{igInsights.followersRaw}</strong> followers
+                                </span>
+                              )}
+                              {igInsights.postsCount ? (
+                                <span>
+                                  <strong>{Number(igInsights.postsCount).toLocaleString()}</strong> posts
+                                </span>
+                              ) : null}
+                              {igInsights.engagementRatePct ? (
+                                <span>
+                                  <strong>{igInsights.engagementRatePct}%</strong> engagement
+                                </span>
+                              ) : null}
+                              {igInsights.avgLikes ? (
+                                <span>
+                                  <strong>~{Number(igInsights.avgLikes).toLocaleString()}</strong> avg likes
+                                </span>
+                              ) : null}
+                              {igInsights.reach28d ? (
+                                <span>
+                                  <strong>{Number(igInsights.reach28d).toLocaleString()}</strong> 28d reach
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
                         </div>
+                        <button
+                          type="button"
+                          className={`ig-link-highlight-btn ${igConnected ? "is-connected" : ""}`}
+                          onClick={handleConnectInstagram}
+                          disabled={igLoading}
+                        >
+                          {igLoading
+                            ? "Syncing Instagram…"
+                            : igConnected
+                              ? "✓ Instagram Linked (Refresh)"
+                              : "✦ Link Instagram & Insights"}
+                        </button>
                         <a
                           id="profile-link"
                           href={`https://www.instagram.com/${prefilledHandle}/`}
@@ -569,9 +762,23 @@ export function CreatorIntakePage() {
                       </div>
                     ) : (
                       <div className="field" id="instagram-field">
-                        <label htmlFor="instagram">
-                          Instagram profile link <span>*</span>
-                        </label>
+                        <div className="ig-field-label-row">
+                          <label htmlFor="instagram">
+                            Instagram profile link <span>*</span>
+                          </label>
+                          <button
+                            type="button"
+                            className={`ig-link-highlight-btn ${igConnected ? "is-connected" : ""}`}
+                            onClick={handleConnectInstagram}
+                            disabled={igLoading}
+                          >
+                            {igLoading
+                              ? "Syncing Instagram…"
+                              : igConnected
+                                ? "✓ Instagram Linked"
+                                : "✦ Link Instagram & Sync Insights"}
+                          </button>
+                        </div>
                         <input
                           id="instagram"
                           name="instagram"
@@ -581,8 +788,20 @@ export function CreatorIntakePage() {
                           autoComplete="url"
                           value={instagram}
                           onChange={(e) => setInstagram(e.target.value)}
+                          onBlur={() => {
+                            const h = instagram
+                              .replace(/.*instagram\.com\//i, "")
+                              .replace(/[/?#].*/g, "")
+                              .replace(/^@/, "")
+                              .trim();
+                            if (h && /^[A-Za-z0-9._]{1,30}$/.test(h)) {
+                              fetchIgProfileInsights(h, false);
+                            }
+                          }}
                         />
-                        <small>The profile you’d like us to consider for collaborations.</small>
+                        <small>
+                          Paste your handle/URL or click the highlighted <strong>Link Instagram &amp; Sync Insights</strong> button to auto-fetch your profile &amp; verified insights.
+                        </small>
                       </div>
                     )}
 

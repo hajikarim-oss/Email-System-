@@ -1,6 +1,24 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { db } from '../server/db';
 import { generateThesisForBrand } from '../server/automation/brain/pie/gapEngine';
+import {
+  generateGroundedPitchForContact,
+  generatePitchesForBatch,
+  persistApprovedPitch,
+  type ApprovePitchInput,
+} from '../server/automation/brain/pie/pitchGenerator';
+import {
+  classifyReply,
+  classifyReplies,
+  type ClassifyReplyInput,
+} from '../server/automation/brain/pie/replyClassifierLLM';
+import {
+  computeChangeProposals,
+  listChangeProposals,
+  setChangeProposalStatus,
+} from '../server/automation/brain/pie/learningLoop';
+import { runInboundReplyLoop } from '../server/automation/brain/pie/inboundLoop';
+import { listPieNotifications, ackPieNotification } from '../server/automation/brain/pie/pieNotifications';
 
 function sendJson(res: ServerResponse, status: number, data: any) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -245,6 +263,137 @@ export async function brainHandler(req: IncomingMessage, res: ServerResponse): P
         }
       }
       return sendJson(res, 200, { results });
+    }
+
+    // 11. POST /api/brain/pitch/generate — L6 Grounded Pitch Generator
+    //     Synthesizes verified, grounded pitches for one contact or a batch.
+    if (pathname === '/api/brain/pitch/generate' && method === 'POST') {
+      const body = await parseBody(req);
+      if (Array.isArray(body.contacts) && body.contacts.length > 0) {
+        const batchResults = await generatePitchesForBatch(body.contacts);
+        return sendJson(res, 200, { pitches: batchResults });
+      } else if (body.contact) {
+        const singleResult = await generateGroundedPitchForContact(body.contact);
+        return sendJson(res, 200, { pitch: singleResult });
+      } else {
+        return sendJson(res, 400, { error: 'contact or contacts array required' });
+      }
+    }
+
+    // 11b. POST /api/brain/pitch/approve — persist an approved PIE pitch (or a
+    //      batch) into DraftGeneration (Replica 3) so it is stored + auditable
+    //      and inbound replies attach back to it.
+    if (pathname === '/api/brain/pitch/approve' && method === 'POST') {
+      const body = await parseBody(req);
+      if (Array.isArray(body.approvals) && body.approvals.length > 0) {
+        const results = [];
+        for (const a of body.approvals as ApprovePitchInput[]) {
+          try { results.push(await persistApprovedPitch(a)); }
+          catch (e: any) { results.push({ persisted: false, grounded: false, reason: e?.message || 'error' }); }
+        }
+        return sendJson(res, 200, { results });
+      } else if (body.contact && body.subject) {
+        const result = await persistApprovedPitch(body as ApprovePitchInput);
+        return sendJson(res, 200, result);
+      } else {
+        return sendJson(res, 400, { error: 'contact+subject, or approvals array, required' });
+      }
+    }
+
+    // 12. POST /api/brain/replies/classify — L7 reply classifier (deterministic
+    //     + flagged LLM refinement). Accepts one reply or a batch; `persist:true`
+    //     stores results to Replica 3 for the learning loop.
+    if (pathname === '/api/brain/replies/classify' && method === 'POST') {
+      const body = await parseBody(req);
+      const forceLLM = Boolean(body.forceLLM);
+      const persist = Boolean(body.persist);
+      if (Array.isArray(body.replies) && body.replies.length > 0) {
+        const results = await classifyReplies(body.replies as ClassifyReplyInput[], { forceLLM, persist });
+        return sendJson(res, 200, { classifications: results });
+      } else if (body.reply) {
+        const result = persist
+          ? await classifyReplies([body.reply as ClassifyReplyInput], { forceLLM, persist: true })
+          : [await classifyReply(body.reply as ClassifyReplyInput, { forceLLM })];
+        return sendJson(res, 200, { classification: result[0] });
+      } else {
+        return sendJson(res, 400, { error: 'reply or replies array required' });
+      }
+    }
+
+    // 13. GET /api/brain/replies — list recent stored classifications for review.
+    if (pathname === '/api/brain/replies' && method === 'GET') {
+      const limit = Math.min(Number.parseInt(url.searchParams.get('limit') || '50', 10) || 50, 200);
+      const dbClass = url.searchParams.get('dbClassification');
+      const params: any[] = [];
+      let where = '';
+      if (dbClass) { params.push(dbClass); where = `WHERE "dbClassification" = $1`; }
+      params.push(limit);
+      const rows = await db.query(
+        `SELECT id,"leadId","leadEmail","campaignId","sequenceStep",subject,"replyText",
+                "auditLabel","dbClassification","objectionType",method,confidence,reason,reviewed,"createdAt"
+         FROM "ReplyClassification" ${where}
+         ORDER BY "createdAt" DESC LIMIT $${params.length}`,
+        params
+      );
+      return sendJson(res, 200, { replies: rows.rows });
+    }
+
+    // 14. POST /api/brain/learning/run — L7 analytics: mine the reply store into
+    //     gated ChangeProposal rows (never auto-applied).
+    if (pathname === '/api/brain/learning/run' && method === 'POST') {
+      const body = await parseBody(req);
+      const out = await computeChangeProposals({
+        minSample: body.minSample, promoteAt: body.promoteAt, demoteAt: body.demoteAt,
+      });
+      return sendJson(res, 200, out);
+    }
+
+    // 15. GET /api/brain/learning/proposals — list tuning proposals for review.
+    if (pathname === '/api/brain/learning/proposals' && method === 'GET') {
+      const status = url.searchParams.get('status') || undefined;
+      const limit = Number.parseInt(url.searchParams.get('limit') || '100', 10);
+      const rows = await listChangeProposals(status, limit);
+      return sendJson(res, 200, { proposals: rows });
+    }
+
+    // 16. POST /api/brain/learning/proposals/update — human gate: approve/dismiss.
+    if (pathname === '/api/brain/learning/proposals/update' && method === 'POST') {
+      const body = await parseBody(req);
+      const allowed = ['APPROVED', 'DISMISSED', 'APPLIED', 'PROPOSED'];
+      if (!body.id || !allowed.includes(body.status)) {
+        return sendJson(res, 400, { error: 'id and valid status required' });
+      }
+      const ok = await setChangeProposalStatus(body.id, body.status);
+      return sendJson(res, ok ? 200 : 404, ok ? { success: true } : { error: 'proposal not found' });
+    }
+
+    // 17. POST /api/brain/inbound/run — automated inbound-reply loop for the given
+    //     mailboxes (LLM reads each reply, agent decides, notifications fire). Never sends.
+    if (pathname === '/api/brain/inbound/run' && method === 'POST') {
+      const body = await parseBody(req);
+      if (!Array.isArray(body.mailboxes) || body.mailboxes.length === 0) {
+        return sendJson(res, 400, { error: 'mailboxes array required' });
+      }
+      const out = await runInboundReplyLoop({
+        mailboxes: body.mailboxes, limit: body.limit, sinceDays: body.sinceDays, dryRun: Boolean(body.dryRun),
+      });
+      return sendJson(res, 200, out);
+    }
+
+    // 18. GET /api/brain/notifications — PIE escalations/notifications for review.
+    if (pathname === '/api/brain/notifications' && method === 'GET') {
+      const status = url.searchParams.get('status') || undefined;
+      const limit = Number.parseInt(url.searchParams.get('limit') || '100', 10);
+      const rows = await listPieNotifications(status, limit);
+      return sendJson(res, 200, { notifications: rows });
+    }
+
+    // 19. POST /api/brain/notifications/ack — mark a PIE notification acknowledged.
+    if (pathname === '/api/brain/notifications/ack' && method === 'POST') {
+      const body = await parseBody(req);
+      if (!body.id) return sendJson(res, 400, { error: 'id required' });
+      const ok = await ackPieNotification(body.id);
+      return sendJson(res, ok ? 200 : 404, ok ? { success: true } : { error: 'not found' });
     }
 
     return sendJson(res, 404, { error: 'Brain endpoint not found' });
