@@ -366,11 +366,17 @@ export function getInstagramOAuthConfig(params: { token: string; handle: string;
         };
     }
 
+    const configId = (process.env.META_CONFIG_ID || process.env.INSTAGRAM_CONFIG_ID || "").trim();
     // Use Facebook Login for Business (Instagram Graph API) or Instagram Business Login
     const useInstagramDirect = process.env.INSTAGRAM_OAUTH_PROVIDER === "instagram";
-    const oauthUrl = useInstagramDirect
-        ? `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_business_basic,instagram_business_manage_insights")}&state=${encodeURIComponent(encodedState)}`
-        : `https://www.facebook.com/v21.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management")}&state=${encodeURIComponent(encodedState)}`;
+    let oauthUrl: string;
+    if (configId) {
+        oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&config_id=${encodeURIComponent(configId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(encodedState)}&display=popup`;
+    } else if (useInstagramDirect) {
+        oauthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_business_basic,instagram_business_manage_insights")}&state=${encodeURIComponent(encodedState)}`;
+    } else {
+        oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management")}&state=${encodeURIComponent(encodedState)}&display=popup`;
+    }
 
     return {
         configured: true,
@@ -557,3 +563,4 @@ export async function completeInstagramOAuthCallback(
         insights,
     };
 }
+
