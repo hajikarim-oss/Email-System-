@@ -712,21 +712,26 @@ export function CreatorIntakePage() {
                                   <strong>{Number(igInsights.postsCount).toLocaleString()}</strong> posts
                                 </span>
                               ) : null}
-                              {igInsights.engagementRatePct ? (
+                              {igConnected && igInsights.engagementRatePct ? (
                                 <span>
                                   <strong>{igInsights.engagementRatePct}%</strong> engagement
                                 </span>
                               ) : null}
-                              {igInsights.avgLikes ? (
+                              {igConnected && igInsights.avgLikes ? (
                                 <span>
-                                  <strong>~{Number(igInsights.avgLikes).toLocaleString()}</strong> avg likes
+                                  <strong>{Number(igInsights.avgLikes).toLocaleString()}</strong> avg likes
                                 </span>
                               ) : null}
-                              {igInsights.reach28d ? (
+                              {igConnected && igInsights.reach28d ? (
                                 <span>
                                   <strong>{Number(igInsights.reach28d).toLocaleString()}</strong> 28d reach
                                 </span>
                               ) : null}
+                              {!igConnected && (
+                                <span className="ig-unlinked-hint">
+                                  Link profile to verify exact reach &amp; engagement
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1063,7 +1068,7 @@ export function CreatorIntakePage() {
                               key={lang}
                               type="button"
                               className="chip"
-                              aria-pressed={String(active)}
+                              aria-pressed={active}
                               onClick={() => toggleLanguage(lang)}
                             >
                               {lang}
@@ -1113,7 +1118,7 @@ export function CreatorIntakePage() {
                               key={cat}
                               type="button"
                               className="chip"
-                              aria-pressed={String(active)}
+                              aria-pressed={active}
                               onClick={() => toggleCategory(cat)}
                             >
                               {cat}
@@ -1126,7 +1131,7 @@ export function CreatorIntakePage() {
                           <button
                             type="button"
                             id="show-categories"
-                            aria-expanded={String(categoriesExpanded)}
+                            aria-expanded={categoriesExpanded}
                             onClick={() => setCategoriesExpanded(!categoriesExpanded)}
                           >
                             {categoriesExpanded

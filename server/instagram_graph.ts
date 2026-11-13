@@ -1,7 +1,45 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { pgQuery } from "./pg";
 import type { QueryFn } from "./types";
 
 let columnsEnsured = false;
+
+function readEnvVar(primaryKey: string, aliases: string[] = []): string {
+    const allKeys = [primaryKey, ...aliases];
+    for (const k of allKeys) {
+        if (process.env[k]?.trim()) return process.env[k]!.trim();
+    }
+    const currentDir = typeof __dirname !== "undefined" ? __dirname : process.cwd();
+    const roots = [
+        process.cwd(),
+        path.resolve(process.cwd(), ".."),
+        path.resolve(process.cwd(), "web"),
+        path.resolve(currentDir, ".."),
+        path.resolve(currentDir, "../web"),
+    ];
+    for (const r of roots) {
+        for (const file of [".env.local", ".env"]) {
+            try {
+                const fullPath = path.join(r, file);
+                if (!fs.existsSync(fullPath)) continue;
+                const content = fs.readFileSync(fullPath, "utf8");
+                for (const k of allKeys) {
+                    const regex = new RegExp(`^\\s*${k}\\s*=\\s*(.+)$`, "m");
+                    const match = content.match(regex);
+                    if (match && match[1]) {
+                        const val = match[1].trim().replace(/^["']|["']$/g, "").trim();
+                        if (val) {
+                            process.env[k] = val;
+                            return val;
+                        }
+                    }
+                }
+            } catch {}
+        }
+    }
+    return "";
+}
 
 export async function ensureInstagramColumns(query: QueryFn = pgQuery) {
     if (columnsEnsured) return;
@@ -76,8 +114,8 @@ function parseCountToken(raw: string): number {
  * Requires IG_ACCESS_TOKEN and IG_BUSINESS_ACCOUNT_ID in environment.
  */
 async function fetchViaBusinessDiscovery(cleanHandle: string): Promise<InstagramInsightsPayload | null> {
-    const accessToken = (process.env.IG_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN || "").trim();
-    const igBusinessId = (process.env.IG_BUSINESS_ACCOUNT_ID || process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID || "").trim();
+    const accessToken = readEnvVar("IG_ACCESS_TOKEN", ["META_ACCESS_TOKEN"]);
+    const igBusinessId = readEnvVar("IG_BUSINESS_ACCOUNT_ID", ["INSTAGRAM_BUSINESS_ACCOUNT_ID"]);
     if (!accessToken || !igBusinessId) return null;
 
     try {
@@ -343,9 +381,9 @@ export async function lookupAndSyncInstagramProfile(
  * Builds the Instagram / Meta Graph OAuth URL for Creator First-Party Login & Insights.
  */
 export function getInstagramOAuthConfig(params: { token: string; handle: string; origin: string }) {
-    const appId = (process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID || "").trim();
+    const appId = readEnvVar("META_APP_ID", ["INSTAGRAM_APP_ID"]);
     const redirectUri = (
-        process.env.INSTAGRAM_REDIRECT_URI ||
+        readEnvVar("INSTAGRAM_REDIRECT_URI", ["META_REDIRECT_URI"]) ||
         `${params.origin.replace(/\/$/, "")}/api/creator/intake/ig-callback`
     ).trim();
 
@@ -366,9 +404,9 @@ export function getInstagramOAuthConfig(params: { token: string; handle: string;
         };
     }
 
-    const configId = (process.env.META_CONFIG_ID || process.env.INSTAGRAM_CONFIG_ID || "").trim();
+    const configId = readEnvVar("META_CONFIG_ID", ["INSTAGRAM_CONFIG_ID"]);
     // Use Facebook Login for Business (Instagram Graph API) or Instagram Business Login
-    const useInstagramDirect = process.env.INSTAGRAM_OAUTH_PROVIDER === "instagram";
+    const useInstagramDirect = readEnvVar("INSTAGRAM_OAUTH_PROVIDER") === "instagram";
     let oauthUrl: string;
     if (configId) {
         oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&config_id=${encodeURIComponent(configId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(encodedState)}&display=popup`;
@@ -405,10 +443,10 @@ export async function completeInstagramOAuthCallback(
         };
     } catch {}
 
-    const appId = (process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID || "").trim();
-    const appSecret = (process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET || "").trim();
+    const appId = readEnvVar("META_APP_ID", ["INSTAGRAM_APP_ID"]);
+    const appSecret = readEnvVar("META_APP_SECRET", ["INSTAGRAM_APP_SECRET"]);
     const redirectUri = (
-        process.env.INSTAGRAM_REDIRECT_URI ||
+        readEnvVar("INSTAGRAM_REDIRECT_URI", ["META_REDIRECT_URI"]) ||
         `${decodedState.origin.replace(/\/$/, "")}/api/creator/intake/ig-callback`
     ).trim();
 
