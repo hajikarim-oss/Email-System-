@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import os from "node:os";
 import analyticsDashboard from "../server/handlers/analytics-dashboard";
