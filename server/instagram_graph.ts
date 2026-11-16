@@ -409,11 +409,11 @@ export function getInstagramOAuthConfig(params: { token: string; handle: string;
     const useInstagramDirect = readEnvVar("INSTAGRAM_OAUTH_PROVIDER") === "instagram";
     let oauthUrl: string;
     if (configId) {
-        oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&config_id=${encodeURIComponent(configId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(encodedState)}&display=popup`;
+        oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&config_id=${encodeURIComponent(configId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(encodedState)}&display=popup`;
     } else if (useInstagramDirect) {
         oauthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_business_basic,instagram_business_manage_insights")}&state=${encodeURIComponent(encodedState)}`;
     } else {
-        oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management")}&state=${encodeURIComponent(encodedState)}&display=popup`;
+        oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management")}&state=${encodeURIComponent(encodedState)}&display=popup`;
     }
 
     return {
