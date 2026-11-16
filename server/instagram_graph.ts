@@ -404,15 +404,10 @@ export function getInstagramOAuthConfig(params: { token: string; handle: string;
         };
     }
 
-    const configId = readEnvVar("META_CONFIG_ID", ["INSTAGRAM_CONFIG_ID"]);
-    // Prefer Instagram Direct Login (instagram.com/oauth/authorize) to avoid Meta Business Suite blocks
-    const useFacebookBusiness = readEnvVar("INSTAGRAM_OAUTH_PROVIDER") === "facebook_business";
-    let oauthUrl: string;
-    if (useFacebookBusiness && configId) {
-        oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&config_id=${encodeURIComponent(configId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(encodedState)}&display=popup`;
-    } else {
-        oauthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=1&client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_business_basic,instagram_business_manage_insights")}&state=${encodeURIComponent(encodedState)}`;
-    }
+    // Use standard Facebook Login dialog with exact creator insight scopes.
+    // Avoids config_id (which forces Meta Business Suite / business.facebook.com redirects)
+    // and avoids instagram.com/oauth/authorize (which requires a Consumer Instagram App ID instead of Meta App ID).
+    const oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement")}&state=${encodeURIComponent(encodedState)}&display=popup`;
 
     return {
         configured: true,
