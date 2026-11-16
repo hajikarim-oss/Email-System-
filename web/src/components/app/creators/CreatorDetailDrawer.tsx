@@ -15,12 +15,14 @@ import {
     Eye as EyeIcon,
     TrendingUp as TrendingUpIcon,
     RefreshCw as RefreshCwIcon,
-    Flame as FlameIcon,
     BadgeCheck as BadgeCheckIcon,
     DollarSign as DollarSignIcon,
     Package as PackageIcon,
     ShieldCheck as ShieldCheckIcon,
     Clock as ClockIcon,
+    Briefcase as BriefcaseIcon,
+    FileText as FileTextIcon,
+    UserCheck as UserCheckIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -39,6 +41,7 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
 
     if (!creator) return null;
 
+    const cleanHandle = String(creator.handle || "").replace(/^@+/, "").trim();
     const igData = localIgInsights || creator.instagramInsights || {};
     const avatarUrl = igData?.profilePictureUrl || creator.profilePictureUrl || null;
     const isLinked = Boolean(creator.igConnected || igData?.igConnected);
@@ -46,12 +49,12 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
     const handleSyncIg = async () => {
         setSyncingIg(true);
         try {
-            const tok = creator.intakeToken || creator.id;
-            const res = await fetch(`/api/creator/intake/${encodeURIComponent(tok)}/ig-lookup?handle=${encodeURIComponent(creator.handle || "")}`);
+            const tok = creator.intakeToken || creator.id || "new";
+            const res = await fetch(`/api/creator/intake/${encodeURIComponent(tok)}/ig-lookup?handle=${encodeURIComponent(cleanHandle)}`);
             if (!res.ok) throw new Error("Failed to sync Instagram insights");
             const data = await res.json();
             setLocalIgInsights(data);
-            if (onUpdate) onUpdate({ ...creator, instagramInsights: data });
+            if (onUpdate) onUpdate({ ...creator, instagramInsights: data, followersRaw: data.followersRaw || creator.followersRaw });
             toast.success("Instagram profile & verified insights refreshed!");
         } catch (err: any) {
             toast.error(err?.message || "Unable to sync Instagram insights");
@@ -70,7 +73,7 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
     };
 
     const handleCopyHandle = () => {
-        navigator.clipboard.writeText(`@${String(creator.handle || "").replace(/^@/, "")}`);
+        navigator.clipboard.writeText(`@${cleanHandle}`);
         setCopiedHandle(true);
         toast.success("Handle copied to clipboard!");
         setTimeout(() => setCopiedHandle(false), 2000);
@@ -81,7 +84,7 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
     // Compute Commercial ROI Benchmarks (internal intelligence)
     const rawReelRate = creator.commercialRates?.reelRate || creator.commercialRates?.reel;
     const numericReelRate = typeof rawReelRate === "number" ? rawReelRate : parseInt(String(rawReelRate || "").replace(/\D/g, ""), 10);
-    const estViews = igData?.reach28d || igData?.avgReelViews || (igData?.avgLikes ? Math.round(igData.avgLikes * 12) : 0);
+    const estViews = igData?.reach28d || igData?.avgReelViews || (igData?.avgLikes ? Math.round(igData.avgLikes * 10) : (creator.followersCount ? Math.round(creator.followersCount * 0.35) : 0));
     
     let cpvFormatted = "–";
     let roiTag = { label: "Standard", color: "bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300" };
@@ -103,6 +106,14 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
     else if (engagementVal >= 2.8) engagementBenchmark = "✨ Strong (>2.8%)";
     else if (engagementVal > 0) engagementBenchmark = "Standard";
 
+    // Management display logic
+    let managementLabel = "Self-managed";
+    if (creator.managementType === "agency" || creator.agencyName) {
+        managementLabel = `Agency: ${creator.agencyName || "Signed Agency"}`;
+    } else if (creator.managementType === "personal" || creator.managerName) {
+        managementLabel = `Manager: ${creator.managerName || "Personal Manager"}`;
+    }
+
     return (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-150">
             <div
@@ -115,22 +126,21 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                         {avatarUrl ? (
                             <img
                                 src={avatarUrl}
-                                alt={creator.fullName || creator.handle}
+                                alt={creator.fullName || cleanHandle}
                                 className="size-13 rounded-2xl object-cover border-2 border-white dark:border-zinc-700 shadow-md shrink-0 bg-slate-100"
                                 onError={(e) => {
-                                    // Fallback on image broken
                                     (e.target as HTMLElement).style.display = "none";
                                 }}
                             />
                         ) : (
                             <div className="size-13 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-md">
-                                {creator.fullName?.[0]?.toUpperCase() || creator.handle?.[0]?.toUpperCase() || "C"}
+                                {creator.fullName?.[0]?.toUpperCase() || cleanHandle?.[0]?.toUpperCase() || "C"}
                             </div>
                         )}
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
                                 <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                                    {creator.fullName || `@${creator.handle}`}
+                                    {creator.fullName || `@${cleanHandle}`}
                                 </h3>
                                 {isLinked ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
@@ -145,12 +155,12 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                             </div>
                             <div className="flex items-center gap-2 text-xs text-slate-500 pt-0.5">
                                 <a
-                                    href={creator.profileUrl || `https://www.instagram.com/${creator.handle}/`}
+                                    href={creator.profileUrl || `https://www.instagram.com/${cleanHandle}/`}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="font-medium text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
                                 >
-                                    <span>@{creator.handle}</span>
+                                    <span>@{cleanHandle}</span>
                                     <ExternalLinkIcon className="w-3 h-3" />
                                 </a>
                                 <span>•</span>
@@ -165,13 +175,13 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                         <button
                             onClick={handleCopyHandle}
                             title="Copy @handle"
-                            className="size-8 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
+                            className="size-8 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
                         >
                             {copiedHandle ? <CheckIcon className="w-4 h-4 text-emerald-600" /> : <CopyIcon className="w-3.5 h-3.5" />}
                         </button>
                         <button
                             onClick={onClose}
-                            className="size-8 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
+                            className="size-8 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
                         >
                             <XIcon className="w-4 h-4" />
                         </button>
@@ -188,7 +198,7 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                         <button
                             key={t.id}
                             onClick={() => setActiveTab(t.id as any)}
-                            className={`py-3 relative transition-colors ${
+                            className={`py-3 relative transition-colors cursor-pointer ${
                                 activeTab === t.id
                                     ? "text-slate-900 dark:text-white font-bold"
                                     : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-300"
@@ -271,7 +281,7 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                                 Instagram Graph Intelligence
                                             </span>
                                             <span className="text-[10px] text-slate-500 dark:text-zinc-400">
-                                                {isLinked ? "Verified via Creator OAuth Token" : "Fetched via Meta Graph & Public Scraping"}
+                                                {isLinked ? "Verified via Creator OAuth Token" : "Fetched via Meta Graph & Profile Discovery"}
                                             </span>
                                         </div>
                                     </div>
@@ -293,10 +303,12 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                         <span className="text-sm font-extrabold text-slate-900 dark:text-white block pt-0.5">
                                             {igData?.engagementRatePct ? `${igData.engagementRatePct}%` : "–"}
                                         </span>
-                                        {igData?.engagementRatePct && (
+                                        {igData?.engagementRatePct ? (
                                             <span className="text-[9.5px] font-semibold text-purple-700 dark:text-purple-300 block pt-0.5">
                                                 {engagementBenchmark}
                                             </span>
+                                        ) : (
+                                            <span className="text-[9.5px] text-slate-400 block pt-0.5">Calculating…</span>
                                         )}
                                     </div>
 
@@ -322,7 +334,9 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                                 ? Number(igData.reach28d).toLocaleString()
                                                 : igData?.avgReelViews
                                                   ? Number(igData.avgReelViews).toLocaleString()
-                                                  : "–"}
+                                                  : estViews
+                                                    ? Number(estViews).toLocaleString()
+                                                    : "–"}
                                         </span>
                                         <span className="text-[9.5px] text-emerald-600 font-semibold block pt-0.5">
                                             {igData?.reach28d ? "✓ First-party" : "Estimated"}
@@ -337,45 +351,50 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                             Snapshot: {new Date(igData.syncedAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                         </span>
                                         <span className="font-mono text-[10px] text-slate-500">
-                                            source: {igData.source || "graph_discovery"}
+                                            source: {igData.source || "public_metadata"}
                                         </span>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Recent Media Preview Carousel (if available) */}
-                            {Array.isArray(igData?.recentMedia) && igData.recentMedia.length > 0 && (
-                                <div className="p-4 rounded-xl border border-slate-200/80 dark:border-zinc-800 space-y-2.5">
-                                    <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200 block">
-                                        Recent Content &amp; Engagement Sampling
+                            {/* Creator Pitch & Content Vibe (From Intake Form) */}
+                            {creator.contentDescription && (
+                                <div className="p-4 rounded-xl border border-slate-200/80 dark:border-zinc-800 space-y-1.5 bg-slate-50/50 dark:bg-zinc-900/40">
+                                    <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                                        <FileTextIcon className="w-3.5 h-3.5 text-purple-600" />
+                                        Creator Pitch &amp; Style Vibe
                                     </span>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {igData.recentMedia.slice(0, 3).map((m: any, idx: number) => (
-                                            <a
-                                                key={m.id || idx}
-                                                href={m.permalink || creator.profileUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-800/50 hover:border-purple-300 transition-colors block text-left"
-                                            >
-                                                <div className="flex items-center justify-between text-[10px] text-slate-500 pb-1">
-                                                    <span className="font-semibold uppercase tracking-wider">{m.mediaType || "REEL"}</span>
-                                                    <ExternalLinkIcon className="w-2.5 h-2.5" />
-                                                </div>
-                                                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                                                    <span className="flex items-center gap-0.5 text-rose-600">
-                                                        <HeartIcon className="w-3 h-3 fill-rose-500" />
-                                                        {m.likeCount ? Number(m.likeCount).toLocaleString() : "0"}
-                                                    </span>
-                                                </div>
-                                                {m.caption && (
-                                                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-1 pt-1">
-                                                        {m.caption}
-                                                    </p>
-                                                )}
-                                            </a>
-                                        ))}
-                                    </div>
+                                    <p className="text-xs text-slate-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line italic">
+                                        &ldquo;{creator.contentDescription}&rdquo;
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Representation & Management */}
+                            <div className="p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800 flex items-center justify-between text-xs bg-white dark:bg-zinc-900">
+                                <span className="text-slate-500 flex items-center gap-1.5">
+                                    <UserCheckIcon className="w-3.5 h-3.5 text-slate-400" /> Representation:
+                                </span>
+                                <span className="font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded">
+                                    {managementLabel}
+                                </span>
+                            </div>
+
+                            {/* Media Kit / YouTube Portfolio Link */}
+                            {creator.mediaKitUrl && (
+                                <div className="p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800 flex items-center justify-between text-xs bg-white dark:bg-zinc-900">
+                                    <span className="text-slate-500 flex items-center gap-1.5">
+                                        <VideoIcon className="w-3.5 h-3.5 text-rose-500" /> Media Kit / Portfolio:
+                                    </span>
+                                    <a
+                                        href={creator.mediaKitUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="font-medium text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
+                                    >
+                                        <span>View Portfolio</span>
+                                        <ExternalLinkIcon className="w-3 h-3" />
+                                    </a>
                                 </div>
                             )}
 
@@ -491,6 +510,22 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                             {creator.collabType || "Both Paid & Barter"}
                                         </span>
                                     </div>
+                                    {creator.commercialRates?.storyRate && (
+                                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-zinc-800">
+                                            <span className="text-slate-400 block text-[11px]">Story Rate</span>
+                                            <span className="font-bold text-slate-900 dark:text-white text-sm">
+                                                {creator.commercialRates.storyRate}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {creator.commercialRates?.staticRate && (
+                                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-zinc-800">
+                                            <span className="text-slate-400 block text-[11px]">Static Post Rate</span>
+                                            <span className="font-bold text-slate-900 dark:text-white text-sm">
+                                                {creator.commercialRates.staticRate}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -543,7 +578,7 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                     <span>One-Click Passwordless Intake Link</span>
                                 </div>
                                 <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                                    This personalized token pre-fills all known data for <strong>{creator.fullName || `@${creator.handle}`}</strong>. When they click, they only verify their profile and provide shipping PIN code &amp; rate card.
+                                    This personalized token pre-fills all known data for <strong>{creator.fullName || `@${cleanHandle}`}</strong>. When they click, they only verify their profile and provide shipping PIN code &amp; rate card.
                                 </p>
                             </div>
 
@@ -593,7 +628,7 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
 
                     {creator.whatsappNumber || creator.phone ? (
                         <a
-                            href={`https://wa.me/${(creator.whatsappNumber || creator.phone).replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${creator.fullName || `@${creator.handle}`}, we loved your recent content! Check our campaign invite here: ${intakeUrl}`)}`}
+                            href={`https://wa.me/${(creator.whatsappNumber || creator.phone).replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${creator.fullName || `@${cleanHandle}`}, we loved your recent content! Check our campaign invite here: ${intakeUrl}`)}`}
                             target="_blank"
                             rel="noreferrer"
                             className="h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
@@ -603,7 +638,7 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                         </a>
                     ) : (
                         <a
-                            href={creator.profileUrl || `https://www.instagram.com/${creator.handle}/`}
+                            href={creator.profileUrl || `https://www.instagram.com/${cleanHandle}/`}
                             target="_blank"
                             rel="noreferrer"
                             className="h-9 px-4 rounded-lg bg-slate-900 hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
