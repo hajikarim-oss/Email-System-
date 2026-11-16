@@ -185,98 +185,120 @@ async function fetchViaBusinessDiscovery(cleanHandle: string): Promise<Instagram
 }
 
 /**
- * 2. Fallback Public Metadata Extractor when Meta Graph credentials are not yet set
- * or when a creator account is personal/non-business.
+ * 2. Fallback Public Metadata Extractor with multi-bot fallback and HTML entity decoding
  */
 async function fetchViaPublicMetadata(cleanHandle: string): Promise<Partial<InstagramInsightsPayload> | null> {
-    try {
-        const igRes = await fetch(`https://www.instagram.com/${encodeURIComponent(cleanHandle)}/`, {
-            headers: {
-                "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
-                "Accept": "text/html,application/xhtml+xml",
-            },
-        });
-        if (!igRes.ok) return null;
-        const html = await igRes.text();
+    const userAgents = [
+        "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+        "WhatsApp/2.21.12.21 A",
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Twitterbot/1.0",
+    ];
 
-        const descMatch =
-            html.match(/property="og:description"\s+content="([^"]+)"/i) ||
-            html.match(/content="([^"]+)"\s+property="og:description"/i) ||
-            html.match(/name="description"\s+content="([^"]+)"/i);
-        const titleMatch =
-            html.match(/property="og:title"\s+content="([^"]+)"/i) ||
-            html.match(/content="([^"]+)"\s+property="og:title"/i);
-        const imageMatch =
-            html.match(/property="og:image"\s+content="([^"]+)"/i) ||
-            html.match(/content="([^"]+)"\s+property="og:image"/i);
+    for (const ua of userAgents) {
+        try {
+            const igRes = await fetch(`https://www.instagram.com/${encodeURIComponent(cleanHandle)}/`, {
+                headers: {
+                    "User-Agent": ua,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            });
+            if (!igRes.ok) continue;
+            const html = await igRes.text();
 
-        const desc = (descMatch?.[1] || "").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/&quot;/g, '"');
-        const title = (titleMatch?.[1] || "").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/&quot;/g, '"');
-        const imageUrl = imageMatch?.[1]?.replace(/&amp;/g, "&");
+            const descMatch =
+                html.match(/property="og:description"\s+content="([^"]+)"/i) ||
+                html.match(/content="([^"]+)"\s+property="og:description"/i) ||
+                html.match(/name="description"\s+content="([^"]+)"/i);
+            const titleMatch =
+                html.match(/property="og:title"\s+content="([^"]+)"/i) ||
+                html.match(/content="([^"]+)"\s+property="og:title"/i);
+            const imageMatch =
+                html.match(/property="og:image"\s+content="([^"]+)"/i) ||
+                html.match(/content="([^"]+)"\s+property="og:image"/i);
 
-        // Parse "125K Followers, 410 Following, 312 Posts - See Instagram photos and videos from Full Name (@handle)"
-        const statsMatch = desc.match(/([\d.,]+[KMBkmb]?)\s+Followers?,\s*([\d.,]+[KMBkmb]?)\s+Following,\s*([\d.,]+[KMBkmb]?)\s+Posts?/i);
-        const followersRaw = statsMatch?.[1]?.toUpperCase() || undefined;
-        const followersCount = followersRaw ? parseCountToken(followersRaw) : undefined;
-        const followingCount = statsMatch?.[2] ? parseCountToken(statsMatch[2]) : undefined;
-        const postsCount = statsMatch?.[3] ? parseCountToken(statsMatch[3]) : undefined;
+            const desc = (descMatch?.[1] || "")
+                .replace(/&amp;/g, "&")
+                .replace(/&#0*64;/g, "@")
+                .replace(/&#0*39;/g, "'")
+                .replace(/&#x27;/gi, "'")
+                .replace(/&quot;/g, '"');
 
-        // Parse sampled recent post likes & comments if present: "17K likes, 83 comments - handle on Date..."
-        let avgLikes: number | undefined;
-        let avgComments: number | undefined;
-        let engagementRatePct: number | undefined;
-        let avgReelViews: number | undefined;
+            const title = (titleMatch?.[1] || "")
+                .replace(/&amp;/g, "&")
+                .replace(/&#0*64;/g, "@")
+                .replace(/&#0*39;/g, "'")
+                .replace(/&#x27;/gi, "'")
+                .replace(/&quot;/g, '"');
 
-        const postSampleMatch = desc.match(/([\d.,]+[KMBkmb]?)\s+likes?,\s*([\d.,]+[KMBkmb]?)\s+comments?/i);
-        if (postSampleMatch) {
-            avgLikes = parseCountToken(postSampleMatch[1]);
-            avgComments = parseCountToken(postSampleMatch[2]);
-            if (followersCount && followersCount > 0 && avgLikes > 0) {
-                engagementRatePct = Number((((avgLikes + (avgComments || 0)) / followersCount) * 100).toFixed(2));
-                avgReelViews = Math.round(avgLikes * 9);
+            const imageUrl = imageMatch?.[1]?.replace(/&amp;/g, "&");
+
+            // Parse "125K Followers, 410 Following, 312 Posts - See Instagram photos and videos from Full Name (@handle)"
+            const statsMatch = desc.match(/([\d.,]+[KMBkmb]?)\s+Followers?,\s*([\d.,]+[KMBkmb]?)\s+Following,\s*([\d.,]+[KMBkmb]?)\s+Posts?/i);
+            const followersRaw = statsMatch?.[1]?.toUpperCase() || undefined;
+            const followersCount = followersRaw ? parseCountToken(followersRaw) : undefined;
+            const followingCount = statsMatch?.[2] ? parseCountToken(statsMatch[2]) : undefined;
+            const postsCount = statsMatch?.[3] ? parseCountToken(statsMatch[3]) : undefined;
+
+            // Parse sampled recent post likes & comments if present: "17K likes, 83 comments - handle on Date..."
+            let avgLikes: number | undefined;
+            let avgComments: number | undefined;
+            let engagementRatePct: number | undefined;
+            let avgReelViews: number | undefined;
+
+            const postSampleMatch = desc.match(/([\d.,]+[KMBkmb]?)\s+likes?,\s*([\d.,]+[KMBkmb]?)\s+comments?/i);
+            if (postSampleMatch) {
+                avgLikes = parseCountToken(postSampleMatch[1]);
+                avgComments = parseCountToken(postSampleMatch[2]);
+                if (followersCount && followersCount > 0 && avgLikes > 0) {
+                    engagementRatePct = Number((((avgLikes + (avgComments || 0)) / followersCount) * 100).toFixed(2));
+                    avgReelViews = Math.round(avgLikes * 9);
+                }
             }
+
+            // Tiered industry baseline benchmark when individual post sample is absent
+            if (!avgLikes && followersCount && followersCount > 0) {
+                const benchmarkPct = followersCount < 50_000 ? 3.8 : followersCount < 500_000 ? 2.9 : followersCount < 5_000_000 ? 2.2 : 1.7;
+                avgLikes = Math.max(12, Math.round(followersCount * (benchmarkPct / 100)));
+                avgComments = Math.max(1, Math.round(avgLikes * 0.025));
+                engagementRatePct = benchmarkPct;
+                avgReelViews = Math.round(followersCount * 0.38);
+            }
+
+            let fullName: string | undefined;
+            const nameFromTitle = title.match(/^(.+?)\s*\(@[A-Za-z0-9._]+\)/);
+            if (nameFromTitle?.[1]) {
+                fullName = nameFromTitle[1].trim();
+            }
+
+            if (!followersCount && !fullName && !imageUrl) continue;
+
+            return {
+                handle: cleanHandle,
+                fullName,
+                profilePictureUrl: imageUrl,
+                followersCount,
+                followersRaw: followersRaw || formatFollowersRaw(followersCount),
+                followingCount,
+                postsCount,
+                avgLikes,
+                avgComments,
+                engagementRatePct,
+                avgReelViews,
+                source: "public_metadata",
+                syncedAt: new Date().toISOString(),
+            };
+        } catch {
+            continue;
         }
-
-        // Tiered industry baseline benchmark when individual post sample is absent
-        if (!avgLikes && followersCount && followersCount > 0) {
-            // Tiered benchmarks: nano (4.2%), micro (3.1%), mid (2.4%), macro (1.8%)
-            const benchmarkPct = followersCount < 50_000 ? 3.8 : followersCount < 500_000 ? 2.9 : followersCount < 5_000_000 ? 2.2 : 1.7;
-            avgLikes = Math.max(12, Math.round(followersCount * (benchmarkPct / 100)));
-            avgComments = Math.max(1, Math.round(avgLikes * 0.025));
-            engagementRatePct = benchmarkPct;
-            avgReelViews = Math.round(followersCount * 0.38);
-        }
-
-        let fullName: string | undefined;
-        const nameFromTitle = title.match(/^(.+?)\s*\(@[A-Za-z0-9._]+\)/);
-        if (nameFromTitle?.[1]) {
-            fullName = nameFromTitle[1].trim();
-        }
-
-        if (!followersCount && !fullName && !imageUrl) return null;
-
-        return {
-            handle: cleanHandle,
-            fullName,
-            profilePictureUrl: imageUrl,
-            followersCount,
-            followersRaw: followersRaw || formatFollowersRaw(followersCount),
-            followingCount,
-            postsCount,
-            avgLikes,
-            avgComments,
-            engagementRatePct,
-            avgReelViews,
-            source: "public_metadata",
-            syncedAt: new Date().toISOString(),
-        };
-    } catch {
-        return null;
     }
+    return null;
 }
 
 /**
- * Unified Profile & Insights Lookup + Persistence into "Creator" table
+ * Unified Profile & Insights Lookup + Persistence into "Creator" table.
+ * Strictly isolates creator handles to prevent cross-contamination between invite tokens.
  */
 export async function lookupAndSyncInstagramProfile(
     query: QueryFn = pgQuery,
@@ -291,85 +313,104 @@ export async function lookupAndSyncInstagramProfile(
         .trim()
         .toLowerCase();
 
-    // Look up existing creator in DB by token or handle
-    const existingRows = await query<any>(
-        `SELECT * FROM "Creator"
-         WHERE ($1 != '' AND ("intakeToken" = $1 OR "id" = $1 OR lower("handle") = lower($1)))
-            OR ($2 != '' AND lower(replace("handle", '@', '')) = $2)
-         ORDER BY CASE WHEN "intakeToken" = $1 THEN 0 ELSE 1 END
-         LIMIT 1`,
-        [params.token || "", cleanHandle]
-    ).catch(() => []);
+    // 1. Look up by token if provided
+    let tokenCreator: any = null;
+    if (params.token && params.token !== "new" && params.token !== "test") {
+        const tokenRows = await query<any>(
+            `SELECT * FROM "Creator"
+             WHERE "intakeToken" = $1 OR "id" = $1
+             LIMIT 1`,
+            [params.token]
+        ).catch(() => []);
+        tokenCreator = tokenRows?.[0] || null;
+    }
 
-    const dbCreator = existingRows?.[0] || null;
-    if (!cleanHandle && dbCreator?.handle) {
-        cleanHandle = String(dbCreator.handle).replace(/^@/, "").trim().toLowerCase();
+    // If handle was not provided in params, default to tokenCreator's handle
+    if (!cleanHandle && tokenCreator?.handle) {
+        cleanHandle = String(tokenCreator.handle).replace(/^@/, "").trim().toLowerCase();
     }
     if (!cleanHandle) return null;
 
+    // 2. Check if cleanHandle matches the tokenCreator
+    const isSameHandleAsToken =
+        tokenCreator?.handle &&
+        String(tokenCreator.handle).replace(/^@/, "").trim().toLowerCase() === cleanHandle;
+
+    // 3. Look up if this handle exists anywhere else in DB
+    let targetCreator = isSameHandleAsToken ? tokenCreator : null;
+    if (!targetCreator) {
+        const handleRows = await query<any>(
+            `SELECT * FROM "Creator"
+             WHERE lower(replace("handle", '@', '')) = $1
+             LIMIT 1`,
+            [cleanHandle]
+        ).catch(() => []);
+        targetCreator = handleRows?.[0] || null;
+    }
+
     const existingInsights: Partial<InstagramInsightsPayload> =
-        dbCreator?.instagramInsights && typeof dbCreator.instagramInsights === "object"
-            ? dbCreator.instagramInsights
+        targetCreator?.instagramInsights && typeof targetCreator.instagramInsights === "object"
+            ? targetCreator.instagramInsights
             : {};
 
     // A creator who completed Instagram Login already has first-party data.
-    // Never overwrite it with weaker public/estimated data.
-    if (dbCreator?.igConnected && existingInsights.source === "graph_oauth") {
+    // Never overwrite verified OAuth data with public/scraped data.
+    if (targetCreator?.igConnected && existingInsights.source === "graph_oauth") {
         return { ...(existingInsights as InstagramInsightsPayload), igConnected: true };
     }
 
-    // 1. Try Official Meta Graph Business Discovery API
+    // 4. Try Official Meta Graph Business Discovery API
     const graphData = await fetchViaBusinessDiscovery(cleanHandle);
 
-    // 2. Fallback to Public Metadata if Graph API is not configured or returned null
+    // 5. Fallback to Multi-Agent Public Metadata Scraper
     const publicData = !graphData ? await fetchViaPublicMetadata(cleanHandle) : null;
 
+    // If neither returned data, use targetCreator (matching handle) stats as fallback.
+    // NEVER fall back to tokenCreator if handles do not match!
     const followersCount =
         graphData?.followersCount ||
         publicData?.followersCount ||
-        Number(dbCreator?.followersCount || 0) ||
+        Number(targetCreator?.followersCount || 0) ||
         existingInsights.followersCount ||
         0;
 
     const followersRaw =
         graphData?.followersRaw ||
         publicData?.followersRaw ||
-        dbCreator?.followersRaw ||
-        formatFollowersRaw(followersCount) ||
-        undefined;
+        targetCreator?.followersRaw ||
+        existingInsights.followersRaw ||
+        (followersCount > 0 ? formatFollowersRaw(followersCount) : undefined);
 
     const followingCount =
         graphData?.followingCount ??
         publicData?.followingCount ??
-        (dbCreator?.followingCount ? Number(dbCreator.followingCount) : existingInsights.followingCount);
+        (targetCreator?.followingCount ? Number(targetCreator.followingCount) : existingInsights.followingCount);
 
     const postsCount =
         graphData?.postsCount ??
         publicData?.postsCount ??
-        (dbCreator?.postsCount ? Number(dbCreator.postsCount) : existingInsights.postsCount);
+        (targetCreator?.postsCount ? Number(targetCreator.postsCount) : existingInsights.postsCount);
 
-    // Prefer official Graph Data -> Public Scraped Data -> Cached DB Data
     const avgLikes = graphData?.avgLikes ?? publicData?.avgLikes ?? existingInsights.avgLikes;
     const avgComments = graphData?.avgComments ?? publicData?.avgComments ?? existingInsights.avgComments;
     const engagementRatePct = graphData?.engagementRatePct ?? publicData?.engagementRatePct ?? existingInsights.engagementRatePct;
     const avgReelViews = graphData?.avgReelViews ?? publicData?.avgReelViews ?? existingInsights.avgReelViews;
 
-    // "Connected" can only be set by a completed Instagram Login (OAuth callback), never by a client flag.
     void params.markConnected;
-    const isConnected = Boolean(dbCreator?.igConnected);
+    const isConnected = Boolean(targetCreator?.igConnected);
 
     const mergedPayload: InstagramInsightsPayload = {
         ...existingInsights,
         handle: cleanHandle,
-        fullName: graphData?.fullName || publicData?.fullName || dbCreator?.fullName || existingInsights.fullName || cleanHandle,
-        biography: graphData?.biography || dbCreator?.publicBio || existingInsights.biography || undefined,
+        fullName: graphData?.fullName || publicData?.fullName || targetCreator?.fullName || cleanHandle,
+        biography: graphData?.biography || targetCreator?.publicBio || existingInsights.biography || undefined,
         website: graphData?.website || existingInsights.website || undefined,
         profilePictureUrl: graphData?.profilePictureUrl || publicData?.profilePictureUrl || existingInsights.profilePictureUrl || undefined,
         followersCount: followersCount || undefined,
         followersRaw,
         followingCount: followingCount || undefined,
         postsCount: postsCount || undefined,
-        isVerified: Boolean(dbCreator?.isVerified || graphData),
+        isVerified: Boolean(targetCreator?.isVerified || graphData),
         igConnected: isConnected,
         source: graphData ? "business_discovery" : publicData ? "public_metadata" : "database",
         engagementRatePct,
@@ -380,7 +421,10 @@ export async function lookupAndSyncInstagramProfile(
         syncedAt: new Date().toISOString(),
     };
 
-    if (dbCreator?.id) {
+    // ONLY persist to DB if targetCreator exists (meaning this handle owns the DB row)
+    // NEVER overwrite tokenCreator if cleanHandle does not match tokenCreator's handle!
+    const recordToPersist = targetCreator || (isSameHandleAsToken ? tokenCreator : null);
+    if (recordToPersist?.id) {
         await query(
             `UPDATE "Creator"
              SET "instagramInsights" = $2::jsonb,
@@ -394,7 +438,7 @@ export async function lookupAndSyncInstagramProfile(
                  "updatedAt" = NOW()
              WHERE "id" = $1`,
             [
-                dbCreator.id,
+                recordToPersist.id,
                 JSON.stringify(mergedPayload),
                 followersCount || 0,
                 followersRaw || "",

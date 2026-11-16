@@ -199,10 +199,10 @@ export function CreatorIntakePage() {
       if (data) {
         setIgInsights(data);
         if (connectFlag || data.igConnected) setIgConnected(true);
-        if (data.fullName && !creatorName.trim()) {
+        if (data.fullName && (data.fullName.toLowerCase() !== creatorName.toLowerCase() || !creatorName.trim())) {
           setCreatorName(data.fullName);
         }
-        if (data.biography && !description.trim()) {
+        if (data.biography && (!description.trim() || cleanH !== prefilledHandle)) {
           setDescription(data.biography);
         }
         setPrefilledHandle(cleanH);
