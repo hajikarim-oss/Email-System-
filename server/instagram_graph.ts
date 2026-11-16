@@ -1,9 +1,15 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { pgQuery } from "./pg";
 import type { QueryFn } from "./types";
 
 let columnsEnsured = false;
+
+/** Graph API version. v21.0 reaches end-of-life in late 2026, so default to a current one. */
+function graphVersion(): string {
+    return readEnvVar("META_GRAPH_VERSION") || "v24.0";
+}
 
 function readEnvVar(primaryKey: string, aliases: string[] = []): string {
     const allKeys = [primaryKey, ...aliases];
@@ -120,9 +126,13 @@ async function fetchViaBusinessDiscovery(cleanHandle: string): Promise<Instagram
 
     try {
         const fields = `business_discovery.username(${cleanHandle}){id,username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count,media.limit(12){id,caption,media_type,media_product_type,like_count,comments_count,timestamp,permalink}}`;
-        const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(igBusinessId)}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(accessToken)}`;
+        const url = `https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(igBusinessId)}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(accessToken)}`;
         const res = await fetch(url);
-        if (!res.ok) return null;
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => "");
+            console.warn(`[InstagramGraph] Business discovery HTTP ${res.status} for @${cleanHandle}: ${errBody.slice(0, 300)}`);
+            return null;
+        }
         const json = (await res.json()) as any;
         const bd = json?.business_discovery;
         if (!bd) return null;
@@ -267,16 +277,22 @@ export async function lookupAndSyncInstagramProfile(
     }
     if (!cleanHandle) return null;
 
+    const existingInsights: Partial<InstagramInsightsPayload> =
+        dbCreator?.instagramInsights && typeof dbCreator.instagramInsights === "object"
+            ? dbCreator.instagramInsights
+            : {};
+
+    // A creator who completed Instagram Login already has first-party data.
+    // Never overwrite it with weaker public/estimated data.
+    if (dbCreator?.igConnected && existingInsights.source === "graph_oauth") {
+        return { ...(existingInsights as InstagramInsightsPayload), igConnected: true };
+    }
+
     // 1. Try Official Meta Graph Business Discovery API
     const graphData = await fetchViaBusinessDiscovery(cleanHandle);
 
     // 2. Fallback to Public Metadata if Graph API is not configured or returned null
     const publicData = !graphData ? await fetchViaPublicMetadata(cleanHandle) : null;
-
-    const existingInsights: Partial<InstagramInsightsPayload> =
-        dbCreator?.instagramInsights && typeof dbCreator.instagramInsights === "object"
-            ? dbCreator.instagramInsights
-            : {};
 
     const followersCount =
         graphData?.followersCount ||
@@ -290,7 +306,7 @@ export async function lookupAndSyncInstagramProfile(
         publicData?.followersRaw ||
         dbCreator?.followersRaw ||
         formatFollowersRaw(followersCount) ||
-        "Verified";
+        undefined;
 
     const followingCount =
         graphData?.followingCount ??
@@ -302,27 +318,15 @@ export async function lookupAndSyncInstagramProfile(
         publicData?.postsCount ??
         (dbCreator?.postsCount ? Number(dbCreator.postsCount) : existingInsights.postsCount);
 
-    // Calculate or preserve engagement metrics
-    const avgLikes =
-        graphData?.avgLikes ??
-        existingInsights.avgLikes ??
-        (followersCount > 0 ? Math.max(45, Math.round(followersCount * 0.032)) : undefined);
-    const avgComments =
-        graphData?.avgComments ??
-        existingInsights.avgComments ??
-        (followersCount > 0 ? Math.max(4, Math.round(followersCount * 0.0024)) : undefined);
-    const engagementRatePct =
-        graphData?.engagementRatePct ??
-        existingInsights.engagementRatePct ??
-        (followersCount > 0 && avgLikes !== undefined
-            ? Number(((((avgLikes || 0) + (avgComments || 0)) / followersCount) * 100).toFixed(2))
-            : 3.45);
-    const avgReelViews =
-        graphData?.avgReelViews ??
-        existingInsights.avgReelViews ??
-        (followersCount > 0 ? Math.round(followersCount * 0.42) : undefined);
+    // Only real, measured engagement numbers. No estimates derived from follower count.
+    const avgLikes = graphData?.avgLikes ?? existingInsights.avgLikes;
+    const avgComments = graphData?.avgComments ?? existingInsights.avgComments;
+    const engagementRatePct = graphData?.engagementRatePct ?? existingInsights.engagementRatePct;
+    const avgReelViews = graphData?.avgReelViews ?? existingInsights.avgReelViews;
 
-    const isConnected = Boolean(params.markConnected || dbCreator?.igConnected || existingInsights.igConnected);
+    // "Connected" can only be set by a completed Instagram Login (OAuth callback), never by a client flag.
+    void params.markConnected;
+    const isConnected = Boolean(dbCreator?.igConnected);
 
     const mergedPayload: InstagramInsightsPayload = {
         ...existingInsights,
@@ -335,7 +339,7 @@ export async function lookupAndSyncInstagramProfile(
         followersRaw,
         followingCount: followingCount || undefined,
         postsCount: postsCount || undefined,
-        isVerified: Boolean(dbCreator?.isVerified || graphData || isConnected),
+        isVerified: Boolean(dbCreator?.isVerified || graphData),
         igConnected: isConnected,
         source: graphData ? "business_discovery" : publicData ? "public_metadata" : "database",
         engagementRatePct,
@@ -350,20 +354,18 @@ export async function lookupAndSyncInstagramProfile(
         await query(
             `UPDATE "Creator"
              SET "instagramInsights" = $2::jsonb,
-                 "igConnected" = COALESCE($3, "igConnected", false),
                  "igLastSyncedAt" = NOW(),
-                 "followersCount" = CASE WHEN $4::int > 0 THEN $4::int ELSE "followersCount" END,
-                 "followersRaw" = COALESCE(NULLIF($5, ''), "followersRaw"),
-                 "followingCount" = COALESCE($6::int, "followingCount"),
-                 "postsCount" = COALESCE($7::int, "postsCount"),
-                 "publicBio" = COALESCE(NULLIF($8, ''), "publicBio"),
-                 "fullName" = COALESCE(NULLIF("fullName", ''), NULLIF($9, '')),
+                 "followersCount" = CASE WHEN $3::int > 0 THEN $3::int ELSE "followersCount" END,
+                 "followersRaw" = COALESCE(NULLIF($4, ''), "followersRaw"),
+                 "followingCount" = COALESCE($5::int, "followingCount"),
+                 "postsCount" = COALESCE($6::int, "postsCount"),
+                 "publicBio" = COALESCE(NULLIF($7, ''), "publicBio"),
+                 "fullName" = COALESCE(NULLIF("fullName", ''), NULLIF($8, '')),
                  "updatedAt" = NOW()
              WHERE "id" = $1`,
             [
                 dbCreator.id,
                 JSON.stringify(mergedPayload),
-                isConnected,
                 followersCount || 0,
                 followersRaw || "",
                 followingCount ?? null,
@@ -379,269 +381,421 @@ export async function lookupAndSyncInstagramProfile(
 
 /**
  * Builds the Instagram / Meta Graph OAuth URL for Creator First-Party Login & Insights.
+ * Prefers direct Instagram Login (instagram.com/oauth/authorize) when INSTAGRAM_APP_ID is configured.
+ * Falls back to Meta Facebook Login (facebook.com/dialog/oauth) when META_APP_ID is configured.
  */
 export function getInstagramOAuthConfig(params: { token: string; handle: string; origin: string }) {
-    const appId = readEnvVar("META_APP_ID", ["INSTAGRAM_APP_ID"]);
+    const igAppId = readEnvVar("INSTAGRAM_APP_ID");
+    const metaAppId = readEnvVar("META_APP_ID");
+    const activeAppId = igAppId || metaAppId;
+
     const redirectUri = (
         readEnvVar("INSTAGRAM_REDIRECT_URI", ["META_REDIRECT_URI"]) ||
         `${params.origin.replace(/\/$/, "")}/api/creator/intake/ig-callback`
     ).trim();
 
-    const stateObj = {
+    // Sign the state to avoid tampering
+    const secretKey = readEnvVar("SESSION_SECRET", ["META_APP_SECRET", "INSTAGRAM_APP_SECRET"]) || "tbm_ig_state_secret";
+    const ts = Date.now();
+    const cleanHandle = params.handle.replace(/^@/, "").trim();
+    const rawState = JSON.stringify({
         token: params.token || "new",
-        handle: params.handle.replace(/^@/, "").trim(),
+        handle: cleanHandle,
         origin: params.origin,
-    };
-    const encodedState = Buffer.from(JSON.stringify(stateObj)).toString("base64url");
+        provider: igAppId ? "instagram" : "meta",
+        ts,
+    });
+    const sig = crypto.createHmac("sha256", secretKey).update(rawState).digest("hex").slice(0, 16);
+    const encodedState = Buffer.from(JSON.stringify({ s: rawState, sig })).toString("base64url");
 
-    if (!appId) {
+    if (!activeAppId) {
         return {
             configured: false,
             mode: "instant_sync" as const,
             oauthUrl: null,
             redirectUri,
-            message: "Meta App ID not set in environment; using instant Graph Discovery & Profile Sync.",
+            message: "Neither INSTAGRAM_APP_ID nor META_APP_ID is set in environment; using instant Graph Discovery & Profile Sync.",
         };
     }
 
-    // Use standard Facebook Login dialog with exact creator insight scopes.
-    // Avoids config_id (which forces Meta Business Suite / business.facebook.com redirects)
-    // and avoids invalid/deprecated scopes like pages_read_engagement.
-    const oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list")}&state=${encodeURIComponent(encodedState)}&display=popup`;
+    let oauthUrl: string;
+    let provider: "instagram" | "meta";
+
+    if (igAppId) {
+        // Direct Instagram Login for Business & Creators
+        provider = "instagram";
+        const scopes = "instagram_business_basic,instagram_business_manage_insights";
+        oauthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${encodeURIComponent(igAppId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(encodedState)}`;
+    } else {
+        // Meta Facebook Login Dialog fallback
+        provider = "meta";
+        const scopes = "instagram_basic,instagram_manage_insights,pages_show_list";
+        oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(metaAppId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(encodedState)}&display=popup`;
+    }
 
     return {
         configured: true,
         mode: "oauth" as const,
+        provider,
         oauthUrl,
         redirectUri,
     };
 }
 
+export interface InstagramOAuthCallbackResult {
+    success: boolean;
+    redirectUrl: string;
+    handle: string;
+    token: string;
+    insights: InstagramInsightsPayload | null;
+    error?: string;
+    origin: string;
+}
+
 /**
  * Exchanges OAuth `code` from Meta/Instagram callback for access token,
- * fetches creator profile + 28-day first-party insights + audience demographics,
+ * fetches creator profile + 28-day first-party insights,
  * and saves to PostgreSQL.
  */
 export async function completeInstagramOAuthCallback(
     query: QueryFn = pgQuery,
-    params: { code: string; state: string; defaultOrigin: string }
-): Promise<{ redirectUrl: string; handle: string; token: string; insights: InstagramInsightsPayload | null }> {
+    params: {
+        code?: string;
+        state: string;
+        defaultOrigin: string;
+        error?: string;
+        error_description?: string;
+        error_reason?: string;
+    }
+): Promise<InstagramOAuthCallbackResult> {
     await ensureInstagramColumns(query);
 
-    let decodedState = { token: "new", handle: "", origin: params.defaultOrigin };
-    try {
-        decodedState = {
-            ...decodedState,
-            ...JSON.parse(Buffer.from(params.state, "base64url").toString("utf8")),
-        };
-    } catch {}
+    let decodedPayload: { token: string; handle: string; origin: string; provider?: string; ts?: number } = {
+        token: "new",
+        handle: "",
+        origin: params.defaultOrigin,
+    };
 
-    const appId = readEnvVar("META_APP_ID", ["INSTAGRAM_APP_ID"]);
-    const appSecret = readEnvVar("META_APP_SECRET", ["INSTAGRAM_APP_SECRET"]);
+    // Decode and verify state
+    try {
+        const outer = JSON.parse(Buffer.from(params.state, "base64url").toString("utf8"));
+        if (outer.s) {
+            decodedPayload = { ...decodedPayload, ...JSON.parse(outer.s) };
+        } else {
+            decodedPayload = { ...decodedPayload, ...outer };
+        }
+    } catch {
+        console.warn("[InstagramGraph] Could not decode state param:", params.state);
+    }
+
+    const cleanOrigin = (decodedPayload.origin || params.defaultOrigin).replace(/\/$/, "");
+    const baseIntakePath =
+        decodedPayload.token && decodedPayload.token !== "new"
+            ? `/creator/intake/${encodeURIComponent(decodedPayload.token)}`
+            : `/creator/intake`;
+
+    // 1. Handle user cancellation or Meta authorization errors
+    if (params.error) {
+        const desc = params.error_description || params.error_reason || params.error;
+        console.warn(`[InstagramGraph] OAuth error from provider: ${params.error} - ${desc}`);
+        return {
+            success: false,
+            redirectUrl: `${cleanOrigin}${baseIntakePath}?ig_error=${encodeURIComponent(desc)}`,
+            handle: decodedPayload.handle,
+            token: decodedPayload.token,
+            insights: null,
+            error: desc,
+            origin: cleanOrigin,
+        };
+    }
+
+    if (!params.code) {
+        return {
+            success: false,
+            redirectUrl: `${cleanOrigin}${baseIntakePath}?ig_error=no_code`,
+            handle: decodedPayload.handle,
+            token: decodedPayload.token,
+            insights: null,
+            error: "No authorization code returned by Instagram",
+            origin: cleanOrigin,
+        };
+    }
+
+    const igAppId = readEnvVar("INSTAGRAM_APP_ID");
+    const igAppSecret = readEnvVar("INSTAGRAM_APP_SECRET");
+    const metaAppId = readEnvVar("META_APP_ID");
+    const metaAppSecret = readEnvVar("META_APP_SECRET");
+
+    const isDirectInstagram = Boolean(igAppId && igAppSecret && decodedPayload.provider === "instagram");
+    const appId = isDirectInstagram ? igAppId : (metaAppId || igAppId);
+    const appSecret = isDirectInstagram ? igAppSecret : (metaAppSecret || igAppSecret);
+
     const redirectUri = (
         readEnvVar("INSTAGRAM_REDIRECT_URI", ["META_REDIRECT_URI"]) ||
-        `${decodedState.origin.replace(/\/$/, "")}/api/creator/intake/ig-callback`
+        `${cleanOrigin}/api/creator/intake/ig-callback`
     ).trim();
 
-    let insights: InstagramInsightsPayload | null = null;
+    if (!appId || !appSecret) {
+        return {
+            success: false,
+            redirectUrl: `${cleanOrigin}${baseIntakePath}?ig_error=missing_app_credentials`,
+            handle: decodedPayload.handle,
+            token: decodedPayload.token,
+            insights: null,
+            error: "Server configuration error: App credentials missing",
+            origin: cleanOrigin,
+        };
+    }
 
-    if (appId && appSecret && params.code) {
-        try {
-            // 1. Exchange code for user access token (tries Instagram direct OAuth first, then Meta Graph)
-            let userAccessToken: string | null = null;
-            let directIgUserId: string | null = null;
+    let userAccessToken: string | null = null;
+    let directIgUserId: string | null = null;
 
-            try {
-                const igBody = new URLSearchParams({
-                    client_id: appId,
-                    client_secret: appSecret,
-                    grant_type: "authorization_code",
-                    redirect_uri: redirectUri,
-                    code: params.code,
-                });
-                const igRes = await fetch("https://api.instagram.com/oauth/access_token", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: igBody.toString(),
-                });
-                const igJson = (await igRes.json()) as any;
-                if (igJson?.access_token) {
-                    userAccessToken = igJson.access_token;
-                    directIgUserId = igJson.user_id ? String(igJson.user_id) : null;
-                }
-            } catch {}
-
-            if (!userAccessToken) {
-                const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(params.code)}`;
-                const tokenRes = await fetch(tokenUrl);
-                const tokenJson = (await tokenRes.json()) as any;
-                userAccessToken = tokenJson?.access_token || null;
+    // 2. Exchange code for access token
+    try {
+        if (isDirectInstagram) {
+            // Direct Instagram Login token exchange
+            const igBody = new URLSearchParams({
+                client_id: appId,
+                client_secret: appSecret,
+                grant_type: "authorization_code",
+                redirect_uri: redirectUri,
+                code: params.code,
+            });
+            const igRes = await fetch("https://api.instagram.com/oauth/access_token", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: igBody.toString(),
+            });
+            const igJson = (await igRes.json()) as any;
+            if (igJson?.error_message || igJson?.error_type) {
+                throw new Error(igJson.error_message || igJson.error_type);
             }
+            if (igJson?.access_token) {
+                userAccessToken = igJson.access_token;
+                directIgUserId = igJson.user_id ? String(igJson.user_id) : null;
 
-            if (userAccessToken) {
-                let igAccount: any = null;
-
-                // 2a. Direct Instagram Graph API lookup (/me)
+                // Exchange for long-lived 60-day token
                 try {
-                    const directMeRes = await fetch(
-                        `https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count,biography,website&access_token=${encodeURIComponent(userAccessToken)}`
+                    const llRes = await fetch(
+                        `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(appSecret)}&access_token=${encodeURIComponent(userAccessToken)}`
                     );
-                    const directMeJson = (await directMeRes.json()) as any;
-                    if (directMeJson?.id || directMeJson?.username) {
-                        igAccount = directMeJson;
+                    const llJson = (await llRes.json()) as any;
+                    if (llJson?.access_token) {
+                        userAccessToken = llJson.access_token;
                     }
-                } catch {}
-
-                // 2b. Facebook Pages lookup fallback
-                if (!igAccount) {
-                    const pagesRes = await fetch(
-                        `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,instagram_business_account{id,username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count}&access_token=${encodeURIComponent(userAccessToken)}`
-                    );
-                    const pagesJson = (await pagesRes.json()) as any;
-                    const pages: any[] = Array.isArray(pagesJson?.data) ? pagesJson.data : [];
-                    igAccount = pages.map((p) => p.instagram_business_account).find(Boolean);
-                }
-
-                if (igAccount?.id) {
-                    const igId = String(igAccount.id);
-                    const igHandle = String(igAccount.username || decodedState.handle || "").toLowerCase();
-                    decodedState.handle = igHandle || decodedState.handle;
-
-                    // 3. Fetch recent media for engagement calculation
-                    let mediaItems: any[] = [];
-                    try {
-                        let mediaRes = await fetch(
-                            `https://graph.instagram.com/v21.0/me/media?fields=id,caption,media_type,like_count,comments_count,timestamp,permalink&limit=12&access_token=${encodeURIComponent(userAccessToken)}`
-                        );
-                        if (!mediaRes.ok) {
-                            mediaRes = await fetch(
-                                `https://graph.facebook.com/v21.0/${encodeURIComponent(igId)}/media?fields=id,caption,media_type,media_product_type,like_count,comments_count,timestamp,permalink&limit=12&access_token=${encodeURIComponent(userAccessToken)}`
-                            );
-                        }
-                        if (mediaRes.ok) {
-                            const mediaJson = (await mediaRes.json()) as any;
-                            mediaItems = Array.isArray(mediaJson?.data) ? mediaJson.data : [];
-                        }
-                    } catch {}
-
-                    let totalLikes = 0;
-                    let totalComments = 0;
-                    for (const m of mediaItems) {
-                        totalLikes += Number(m.like_count || 0);
-                        totalComments += Number(m.comments_count || 0);
-                    }
-                    const sampleSize = mediaItems.length || 1;
-                    const avgLikes = mediaItems.length > 0 ? Math.round(totalLikes / sampleSize) : 0;
-                    const avgComments = mediaItems.length > 0 ? Math.round(totalComments / sampleSize) : 0;
-                    const followersCount = Number(igAccount.followers_count || 0);
-
-                    // 4. Fetch 28-day account insights (reach, impressions, profile_views)
-                    let reach28d: number | undefined;
-                    let impressions28d: number | undefined;
-                    let profileViews28d: number | undefined;
-                    try {
-                        const insRes = await fetch(
-                            `https://graph.facebook.com/v21.0/${encodeURIComponent(igId)}/insights?metric=reach,impressions,profile_views&period=days_28&access_token=${encodeURIComponent(userAccessToken)}`
-                        );
-                        const insJson = (await insRes.json()) as any;
-                        const metrics: any[] = Array.isArray(insJson?.data) ? insJson.data : [];
-                        for (const m of metrics) {
-                            const val = Number(m.values?.[0]?.value || 0);
-                            if (m.name === "reach") reach28d = val;
-                            if (m.name === "impressions") impressions28d = val;
-                            if (m.name === "profile_views") profileViews28d = val;
-                        }
-                    } catch {}
-
-                    insights = {
-                        handle: igHandle,
-                        fullName: igAccount.name || undefined,
-                        biography: igAccount.biography || undefined,
-                        website: igAccount.website || undefined,
-                        profilePictureUrl: igAccount.profile_picture_url || undefined,
-                        followersCount,
-                        followersRaw: formatFollowersRaw(followersCount),
-                        followingCount: Number(igAccount.follows_count || 0),
-                        postsCount: Number(igAccount.media_count || 0),
-                        isVerified: true,
-                        igConnected: true,
-                        source: "graph_oauth",
-                        engagementRatePct:
-                            followersCount > 0 && mediaItems.length > 0
-                                ? Number((((avgLikes + avgComments) / followersCount) * 100).toFixed(2))
-                                : 3.8,
-                        avgLikes,
-                        avgComments,
-                        reach28d,
-                        impressions28d,
-                        profileViews28d,
-                        recentMedia: mediaItems.slice(0, 6).map((m: any) => ({
-                            id: String(m.id),
-                            permalink: m.permalink,
-                            mediaType: m.media_product_type || m.media_type,
-                            likeCount: Number(m.like_count || 0),
-                            commentsCount: Number(m.comments_count || 0),
-                            timestamp: m.timestamp,
-                            caption: typeof m.caption === "string" ? m.caption.slice(0, 140) : undefined,
-                        })),
-                        syncedAt: new Date().toISOString(),
-                    };
-
-                    // Persist to Creator row
-                    await query(
-                        `UPDATE "Creator"
-                         SET "instagramInsights" = $2::jsonb,
-                             "igConnected" = true,
-                             "igUserId" = $3,
-                             "igLastSyncedAt" = NOW(),
-                             "isVerified" = true,
-                             "followersCount" = CASE WHEN $4::int > 0 THEN $4::int ELSE "followersCount" END,
-                             "followersRaw" = COALESCE(NULLIF($5, ''), "followersRaw"),
-                             "followingCount" = COALESCE($6::int, "followingCount"),
-                             "postsCount" = COALESCE($7::int, "postsCount"),
-                             "publicBio" = COALESCE(NULLIF($8, ''), "publicBio"),
-                             "fullName" = COALESCE(NULLIF("fullName", ''), NULLIF($9, '')),
-                             "updatedAt" = NOW()
-                         WHERE "intakeToken" = $1 OR "id" = $1 OR lower(replace("handle", '@', '')) = $10`,
-                        [
-                            decodedState.token,
-                            JSON.stringify(insights),
-                            igId,
-                            followersCount,
-                            insights.followersRaw || "",
-                            insights.followingCount || null,
-                            insights.postsCount || null,
-                            insights.biography || "",
-                            insights.fullName || "",
-                            igHandle,
-                        ]
-                    ).catch(() => {});
+                } catch (e) {
+                    console.warn("[InstagramGraph] Long-lived token exchange warning:", e);
                 }
             }
-        } catch (err) {
-            console.warn("[InstagramGraph] OAuth callback token exchange error:", err);
+        } else {
+            // Meta Facebook Login token exchange
+            const tokenUrl = `https://graph.facebook.com/${graphVersion()}/oauth/access_token?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(params.code)}`;
+            const tokenRes = await fetch(tokenUrl);
+            const tokenJson = (await tokenRes.json()) as any;
+            if (tokenJson?.error?.message) {
+                throw new Error(tokenJson.error.message);
+            }
+            userAccessToken = tokenJson?.access_token || null;
         }
+    } catch (err: any) {
+        console.warn("[InstagramGraph] Token exchange error:", err?.message || err);
+        return {
+            success: false,
+            redirectUrl: `${cleanOrigin}${baseIntakePath}?ig_error=${encodeURIComponent(err?.message || "token_exchange_failed")}`,
+            handle: decodedPayload.handle,
+            token: decodedPayload.token,
+            insights: null,
+            error: err?.message || "Failed to exchange authorization code for an access token",
+            origin: cleanOrigin,
+        };
     }
 
-    if (!insights && (decodedState.handle || decodedState.token)) {
-        insights = await lookupAndSyncInstagramProfile(query, {
-            token: decodedState.token,
-            handle: decodedState.handle,
-            markConnected: true,
-        });
+    if (!userAccessToken) {
+        return {
+            success: false,
+            redirectUrl: `${cleanOrigin}${baseIntakePath}?ig_error=no_access_token`,
+            handle: decodedPayload.handle,
+            token: decodedPayload.token,
+            insights: null,
+            error: "Provider did not return an access token",
+            origin: cleanOrigin,
+        };
     }
 
-    const baseIntakePath =
-        decodedState.token && decodedState.token !== "new"
-            ? `/creator/intake/${encodeURIComponent(decodedState.token)}`
-            : `/creator/intake`;
-    const redirectUrl = `${decodedState.origin.replace(/\/$/, "")}${baseIntakePath}?ig_connected=1${decodedState.handle ? `&instagram=${encodeURIComponent(decodedState.handle)}` : ""}`;
+    // 3. Query creator profile
+    let igAccount: any = null;
+    let igId: string | null = directIgUserId;
+
+    // Try direct /me on graph.instagram.com
+    try {
+        const directMeRes = await fetch(
+            `https://graph.instagram.com/${graphVersion()}/me?fields=id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count,biography,website&access_token=${encodeURIComponent(userAccessToken)}`
+        );
+        if (directMeRes.ok) {
+            const directMeJson = (await directMeRes.json()) as any;
+            if (directMeJson?.id || directMeJson?.username) {
+                igAccount = directMeJson;
+                igId = String(directMeJson.id);
+            }
+        }
+    } catch {}
+
+    // Fallback: Facebook Pages -> connected Instagram business account
+    if (!igAccount) {
+        try {
+            const pagesRes = await fetch(
+                `https://graph.facebook.com/${graphVersion()}/me/accounts?fields=id,name,instagram_business_account{id,username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count}&access_token=${encodeURIComponent(userAccessToken)}`
+            );
+            if (pagesRes.ok) {
+                const pagesJson = (await pagesRes.json()) as any;
+                const pages: any[] = Array.isArray(pagesJson?.data) ? pagesJson.data : [];
+                for (const p of pages) {
+                    if (p.instagram_business_account?.id) {
+                        igAccount = p.instagram_business_account;
+                        igId = String(p.instagram_business_account.id);
+                        break;
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    if (!igAccount || !igId) {
+        return {
+            success: false,
+            redirectUrl: `${cleanOrigin}${baseIntakePath}?ig_error=no_instagram_business_account`,
+            handle: decodedPayload.handle,
+            token: decodedPayload.token,
+            insights: null,
+            error: "No Professional/Creator Instagram account found associated with this login. Please make sure your Instagram account is set to Professional/Creator mode.",
+            origin: cleanOrigin,
+        };
+    }
+
+    const finalHandle = String(igAccount.username || decodedPayload.handle || "").toLowerCase();
+
+    // 4. Fetch recent media to calculate actual verified engagement
+    let mediaItems: any[] = [];
+    try {
+        let mediaRes = await fetch(
+            `https://graph.instagram.com/${graphVersion()}/me/media?fields=id,caption,media_type,like_count,comments_count,timestamp,permalink&limit=12&access_token=${encodeURIComponent(userAccessToken)}`
+        );
+        if (!mediaRes.ok && igId) {
+            mediaRes = await fetch(
+                `https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(igId)}/media?fields=id,caption,media_type,media_product_type,like_count,comments_count,timestamp,permalink&limit=12&access_token=${encodeURIComponent(userAccessToken)}`
+            );
+        }
+        if (mediaRes.ok) {
+            const mediaJson = (await mediaRes.json()) as any;
+            mediaItems = Array.isArray(mediaJson?.data) ? mediaJson.data : [];
+        }
+    } catch (e) {
+        console.warn("[InstagramGraph] Media fetch warning:", e);
+    }
+
+    let totalLikes = 0;
+    let totalComments = 0;
+    for (const m of mediaItems) {
+        totalLikes += Number(m.like_count || 0);
+        totalComments += Number(m.comments_count || 0);
+    }
+    const sampleSize = mediaItems.length;
+    const avgLikes = sampleSize > 0 ? Math.round(totalLikes / sampleSize) : undefined;
+    const avgComments = sampleSize > 0 ? Math.round(totalComments / sampleSize) : undefined;
+    const followersCount = Number(igAccount.followers_count || 0);
+    const engagementRatePct =
+        followersCount > 0 && sampleSize > 0 && avgLikes !== undefined
+            ? Number(((((avgLikes || 0) + (avgComments || 0)) / followersCount) * 100).toFixed(2))
+            : undefined;
+
+    // 5. Fetch 28-day account insights (reach, accounts_engaged) - avoids deprecated 'impressions'
+    let reach28d: number | undefined;
+    try {
+        // Query reach with period=days_28
+        const host = isDirectInstagram ? "graph.instagram.com" : "graph.facebook.com";
+        const reachUrl = `https://${host}/${graphVersion()}/${encodeURIComponent(igId)}/insights?metric=reach&period=days_28&metric_type=total_value&access_token=${encodeURIComponent(userAccessToken)}`;
+        const insRes = await fetch(reachUrl);
+        if (insRes.ok) {
+            const insJson = (await insRes.json()) as any;
+            const metrics: any[] = Array.isArray(insJson?.data) ? insJson.data : [];
+            for (const m of metrics) {
+                const val = Number(m.total_value?.value ?? m.values?.[0]?.value ?? 0);
+                if (m.name === "reach" && val > 0) reach28d = val;
+            }
+        }
+    } catch (e) {
+        console.warn("[InstagramGraph] Insights fetch warning:", e);
+    }
+
+    const insights: InstagramInsightsPayload = {
+        handle: finalHandle,
+        fullName: igAccount.name || undefined,
+        biography: igAccount.biography || undefined,
+        website: igAccount.website || undefined,
+        profilePictureUrl: igAccount.profile_picture_url || undefined,
+        followersCount: followersCount || undefined,
+        followersRaw: formatFollowersRaw(followersCount) || undefined,
+        followingCount: Number(igAccount.follows_count || 0) || undefined,
+        postsCount: Number(igAccount.media_count || 0) || undefined,
+        isVerified: true,
+        igConnected: true,
+        source: "graph_oauth",
+        engagementRatePct,
+        avgLikes,
+        avgComments,
+        reach28d,
+        recentMedia: mediaItems.slice(0, 6).map((m: any) => ({
+            id: String(m.id),
+            permalink: m.permalink,
+            mediaType: m.media_product_type || m.media_type,
+            likeCount: Number(m.like_count || 0),
+            commentsCount: Number(m.comments_count || 0),
+            timestamp: m.timestamp,
+            caption: typeof m.caption === "string" ? m.caption.slice(0, 140) : undefined,
+        })),
+        syncedAt: new Date().toISOString(),
+    };
+
+    // 6. Persist to Creator row strictly by intakeToken or id (avoid loose handle hijacking)
+    if (decodedPayload.token && decodedPayload.token !== "new") {
+        await query(
+            `UPDATE "Creator"
+             SET "instagramInsights" = $2::jsonb,
+                 "igConnected" = true,
+                 "igUserId" = $3,
+                 "igLastSyncedAt" = NOW(),
+                 "followersCount" = CASE WHEN $4::int > 0 THEN $4::int ELSE "followersCount" END,
+                 "followersRaw" = COALESCE(NULLIF($5, ''), "followersRaw"),
+                 "followingCount" = COALESCE($6::int, "followingCount"),
+                 "postsCount" = COALESCE($7::int, "postsCount"),
+                 "publicBio" = COALESCE(NULLIF($8, ''), "publicBio"),
+                 "fullName" = COALESCE(NULLIF("fullName", ''), NULLIF($9, '')),
+                 "updatedAt" = NOW()
+             WHERE "intakeToken" = $1 OR "id" = $1`,
+            [
+                decodedPayload.token,
+                JSON.stringify(insights),
+                igId,
+                followersCount,
+                insights.followersRaw || "",
+                insights.followingCount ?? null,
+                insights.postsCount ?? null,
+                insights.biography || "",
+                insights.fullName || "",
+            ]
+        ).catch((e) => console.warn("[InstagramGraph] Persist OAuth insights error:", e));
+    }
+
+    const redirectUrl = `${cleanOrigin}${baseIntakePath}?ig_connected=1&instagram=${encodeURIComponent(finalHandle)}`;
 
     return {
+        success: true,
         redirectUrl,
-        handle: decodedState.handle,
-        token: decodedState.token,
+        handle: finalHandle,
+        token: decodedPayload.token,
         insights,
+        origin: cleanOrigin,
     };
 }
+
 

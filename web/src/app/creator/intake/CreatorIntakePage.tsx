@@ -247,6 +247,9 @@ export function CreatorIntakePage() {
         setIgConnected(true);
         setToastMessage("✓ Instagram profile & verified insights linked!");
         setTimeout(() => setToastMessage(null), 4000);
+      } else if (event.data?.type === "TBM_IG_OAUTH_ERROR") {
+        setToastMessage(`⚠️ Could not link Instagram: ${event.data.error || "Permission was not granted"}`);
+        setTimeout(() => setToastMessage(null), 6000);
       }
     };
     window.addEventListener("message", onMessage);

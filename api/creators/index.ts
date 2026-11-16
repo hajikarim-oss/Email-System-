@@ -36,6 +36,15 @@ function sendJson(res: ServerResponse, status: number, data: any) {
     res.end(JSON.stringify(data));
 }
 
+function escapeHtml(str: string): string {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 function parseBody(req: IncomingMessage): Promise<any> {
     return new Promise((resolve) => {
         let body = "";
@@ -159,6 +168,9 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
             if (lastPart === "ig-callback") {
                 const code = url.searchParams.get("code") || "";
                 const state = url.searchParams.get("state") || "";
+                const error = url.searchParams.get("error") || "";
+                const errorDescription = url.searchParams.get("error_description") || "";
+                const errorReason = url.searchParams.get("error_reason") || "";
                 const proto = (req.headers["x-forwarded-proto"] as string) || "https";
                 const host = req.headers.host || "tbmoutreach.tech";
                 const defaultOrigin = host.includes("localhost") ? `http://${host}` : `${proto}://${host}`;
@@ -166,7 +178,32 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                     code,
                     state,
                     defaultOrigin,
+                    error,
+                    error_description: errorDescription,
+                    error_reason: errorReason,
                 });
+
+                const targetOrigin = result.origin || defaultOrigin;
+
+                if (!result.success) {
+                    const errorMsg = result.error || "Authorization was cancelled or could not be completed.";
+                    const errorPayload = JSON.stringify({
+                        type: "TBM_IG_OAUTH_ERROR",
+                        error: errorMsg,
+                        handle: result.handle,
+                        token: result.token,
+                    });
+                    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+                    res.end(`<!DOCTYPE html><html><head><title>Instagram Connection · TheBoredMonkey</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="font-family:sans-serif;background:#faf9f6;color:#171717;display:grid;place-items:center;min-height:90vh;padding:20px;text-align:center;box-sizing:border-box;"><div style="max-width:440px;background:#ffffff;padding:28px 24px;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.06);border:1px solid #fee2e2;"><div style="font-size:36px;margin-bottom:12px;">⚠️</div><h2 style="margin:0 0 8px;font-size:18px;color:#991b1b;">Could Not Link Instagram</h2><p style="color:#525252;font-size:14px;line-height:1.5;margin:0 0 16px;">${escapeHtml(errorMsg)}</p><p style="color:#737373;font-size:12px;line-height:1.4;margin:0 0 20px;">Please ensure your Instagram profile is a <strong>Creator or Business account</strong>, and that permissions were granted.</p><button onclick="window.close()" style="background:#171717;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Close Window</button></div><script>
+                        try {
+                            if (window.opener && !window.opener.closed) {
+                                window.opener.postMessage(${errorPayload}, ${JSON.stringify(targetOrigin)});
+                            }
+                        } catch (e) {}
+                    </script></body></html>`);
+                    return;
+                }
+
                 const payloadJson = JSON.stringify({
                     type: "TBM_IG_OAUTH_COMPLETE",
                     handle: result.handle,
@@ -174,10 +211,10 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                     insights: result.insights,
                 });
                 res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-                res.end(`<!DOCTYPE html><html><head><title>Instagram Connected · TheBoredMonkey</title></head><body style="font-family:sans-serif;background:#faf9f6;color:#171717;display:grid;place-items:center;height:90vh;text-align:center;"><div><h2 style="margin-bottom:8px;">✓ Instagram Profile &amp; Insights Linked</h2><p style="color:#72716c;font-size:14px;">Returning to your creator form...</p></div><script>
+                res.end(`<!DOCTYPE html><html><head><title>Instagram Connected · TheBoredMonkey</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="font-family:sans-serif;background:#faf9f6;color:#171717;display:grid;place-items:center;min-height:90vh;text-align:center;"><div><h2 style="margin-bottom:8px;">✓ Instagram Profile &amp; Insights Linked</h2><p style="color:#72716c;font-size:14px;">Returning to your creator form...</p></div><script>
                     try {
                         if (window.opener && !window.opener.closed) {
-                            window.opener.postMessage(${payloadJson}, "*");
+                            window.opener.postMessage(${payloadJson}, ${JSON.stringify(targetOrigin)});
                             setTimeout(function() { window.close(); }, 350);
                         } else {
                             window.location.replace(${JSON.stringify(result.redirectUrl)});
