@@ -405,15 +405,13 @@ export function getInstagramOAuthConfig(params: { token: string; handle: string;
     }
 
     const configId = readEnvVar("META_CONFIG_ID", ["INSTAGRAM_CONFIG_ID"]);
-    // Use Facebook Login for Business (Instagram Graph API) or Instagram Business Login
-    const useInstagramDirect = readEnvVar("INSTAGRAM_OAUTH_PROVIDER") === "instagram";
+    // Prefer Instagram Direct Login (instagram.com/oauth/authorize) to avoid Meta Business Suite blocks
+    const useFacebookBusiness = readEnvVar("INSTAGRAM_OAUTH_PROVIDER") === "facebook_business";
     let oauthUrl: string;
-    if (configId) {
+    if (useFacebookBusiness && configId) {
         oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&config_id=${encodeURIComponent(configId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(encodedState)}&display=popup`;
-    } else if (useInstagramDirect) {
-        oauthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_business_basic,instagram_business_manage_insights")}&state=${encodeURIComponent(encodedState)}`;
     } else {
-        oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management")}&state=${encodeURIComponent(encodedState)}&display=popup`;
+        oauthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=1&client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_business_basic,instagram_business_manage_insights")}&state=${encodeURIComponent(encodedState)}`;
     }
 
     return {
@@ -454,20 +452,60 @@ export async function completeInstagramOAuthCallback(
 
     if (appId && appSecret && params.code) {
         try {
-            // 1. Exchange code for user access token
-            const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(params.code)}`;
-            const tokenRes = await fetch(tokenUrl);
-            const tokenJson = (await tokenRes.json()) as any;
-            const userAccessToken = tokenJson?.access_token;
+            // 1. Exchange code for user access token (tries Instagram direct OAuth first, then Meta Graph)
+            let userAccessToken: string | null = null;
+            let directIgUserId: string | null = null;
+
+            try {
+                const igBody = new URLSearchParams({
+                    client_id: appId,
+                    client_secret: appSecret,
+                    grant_type: "authorization_code",
+                    redirect_uri: redirectUri,
+                    code: params.code,
+                });
+                const igRes = await fetch("https://api.instagram.com/oauth/access_token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: igBody.toString(),
+                });
+                const igJson = (await igRes.json()) as any;
+                if (igJson?.access_token) {
+                    userAccessToken = igJson.access_token;
+                    directIgUserId = igJson.user_id ? String(igJson.user_id) : null;
+                }
+            } catch {}
+
+            if (!userAccessToken) {
+                const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(params.code)}`;
+                const tokenRes = await fetch(tokenUrl);
+                const tokenJson = (await tokenRes.json()) as any;
+                userAccessToken = tokenJson?.access_token || null;
+            }
 
             if (userAccessToken) {
-                // 2. Find linked Instagram Business/Creator Account via Facebook Pages
-                const pagesRes = await fetch(
-                    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,instagram_business_account{id,username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count}&access_token=${encodeURIComponent(userAccessToken)}`
-                );
-                const pagesJson = (await pagesRes.json()) as any;
-                const pages: any[] = Array.isArray(pagesJson?.data) ? pagesJson.data : [];
-                const igAccount = pages.map((p) => p.instagram_business_account).find(Boolean);
+                let igAccount: any = null;
+
+                // 2a. Direct Instagram Graph API lookup (/me)
+                try {
+                    const directMeRes = await fetch(
+                        `https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count,biography,website&access_token=${encodeURIComponent(userAccessToken)}`
+                    );
+                    const directMeJson = (await directMeRes.json()) as any;
+                    if (directMeJson?.id || directMeJson?.username) {
+                        igAccount = directMeJson;
+                    }
+                } catch {}
+
+                // 2b. Facebook Pages lookup fallback
+                if (!igAccount) {
+                    const pagesRes = await fetch(
+                        `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,instagram_business_account{id,username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count}&access_token=${encodeURIComponent(userAccessToken)}`
+                    );
+                    const pagesJson = (await pagesRes.json()) as any;
+                    const pages: any[] = Array.isArray(pagesJson?.data) ? pagesJson.data : [];
+                    igAccount = pages.map((p) => p.instagram_business_account).find(Boolean);
+                }
 
                 if (igAccount?.id) {
                     const igId = String(igAccount.id);
@@ -475,11 +513,21 @@ export async function completeInstagramOAuthCallback(
                     decodedState.handle = igHandle || decodedState.handle;
 
                     // 3. Fetch recent media for engagement calculation
-                    const mediaRes = await fetch(
-                        `https://graph.facebook.com/v21.0/${encodeURIComponent(igId)}/media?fields=id,caption,media_type,media_product_type,like_count,comments_count,timestamp,permalink&limit=12&access_token=${encodeURIComponent(userAccessToken)}`
-                    );
-                    const mediaJson = (await mediaRes.json()) as any;
-                    const mediaItems: any[] = Array.isArray(mediaJson?.data) ? mediaJson.data : [];
+                    let mediaItems: any[] = [];
+                    try {
+                        let mediaRes = await fetch(
+                            `https://graph.instagram.com/v21.0/me/media?fields=id,caption,media_type,like_count,comments_count,timestamp,permalink&limit=12&access_token=${encodeURIComponent(userAccessToken)}`
+                        );
+                        if (!mediaRes.ok) {
+                            mediaRes = await fetch(
+                                `https://graph.facebook.com/v21.0/${encodeURIComponent(igId)}/media?fields=id,caption,media_type,media_product_type,like_count,comments_count,timestamp,permalink&limit=12&access_token=${encodeURIComponent(userAccessToken)}`
+                            );
+                        }
+                        if (mediaRes.ok) {
+                            const mediaJson = (await mediaRes.json()) as any;
+                            mediaItems = Array.isArray(mediaJson?.data) ? mediaJson.data : [];
+                        }
+                    } catch {}
 
                     let totalLikes = 0;
                     let totalComments = 0;
