@@ -230,6 +230,17 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
             const isAvatar = lastPart === "avatar";
             const isIgLookup = lastPart === "ig-lookup";
             const isIgOAuthUrl = lastPart === "ig-oauth-url";
+            const isDbInfo = lastPart === "db-info";
+
+            if (isDbInfo) {
+                const dbUrl = process.env.DATABASE_URL || "";
+                let host = "none";
+                try {
+                    const u = new URL(dbUrl.replace("postgresql://", "http://").replace("postgres://", "http://"));
+                    host = u.host;
+                } catch {}
+                return sendJson(res, 200, { host, hasToken: !!process.env.DATABASE_URL });
+            }
             let token = isSubmit || isAvatar || isIgLookup || isIgOAuthUrl ? parts[parts.length - 2] : lastPart;
             if (!token || token === "intake") {
                 token = "new";
