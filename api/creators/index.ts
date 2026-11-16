@@ -238,23 +238,40 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
 
             if (isIgDebug) {
                 const handleParam = url.searchParams.get("handle") || "sadavarti_pratik";
-                const ua = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
-                const resIg = await fetch(`https://www.instagram.com/${encodeURIComponent(handleParam)}/`, {
-                    headers: {
-                        "User-Agent": ua,
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                        "Accept-Language": "en-US,en;q=0.9",
-                    },
-                    redirect: "manual",
-                });
-                const loc = resIg.headers.get("location");
-                const html = await resIg.text();
-                return sendJson(res, 200, {
-                    status: resIg.status,
-                    location: loc,
-                    htmlLength: html.length,
-                    htmlSnippet: html.slice(0, 500),
-                });
+                const uas = [
+                    { name: "Googlebot", ua: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
+                    { name: "Bingbot", ua: "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" },
+                    { name: "Twitterbot", ua: "Twitterbot/1.0" },
+                    { name: "Applebot", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)" },
+                    { name: "TelegramBot", ua: "TelegramBot (like TwitterBot)" },
+                    { name: "Discordbot", ua: "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)" }
+                ];
+                const results: any[] = [];
+                for (const item of uas) {
+                    try {
+                        const resIg = await fetch(`https://www.instagram.com/${encodeURIComponent(handleParam)}/`, {
+                            headers: {
+                                "User-Agent": item.ua,
+                                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                                "Accept-Language": "en-US,en;q=0.9",
+                            },
+                            redirect: "manual",
+                        });
+                        const loc = resIg.headers.get("location");
+                        const html = resIg.status === 200 ? await resIg.text() : "";
+                        const descMatch = html.match(/content="([^"]+)"\s+property="og:description"/i) || html.match(/property="og:description"\s+content="([^"]+)"/i);
+                        results.push({
+                            name: item.name,
+                            status: resIg.status,
+                            location: loc,
+                            hasDesc: Boolean(descMatch),
+                            desc: descMatch ? descMatch[1] : undefined
+                        });
+                    } catch (e: any) {
+                        results.push({ name: item.name, error: e.message });
+                    }
+                }
+                return sendJson(res, 200, { handle: handleParam, results });
             }
 
             // 3b. Instagram Graph Profile & Insights Lookup (/api/creator/intake/:token/ig-lookup)
