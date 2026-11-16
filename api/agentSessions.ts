@@ -239,6 +239,7 @@ async function loadUserContext(userId: string, isMaster: boolean) {
         replyRate: Number(c.replyRate || 0),
         positiveReplies: Number(c.positiveReplies || 0)
       })),
+      brain: await loadBrainContext(),
       timestamp: new Date().toISOString()
     };
   } catch (error) {
@@ -253,8 +254,38 @@ async function loadUserContext(userId: string, isMaster: boolean) {
       recentRepliesList: [],
       objectionPatterns: [],
       campaignPerformance: [],
+      brain: { available: false },
       timestamp: new Date().toISOString()
     };
+  }
+}
+
+/** Best-effort PIE/Brain system stats from Replica 3 (the brain DB). Never throws. */
+async function loadBrainContext(): Promise<any> {
+  try {
+    const { db } = await import("../server/db");
+    const n = async (sql: string): Promise<number> => {
+      try { const r = await db.query(sql); return Number(r.rows[0]?.c || 0); } catch { return 0; }
+    };
+    let draftsPending = 0, draftsApproved = 0;
+    try {
+      const d = await db.query(`SELECT status, count(*)::int c FROM "DraftGeneration" GROUP BY status`);
+      draftsPending = Number((d.rows as any[]).find((x) => x.status === "PENDING_REVIEW")?.c || 0);
+      draftsApproved = Number((d.rows as any[]).find((x) => x.status === "APPROVED")?.c || 0);
+    } catch { /* table may not exist */ }
+    return {
+      available: true,
+      armedCategories: await n(`SELECT count(DISTINCT "categoryKey")::int c FROM "CategoryBenchmark" WHERE approved = true`),
+      approvedProofs: await n(`SELECT count(*)::int c FROM "CapabilityProof" WHERE "approvedToMention" = true`),
+      dossiers: await n(`SELECT count(*)::int c FROM "BrandDossier"`),
+      theses: await n(`SELECT count(*)::int c FROM "PartnershipThesis"`),
+      repliesClassified: await n(`SELECT count(*)::int c FROM "ReplyClassification"`),
+      proposalsPending: await n(`SELECT count(*)::int c FROM "ChangeProposal" WHERE status = 'PROPOSED'`),
+      openEscalations: await n(`SELECT count(*)::int c FROM "PieNotification" WHERE status = 'OPEN'`),
+      draftsPending, draftsApproved,
+    };
+  } catch {
+    return { available: false };
   }
 }
 
@@ -315,6 +346,15 @@ ${objectionText}
 
 📨 RECENT REPLIES (Last 7 days):
 ${recentRepliesText}
+
+🧠 PIE / BRAIN ENGINE STATE (the grounded outreach brain):
+${context.brain?.available
+  ? `- Armed categories: ${context.brain.armedCategories} · approved capability proofs: ${context.brain.approvedProofs}
+- Brands researched (dossiers): ${context.brain.dossiers} · partnership theses: ${context.brain.theses}
+- Grounded drafts: ${context.brain.draftsPending} pending review, ${context.brain.draftsApproved} approved
+- Replies in the learning store: ${context.brain.repliesClassified} · tuning proposals pending: ${context.brain.proposalsPending}
+- Open escalations needing a human: ${context.brain.openEscalations}`
+  : `- (PIE/Brain stats are not reachable right now — say so rather than guessing.)`}
 
 HOW YOU WORK:
 1. Ground every answer in the LIVE data above — real names, companies, numbers, dates. If the data needed is not here, say so plainly; never invent a figure, a lead, or a result.
