@@ -699,11 +699,11 @@ export function CreatorIntakePage() {
                           <span>
                             Your Instagram profile
                             {igConnected && (
-                              <b className="ig-verified-pill">✓ Insights Linked</b>
+                              <b className="ig-verified-pill">✓ Verified Profile</b>
                             )}
                           </span>
                           <strong id="profile-handle">@{prefilledHandle}</strong>
-                          {igInsights && (igInsights.followersRaw || igInsights.engagementRatePct || igInsights.postsCount) && (
+                          {igInsights && (igInsights.followersRaw || igInsights.postsCount) && (
                             <div className="ig-insights-mini">
                               {igInsights.followersRaw && (
                                 <span>
@@ -715,24 +715,13 @@ export function CreatorIntakePage() {
                                   <strong>{Number(igInsights.postsCount).toLocaleString()}</strong> posts
                                 </span>
                               ) : null}
-                              {igConnected && igInsights.engagementRatePct ? (
-                                <span>
-                                  <strong>{igInsights.engagementRatePct}%</strong> engagement
+                              {igConnected ? (
+                                <span className="text-emerald-700 font-medium">
+                                  ✓ Ownership verified
                                 </span>
-                              ) : null}
-                              {igConnected && igInsights.avgLikes ? (
-                                <span>
-                                  <strong>{Number(igInsights.avgLikes).toLocaleString()}</strong> avg likes
-                                </span>
-                              ) : null}
-                              {igConnected && igInsights.reach28d ? (
-                                <span>
-                                  <strong>{Number(igInsights.reach28d).toLocaleString()}</strong> 28d reach
-                                </span>
-                              ) : null}
-                              {!igConnected && (
+                              ) : (
                                 <span className="ig-unlinked-hint">
-                                  Link profile to verify exact reach &amp; engagement
+                                  Link profile to verify ownership &amp; unlock fast-track campaigns
                                 </span>
                               )}
                             </div>
