@@ -406,8 +406,8 @@ export function getInstagramOAuthConfig(params: { token: string; handle: string;
 
     // Use standard Facebook Login dialog with exact creator insight scopes.
     // Avoids config_id (which forces Meta Business Suite / business.facebook.com redirects)
-    // and avoids instagram.com/oauth/authorize (which requires a Consumer Instagram App ID instead of Meta App ID).
-    const oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement")}&state=${encodeURIComponent(encodedState)}&display=popup`;
+    // and avoids invalid/deprecated scopes like pages_read_engagement.
+    const oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("instagram_basic,instagram_manage_insights,pages_show_list")}&state=${encodeURIComponent(encodedState)}&display=popup`;
 
     return {
         configured: true,
