@@ -703,7 +703,7 @@ export function CreatorIntakePage() {
                             )}
                           </span>
                           <strong id="profile-handle">@{prefilledHandle}</strong>
-                          {igInsights && (igInsights.followersRaw || igInsights.postsCount) && (
+                          {igInsights && (igInsights.followersRaw || igInsights.postsCount) ? (
                             <div className="ig-insights-mini">
                               {igInsights.followersRaw && (
                                 <span>
@@ -724,6 +724,12 @@ export function CreatorIntakePage() {
                                   Link profile to verify ownership &amp; unlock fast-track campaigns
                                 </span>
                               )}
+                            </div>
+                          ) : (
+                            <div className="ig-insights-mini">
+                              <span className="ig-unlinked-hint">
+                                ✦ Click <strong>Link Instagram &amp; Insights</strong> to sync live profile &amp; stats
+                              </span>
                             </div>
                           )}
                         </div>
