@@ -425,15 +425,6 @@ export async function lookupAndSyncInstagramProfile(
         avgReelViews,
         recentMedia: graphData?.recentMedia || existingInsights.recentMedia || [],
         syncedAt: new Date().toISOString(),
-        _debug: {
-            targetFound: !!targetCreator,
-            targetId: targetCreator?.id,
-            targetFollowers: targetCreator?.followersRaw,
-            queryErr,
-            cleanHandle,
-            graphData: !!graphData,
-            publicData: !!publicData,
-        }
     };
 
     // ONLY persist to DB if targetCreator exists (meaning this handle owns the DB row)
