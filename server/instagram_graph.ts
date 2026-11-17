@@ -706,19 +706,32 @@ export async function completeInstagramOAuthCallback(
     let igAccount: any = null;
     let igId: string | null = directIgUserId;
 
-    // Try direct /me on graph.instagram.com
-    try {
-        const directMeRes = await fetch(
-            `https://graph.instagram.com/${graphVersion()}/me?fields=id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count,biography,website&access_token=${encodeURIComponent(userAccessToken)}`
-        );
-        if (directMeRes.ok) {
-            const directMeJson = (await directMeRes.json()) as any;
-            if (directMeJson?.id || directMeJson?.username) {
+    // Try direct /me on graph.instagram.com (try full fields first, then minimal safe fields)
+    const directFieldCandidates = [
+        "user_id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count",
+        "id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count",
+        "id,username",
+    ];
+    let directMeError: string | null = null;
+    for (const fields of directFieldCandidates) {
+        try {
+            const directMeRes = await fetch(
+                `https://graph.instagram.com/${graphVersion()}/me?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(userAccessToken)}`
+            );
+            const directMeJson = (await directMeRes.json().catch(() => ({}))) as any;
+            if (directMeRes.ok && (directMeJson?.id || directMeJson?.user_id || directMeJson?.username)) {
                 igAccount = directMeJson;
-                igId = String(directMeJson.id);
+                igId = String(directMeJson.user_id || directMeJson.id || directIgUserId || "");
+                break;
             }
+            if (directMeJson?.error?.message) {
+                directMeError = directMeJson.error.message;
+                console.warn(`[InstagramGraph] /me (${fields}) error:`, directMeError);
+            }
+        } catch (e: any) {
+            directMeError = e?.message || String(e);
         }
-    } catch {}
+    }
 
     // Fallback: Facebook Pages -> connected Instagram business account
     if (!igAccount) {
@@ -747,7 +760,9 @@ export async function completeInstagramOAuthCallback(
             handle: decodedPayload.handle,
             token: decodedPayload.token,
             insights: null,
-            error: "No Professional/Creator Instagram account found associated with this login. Please make sure your Instagram account is set to Professional/Creator mode.",
+            error: directMeError
+                ? `No Professional/Creator Instagram account found associated with this login (${directMeError}). Please make sure your Instagram account is set to Professional/Creator mode.`
+                : "No Professional/Creator Instagram account found associated with this login. Please make sure your Instagram account is set to Professional/Creator mode.",
             origin: cleanOrigin,
         };
     }
