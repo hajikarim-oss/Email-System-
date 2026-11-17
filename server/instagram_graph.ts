@@ -706,17 +706,20 @@ export async function completeInstagramOAuthCallback(
     let igAccount: any = null;
     let igId: string | null = directIgUserId;
 
-    // Try direct /me on graph.instagram.com (try full fields first, then minimal safe fields)
-    const directFieldCandidates = [
-        "user_id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count",
-        "id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count",
-        "id,username",
+    // Try direct /me on graph.instagram.com (try versioned /me, unversioned /me, and direct user_id)
+    const directEndpoints = [
+        { url: `https://graph.instagram.com/${graphVersion()}/me`, fields: "user_id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count" },
+        { url: `https://graph.instagram.com/me`, fields: "user_id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count" },
+        ...(directIgUserId
+            ? [{ url: `https://graph.instagram.com/${graphVersion()}/${encodeURIComponent(directIgUserId)}`, fields: "id,username,name,account_type,profile_picture_url,followers_count,follows_count,media_count" }]
+            : []),
+        { url: `https://graph.instagram.com/me`, fields: "id,username" },
     ];
     let directMeError: string | null = null;
-    for (const fields of directFieldCandidates) {
+    for (const candidate of directEndpoints) {
         try {
             const directMeRes = await fetch(
-                `https://graph.instagram.com/${graphVersion()}/me?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(userAccessToken)}`
+                `${candidate.url}?fields=${encodeURIComponent(candidate.fields)}&access_token=${encodeURIComponent(userAccessToken)}`
             );
             const directMeJson = (await directMeRes.json().catch(() => ({}))) as any;
             if (directMeRes.ok && (directMeJson?.id || directMeJson?.user_id || directMeJson?.username)) {
@@ -726,7 +729,7 @@ export async function completeInstagramOAuthCallback(
             }
             if (directMeJson?.error?.message) {
                 directMeError = directMeJson.error.message;
-                console.warn(`[InstagramGraph] /me (${fields}) error:`, directMeError);
+                console.warn(`[InstagramGraph] ${candidate.url} error:`, directMeError);
             }
         } catch (e: any) {
             directMeError = e?.message || String(e);
