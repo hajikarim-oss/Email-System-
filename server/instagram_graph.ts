@@ -399,7 +399,7 @@ export async function lookupAndSyncInstagramProfile(
     void params.markConnected;
     const isConnected = Boolean(targetCreator?.igConnected);
 
-    const mergedPayload: InstagramInsightsPayload = {
+    const mergedPayload: InstagramInsightsPayload & { _debug?: any } = {
         ...existingInsights,
         handle: cleanHandle,
         fullName: graphData?.fullName || publicData?.fullName || targetCreator?.fullName || cleanHandle,
@@ -419,6 +419,13 @@ export async function lookupAndSyncInstagramProfile(
         avgReelViews,
         recentMedia: graphData?.recentMedia || existingInsights.recentMedia || [],
         syncedAt: new Date().toISOString(),
+        _debug: {
+            targetFound: !!targetCreator,
+            targetId: targetCreator?.id,
+            targetFollowers: targetCreator?.followersRaw,
+            graphData: !!graphData,
+            publicData: !!publicData,
+        }
     };
 
     // ONLY persist to DB if targetCreator exists (meaning this handle owns the DB row)
