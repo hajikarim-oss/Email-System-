@@ -297,6 +297,160 @@ async function fetchViaPublicMetadata(cleanHandle: string): Promise<Partial<Inst
 }
 
 /**
+ * Shared persistence helper: updates an existing Creator row (by ID or handle) or inserts a new
+ * baseline Creator row when a brand-new creator enters/links their Instagram on the public intake form.
+ */
+async function persistCreatorInsights(
+    query: QueryFn,
+    opts: {
+        existingId?: string | null;
+        token?: string | null;
+        cleanHandle: string;
+        insights: InstagramInsightsPayload;
+        igUserId?: string | null;
+        isOAuth?: boolean;
+    }
+): Promise<void> {
+    const { existingId, token, cleanHandle, insights, igUserId, isOAuth } = opts;
+    if (!cleanHandle) return;
+
+    const followersCount = insights.followersCount || 0;
+    const followersRaw = insights.followersRaw || "";
+    const followingCount = insights.followingCount ?? null;
+    const postsCount = insights.postsCount ?? null;
+    const bio = insights.biography || "";
+    const fullName = insights.fullName || cleanHandle;
+
+    try {
+        // 1. Update by explicit existingId or invite token if available
+        if (existingId || (token && token !== "new" && token !== "test" && token !== "public")) {
+            const whereClause = existingId
+                ? `"id" = $1`
+                : `"intakeToken" = $1 OR "id" = $1`;
+            const targetKey = existingId || token!;
+            const updated = await query<any>(
+                `UPDATE "Creator"
+                 SET "instagramInsights" = $2::jsonb,
+                     "igConnected" = CASE WHEN $10::boolean THEN true ELSE COALESCE("igConnected", false) END,
+                     "igUserId" = COALESCE(NULLIF($9, ''), "igUserId"),
+                     "igLastSyncedAt" = NOW(),
+                     "followersCount" = CASE WHEN $3::int > 0 THEN $3::int ELSE "followersCount" END,
+                     "followersRaw" = COALESCE(NULLIF($4, ''), "followersRaw"),
+                     "followingCount" = COALESCE($5::int, "followingCount"),
+                     "postsCount" = COALESCE($6::int, "postsCount"),
+                     "publicBio" = COALESCE(NULLIF($7, ''), "publicBio"),
+                     "fullName" = COALESCE(NULLIF("fullName", ''), NULLIF($8, '')),
+                     "updatedAt" = NOW()
+                 WHERE ${whereClause}
+                 RETURNING "id"`,
+                [
+                    targetKey,
+                    JSON.stringify(insights),
+                    followersCount,
+                    followersRaw,
+                    followingCount,
+                    postsCount,
+                    bio,
+                    fullName,
+                    igUserId || "",
+                    Boolean(isOAuth),
+                ]
+            );
+            if (updated?.length > 0) return;
+        }
+
+        // 2. Look up by handle (supports both "handle" and "@handle")
+        const existingByHandle = await query<any>(
+            `SELECT "id" FROM "Creator"
+             WHERE lower(replace("handle", '@', '')) = $1
+             LIMIT 1`,
+            [cleanHandle]
+        );
+        if (existingByHandle?.[0]?.id) {
+            await query(
+                `UPDATE "Creator"
+                 SET "instagramInsights" = $2::jsonb,
+                     "igConnected" = CASE WHEN $10::boolean THEN true ELSE COALESCE("igConnected", false) END,
+                     "igUserId" = COALESCE(NULLIF($9, ''), "igUserId"),
+                     "igLastSyncedAt" = NOW(),
+                     "followersCount" = CASE WHEN $3::int > 0 THEN $3::int ELSE "followersCount" END,
+                     "followersRaw" = COALESCE(NULLIF($4, ''), "followersRaw"),
+                     "followingCount" = COALESCE($5::int, "followingCount"),
+                     "postsCount" = COALESCE($6::int, "postsCount"),
+                     "publicBio" = COALESCE(NULLIF($7, ''), "publicBio"),
+                     "fullName" = COALESCE(NULLIF("fullName", ''), NULLIF($8, '')),
+                     "updatedAt" = NOW()
+                 WHERE "id" = $1`,
+                [
+                    existingByHandle[0].id,
+                    JSON.stringify(insights),
+                    followersCount,
+                    followersRaw,
+                    followingCount,
+                    postsCount,
+                    bio,
+                    fullName,
+                    igUserId || "",
+                    Boolean(isOAuth),
+                ]
+            );
+            return;
+        }
+
+        // 3. Auto-store brand-new creator if we retrieved real profile data
+        const hasRealData = Boolean(isOAuth || followersCount > 0 || (insights.fullName && insights.fullName !== cleanHandle));
+        if (!hasRealData) return;
+
+        const newId = `crt_${crypto.randomBytes(8).toString("hex")}`;
+        const genToken = `tok_${crypto.randomBytes(10).toString("hex")}`;
+        await query(
+            `INSERT INTO "Creator" (
+                "id", "workspaceId", "handle", "platform", "fullName", "profileUrl",
+                "category", "intakeToken", "intakeStatus", "intakeCompletionPct",
+                "followersCount", "followersRaw", "followingCount", "postsCount", "publicBio",
+                "instagramInsights", "igConnected", "igUserId", "igLastSyncedAt",
+                "createdAt", "updatedAt"
+            ) VALUES (
+                $1, 'org_troops_outreach', $2, 'instagram', $3, $4,
+                'Creator', $5, 'SCRAPED_BASELINE', 30,
+                $6, $7, $8, $9, $10,
+                $11::jsonb, $12, NULLIF($13, ''), NOW(),
+                NOW(), NOW()
+            )
+            ON CONFLICT ("handle", "workspaceId") DO UPDATE SET
+                "instagramInsights" = EXCLUDED."instagramInsights",
+                "igConnected" = CASE WHEN EXCLUDED."igConnected" THEN true ELSE "Creator"."igConnected" END,
+                "igUserId" = COALESCE(EXCLUDED."igUserId", "Creator"."igUserId"),
+                "igLastSyncedAt" = NOW(),
+                "followersCount" = CASE WHEN EXCLUDED."followersCount" > 0 THEN EXCLUDED."followersCount" ELSE "Creator"."followersCount" END,
+                "followersRaw" = COALESCE(NULLIF(EXCLUDED."followersRaw", ''), "Creator"."followersRaw"),
+                "followingCount" = COALESCE(EXCLUDED."followingCount", "Creator"."followingCount"),
+                "postsCount" = COALESCE(EXCLUDED."postsCount", "Creator"."postsCount"),
+                "publicBio" = COALESCE(NULLIF(EXCLUDED."publicBio", ''), "Creator"."publicBio"),
+                "fullName" = COALESCE(NULLIF("Creator"."fullName", ''), NULLIF(EXCLUDED."fullName", '')),
+                "updatedAt" = NOW()`,
+            [
+                newId,
+                cleanHandle,
+                fullName,
+                `https://www.instagram.com/${cleanHandle}/`,
+                genToken,
+                followersCount,
+                followersRaw || null,
+                followingCount,
+                postsCount,
+                bio || null,
+                JSON.stringify(insights),
+                Boolean(isOAuth),
+                igUserId || "",
+            ]
+        );
+    } catch (e) {
+        console.warn("[InstagramGraph] persistCreatorInsights warning:", e);
+    }
+}
+
+/**
  * Unified Profile & Insights Lookup + Persistence into "Creator" table.
  * Strictly isolates creator handles to prevent cross-contamination between invite tokens.
  */
@@ -427,33 +581,15 @@ export async function lookupAndSyncInstagramProfile(
         syncedAt: new Date().toISOString(),
     };
 
-    // ONLY persist to DB if targetCreator exists (meaning this handle owns the DB row)
-    // NEVER overwrite tokenCreator if cleanHandle does not match tokenCreator's handle!
+    // Persist to existing handle row OR auto-store newly fetched creator baseline (never overwrite unrelated tokenCreator)
     const recordToPersist = targetCreator || (isSameHandleAsToken ? tokenCreator : null);
-    if (recordToPersist?.id) {
-        await query(
-            `UPDATE "Creator"
-             SET "instagramInsights" = $2::jsonb,
-                 "igLastSyncedAt" = NOW(),
-                 "followersCount" = CASE WHEN $3::int > 0 THEN $3::int ELSE "followersCount" END,
-                 "followersRaw" = COALESCE(NULLIF($4, ''), "followersRaw"),
-                 "followingCount" = COALESCE($5::int, "followingCount"),
-                 "postsCount" = COALESCE($6::int, "postsCount"),
-                 "publicBio" = COALESCE(NULLIF($7, ''), "publicBio"),
-                 "fullName" = COALESCE(NULLIF("fullName", ''), NULLIF($8, '')),
-                 "updatedAt" = NOW()
-             WHERE "id" = $1`,
-            [
-                recordToPersist.id,
-                JSON.stringify(mergedPayload),
-                followersCount || 0,
-                followersRaw || "",
-                followingCount ?? null,
-                postsCount ?? null,
-                mergedPayload.biography || "",
-                mergedPayload.fullName || "",
-            ]
-        ).catch((e) => console.warn("[InstagramGraph] Update creator warning:", e));
+    if (recordToPersist?.id || graphData || publicData) {
+        await persistCreatorInsights(query, {
+            existingId: recordToPersist?.id || null,
+            cleanHandle,
+            insights: mergedPayload,
+            isOAuth: isConnected,
+        });
     }
 
     return mergedPayload;
@@ -854,35 +990,14 @@ export async function completeInstagramOAuthCallback(
         syncedAt: new Date().toISOString(),
     };
 
-    // 6. Persist to Creator row strictly by intakeToken or id (avoid loose handle hijacking)
-    if (decodedPayload.token && decodedPayload.token !== "new") {
-        await query(
-            `UPDATE "Creator"
-             SET "instagramInsights" = $2::jsonb,
-                 "igConnected" = true,
-                 "igUserId" = $3,
-                 "igLastSyncedAt" = NOW(),
-                 "followersCount" = CASE WHEN $4::int > 0 THEN $4::int ELSE "followersCount" END,
-                 "followersRaw" = COALESCE(NULLIF($5, ''), "followersRaw"),
-                 "followingCount" = COALESCE($6::int, "followingCount"),
-                 "postsCount" = COALESCE($7::int, "postsCount"),
-                 "publicBio" = COALESCE(NULLIF($8, ''), "publicBio"),
-                 "fullName" = COALESCE(NULLIF("fullName", ''), NULLIF($9, '')),
-                 "updatedAt" = NOW()
-             WHERE "intakeToken" = $1 OR "id" = $1`,
-            [
-                decodedPayload.token,
-                JSON.stringify(insights),
-                igId,
-                followersCount,
-                insights.followersRaw || "",
-                insights.followingCount ?? null,
-                insights.postsCount ?? null,
-                insights.biography || "",
-                insights.fullName || "",
-            ]
-        ).catch((e) => console.warn("[InstagramGraph] Persist OAuth insights error:", e));
-    }
+    // 6. Persist verified OAuth insights (updates existing token/handle row OR auto-stores new creator)
+    await persistCreatorInsights(query, {
+        token: decodedPayload.token,
+        cleanHandle: finalHandle,
+        insights,
+        igUserId: igId,
+        isOAuth: true,
+    });
 
     const redirectUrl = `${cleanOrigin}${baseIntakePath}?ig_connected=1&instagram=${encodeURIComponent(finalHandle)}`;
 
