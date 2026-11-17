@@ -338,13 +338,19 @@ export async function lookupAndSyncInstagramProfile(
 
     // 3. Look up if this handle exists anywhere else in DB
     let targetCreator = isSameHandleAsToken ? tokenCreator : null;
+    let queryErr: string | undefined;
     if (!targetCreator) {
         const handleRows = await query<any>(
             `SELECT * FROM "Creator"
              WHERE lower(replace("handle", '@', '')) = $1
+                OR lower("handle") = $1
+                OR lower("handle") = ('@' || $1)
              LIMIT 1`,
             [cleanHandle]
-        ).catch(() => []);
+        ).catch((e: any) => {
+            queryErr = e?.message;
+            return [];
+        });
         targetCreator = handleRows?.[0] || null;
     }
 
@@ -423,6 +429,8 @@ export async function lookupAndSyncInstagramProfile(
             targetFound: !!targetCreator,
             targetId: targetCreator?.id,
             targetFollowers: targetCreator?.followersRaw,
+            queryErr,
+            cleanHandle,
             graphData: !!graphData,
             publicData: !!publicData,
         }
