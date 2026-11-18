@@ -182,32 +182,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const isPreeti = sender.includes("preeti") || (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.includes(23458016));
             const chosenKey = parsed.api_key || (isPreeti ? SECONDARY_KEY : PRIMARY_KEY);
 
-            // 1. Create or find campaign in Smartlead
+            // 1. Create or find campaign in Smartlead (never reuse old COMPLETED/PAUSED/ACTIVE campaigns that happen to share a name like "Test campaign")
             if (!smartleadId) {
-                // Try to find existing campaign first to avoid duplicates
-                const listRes = await apiCall("/campaigns", "GET", undefined, chosenKey);
-                const campaignsList = Array.isArray(listRes.data) ? listRes.data : [];
-                const existing = campaignsList.find((c: any) =>
-                    c.name?.toLowerCase() === campaignName.toLowerCase()
-                );
-
-                if (existing?.id) {
-                    smartleadId = validateSmartleadId(existing.id);
+                const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
+                if (createRes.data?.id) {
+                    smartleadId = validateSmartleadId(createRes.data.id);
                     if (!smartleadId) {
-                        throw new Error("Invalid Smartlead campaign ID format");
+                        throw new Error("Invalid Smartlead campaign ID format from API");
                     }
-                    console.log(`[Smartlead Sync] Using existing campaign: ${smartleadId}`);
+                    console.log(`[Smartlead Sync] Created new campaign: ${smartleadId}`);
                 } else {
-                    const createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
-                    if (createRes.data?.id) {
-                        smartleadId = validateSmartleadId(createRes.data.id);
-                        if (!smartleadId) {
-                            throw new Error("Invalid Smartlead campaign ID format from API");
-                        }
-                        console.log(`[Smartlead Sync] Created new campaign: ${smartleadId}`);
-                    } else {
-                        throw new Error("Failed to create or find campaign in Smartlead");
-                    }
+                    throw new Error("Failed to create campaign in Smartlead");
                 }
             } else {
                 // Validate provided smartleadId

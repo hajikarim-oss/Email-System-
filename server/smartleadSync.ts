@@ -196,7 +196,12 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
 
             const existing = await pgQuery<any>(
                 `SELECT id, name, status, "providerCampaignId", "userId" FROM "Campaign"
-                 WHERE "providerCampaignId" = $1 OR LOWER(name) = LOWER($2) LIMIT 1`,
+                 WHERE "providerCampaignId" = $1
+                    OR (("providerCampaignId" IS NULL OR "providerCampaignId" = '')
+                        AND LOWER(name) = LOWER($2)
+                        AND NOT EXISTS (SELECT 1 FROM "Campaign" c2 WHERE c2."providerCampaignId" = $1))
+                 ORDER BY CASE WHEN "providerCampaignId" = $1 THEN 0 ELSE 1 END, "createdAt" DESC
+                 LIMIT 1`,
                 [providerId, slName]
             );
 
