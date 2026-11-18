@@ -39,7 +39,8 @@ function tokenPayload(token: string, expires: Date) {
 function toClientUser(u: AuthUser & { createdAt?: string | Date | null }) {
     const rawName = (u.name || u.email.split("@")[0] || "").trim();
     const [first = "", ...rest] = rawName.split(/\s+/);
-    const membershipRole = u.role === "MASTER" ? "owner" : "team_member";
+    const isSimranManager = u.email.toLowerCase() === "simran.d@theboredmonkey.com";
+    const membershipRole = isSimranManager ? "admin" : (u.role === "MASTER" ? "owner" : "team_member");
     const joined = u.createdAt ? new Date(u.createdAt).toISOString() : new Date(0).toISOString();
     return {
         id: u.id,
@@ -48,8 +49,8 @@ function toClientUser(u: AuthUser & { createdAt?: string | Date | null }) {
         last_name: rest.join(" "),
         role: membershipRole,
         avatar_url: u.image || null,
-        is_admin: u.role === "MASTER",
-        roles: [membershipRole],
+        is_admin: u.role === "MASTER" || isSimranManager,
+        roles: isSimranManager ? ["admin", "owner"] : [membershipRole],
         tags: [],
         categories: DEFAULT_CATEGORIES,
         folders: [],

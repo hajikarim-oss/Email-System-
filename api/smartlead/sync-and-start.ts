@@ -255,7 +255,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         cId === "usr_troops_0c4c79fd" || cId === "usr_troops_87e6f943" || cId === "usr_troops_4d72a76b"
                     ) {
                         isTroops = true;
-                    } else if (cEmail.includes("monu") || cRole === "MASTER" || cId === "cmtr9pp8t0000cygeyjpsz5lt") {
+                    } else if (cEmail.includes("monu") || cId === "cmtr9pp8t0000cygeyjpsz5lt") {
                         isDbMaster = true;
                     }
                 } catch (e) {
@@ -266,7 +266,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 isDbMaster ||
                 userEmail.includes("monu") ||
                 sender.includes("kumar.monu") ||
-                user?.role === "MASTER" ||
                 parsed.is_master === true ||
                 (Array.isArray(parsed.mailboxes) && parsed.mailboxes.includes("mbx_kumar_monu_master")) ||
                 (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.map(String).includes("24993809"))

@@ -240,7 +240,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const isTroops = ownerEmail.includes("pratik") || ownerEmail.includes("naveen") || ownerEmail.includes("meenakshi") ||
                 ownerId === "usr_troops_0c4c79fd" || ownerId === "usr_troops_87e6f943" || ownerId === "usr_troops_4d72a76b" ||
                 (camp.name || "").toLowerCase().includes("troops");
-            const isMasterCamp = !isTroops && (campOwner?.[0]?.role === "MASTER" || ownerEmail.includes("monu"));
+            const isMasterCamp = !isTroops && (ownerEmail.includes("monu") || ownerId === "cmtr9pp8t0000cygeyjpsz5lt");
 
             let slMailboxIds: number[] = [];
             if (isMasterCamp) {
@@ -606,7 +606,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     const isTroops = campUserEmail.includes("pratik") || campUserEmail.includes("naveen") || campUserEmail.includes("meenakshi") ||
                         campUserId === "usr_troops_0c4c79fd" || campUserId === "usr_troops_87e6f943" || campUserId === "usr_troops_4d72a76b" ||
                         (camp.name || "").toLowerCase().includes("troops");
-                    const isMonuMaster = !isTroops && (campUser?.[0]?.role === "MASTER" || campUserEmail.includes("monu"));
+                    const isMonuMaster = !isTroops && (campUserEmail.includes("monu") || campUserId === "cmtr9pp8t0000cygeyjpsz5lt");
 
                     if (isMonuMaster) {
                         await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", { email_account_ids: [24993809] }, apiKey);
@@ -656,7 +656,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 const isTroops = campUserEmail.includes("pratik") || campUserEmail.includes("naveen") || campUserEmail.includes("meenakshi") ||
                     campUserId === "usr_troops_0c4c79fd" || campUserId === "usr_troops_87e6f943" || campUserId === "usr_troops_4d72a76b" ||
                     (camp.name || "").toLowerCase().includes("troops");
-                const isMonuMaster = !isTroops && (campUser?.[0]?.role === "MASTER" || campUserEmail.includes("monu") || input?.is_master === true);
+                const isMonuMaster = !isTroops && (campUserEmail.includes("monu") || campUserId === "cmtr9pp8t0000cygeyjpsz5lt" || input?.is_master === true);
 
                 if (isMonuMaster) {
                     const curAccs = await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "GET", undefined, apiKey);
@@ -827,7 +827,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                                 [campaignId, mb.id]
                             ).catch(() => {});
                         }
-                    } else if (scope.master && (userEmail.includes("monu") || userRes?.[0]?.role === "MASTER")) {
+                    } else if (scope.master && userEmail.includes("monu")) {
                         // TBM Master account exclusively uses kumar.monu@theboredmonkey.com (24993809)
                         const masterMb = await pgQuery<any>(
                             `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`

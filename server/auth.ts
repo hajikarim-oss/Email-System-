@@ -96,6 +96,13 @@ const CORE_TBM_TEAM_MEMBERS = [
         passwordPlain: "9538564601Aa",
         role: "TEAM_MEMBER" as AuthRole,
     },
+    {
+        id: "usr_tbm_simran_d",
+        name: "Simran D",
+        email: "simran.d@theboredmonkey.com",
+        passwordPlain: "9538564601Aa",
+        role: "MASTER" as AuthRole,
+    },
 ];
 
 let ensureMembersPromise: Promise<void> | null = null;
@@ -139,31 +146,31 @@ export async function ensureTbmTeamMembers(): Promise<void> {
                         const hashed = await hashPassword(member.passwordPlain);
                         await pgQuery(
                             `UPDATE "User"
-                             SET name = $2, password = $3, role = 'TEAM_MEMBER'::"Role", "isActive" = true, "updatedAt" = now()
+                             SET name = $2, password = $3, role = $4::"Role", "isActive" = true, "updatedAt" = now()
                              WHERE id = $1`,
-                            [userId, member.name, hashed]
+                            [userId, member.name, hashed, member.role]
                         );
                     } else {
                         await pgQuery(
                             `UPDATE "User"
-                             SET name = COALESCE(name, $2), role = 'TEAM_MEMBER'::"Role", "isActive" = true, "updatedAt" = now()
+                             SET name = COALESCE(name, $2), role = $3::"Role", "isActive" = true, "updatedAt" = now()
                              WHERE id = $1`,
-                            [userId, member.name]
+                            [userId, member.name, member.role]
                         );
                     }
                 } else {
                     const hashed = await hashPassword(member.passwordPlain);
                     await pgQuery(
                         `INSERT INTO "User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt")
-                         VALUES ($1, $2, $3, $4, 'TEAM_MEMBER'::"Role", true, now(), now())
+                         VALUES ($1, $2, $3, $4, $5::"Role", true, now(), now())
                          ON CONFLICT (id) DO UPDATE
                          SET name = EXCLUDED.name,
                              email = EXCLUDED.email,
                              password = EXCLUDED.password,
-                             role = 'TEAM_MEMBER'::"Role",
+                             role = EXCLUDED.role,
                              "isActive" = true,
                              "updatedAt" = now()`,
-                        [member.id, member.name, member.email, hashed]
+                        [member.id, member.name, member.email, hashed, member.role]
                     );
                 }
 

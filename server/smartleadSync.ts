@@ -458,7 +458,6 @@ export async function reconcileSmartleadMailboxes(force = false): Promise<{
                 const isMasterCamp =
                     !isTroopsCamp && (
                         campOwnerEmail.includes("monu") ||
-                        campOwnerRole === "MASTER" ||
                         campOwnerId === "cmtr9pp8t0000cygeyjpsz5lt" ||
                         nameLower.startsWith("mon test") ||
                         nameLower.includes("master test")

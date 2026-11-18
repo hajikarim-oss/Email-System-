@@ -286,7 +286,8 @@ function fmtDateTime(d: Date): string {
 export function NewCreatorCampaignDialog({ open, onClose }: Props) {
     const navigate = useNavigate();
     const profile = useUserProfile();
-    const { isMaster } = useFeatureAccess();
+    const { isMaster: isMasterAccess } = useFeatureAccess();
+    const isMaster = Boolean(isMasterAccess && String((profile as any)?.user?.email || "").toLowerCase().includes("monu"));
     const confirm = useConfirm();
     const create = useCreateCampaign();
     const linkSegments = useSetCampaignSegments();

@@ -80,12 +80,22 @@ export default function useFeatureAccess(): FeatureAccess {
     const user = userCtx?.user as any;
     const role = (user?.role || "").toUpperCase();
     const roles: string[] = (user?.roles || []).map((r: any) => String(r).toUpperCase());
-    const isMaster = Boolean(user) && (role === "MASTER" || role === "OWNER" || roles.includes("MASTER") || roles.includes("OWNER") || user?.is_admin === true);
-    const isTeamMember = Boolean(user) && !isMaster;
-
     const emailLower = String(user?.email || "").toLowerCase();
     const userId = String(user?.id || "");
     const nameLower = String(user?.name || `${user?.first_name || ""} ${user?.last_name || ""}`).toLowerCase();
+    const isSimranManager = emailLower === "simran.d@theboredmonkey.com" || userId === "usr_tbm_simran_d";
+    const isMaster =
+        Boolean(user) &&
+        (role === "MASTER" ||
+            role === "OWNER" ||
+            role === "ADMIN" ||
+            roles.includes("MASTER") ||
+            roles.includes("OWNER") ||
+            roles.includes("ADMIN") ||
+            user?.is_admin === true ||
+            isSimranManager);
+    const isTeamMember = Boolean(user) && !isMaster;
+
     const isMonu =
         emailLower === "monu@theboredmonkey.com" ||
         emailLower === "kumar.monu@theboredmonkey.com" ||
@@ -97,7 +107,7 @@ export default function useFeatureAccess(): FeatureAccess {
         emailLower === "pratik@theboredmonkey.com" ||
         emailLower.includes("pratik") ||
         nameLower.includes("pratik");
-    const canViewFinance = Boolean(user) && (isMonu || isPratik);
+    const canViewFinance = Boolean(user) && (isMonu || isPratik) && !isSimranManager;
 
     const isTroopsMasterUser =
         userId === "usr_troops_0c4c79fd" ||
@@ -107,7 +117,7 @@ export default function useFeatureAccess(): FeatureAccess {
         currentOrganization?.id === "org_troops_outreach" ||
         currentOrganization?.slug === "troops-outreach" ||
         isTroopsMasterUser;
-    const canViewCreators = isMaster && isTroopsWorkspace;
+    const canViewCreators = isMaster && (isTroopsWorkspace || isSimranManager);
 
     return {
         loading: false,
