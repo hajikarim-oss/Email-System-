@@ -225,6 +225,9 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
                 campDbId = inserted?.[0]?.id || "";
             } else {
                 campDbId = existing[0].id;
+                if (existing[0].userId) {
+                    targetUserId = existing[0].userId;
+                }
                 // Keep providerCampaignId and status updated
                 await pgQuery(
                     `UPDATE "Campaign"
@@ -430,16 +433,16 @@ export async function reconcileSmartleadMailboxes(force = false): Promise<{
 
             for (const camp of campaigns) {
                 const nameLower = (camp.name || "").toLowerCase();
-                const isMasterCamp = nameLower.startsWith("mon test") || nameLower.includes("master test");
 
-                // Check campaign creator in PostgreSQL database to accurately detect Troops ownership
+                // Check campaign creator in PostgreSQL database to accurately detect Master & Troops ownership
                 const dbCampRes = await pgQuery<any>(
-                    `SELECT c.id, c."userId", u.email as user_email, u.name as user_name FROM "Campaign" c LEFT JOIN "User" u ON u.id = c."userId" WHERE c."providerCampaignId" = $1 OR lower(c.name) = $2 LIMIT 1`,
+                    `SELECT c.id, c."userId", u.email as user_email, u.name as user_name, u.role as user_role FROM "Campaign" c LEFT JOIN "User" u ON u.id = c."userId" WHERE c."providerCampaignId" = $1 OR lower(c.name) = $2 LIMIT 1`,
                     [String(camp.id), nameLower]
                 );
                 const dbCamp = dbCampRes?.[0];
                 const campOwnerEmail = (dbCamp?.user_email || "").toLowerCase();
                 const campOwnerId = dbCamp?.userId || "";
+                const campOwnerRole = (dbCamp?.user_role || "").toUpperCase();
 
                 const curAccRes = await apiCall(`/campaigns/${camp.id}/email-accounts`);
                 const curAccs: any[] = Array.isArray(curAccRes.data) ? curAccRes.data : [];
@@ -451,6 +454,15 @@ export async function reconcileSmartleadMailboxes(force = false): Promise<{
                     campOwnerId === "usr_troops_0c4c79fd" || campOwnerId === "usr_troops_87e6f943" || campOwnerId === "usr_troops_4d72a76b" ||
                     nameLower.includes("troops") || (Array.isArray(camp.tags) && camp.tags.some((t: any) => String(t).toLowerCase().includes("troops"))) ||
                     curHasTroops;
+
+                const isMasterCamp =
+                    !isTroopsCamp && (
+                        campOwnerEmail.includes("monu") ||
+                        campOwnerRole === "MASTER" ||
+                        campOwnerId === "cmtr9pp8t0000cygeyjpsz5lt" ||
+                        nameLower.startsWith("mon test") ||
+                        nameLower.includes("master test")
+                    );
 
                 if (isMasterCamp) {
                     // Master campaigns: Strictly kumar.monu (24993809)

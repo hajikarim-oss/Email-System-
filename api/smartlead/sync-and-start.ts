@@ -239,26 +239,38 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 sender.includes("tbmtroop") ||
                 (parsed.name && String(parsed.name).toLowerCase().includes("troops"));
 
+            let isDbMaster = false;
             if (!isTroops) {
                 try {
                     const dbCampCheck = await pgQuery<any>(
-                        `SELECT c.id, c."userId", u.email as user_email, u.name as user_name FROM "Campaign" c LEFT JOIN "User" u ON u.id = c."userId" WHERE (c."providerCampaignId" = $1 AND $1 != '') OR lower(c.name) = $2 LIMIT 1`,
+                        `SELECT c.id, c."userId", u.email as user_email, u.name as user_name, u.role as user_role FROM "Campaign" c LEFT JOIN "User" u ON u.id = c."userId" WHERE (c."providerCampaignId" = $1 AND $1 != '') OR lower(c.name) = $2 LIMIT 1`,
                         [smartleadId ? String(smartleadId) : '', (parsed.name || '').toLowerCase()]
                     );
                     const cOwner = dbCampCheck?.[0];
                     const cEmail = (cOwner?.user_email || "").toLowerCase();
                     const cId = cOwner?.userId || "";
+                    const cRole = (cOwner?.user_role || "").toUpperCase();
                     if (
                         cEmail.includes("pratik") || cEmail.includes("naveen") || cEmail.includes("meenakshi") ||
                         cId === "usr_troops_0c4c79fd" || cId === "usr_troops_87e6f943" || cId === "usr_troops_4d72a76b"
                     ) {
                         isTroops = true;
+                    } else if (cEmail.includes("monu") || cRole === "MASTER" || cId === "cmtr9pp8t0000cygeyjpsz5lt") {
+                        isDbMaster = true;
                     }
                 } catch (e) {
                     console.warn("[Smartlead Sync] DB safeguard check failed:", e);
                 }
             }
-            const isMonuMaster = !isTroops && (userEmail.includes("monu") || sender.includes("kumar.monu") || (user?.role === "MASTER" && !isTroops && parsed.is_master === true));
+            const isMonuMaster = !isTroops && (
+                isDbMaster ||
+                userEmail.includes("monu") ||
+                sender.includes("kumar.monu") ||
+                user?.role === "MASTER" ||
+                parsed.is_master === true ||
+                (Array.isArray(parsed.mailboxes) && parsed.mailboxes.includes("mbx_kumar_monu_master")) ||
+                (Array.isArray(parsed.mailbox_ids) && parsed.mailbox_ids.map(String).includes("24993809"))
+            );
 
             if (isMonuMaster) {
                 // TBM Master account exclusively uses kumar.monu@theboredmonkey.com (Smartlead ID: 24993809)
