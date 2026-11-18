@@ -38,7 +38,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         for (let i = 0; i < validItems.length; i += BATCH_SIZE) {
             const chunk = validItems.slice(i, i + BATCH_SIZE);
             const emails = chunk.map((c: any) => (c.email || "").toLowerCase().trim());
-            const defaultCampId = (parsed as any).campaign_id || (parsed as any).campaignId || null;
+            const firstChunkItem = chunk[0] || {};
+            const defaultCampId =
+                (parsed as any).campaign_id ||
+                (parsed as any).campaignId ||
+                firstChunkItem.campaign_id ||
+                firstChunkItem.campaignId ||
+                (Array.isArray(firstChunkItem.campaigns) ? firstChunkItem.campaigns[0] : null) ||
+                null;
 
             // 1. Fetch existing leads FOR THIS CAMPAIGN to avoid corrupting other campaigns
             const existingRows = defaultCampId
@@ -80,10 +87,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                             `UPDATE "Lead" 
                              SET "firstName" = CASE WHEN "firstName" IS NULL OR "firstName" = '' THEN $1 ELSE "firstName" END,
                                  "lastName" = CASE WHEN "lastName" IS NULL OR "lastName" = '' THEN $2 ELSE "lastName" END,
-                                 "customData" = COALESCE("customData", '{}'::jsonb) || $3::jsonb,
+                                 "campaignId" = COALESCE($3, "campaignId"),
+                                 "customData" = COALESCE("customData", '{}'::jsonb) || $4::jsonb,
                                  "updatedAt" = now()
-                             WHERE id = $4`,
-                            [firstName, lastName, customData, existingId]
+                             WHERE id = $5`,
+                            [firstName, lastName, campId || null, customData, existingId]
                         )
                     );
                 } else {
