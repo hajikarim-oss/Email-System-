@@ -1664,43 +1664,16 @@ function EmailsStep({
                         return next;
                     });
 
-                    // Sync the full 3-step sequence into draft.sequences
-                    const activeP = d.pitches[activeContactIdx] || d.pitches[0];
-                    if (activeP && activeP.steps && activeP.steps.length > 0) {
-                        patch({
-                            sequences: activeP.steps.map((st: any, idx: number) => ({
-                                subject: st.subject,
-                                body_plain: st.body,
-                                body_html: st.bodyHtml || `<p>${st.body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`,
-                                wait_after: idx === 0 ? 0 : st.delayDays || (idx === 1 ? 2 : 3),
-                            })),
-                        });
-                    }
+                    // Keep draft.sequences (Sequence & Follow-ups) strictly manual — do not overwrite with AI pitches
                 }
             })
             .catch((err) => console.warn("[EmailsStep] L6 Pitch generation fallback:", err))
             .finally(() => setIsGeneratingPitches(false));
     }, [draft.selectedContacts]);
 
-    // Sync active contact pitch & sequence steps into draft.sequences
-    const syncActivePitchToSequence = (subject: string, body: string, steps?: any[]) => {
-        if (steps && steps.length > 0) {
-            patch({
-                sequences: steps.map((s, idx) => ({
-                    subject: s.subject,
-                    body_plain: s.body,
-                    body_html: s.bodyHtml || `<p>${s.body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`,
-                    wait_after: idx === 0 ? 0 : s.delayDays || (idx === 1 ? 2 : 3),
-                })),
-            });
-        } else {
-            if (!draft.sequences[0]) return;
-            update(0, {
-                subject,
-                body_plain: body,
-                body_html: `<p>${body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`,
-            });
-        }
+    // Sequence & Follow-ups is strictly manual; AI pitches stay isolated in `pitches` state
+    const syncActivePitchToSequence = (_subject: string, _body: string, _steps?: any[]) => {
+        // No-op: do not overwrite manual draft.sequences with AI-generated pitches
     };
 
     const currentContact = draft.selectedContacts[activeContactIdx];
