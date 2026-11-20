@@ -127,7 +127,7 @@ export async function ensureTbmTeamMembers(): Promise<void> {
                  VALUES ($1, 'TheBoredMonkey Workspace', now(), now())
                  ON CONFLICT (id) DO NOTHING`,
                 [teamId]
-            ).catch(() => {});
+            ).catch(() => { });
 
             for (const member of CORE_TBM_TEAM_MEMBERS) {
                 const existing = await pgQuery<{ id: string; password: string | null }>(
@@ -190,7 +190,7 @@ export async function ensureTbmTeamMembers(): Promise<void> {
                         await pgQuery(
                             `INSERT INTO "UserTeam" (id, "userId", "teamId") VALUES (gen_random_uuid()::text, $1, $2) ON CONFLICT DO NOTHING`,
                             [userId, teamId]
-                        ).catch(() => {});
+                        ).catch(() => { });
                     }
                 }
             }

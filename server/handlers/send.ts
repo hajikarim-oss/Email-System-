@@ -56,6 +56,10 @@ export class Memo<T> {
         this.maxEntries = maxEntries;
     }
 
+    clear(): void {
+        this.entries.clear();
+    }
+
     get(key: string): T | undefined {
         const hit = this.entries.get(key);
         if (!hit) return undefined;

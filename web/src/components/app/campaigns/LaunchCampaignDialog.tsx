@@ -201,7 +201,7 @@ export default function LaunchCampaignDialog({
 
             const launchOptions: StartCampaignOptions = {
                 ...(acknowledge ? { acknowledge_list_risk: true } : {}),
-                ...(campaignLeads && campaignLeads.length > 0 ? { leads: campaignLeads } : {}),
+                ...(campaignLeads && campaignLeads.length > 0 ? { leads: campaignLeads.slice(0, 50) } : {}),
             };
 
             const res = (await onConfirm(campaign.id, launchOptions)) as

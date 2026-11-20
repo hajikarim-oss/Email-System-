@@ -42,6 +42,7 @@ export default function CampaignImportContactsModal({ open, onClose, campaign }:
                     company: cleanC,
                     phone: "",
                     campaigns: [campaign.id],
+                    campaign_id: campaign.id,
                     custom_fields: {
                         ...(c.custom_fields || {}),
                         company: cleanC,

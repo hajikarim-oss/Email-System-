@@ -3,6 +3,7 @@ import { requireUser } from "../../server/handlers/auth";
 import { pgQuery } from "../../server/pg";
 import { scopeFor } from "../../server/scope";
 import { send } from "../../server/handlers/send";
+import { contactsMemo } from "./contacts";
 
 function readBody(req: IncomingMessage): Promise<string> {
     return new Promise((resolve) => {
@@ -126,7 +127,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             }
 
             // Sync with Creator Engine: mark enrolled creators as INVITATION_SENT & link activeCampaignId
-            const firstCampId = items.find((it) => it.campaign_id)?.campaign_id || null;
+            const firstCampId = items.find((it) => it.campaign_id || it.campaignId || (Array.isArray(it.campaigns) && it.campaigns[0]))?.campaign_id ||
+                items.find((it) => it.campaignId)?.campaignId ||
+                (Array.isArray(items[0]?.campaigns) ? items[0].campaigns[0] : null) ||
+                null;
             if (emails.length > 0) {
                 await pgQuery(
                     `UPDATE "Creator"
@@ -140,6 +144,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 ).catch((e) => console.warn("[add-contacts] Creator sync warning:", e?.message));
             }
         }
+
+        // Invalidate in-memory contacts cache so subsequent list queries reflect new leads immediately
+        contactsMemo.clear();
 
         send(res, 200, { success: true, count });
     } catch (err: any) {

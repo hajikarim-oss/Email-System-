@@ -5,7 +5,7 @@ import { scopeFor, scopeKey } from "../../server/scope";
 import { requireUser } from "../../server/handlers/auth";
 import { Memo, send } from "../../server/handlers/send";
 
-const memo = new Memo<unknown>(30_000);
+export const contactsMemo = new Memo<unknown>(30_000);
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {
@@ -28,7 +28,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             subscribedRaw === null || subscribedRaw === "" ? null : subscribedRaw === "true" || subscribedRaw === "1";
 
         const key = `${scopeKey(scope)}|${urlObj.pathname}${urlObj.search}`;
-        const hit = memo.get(key);
+        const hit = contactsMemo.get(key);
         if (hit !== undefined) {
             send(res, 200, hit, 60);
             return;
@@ -49,7 +49,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             pgQuery,
             scope,
         );
-        memo.set(key, payload);
+        contactsMemo.set(key, payload);
 
         send(res, 200, payload, 60);
     } catch (err: any) {

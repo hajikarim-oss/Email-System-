@@ -104,6 +104,30 @@ try {
             localStorage.setItem(notifsKey, JSON.stringify(cleaned));
         }
     }
+
+    // Emergency memory guard: purge oversized or corrupted leads keys to prevent Chrome Aw Snap Error 5 (heap exhaustion)
+    try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k) {
+                if (k.startsWith(STORAGE_KEY_PREFIX + "campaign_leads_")) {
+                    const isFixture = k.includes("1789718475256") || k.includes("1790233732719");
+                    if (!isFixture) {
+                        keysToRemove.push(k);
+                    }
+                } else if (k === STORAGE_KEY_PREFIX + "contacts") {
+                    const val = localStorage.getItem(k);
+                    if (val && val.length > 200_000) {
+                        keysToRemove.push(k);
+                    }
+                }
+            }
+        }
+        for (const k of keysToRemove) {
+            localStorage.removeItem(k);
+        }
+    } catch { }
 } catch { }
 
 // Initial state data loaded from real Email System 101 core database with 4 distinct sending profiles (50/day each = 200/day)
@@ -1666,6 +1690,11 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         const isQ2 = campId.includes("1789718475256") || campId === "cmp_1789718475256_g91f";
         const isQ3 = campId.includes("1790233732719") || campId === "cmp_1790233732719_dvlj" || campaignObj?.smartlead_id === 4015596 || Boolean(campaignObj?.name?.toLowerCase().includes("q3"));
 
+        // Only demo/fixture campaigns use synthetic in-browser mock leads; real campaigns are loaded purely via PostgreSQL API
+        if (!isQ2 && !isQ3) {
+            return [];
+        }
+
         // Attempt to fetch live database leads for this campaign
         try {
             const dbRes = await fetch(`/api/intelligence/contacts?campaign_ids=${encodeURIComponent(campId)}&limit=200`, { headers: authHeaders() });
@@ -2865,12 +2894,38 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
             // Batch contacts addition (e.g. from NewCampaignDialog or Import)
             if (Array.isArray(body)) {
+                // 1. Sync contacts directly to PostgreSQL database FIRST (safe chunked bulk insertion)
+                try {
+                    const syncRes = await safeFetch("/api/intelligence/add-contacts", {
+                        method: "POST",
+                        headers: { ...authHeaders(), "Content-Type": "application/json" },
+                        body: JSON.stringify(body),
+                    });
+                    if (!syncRes.ok) {
+                        const errText = await syncRes.text().catch(() => "");
+                        console.error("[standaloneMock] add-contacts DB sync failed:", syncRes.status, errText);
+                    }
+                } catch (syncErr) {
+                    console.error("[standaloneMock] add-contacts DB sync error:", syncErr);
+                }
+
+                // 2. Update target campaign total_leads counter in memory
+                const firstCampId = body[0]?.campaigns?.[0] || body[0]?.campaign_id;
+                if (firstCampId) {
+                    const targetCamp = campaigns.find((c: any) => c.id === firstCampId);
+                    if (targetCamp) {
+                        targetCamp.total_leads = (targetCamp.total_leads || 0) + body.length;
+                        saveStorage("campaigns", campaigns);
+                    }
+                }
+
+                // 3. Keep a lightweight preview list (max 50) for immediate UI display without localStorage quota explosion
+                const previewSlice = body.slice(0, 50);
                 const addedList: any[] = [];
-                for (const item of body) {
+                for (const item of previewSlice) {
                     const cleanEmail = (item.email || "").toLowerCase().trim();
                     if (!cleanEmail) continue;
                     const campId = item.campaigns?.[0] || item.campaign_id;
-                    const existingIdx = contacts.findIndex((c: any) => (c.email || "").toLowerCase().trim() === cleanEmail);
                     const cleanComp = cleanCompanyName(item.company || item.company_name || "");
                     const newC = {
                         id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -2890,70 +2945,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                     };
-                    let finalContact: any;
-                    if (existingIdx >= 0) {
-                        finalContact = {
-                            ...contacts[existingIdx],
-                            ...newC,
-                            id: contacts[existingIdx].id,
-                            campaign_id: campId || contacts[existingIdx].campaign_id,
-                            campaigns: campId
-                                ? Array.from(new Set([...(contacts[existingIdx].campaigns || []), campId]))
-                                : contacts[existingIdx].campaigns,
-                        };
-                        contacts[existingIdx] = finalContact;
-                        addedList.push(finalContact);
-                    } else {
-                        contacts.unshift(newC);
-                        finalContact = newC;
-                        addedList.push(newC);
-                    }
-                    if (campId) {
-                        const targetCamp = campaigns.find((c: any) => c.id === campId);
-                        const cLeads = loadStorage<any[]>(`campaign_leads_${campId}`, []);
-                        const leadItem = {
-                            ...finalContact,
-                            campaign_id: campId,
-                            campaigns: [campId],
-                            campaign_lead: finalContact.campaign_lead || {
-                                status: "pending",
-                                sent: 0,
-                                opened: 0,
-                                machine_opened: 0,
-                                clicked: 0,
-                                replied: 0,
-                                bounced: 0,
-                                current_step: "Ready for delivery",
-                            },
-                        };
-                        const clIdx = cLeads.findIndex((cl: any) => (cl.email || "").toLowerCase().trim() === cleanEmail);
-                        if (clIdx >= 0) {
-                            cLeads[clIdx] = { ...cLeads[clIdx], ...leadItem };
-                        } else {
-                            cLeads.push(leadItem);
-                        }
-                        saveStorage(`campaign_leads_${campId}`, cLeads);
-                        if (targetCamp) {
-                            targetCamp.total_leads = cLeads.length;
-                        }
-                    }
-                }
-                saveStorage("contacts", contacts);
-                saveStorage("campaigns", campaigns);
-
-                // Sync contacts to PostgreSQL database (awaited so leads exist before campaign starts)
-                try {
-                    const syncRes = await safeFetch("/api/intelligence/add-contacts", {
-                        method: "POST",
-                        headers: { ...authHeaders(), "Content-Type": "application/json" },
-                        body: JSON.stringify(body),
-                    });
-                    if (!syncRes.ok) {
-                        const errText = await syncRes.text().catch(() => "");
-                        console.error("[standaloneMock] add-contacts DB sync failed:", syncRes.status, errText);
-                    }
-                } catch (syncErr) {
-                    console.error("[standaloneMock] add-contacts DB sync error:", syncErr);
+                    addedList.push(newC);
                 }
 
                 return res(addedList);
@@ -3195,10 +3187,15 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             const intRes = await safeFetch(`/api/intelligence/contacts?${intParams.toString()}`, { headers: authHeaders() });
             if (intRes.ok) {
                 const intJson = await intRes.json();
-                if ((!campIds || campIds.length === 0) || (intJson.total > 0 && intJson.data?.length > 0)) {
+                const isFixtureCampaign = campIds.some(id =>
+                    id.includes("1789718475256") || id === "cmp_1789718475256_g91f" ||
+                    id.includes("1790233732719") || id === "cmp_1790233732719_dvlj"
+                );
+                // For non-fixture campaigns, the live PostgreSQL database is the single source of truth
+                if (!isFixtureCampaign || (intJson.total > 0 && intJson.data?.length > 0)) {
                     return res({
-                        data: intJson.data,
-                        total: intJson.total,
+                        data: intJson.data || [],
+                        total: intJson.total || 0,
                         counts: intJson.counts,
                         lead_counts: intJson.lead_counts,
                         pagination: intJson.pagination,
@@ -3231,9 +3228,18 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         let totalCampLeads: any[] = [];
 
         if (campIds && campIds.length > 0) {
-            const targetCamp = campaigns.find((c: any) => campIds.includes(c.id));
-            totalCampLeads = await getOrInitCampaignLeads(campIds[0], targetCamp);
-            results = [...totalCampLeads];
+            const isFixtureCampaign = campIds.some((id: string) =>
+                id.includes("1789718475256") || id === "cmp_1789718475256_g91f" ||
+                id.includes("1790233732719") || id === "cmp_1790233732719_dvlj"
+            );
+            if (isFixtureCampaign) {
+                const targetCamp = campaigns.find((c: any) => campIds.includes(c.id));
+                totalCampLeads = await getOrInitCampaignLeads(campIds[0], targetCamp);
+                results = [...totalCampLeads];
+            } else {
+                results = [];
+                totalCampLeads = [];
+            }
         } else {
             results = [...contacts];
             totalCampLeads = results;

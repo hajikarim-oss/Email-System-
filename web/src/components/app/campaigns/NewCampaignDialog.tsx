@@ -553,7 +553,7 @@ export function NewCampaignDialog({ open, onClose, initialContacts }: Props) {
                             };
                         });
                         try {
-                            const leadsCache = toAdd.map((c, i) => ({
+                            const leadsCache = toAdd.slice(0, 50).map((c, i) => ({
                                 id: `cnt_lead_${created.id}_${i}_${Date.now()}`,
                                 email: c.email,
                                 first_name: c.first_name,
@@ -635,7 +635,7 @@ export function NewCampaignDialog({ open, onClose, initialContacts }: Props) {
                         };
                     });
                     try {
-                        const leadsCache = toAdd.map((c, i) => ({
+                        const leadsCache = toAdd.slice(0, 50).map((c, i) => ({
                             id: `cnt_lead_${created.id}_${i}_${Date.now()}`,
                             email: c.email,
                             first_name: c.first_name,
