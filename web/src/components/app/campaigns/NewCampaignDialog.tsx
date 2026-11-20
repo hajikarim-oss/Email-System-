@@ -1597,6 +1597,7 @@ function EmailsStep({
             {
                 subject: string;
                 body: string;
+                steps?: any[];
                 approved: boolean;
                 hasGroundedThesis?: boolean;
                 benchmarkDim?: string;
