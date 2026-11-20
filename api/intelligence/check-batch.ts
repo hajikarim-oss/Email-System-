@@ -16,7 +16,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     try {
-        const body = await readJsonBody<{ emails?: string[] }>(req);
+        const body = await readJsonBody<{ emails?: string[] }>(req, 5_000_000);
         const emails = Array.isArray(body?.emails) ? body.emails : [];
         const result = await checkBatch(emails);
         send(res, 200, result);

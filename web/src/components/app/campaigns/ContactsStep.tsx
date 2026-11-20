@@ -221,13 +221,24 @@ export function ContactsStep({ selectedContacts, onChangeSelected }: ContactsSte
         if (!toAdd.length) return;
         setChecking(true);
         try {
-            const r = await fetch("/api/intelligence/check-batch", { 
-                method: "POST", 
-                headers: { "Content-Type": "application/json", ...authHeaders() }, 
-                body: JSON.stringify({ emails: toAdd.map(c => c.email) }) 
-            });
-            if (!r.ok) throw new Error("Database check failed");
-            const j = await r.json();
+            const allEmails = toAdd.map(c => c.email);
+            const CHUNK_SIZE = 500;
+            const rawDupes: any[] = [];
+            const rawQuar: any[] = [];
+
+            for (let i = 0; i < allEmails.length; i += CHUNK_SIZE) {
+                const chunk = allEmails.slice(i, i + CHUNK_SIZE);
+                const r = await fetch("/api/intelligence/check-batch", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...authHeaders() },
+                    body: JSON.stringify({ emails: chunk }),
+                });
+                if (!r.ok) throw new Error(`Database check failed (${r.status})`);
+                const chunkJson = await r.json();
+                if (Array.isArray(chunkJson.duplicates)) rawDupes.push(...chunkJson.duplicates);
+                if (Array.isArray(chunkJson.quarantined)) rawQuar.push(...chunkJson.quarantined);
+            }
+            const j = { duplicates: rawDupes, quarantined: rawQuar };
             const dupes: HistoryWarning[] = (j.duplicates || []).map((d: any) => ({
                 email: d.email,
                 name: d.name,
