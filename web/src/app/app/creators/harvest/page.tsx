@@ -1275,7 +1275,7 @@ export default function CreatorTreeHarvestPage() {
                 <CreatorDetailDrawer
                     creator={selectedCreator}
                     onClose={() => setSelectedCreator(null)}
-                    onUpdated={() => fetchTreeData(true)}
+                    onUpdate={() => fetchTreeData(true)}
                 />
             )}
         </div>
