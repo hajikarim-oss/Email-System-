@@ -145,7 +145,6 @@ export default function CreatorsTable() {
                 sortBy,
                 reverse: reverse ? "true" : "false",
                 verifiedIndianOnly: verifiedIndianOnly ? "true" : "false",
-                autoScout: "false",
                 limit: String(limit),
                 offset: String((page - 1) * limit),
             });

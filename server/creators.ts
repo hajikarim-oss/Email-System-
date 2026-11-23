@@ -34,46 +34,30 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     const values: any[] = [workspaceId];
     let pIdx = 2;
 
-    let isDirectUrlOrHandleSearch = false;
     if (params.search && params.search.trim()) {
         const rawSearch = params.search.trim();
-        // If user pasted an Instagram URL (e.g. https://www.instagram.com/anshuffle/?hl=en) or @handle, extract clean handle cleanly
-        const handleFromUrl = rawSearch.match(/instagram\.com\/(?:reel\/|reels\/|p\/)?([A-Za-z0-9_.]+)/i)?.[1];
-        const isUrlMatch = Boolean(handleFromUrl && !["reel", "reels", "p", "explore", "stories"].includes(handleFromUrl.toLowerCase()));
-        const isAtHandle = rawSearch.startsWith("@") && /^@[A-Za-z0-9_.]{2,35}$/.test(rawSearch);
-        isDirectUrlOrHandleSearch = isUrlMatch || isAtHandle;
-
-        const cleanTerm = (
-            isUrlMatch
-                ? handleFromUrl!
-                : rawSearch.replace(/^@+/, "")
+        // If user pasted an Instagram URL, extract the handle or shortcode for DB matching first
+        const handleFromUrl = rawSearch.match(/instagram\.com\/(?:reel\/|p\/)?([A-Za-z0-9_.]+)/i)?.[1];
+        const cleanTerm = (handleFromUrl && !["reel", "reels", "p", "explore"].includes(handleFromUrl.toLowerCase())
+            ? handleFromUrl
+            : rawSearch
         ).toLowerCase();
-
-        if (isDirectUrlOrHandleSearch) {
-            // Fast path: match directly on handle (supports both "@handle" and "handle") or fullName
-            const s = `%${cleanTerm}%`;
-            conditions.push(`(
-                lower(replace("handle", '@', '')) = $${pIdx}
-                OR lower("handle") LIKE $${pIdx + 1}
-                OR lower("fullName") LIKE $${pIdx + 1}
-            )`);
-            values.push(cleanTerm, s);
-            pIdx += 2;
-        } else {
-            const s = `%${cleanTerm}%`;
-            conditions.push(`(
-                lower("handle") LIKE $${pIdx}
-                OR lower("fullName") LIKE $${pIdx}
-                OR lower(COALESCE("primaryEmail", '')) LIKE $${pIdx}
-                OR lower(COALESCE("publicBio", '')) LIKE $${pIdx}
-                OR lower(COALESCE("brandAffinity", '')) LIKE $${pIdx}
-                OR lower(COALESCE("category", '')) LIKE $${pIdx}
-                OR lower(COALESCE("city", '')) LIKE $${pIdx}
-                OR lower(COALESCE("agencyName", '')) LIKE $${pIdx}
-            )`);
-            values.push(s);
-            pIdx++;
-        }
+        const s = `%${cleanTerm}%`;
+        conditions.push(`(
+            lower("handle") LIKE $${pIdx}
+            OR lower("fullName") LIKE $${pIdx}
+            OR lower(COALESCE("publicBio", '')) LIKE $${pIdx}
+            OR lower(COALESCE("primaryEmail", '')) LIKE $${pIdx}
+            OR lower(COALESCE("discoveryKeyword", '')) LIKE $${pIdx}
+            OR lower(COALESCE("brandAffinity", '')) LIKE $${pIdx}
+            OR lower(COALESCE("category", '')) LIKE $${pIdx}
+            OR lower(COALESCE("city", '')) LIKE $${pIdx}
+            OR lower(COALESCE("state", '')) LIKE $${pIdx}
+            OR lower(COALESCE("agencyName", '')) LIKE $${pIdx}
+            OR lower(COALESCE("sampleReelUrl", '')) LIKE $${pIdx}
+        )`);
+        values.push(s);
+        pIdx++;
     }
 
     if (params.brand && params.brand !== "all" && params.brand.trim() !== "") {
@@ -173,7 +157,7 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
         }
     }
 
-    if (params.verifiedIndianOnly && !isDirectUrlOrHandleSearch) {
+    if (params.verifiedIndianOnly) {
         // Dynamic structural SQL filter (zero hardcoded brand lists):
         // 1. India signal true (re-verified across all 6,445 creators)
         // 2. Creator handle does not start with or equal the brandAffinity handle (@brand, @brandbrands, @letsbrand, @mybrand)
@@ -298,7 +282,7 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
         };
     });
 
-    if (params.verifiedIndianOnly && !isDirectUrlOrHandleSearch) {
+    if (params.verifiedIndianOnly) {
         const staleNonIndianIds: string[] = [];
         enrichedCreators = enrichedCreators.filter((c: any) => {
             const valid = Boolean(c.isIndianCreator && !c.isBrandOrStoreAccount && c.indiaConfidenceScore >= 30);
