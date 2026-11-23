@@ -57,6 +57,10 @@ export default function CreatorsTable() {
     const [search, setSearch] = useState(searchParams.get("search") || "");
     const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
     const [category, setCategory] = useState(searchParams.get("category") || "all");
+    const [subGenre, setSubGenre] = useState(searchParams.get("subGenre") || "all");
+    const [languageFilter, setLanguageFilter] = useState(searchParams.get("language") || "all");
+    const [cityFilter, setCityFilter] = useState(searchParams.get("city") || "all");
+    const [agencyFilter, setAgencyFilter] = useState(searchParams.get("agency") || "all");
     const [brandFilter, setBrandFilter] = useState(searchParams.get("brand") || "all");
     const [tier, setTier] = useState<string>(searchParams.get("tier") || "all");
     const [intakeStatus, setIntakeStatus] = useState<string>(searchParams.get("intakeStatus") || "all");
@@ -128,6 +132,10 @@ export default function CreatorsTable() {
             const params = new URLSearchParams({
                 search: debouncedSearch,
                 category: category === "all" ? "" : category,
+                subGenre: subGenre === "all" ? "" : subGenre,
+                language: languageFilter === "all" ? "" : languageFilter,
+                city: cityFilter === "all" ? "" : cityFilter,
+                agency: agencyFilter === "all" ? "" : agencyFilter,
                 brand: brandFilter === "all" ? "" : brandFilter,
                 tier: tier === "all" ? "" : tier,
                 intakeStatus: intakeStatus === "all" ? "" : intakeStatus,
@@ -151,7 +159,7 @@ export default function CreatorsTable() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, category, brandFilter, tier, intakeStatus, channel, source, sortBy, reverse, verifiedIndianOnly, page, limit]);
+    }, [debouncedSearch, category, subGenre, languageFilter, cityFilter, agencyFilter, brandFilter, tier, intakeStatus, channel, source, sortBy, reverse, verifiedIndianOnly, page, limit]);
 
     // Fetch Live Brand Suggestions from Contacts DB (15,117+ brands) + Creator DB
     useEffect(() => {
@@ -803,7 +811,7 @@ export default function CreatorsTable() {
                         <span>⚡ 100% Enriched ({facets.overview.enriched})</span>
                     </button>
 
-                    {facets.categories.slice(0, 8).map((cat: any) => {
+                    {facets.categories.slice(0, 14).map((cat: any) => {
                         const isSelected = category === cat.category;
                         return (
                             <button
@@ -876,6 +884,130 @@ export default function CreatorsTable() {
                             </button>
                         ))}
                     </div>
+
+                    {/* Full Category Dropdown (All 30+ Categories incl. Infotainment, Comedy, Skincare, Beauty...) */}
+                    <select
+                        value={category}
+                        onChange={(e) => {
+                            setCategory(e.target.value);
+                            setPage(1);
+                        }}
+                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer ${
+                            category !== "all"
+                                ? "border-[#5E43EC] bg-purple-50 text-purple-900 dark:bg-purple-950/50 dark:text-purple-200 font-semibold"
+                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                        }`}
+                    >
+                        <option value="all">All Categories ({(facets.categories || []).length})</option>
+                        {(facets.categories || []).map((cat: any) => (
+                            <option key={cat.category} value={cat.category}>
+                                {cat.category} ({cat.count})
+                            </option>
+                        ))}
+                    </select>
+
+                    {/* Sub-Category / Micro-Niche Filter */}
+                    <select
+                        value={subGenre}
+                        onChange={(e) => {
+                            setSubGenre(e.target.value);
+                            setPage(1);
+                        }}
+                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer max-w-[180px] ${
+                            subGenre !== "all"
+                                ? "border-indigo-400 bg-indigo-50 text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-200 font-semibold"
+                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                        }`}
+                    >
+                        <option value="all">All Sub-Categories</option>
+                        {(facets.subGenres || []).map((sg: any) => (
+                            <option key={sg.subGenre} value={sg.subGenre}>
+                                {sg.subGenre} ({sg.count})
+                            </option>
+                        ))}
+                    </select>
+
+                    {/* Language & Diaspora Filter */}
+                    <select
+                        value={languageFilter}
+                        onChange={(e) => {
+                            setLanguageFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer ${
+                            languageFilter !== "all"
+                                ? "border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200 font-semibold"
+                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                        }`}
+                    >
+                        <option value="all">All Languages &amp; Diaspora</option>
+                        {[
+                            "English",
+                            "Hindi",
+                            "Hinglish",
+                            "Tamil",
+                            "Telugu",
+                            "Kannada",
+                            "Malayalam",
+                            "Marathi",
+                            "Bengali",
+                            "Punjabi",
+                            "Gujarati",
+                            "Odia",
+                            "Assamese",
+                            "Indian Diaspora",
+                        ].map((lang) => {
+                            const found = (facets.languages || []).find((l: any) => l.language?.toLowerCase() === lang.toLowerCase());
+                            return (
+                                <option key={lang} value={lang}>
+                                    {lang === "Indian Diaspora" ? "🌏 Indian Diaspora (NRI)" : lang}
+                                    {found ? ` (${found.count})` : ""}
+                                </option>
+                            );
+                        })}
+                    </select>
+
+                    {/* City / Location Filter */}
+                    <select
+                        value={cityFilter}
+                        onChange={(e) => {
+                            setCityFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer ${
+                            cityFilter !== "all"
+                                ? "border-emerald-400 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200 font-semibold"
+                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                        }`}
+                    >
+                        <option value="all">All Cities</option>
+                        {(facets.cities || []).map((c: any) => (
+                            <option key={c.city} value={c.city}>
+                                📍 {c.city} ({c.count})
+                            </option>
+                        ))}
+                    </select>
+
+                    {/* Talent Agency Filter */}
+                    <select
+                        value={agencyFilter}
+                        onChange={(e) => {
+                            setAgencyFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer max-w-[175px] ${
+                            agencyFilter !== "all"
+                                ? "border-indigo-400 bg-indigo-50 text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-200 font-semibold"
+                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                        }`}
+                    >
+                        <option value="all">All Agencies</option>
+                        {(facets.agencies || []).map((a: any) => (
+                            <option key={a.agency} value={a.agency}>
+                                {a.agency} ({a.count})
+                            </option>
+                        ))}
+                    </select>
 
                     {/* Brand Affinity Filter */}
                     <select

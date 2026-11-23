@@ -7,6 +7,9 @@ export interface CreatorSearchParams {
     workspaceId?: string;
     search?: string;
     category?: string;
+    subGenre?: string;
+    city?: string;
+    agency?: string;
     brand?: string;
     language?: string;
     tier?: "all" | "nano" | "micro" | "mid" | "macro" | "mega";
@@ -77,6 +80,32 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     if (params.category && params.category !== "all" && params.category !== "") {
         conditions.push(`("category" = $${pIdx} OR $${pIdx} = ANY("subGenres"))`);
         values.push(params.category);
+        pIdx++;
+    }
+
+    if (params.subGenre && params.subGenre !== "all" && params.subGenre.trim() !== "") {
+        const sg = params.subGenre.trim();
+        const sgLike = `%${sg.toLowerCase()}%`;
+        conditions.push(`(
+            $${pIdx} = ANY("subGenres")
+            OR lower(array_to_string("subGenres", ' ')) LIKE $${pIdx + 1}
+            OR lower(COALESCE("publicBio", '')) LIKE $${pIdx + 1}
+        )`);
+        values.push(sg, sgLike);
+        pIdx += 2;
+    }
+
+    if (params.city && params.city !== "all" && params.city.trim() !== "") {
+        const cLike = `%${params.city.trim().toLowerCase()}%`;
+        conditions.push(`(lower(COALESCE("city", '')) LIKE $${pIdx} OR lower(COALESCE("state", '')) LIKE $${pIdx})`);
+        values.push(cLike);
+        pIdx++;
+    }
+
+    if (params.agency && params.agency !== "all" && params.agency.trim() !== "") {
+        const aLike = `%${params.agency.trim().toLowerCase()}%`;
+        conditions.push(`lower(COALESCE("agencyName", '')) LIKE $${pIdx}`);
+        values.push(aLike);
         pIdx++;
     }
 
@@ -275,7 +304,7 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
 }
 
 export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "org_troops_outreach") {
-    const [catRows, tierRows, statusRows, countsRow, recentEnrichedRows, brandRows] = await Promise.all([
+    const [catRows, tierRows, statusRows, countsRow, recentEnrichedRows, brandRows, subGenreRows, languageRows, cityRows, agencyRows] = await Promise.all([
         query<{
             category: string;
             count: number;
@@ -353,6 +382,42 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
             ORDER BY count DESC
             LIMIT 30
         `, [workspaceId]).catch(() => []),
+
+        query<{ subGenre: string; count: number }>(`
+            SELECT sg as "subGenre", count(*)::int as count
+            FROM "Creator", unnest(COALESCE("subGenres", ARRAY[]::text[])) as sg
+            WHERE "workspaceId" = $1 AND sg IS NOT NULL AND trim(sg) <> ''
+            GROUP BY 1
+            ORDER BY count DESC
+            LIMIT 80
+        `, [workspaceId]).catch(() => []),
+
+        query<{ language: string; count: number }>(`
+            SELECT lg as "language", count(*)::int as count
+            FROM "Creator", unnest(COALESCE("languages", ARRAY[]::text[])) as lg
+            WHERE "workspaceId" = $1 AND lg IS NOT NULL AND trim(lg) <> ''
+            GROUP BY 1
+            ORDER BY count DESC
+            LIMIT 30
+        `, [workspaceId]).catch(() => []),
+
+        query<{ city: string; count: number }>(`
+            SELECT "city", count(*)::int as count
+            FROM "Creator"
+            WHERE "workspaceId" = $1 AND "city" IS NOT NULL AND trim("city") <> ''
+            GROUP BY 1
+            ORDER BY count DESC
+            LIMIT 40
+        `, [workspaceId]).catch(() => []),
+
+        query<{ agency: string; count: number }>(`
+            SELECT "agencyName" as agency, count(*)::int as count
+            FROM "Creator"
+            WHERE "workspaceId" = $1 AND "agencyName" IS NOT NULL AND trim("agencyName") <> ''
+            GROUP BY 1
+            ORDER BY count DESC
+            LIMIT 30
+        `, [workspaceId]).catch(() => []),
     ]);
 
     const total = countsRow?.[0]?.total || 0;
@@ -376,6 +441,10 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
         newSignupsCount,
         insightsReadyCount,
         categories: catRows,
+        subGenres: subGenreRows || [],
+        languages: languageRows || [],
+        cities: cityRows || [],
+        agencies: agencyRows || [],
         brands: brandRows || [],
         tiers: tierRows,
         statuses: statusRows,
