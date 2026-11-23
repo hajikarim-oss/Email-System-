@@ -6,6 +6,7 @@ import type { QueryFn } from "./types";
 import {
     ensureInstagramColumns,
     formatFollowersRaw,
+    getMetaTokenPool,
     lookupAndSyncInstagramProfile,
     type InstagramInsightsPayload,
 } from "./instagram_graph";
@@ -878,24 +879,36 @@ function cleanEmails(rawEmails: string[]): { primaryEmail: string | null; agency
 
 function cleanPhones(rawText: string): string | null {
     const phones: string[] = [];
-    let m: RegExpExecArray | null;
-    const waRegex = new RegExp(WA_LINK_RE.source, "gi");
-    while ((m = waRegex.exec(rawText)) !== null) {
-        const digits = m[1].replace(/\D/g, "").slice(-10);
-        if (digits.length === 10 && "6789".includes(digits[0])) {
-            phones.push(`+91 ${digits}`);
-        }
-    }
-    // Strip URLs so 10-digit Instagram CDN image IDs (e.g. _6426680573_n.jpg) never match as phone numbers
-    const textWithoutUrls = String(rawText || "").replace(/https?:\/\/\S+/gi, " ");
-    const explicitPhoneRe = /(?:(?:\+91[\s.-]?)|(?:(?:call|whatsapp|wa|ph|phone|mob|mobile|contact|dm|📞|📱|☎️)[\s:.-]*0?))([6-9]\d{4}[\s.-]?\d{5})\b/gi;
-    while ((m = explicitPhoneRe.exec(textWithoutUrls)) !== null) {
-        const digits = m[1].replace(/\D/g, "");
+    const addPhone = (raw: string) => {
+        const digits = raw.replace(/\D/g, "").slice(-10);
         if (digits.length === 10 && "6789".includes(digits[0])) {
             const formatted = `+91 ${digits}`;
             if (!phones.includes(formatted)) phones.push(formatted);
         }
+    };
+
+    let m: RegExpExecArray | null;
+    const waRegex = new RegExp(WA_LINK_RE.source, "gi");
+    while ((m = waRegex.exec(rawText)) !== null) {
+        addPhone(m[1]);
     }
+    // Strip URLs so 10-digit Instagram CDN image IDs (e.g. _6426680573_n.jpg) never match as phone numbers
+    const textWithoutUrls = String(rawText || "").replace(/https?:\/\/\S+/gi, " ");
+
+    // 1. Prefix match: +91, 91-, keywords (call/whatsapp/wa/phone/mob/contact/dm), or phone emojis (📞/📱/☎️/📲)
+    const prefixPhoneRe =
+        /(?:(?:\+?91[\s.-]?)|(?:(?:call|whatsapp|whats\s*app|w\/a|wa|ph|phone|mob|mobile|contact|dm|enquir(?:y|ies)|bookings?|helpline|📞|📱|☎️|☎|📲)[\uFE0F\s:.\-\/()]{0,8}(?:\+?91[\s.-]?|0)?))([6-9]\d{4}[\s.-]?\d{5})\b/giu;
+    while ((m = prefixPhoneRe.exec(textWithoutUrls)) !== null) {
+        addPhone(m[1]);
+    }
+
+    // 2. Postfix match: e.g. "9870174555 Whatsapp", "9870174555 (WA)", "9870174555 📞"
+    const postfixPhoneRe =
+        /\b(?:0|\+?91[\s.-]?)?([6-9]\d{4}[\s.-]?\d{5})[\s:.\-()]{0,6}(?:whatsapp|whats\s*app|w\/a|wa\b|call|phone|mob|mobile|for\s*collab|for\s*booking|📞|📱|☎️|☎|📲)/giu;
+    while ((m = postfixPhoneRe.exec(textWithoutUrls)) !== null) {
+        addPhone(m[1]);
+    }
+
     return phones[0] || null;
 }
 
@@ -1334,51 +1347,237 @@ async function fetchWebProfileInfo(cleanHandle: string, useSocialCrawlProfile = 
     return null;
 }
 
+const SKIP_HOP_DOMAINS = [
+    "instagram.com", "facebook.com", "fb.com", "twitter.com", "x.com", "tiktok.com",
+    "youtube.com", "youtu.be", "spotify.com", "apple.com", "amazon.", "amzn.to",
+    "flipkart.com", "myntra.com", "nykaa.com", "meesho.com", "ajio.com",
+    "linktr.ee", "beacons.ai", "bio.link", "linkin.bio", "taplink.cc", "campsite.bio",
+    "wa.me", "whatsapp.com", "t.me", "telegram.me", "discord.gg", "linkedin.com",
+    "google.com", "gstatic.com", "googleapis.com", "w3.org", "schema.org",
+    "cloudflare.com", "cloudfront.net", "amazonaws.com", "jsdelivr.net", "unpkg.com",
+    "fonts.googleapis.com", "gravatar.com", "vimeo.com", "pinterest.com", "snapchat.com",
+];
+
+function extractContactsFromHtml(html: string): { emails: string[]; phone: string | null } {
+    const emails: string[] = [];
+    // 1. Explicit mailto: links (also catches encoded %40 and __NEXT_DATA__ JSON)
+    const mailtoRe = /mailto:([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/gi;
+    let mm: RegExpExecArray | null;
+    while ((mm = mailtoRe.exec(html)) !== null) {
+        if (mm[1]) emails.push(mm[1]);
+    }
+    // 2. Raw regex emails
+    const rawMatches = html.match(EMAIL_RE) || [];
+    emails.push(...rawMatches);
+    const phone = cleanPhones(html);
+    return { emails, phone };
+}
+
+async function fetchHtmlFast(url: string, timeoutMs = 5500): Promise<{ html: string; finalUrl: string } | null> {
+    try {
+        const res = await fetch(url, {
+            redirect: "follow",
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+            signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (!res.ok) return null;
+        const ct = (res.headers.get("content-type") || "").toLowerCase();
+        if (ct && !ct.includes("text/html") && !ct.includes("application/json") && !ct.includes("text/plain")) return null;
+        const html = (await res.text()).slice(0, 350_000);
+        return { html, finalUrl: res.url || url };
+    } catch {
+        return null;
+    }
+}
+
 /**
- * Deep Linktree / Beacons / External Bio Link Contact Miner (via Jina Reader + Direct HTML)
+ * Upgrade 1 ($0): Deep Linktree + Personal Website /contact 1-Hop Crawler.
+ * 1. Direct HTML fetch -> extracts mailto:, raw emails, WhatsApp/phone.
+ * 2. If Linktree/Beacons/shortlink & no email -> follows up to 2 outbound personal/contact URLs.
+ * 3. If personal domain & no email -> checks /contact and /contact-us in parallel.
+ * 4. Jina Reader fallback only if direct HTML returned 0 emails.
  */
-async function mineExternalLinkContacts(externalUrl?: string | null): Promise<{
-    emails: string[];
-    phone: string | null;
-}> {
-    if (!externalUrl) return { emails: [], phone: null };
-    const fullUrl = externalUrl.startsWith("http") ? externalUrl : `https://${externalUrl}`;
+export async function mineExternalLinkContacts(url: string): Promise<{ emails: string[]; phone: string | null }> {
+    const fullUrl = url.startsWith("http") ? url : `https://${url}`;
     const collectedEmails: string[] = [];
     let discoveredPhone: string | null = null;
 
-    // 1. Try Jina Reader (renders JS-heavy Linktree/Beacons into clean markdown)
-    try {
-        const jinaRes = await fetch(`https://r.jina.ai/${fullUrl}`, {
-            headers: { "User-Agent": "TBM-AgentReach/2.0" },
-            signal: AbortSignal.timeout(7000),
-        });
-        if (jinaRes.ok) {
-            const text = await jinaRes.text();
-            const matches = text.match(EMAIL_RE) || [];
-            collectedEmails.push(...matches);
-            discoveredPhone = cleanPhones(text);
-        }
-    } catch {}
+    // Skip pure shopping/affiliate links that never contain creator contact emails
+    if (/^https?:\/\/(?:www\.)?(?:amzn\.to|amazon\.|flipkart\.com|myntra\.com|nykaa\.com|meesho\.com)/i.test(fullUrl)) {
+        return { emails: [], phone: null };
+    }
 
-    // 2. Fallback direct fetch if Jina didn't find email
-    if (collectedEmails.length === 0) {
+    // 1. Direct HTML fetch (fast, preserves mailto: & Linktree __NEXT_DATA__ JSON)
+    const primary = await fetchHtmlFast(fullUrl, 6000);
+    if (primary) {
+        const c1 = extractContactsFromHtml(primary.html);
+        collectedEmails.push(...c1.emails);
+        if (!discoveredPhone) discoveredPhone = c1.phone;
+
+        const hasValidEmail = cleanEmails(collectedEmails).allEmails.length > 0;
+        const finalUrl = primary.finalUrl;
+
+        // 2. If still no email, follow 1-hop outbound links (Linktree/Beacons/etc.) OR /contact pages on personal domain
+        if (!hasValidEmail) {
+            const isLinkStack = /(?:linktr\.ee|beacons\.ai|bio\.link|linkin\.bio|taplink\.cc|campsite\.bio|stan\.store|wishlink\.com|topmate\.io|cosmofeed\.com)/i.test(
+                finalUrl
+            );
+            const hopUrls: string[] = [];
+
+            if (isLinkStack) {
+                // Extract up to 2 personal/business outbound URLs from Linktree HTML/JSON
+                const urlRe = /https?:\/\/[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s"'<>\\)]*)?/g;
+                const found = primary.html.match(urlRe) || [];
+                const seenOrigins = new Set<string>();
+                for (const u of found) {
+                    const cleaned = u.replace(/[\\"',.)]+$/, "");
+                    const lower = cleaned.toLowerCase();
+                    if (SKIP_HOP_DOMAINS.some((d) => lower.includes(d))) continue;
+                    if (/\.(?:jpg|jpeg|png|webp|gif|svg|css|js|ico|woff2?|pdf|mp4)(?:\?|$)/i.test(lower)) continue;
+                    try {
+                        const parsed = new URL(cleaned);
+                        if (seenOrigins.has(parsed.origin)) continue;
+                        seenOrigins.add(parsed.origin);
+                        hopUrls.push(cleaned);
+                        if (hopUrls.length >= 2) break;
+                    } catch {}
+                }
+            } else if (!/(?:youtube\.com|youtu\.be|instagram\.com|facebook\.com)/i.test(finalUrl)) {
+                // Personal/business website: check /contact and /contact-us (plus any explicit contact href in page)
+                try {
+                    const parsed = new URL(finalUrl);
+                    const contactHrefMatch = primary.html.match(/href=["']([^"']*(?:contact|about|collab|work-with)[^"']*)["']/i);
+                    if (contactHrefMatch?.[1]) {
+                        try {
+                            const resolved = new URL(contactHrefMatch[1], parsed.origin).toString();
+                            if (resolved !== finalUrl) hopUrls.push(resolved);
+                        } catch {}
+                    }
+                    const defaultContact = `${parsed.origin}/contact`;
+                    const defaultContactUs = `${parsed.origin}/contact-us`;
+                    if (!hopUrls.includes(defaultContact) && defaultContact !== finalUrl) hopUrls.push(defaultContact);
+                    if (hopUrls.length < 2 && !hopUrls.includes(defaultContactUs) && defaultContactUs !== finalUrl) {
+                        hopUrls.push(defaultContactUs);
+                    }
+                } catch {}
+            }
+
+            if (hopUrls.length > 0) {
+                const hopResults = await Promise.all(hopUrls.slice(0, 2).map((hu) => fetchHtmlFast(hu, 4500)));
+                for (const hr of hopResults) {
+                    if (!hr) continue;
+                    const ch = extractContactsFromHtml(hr.html);
+                    collectedEmails.push(...ch.emails);
+                    if (!discoveredPhone) discoveredPhone = ch.phone;
+                }
+            }
+        }
+    }
+
+    // 3. Fallback: Jina Reader only if direct HTML + 1-hop didn't find a valid email (helps on JS-rendered SPAs)
+    if (cleanEmails(collectedEmails).allEmails.length === 0) {
         try {
-            const directRes = await fetch(fullUrl, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-                },
-                signal: AbortSignal.timeout(6000),
+            const jinaRes = await fetch(`https://r.jina.ai/${fullUrl}`, {
+                headers: { "User-Agent": "TBM-AgentReach/2.0" },
+                signal: AbortSignal.timeout(6500),
             });
-            if (directRes.ok) {
-                const html = await directRes.text();
-                const matches = html.match(EMAIL_RE) || [];
+            if (jinaRes.ok) {
+                const text = await jinaRes.text();
+                const matches = text.match(EMAIL_RE) || [];
                 collectedEmails.push(...matches);
-                if (!discoveredPhone) discoveredPhone = cleanPhones(html);
+                if (!discoveredPhone) discoveredPhone = cleanPhones(text);
             }
         } catch {}
     }
 
     return { emails: collectedEmails, phone: discoveredPhone };
+}
+
+// Read-only in-memory cache for resolved @agency / @brand handles via free Meta Graph ($0)
+const agencyMetaCache = new Map<string, { email: string | null; phone: string | null; agencyName: string | null }>();
+
+/**
+ * Upgrade 2 ($0): Auto-Resolve Mentioned @agency / @brand Handles via Free Meta Graph.
+ * Reads the tagged @agency's Instagram bio + website (without inserting the agency into "Creator")
+ * to recover booking emails & WhatsApp numbers for creators managed by agencies not in our static directory.
+ */
+export async function resolveMentionedAgencyViaMetaGraph(
+    bioText: string,
+    creatorHandle: string
+): Promise<{ email: string | null; phone: string | null; agencyName: string | null }> {
+    const cleanSelf = creatorHandle.replace(/^@+/, "").toLowerCase();
+    const mentions: string[] = [];
+
+    // Prioritize handles appearing right after management/agency/business keywords
+    const priorityRe = /(?:rep(?:resented)?\s*by|managed\s*by|mgmt|management|agency|talent|founder\s*(?:of|@)?|owner\s*(?:of|@)?|co-?founder|collab(?:s|orations)?|bookings?|work|business|dm)[^@\n]{0,25}@([a-z0-9._]{2,30})/gi;
+    let pm: RegExpExecArray | null;
+    while ((pm = priorityRe.exec(bioText)) !== null) {
+        const h = pm[1].replace(/\.+$/, "").toLowerCase();
+        if (h && h !== cleanSelf && !mentions.includes(h)) mentions.push(h);
+    }
+
+    // Also inspect up to 1 other @mention in bio if no priority match
+    if (mentions.length === 0) {
+        const anyRe = /@([a-z0-9._]{3,30})/gi;
+        while ((pm = anyRe.exec(bioText)) !== null) {
+            const h = pm[1].replace(/\.+$/, "").toLowerCase();
+            if (h && h !== cleanSelf && !h.includes("backup") && !mentions.includes(h)) {
+                mentions.push(h);
+                if (mentions.length >= 1) break;
+            }
+        }
+    }
+
+    if (mentions.length === 0) return { email: null, phone: null, agencyName: null };
+
+    const tokenPool = getMetaTokenPool();
+    if (tokenPool.length === 0) return { email: null, phone: null, agencyName: null };
+
+    const target = mentions[0];
+    if (agencyMetaCache.has(target)) {
+        return agencyMetaCache.get(target)!;
+    }
+
+    const cred = tokenPool[0];
+    try {
+        const fields = `business_discovery.username(${encodeURIComponent(target)}){username,name,biography,website}`;
+        const url = `https://graph.facebook.com/v21.0/${cred.igAccountId}?fields=${fields}&access_token=${encodeURIComponent(cred.token)}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) {
+            const empty = { email: null, phone: null, agencyName: null };
+            agencyMetaCache.set(target, empty);
+            return empty;
+        }
+        const json = (await res.json()) as any;
+        const bd = json?.business_discovery;
+        const agBio = String(bd?.biography || "");
+        const agWeb = String(bd?.website || "");
+        const agName = String(bd?.name || `@${target}`).trim();
+
+        const rawEmails = agBio.match(EMAIL_RE) || [];
+        let phone = cleanPhones(agBio);
+
+        // If agency bio didn't have an email directly, check the agency's website (1 hop)
+        if (cleanEmails(rawEmails).allEmails.length === 0 && agWeb) {
+            const webRes = await mineExternalLinkContacts(agWeb);
+            rawEmails.push(...webRes.emails);
+            if (!phone) phone = webRes.phone;
+        }
+
+        const cleaned = cleanEmails(rawEmails);
+        const result = {
+            email: cleaned.primaryEmail || cleaned.agencyEmail || null,
+            phone,
+            agencyName: cleaned.primaryEmail || cleaned.agencyEmail || phone ? agName : null,
+        };
+        agencyMetaCache.set(target, result);
+        return result;
+    } catch {
+        return { email: null, phone: null, agencyName: null };
+    }
 }
 
 /**
@@ -1591,8 +1790,22 @@ export async function scoutAndAutoStoreCreator(
         linktreeResult = await mineExternalLinkContacts(externalUrl);
     }
 
+    // Upgrade 2 ($0): If still missing email, auto-resolve mentioned @agency / @brand handle via Free Meta Graph
+    let mentionedAgencyMeta: { email: string | null; phone: string | null; agencyName: string | null } = {
+        email: null,
+        phone: null,
+        agencyName: null,
+    };
+    if (cleanEmails([...initialEmails, ...linktreeResult.emails]).allEmails.length === 0 && bioText.includes("@")) {
+        mentionedAgencyMeta = await resolveMentionedAgencyViaMetaGraph(bioText, cleanHandle);
+    }
+
     let serperData: Awaited<ReturnType<typeof enrichViaSerperSearch>> = { emails: [], phone: null };
-    const preSerperClean = cleanEmails([...initialEmails, ...linktreeResult.emails]);
+    const preSerperClean = cleanEmails([
+        ...initialEmails,
+        ...linktreeResult.emails,
+        ...(mentionedAgencyMeta.email ? [mentionedAgencyMeta.email] : []),
+    ]);
     if (preSerperClean.allEmails.length === 0 || (!graphOrOg?.followersCount && !webProf?.followersCount)) {
         serperData = await enrichViaSerperSearch(cleanHandle);
     }
@@ -1600,11 +1813,12 @@ export async function scoutAndAutoStoreCreator(
     const { primaryEmail: cleanedPrimaryEmail, agencyEmail: cleanedAgencyEmail, allEmails } = cleanEmails([
         ...initialEmails,
         ...linktreeResult.emails,
+        ...(mentionedAgencyMeta.email ? [mentionedAgencyMeta.email] : []),
         ...serperData.emails,
     ]);
 
     const primaryEmail = cleanedPrimaryEmail;
-    const agencyEmail = cleanedAgencyEmail || matchedAgencyFromBio?.agencyEmail || null;
+    const agencyEmail = cleanedAgencyEmail || matchedAgencyFromBio?.agencyEmail || mentionedAgencyMeta.email || null;
 
     const phone =
         existing?.whatsappNumber ||
@@ -1612,6 +1826,7 @@ export async function scoutAndAutoStoreCreator(
         webProf?.businessPhone ||
         cleanPhones(bioText) ||
         linktreeResult.phone ||
+        mentionedAgencyMeta.phone ||
         serperData.phone ||
         null;
 
