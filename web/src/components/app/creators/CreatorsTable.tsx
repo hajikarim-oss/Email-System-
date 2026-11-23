@@ -900,7 +900,7 @@ export default function CreatorsTable() {
                                 disabled={isScouting}
                                 onClick={() => {
                                     const targetInput = search.trim() || scoutInput.trim();
-                                    runLiveScout(targetInput || undefined, scoutBrand.trim() || undefined);
+                                    runLiveScout(targetInput || undefined);
                                 }}
                                 className="flex-1 h-8 px-2.5 rounded-md bg-slate-900 hover:bg-black text-white dark:bg-white dark:text-slate-900 text-xs font-semibold flex items-center justify-center gap-1 shadow-2xs disabled:opacity-50 cursor-pointer whitespace-nowrap"
                             >
