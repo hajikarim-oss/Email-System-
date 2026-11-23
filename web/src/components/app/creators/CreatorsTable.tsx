@@ -69,6 +69,7 @@ export default function CreatorsTable() {
     const [sortBy, setSortBy] = useState<string>("default");
     const [reverse, setReverse] = useState(false);
     const [verifiedIndianOnly, setVerifiedIndianOnly] = useState<boolean>(true);
+    const [moreFiltersOpen, setMoreFiltersOpen] = useState<boolean>(false);
 
     // Live Creator Scout Engine states
     const [scoutPanelOpen, setScoutPanelOpen] = useState(false);
@@ -1000,287 +1001,288 @@ export default function CreatorsTable() {
                 </div>
             </div>
 
-            {/* Filter Toolbar (SectionBar) */}
-            <div className="px-5 py-2.5 border-b border-slate-200/80 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2.5 bg-white dark:bg-[#121212]">
-                <div className="flex flex-wrap items-center gap-2">
-                    {/* Search Field */}
-                    <div className="relative w-64">
-                        <SearchIcon className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search handle, name, city, bio..."
-                            className="w-full h-8 pl-8 pr-3 rounded-md border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-900 text-xs focus:outline-none focus:ring-1 focus:ring-slate-900"
-                        />
-                        {search && (
-                            <button
-                                onClick={() => setSearch("")}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            >
-                                <XIcon className="w-3 h-3" />
-                            </button>
-                        )}
-                    </div>
+            {/* Smart Compact Filter Bar (Zero Duplicates, Collapsible Advanced Filters Tray) */}
+            <div className="px-5 py-2.5 border-b border-slate-200/80 dark:border-zinc-800 flex flex-col gap-2 bg-white dark:bg-[#121212]">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Follower Tier Segmented Control */}
+                        <div className="flex items-center gap-0.5 border border-slate-200 dark:border-zinc-700 rounded-md p-0.5 bg-slate-50 dark:bg-zinc-900 text-xs font-medium">
+                            {[
+                                { key: "all", label: "All Tiers" },
+                                { key: "nano", label: "Nano (<10k)" },
+                                { key: "micro", label: "Micro (10k-50k)" },
+                                { key: "mid", label: "Mid (50k-200k)" },
+                                { key: "macro", label: "Macro (200k-1M)" },
+                                { key: "mega", label: "Mega (1M+)" },
+                            ].map((t) => (
+                                <button
+                                    key={t.key}
+                                    onClick={() => {
+                                        setTier(t.key);
+                                        setPage(1);
+                                    }}
+                                    className={`px-2 py-1 rounded text-[11px] transition-colors cursor-pointer ${
+                                        tier === t.key
+                                            ? "bg-white dark:bg-zinc-800 text-slate-900 dark:text-white font-semibold shadow-2xs"
+                                            : "text-slate-500 hover:text-slate-800"
+                                    }`}
+                                >
+                                    {t.label}
+                                </button>
+                            ))}
+                        </div>
 
-                    {/* Follower Tier Buttons */}
-                    <div className="hidden lg:flex items-center gap-1 border border-slate-200 dark:border-zinc-700 rounded-md p-0.5 bg-slate-50 dark:bg-zinc-900 text-xs font-medium">
-                        {[
-                            { key: "all", label: "All Tiers" },
-                            { key: "nano", label: "Nano (<10k)" },
-                            { key: "micro", label: "Micro (10k-50k)" },
-                            { key: "mid", label: "Mid (50k-200k)" },
-                            { key: "macro", label: "Macro (200k-1M)" },
-                            { key: "mega", label: "Mega (1M+)" },
-                        ].map((t) => (
-                            <button
-                                key={t.key}
-                                onClick={() => {
-                                    setTier(t.key);
-                                    setPage(1);
-                                }}
-                                className={`px-2 py-1 rounded text-[11px] transition-colors cursor-pointer ${
-                                    tier === t.key
-                                        ? "bg-white dark:bg-zinc-800 text-slate-900 dark:text-white font-semibold shadow-2xs"
-                                        : "text-slate-500 hover:text-slate-800"
-                                }`}
-                            >
-                                {t.label}
-                            </button>
-                        ))}
-                    </div>
+                        {/* Channel Filter */}
+                        <select
+                            value={channel}
+                            onChange={(e) => {
+                                setChannel(e.target.value);
+                                setPage(1);
+                            }}
+                            className="h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-300 cursor-pointer"
+                        >
+                            <option value="all">All Channels</option>
+                            <option value="email">Has Email ({facets.overview.emailReady})</option>
+                            <option value="phone">Has WhatsApp ({facets.overview.whatsappReady})</option>
+                            <option value="dual">Dual Ready (Email + Phone)</option>
+                        </select>
 
-                    {/* Full Category Dropdown (All 30+ Categories incl. Infotainment, Comedy, Skincare, Beauty...) */}
-                    <select
-                        value={category}
-                        onChange={(e) => {
-                            setCategory(e.target.value);
-                            setPage(1);
-                        }}
-                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer ${
-                            category !== "all"
-                                ? "border-[#5E43EC] bg-purple-50 text-purple-900 dark:bg-purple-950/50 dark:text-purple-200 font-semibold"
-                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
-                        }`}
-                    >
-                        <option value="all">All Categories ({(facets.categories || []).length})</option>
-                        {(facets.categories || []).map((cat: any) => (
-                            <option key={cat.category} value={cat.category}>
-                                {cat.category} ({cat.count})
-                            </option>
-                        ))}
-                    </select>
-
-                    {/* Sub-Category / Micro-Niche Filter */}
-                    <select
-                        value={subGenre}
-                        onChange={(e) => {
-                            setSubGenre(e.target.value);
-                            setPage(1);
-                        }}
-                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer max-w-[180px] ${
-                            subGenre !== "all"
-                                ? "border-indigo-400 bg-indigo-50 text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-200 font-semibold"
-                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
-                        }`}
-                    >
-                        <option value="all">All Sub-Categories</option>
-                        {(facets.subGenres || []).map((sg: any) => (
-                            <option key={sg.subGenre} value={sg.subGenre}>
-                                {sg.subGenre} ({sg.count})
-                            </option>
-                        ))}
-                    </select>
-
-                    {/* Language & Diaspora Filter */}
-                    <select
-                        value={languageFilter}
-                        onChange={(e) => {
-                            setLanguageFilter(e.target.value);
-                            setPage(1);
-                        }}
-                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer ${
-                            languageFilter !== "all"
-                                ? "border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200 font-semibold"
-                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
-                        }`}
-                    >
-                        <option value="all">All Languages &amp; Diaspora</option>
-                        {[
-                            "English",
-                            "Hindi",
-                            "Hinglish",
-                            "Tamil",
-                            "Telugu",
-                            "Kannada",
-                            "Malayalam",
-                            "Marathi",
-                            "Bengali",
-                            "Punjabi",
-                            "Gujarati",
-                            "Odia",
-                            "Assamese",
-                            "Indian Diaspora",
-                        ].map((lang) => {
-                            const found = (facets.languages || []).find((l: any) => l.language?.toLowerCase() === lang.toLowerCase());
+                        {/* Smart Collapsible Advanced Filters Button */}
+                        {(() => {
+                            const advCount = [
+                                subGenre !== "all",
+                                languageFilter !== "all",
+                                agencyFilter !== "all",
+                                source !== "all",
+                                intakeStatus !== "all",
+                            ].filter(Boolean).length;
                             return (
-                                <option key={lang} value={lang}>
-                                    {lang === "Indian Diaspora" ? "🌏 Indian Diaspora (NRI)" : lang}
-                                    {found ? ` (${found.count})` : ""}
-                                </option>
+                                <button
+                                    type="button"
+                                    onClick={() => setMoreFiltersOpen((v) => !v)}
+                                    className={`h-8 px-2.5 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                        moreFiltersOpen || advCount > 0
+                                            ? "border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900 shadow-2xs"
+                                            : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 hover:bg-slate-50"
+                                    }`}
+                                >
+                                    <FilterIcon className="w-3.5 h-3.5" />
+                                    <span>More Filters</span>
+                                    {advCount > 0 && (
+                                        <span className="px-1.5 py-0.2 rounded-full bg-[#FFE600] text-slate-950 text-[10px] font-bold">
+                                            {advCount}
+                                        </span>
+                                    )}
+                                </button>
                             );
-                        })}
-                    </select>
+                        })()}
 
-                    {/* City / Location Filter */}
-                    <select
-                        value={cityFilter}
-                        onChange={(e) => {
-                            setCityFilter(e.target.value);
-                            setPage(1);
-                        }}
-                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer ${
-                            cityFilter !== "all"
-                                ? "border-emerald-400 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200 font-semibold"
-                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
-                        }`}
-                    >
-                        <option value="all">All Cities</option>
-                        {(facets.cities || []).map((c: any) => (
-                            <option key={c.city} value={c.city}>
-                                📍 {c.city} ({c.count})
-                            </option>
-                        ))}
-                    </select>
-
-                    {/* Talent Agency Filter */}
-                    <select
-                        value={agencyFilter}
-                        onChange={(e) => {
-                            setAgencyFilter(e.target.value);
-                            setPage(1);
-                        }}
-                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer max-w-[175px] ${
-                            agencyFilter !== "all"
-                                ? "border-indigo-400 bg-indigo-50 text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-200 font-semibold"
-                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
-                        }`}
-                    >
-                        <option value="all">All Agencies</option>
-                        {(facets.agencies || []).map((a: any) => (
-                            <option key={a.agency} value={a.agency}>
-                                {a.agency} ({a.count})
-                            </option>
-                        ))}
-                    </select>
-
-                    {/* Brand Affinity Filter */}
-                    <select
-                        value={brandFilter}
-                        onChange={(e) => {
-                            setBrandFilter(e.target.value);
-                            setPage(1);
-                        }}
-                        className="h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-300 cursor-pointer"
-                    >
-                        <option value="all">All Brands</option>
-                        {(facets.brands || []).map((b: any) => (
-                            <option key={b.brand} value={b.brand}>
-                                {b.brand} ({b.count})
-                            </option>
-                        ))}
-                    </select>
-
-                    {/* Source Filter */}
-                    <select
-                        value={source}
-                        onChange={(e) => {
-                            setSource(e.target.value);
-                            setPage(1);
-                        }}
-                        className={`h-8 px-2.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
-                            source === "referred"
-                                ? "border-amber-400 bg-amber-50 text-amber-950 font-semibold ring-1 ring-amber-400/50"
-                                : "border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
-                        }`}
-                    >
-                        <option value="all">All Sources</option>
-                        <option value="referred">🤝 Referred Talent ({facets.overview.referredCount ?? 0})</option>
-                        <option value="new">✨ All New Signups ({facets.overview.newSignupsCount ?? 0})</option>
-                        <option value="scouted">Scouted Database</option>
-                    </select>
-
-                    {/* Channel Filter */}
-                    <select
-                        value={channel}
-                        onChange={(e) => {
-                            setChannel(e.target.value);
-                            setPage(1);
-                        }}
-                        className="h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-300 cursor-pointer"
-                    >
-                        <option value="all">All Channels</option>
-                        <option value="email">Has Email ({facets.overview.emailReady})</option>
-                        <option value="phone">Has WhatsApp ({facets.overview.whatsappReady})</option>
-                        <option value="dual">Dual Ready (Email + Phone)</option>
-                    </select>
-
-                    {/* Intake Status Filter */}
-                    <select
-                        value={intakeStatus}
-                        onChange={(e) => {
-                            setIntakeStatus(e.target.value);
-                            setPage(1);
-                        }}
-                        className="h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-300 cursor-pointer"
-                    >
-                        <option value="all">All Intake Statuses</option>
-                        <option value="COMPLETED">100% Enriched ({facets.overview.enriched})</option>
-                        <option value="VIEWED">Form Opened / Viewed</option>
-                        <option value="SENT">Outreach Invite Sent</option>
-                        <option value="SCRAPED_BASELINE">30% Scraped Baseline</option>
-                    </select>
-
-                    {/* Smart Multi-Signal Verified Indian Creators Toggle */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setVerifiedIndianOnly(!verifiedIndianOnly);
-                            setPage(1);
-                        }}
-                        title="Filters using implicit Indian signals (+91 WhatsApp, Indian D2C brands, cities, .in domains, Indic/Hinglish) and excludes official brand store accounts"
-                        className={`h-8 px-2.5 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                            verifiedIndianOnly
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs"
-                                : "bg-white text-slate-600 border-slate-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-700"
-                        }`}
-                    >
+                        {/* Smart Multi-Signal Verified Indian Creators Toggle */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setVerifiedIndianOnly(!verifiedIndianOnly);
+                                setPage(1);
+                            }}
+                            title="Filters using implicit Indian signals (+91 WhatsApp, Indian D2C brands, cities, .in domains, Indic/Hinglish) and excludes official brand store accounts"
+                            className={`h-8 px-2.5 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                verifiedIndianOnly
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs"
+                                    : "bg-white text-slate-600 border-slate-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-700"
+                            }`}
+                        >
                         <span>🇮🇳 Verified Indian Creators</span>
                         {verifiedIndianOnly && <CheckIcon className="w-3 h-3 text-emerald-600" />}
                     </button>
                 </div>
 
-                {/* Sort selector */}
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span>Sort:</span>
-                    <button
-                        onClick={() => {
-                            if (sortBy === "default") setSortBy("followersCount");
-                            else if (sortBy === "followersCount") setSortBy("fullName");
-                            else setSortBy("default");
-                        }}
-                        className="font-medium text-slate-900 dark:text-white hover:underline cursor-pointer"
-                    >
-                        {sortBy === "default" ? "⚡ Enriched First" : sortBy === "followersCount" ? "Followers" : "Name"}
-                    </button>
-                    <button
-                        onClick={() => setReverse(!reverse)}
-                        className="text-slate-400 hover:text-slate-700 cursor-pointer"
-                        title="Toggle sort direction"
-                    >
-                        {reverse ? "↑" : "↓"}
-                    </button>
+                    {/* Sort selector */}
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <span>Sort:</span>
+                        <button
+                            onClick={() => {
+                                if (sortBy === "default") setSortBy("followersCount");
+                                else if (sortBy === "followersCount") setSortBy("fullName");
+                                else setSortBy("default");
+                            }}
+                            className="font-medium text-slate-900 dark:text-white hover:underline cursor-pointer"
+                        >
+                            {sortBy === "default" ? "⚡ Enriched First" : sortBy === "followersCount" ? "Followers" : "Name"}
+                        </button>
+                        <button
+                            onClick={() => setReverse(!reverse)}
+                            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                            title="Toggle sort direction"
+                        >
+                            {reverse ? "↑" : "↓"}
+                        </button>
+                    </div>
                 </div>
+
+                {/* Active Advanced Filter Chips (1-click remove) */}
+                {(subGenre !== "all" || languageFilter !== "all" || agencyFilter !== "all" || source !== "all" || intakeStatus !== "all" || cityFilter !== "all" || brandFilter !== "all") && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span className="text-slate-400 font-medium">Active:</span>
+                        {brandFilter !== "all" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-medium">
+                                Brand: {brandFilter}
+                                <button type="button" onClick={() => { setBrandFilter("all"); setScoutBrand(""); setPage(1); }} className="hover:text-rose-600 cursor-pointer">×</button>
+                            </span>
+                        )}
+                        {subGenre !== "all" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 font-medium">
+                                Sub-Niche: {subGenre}
+                                <button type="button" onClick={() => { setSubGenre("all"); setPage(1); }} className="hover:text-rose-600 cursor-pointer">×</button>
+                            </span>
+                        )}
+                        {languageFilter !== "all" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 font-medium">
+                                Language: {languageFilter}
+                                <button type="button" onClick={() => { setLanguageFilter("all"); setPage(1); }} className="hover:text-rose-600 cursor-pointer">×</button>
+                            </span>
+                        )}
+                        {cityFilter !== "all" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 font-medium">
+                                📍 {cityFilter}
+                                <button type="button" onClick={() => { setCityFilter("all"); setPage(1); }} className="hover:text-rose-600 cursor-pointer">×</button>
+                            </span>
+                        )}
+                        {agencyFilter !== "all" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 font-medium">
+                                Agency: {agencyFilter}
+                                <button type="button" onClick={() => { setAgencyFilter("all"); setPage(1); }} className="hover:text-rose-600 cursor-pointer">×</button>
+                            </span>
+                        )}
+                        {source !== "all" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-medium">
+                                Source: {source}
+                                <button type="button" onClick={() => { setSource("all"); setPage(1); }} className="hover:text-rose-600 cursor-pointer">×</button>
+                            </span>
+                        )}
+                        {intakeStatus !== "all" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 font-medium">
+                                Status: {intakeStatus}
+                                <button type="button" onClick={() => { setIntakeStatus("all"); setPage(1); }} className="hover:text-rose-600 cursor-pointer">×</button>
+                            </span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setBrandFilter("all");
+                                setScoutBrand("");
+                                setCategory("all");
+                                setSubGenre("all");
+                                setLanguageFilter("all");
+                                setCityFilter("all");
+                                setAgencyFilter("all");
+                                setSource("all");
+                                setIntakeStatus("all");
+                                setChannel("all");
+                                setTier("all");
+                                setPage(1);
+                            }}
+                            className="text-slate-500 hover:text-slate-900 dark:hover:text-white underline ml-1 cursor-pointer"
+                        >
+                            Clear all
+                        </button>
+                    </div>
+                )}
+
+                {/* Collapsible Smart 5-Column Advanced Filters Tray */}
+                {moreFiltersOpen && (
+                    <div className="p-3 rounded-lg border border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+                        <div>
+                            <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                                Sub-Category / Micro-Niche
+                            </label>
+                            <select
+                                value={subGenre}
+                                onChange={(e) => { setSubGenre(e.target.value); setPage(1); }}
+                                className="w-full h-8 px-2 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 cursor-pointer"
+                            >
+                                <option value="all">All Sub-Categories</option>
+                                {(facets.subGenres || []).map((sg: any) => (
+                                    <option key={sg.subGenre} value={sg.subGenre}>
+                                        {sg.subGenre} ({sg.count})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                                Language &amp; Diaspora
+                            </label>
+                            <select
+                                value={languageFilter}
+                                onChange={(e) => { setLanguageFilter(e.target.value); setPage(1); }}
+                                className="w-full h-8 px-2 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 cursor-pointer"
+                            >
+                                <option value="all">All Languages &amp; Diaspora</option>
+                                {["English", "Hindi", "Hinglish", "Tamil", "Telugu", "Kannada", "Malayalam", "Marathi", "Bengali", "Punjabi", "Gujarati", "Odia", "Assamese", "Indian Diaspora"].map((lang) => {
+                                    const found = (facets.languages || []).find((l: any) => l.language?.toLowerCase() === lang.toLowerCase());
+                                    return (
+                                        <option key={lang} value={lang}>
+                                            {lang === "Indian Diaspora" ? "🌏 Indian Diaspora (NRI)" : lang}
+                                            {found ? ` (${found.count})` : ""}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                                Talent Agency
+                            </label>
+                            <select
+                                value={agencyFilter}
+                                onChange={(e) => { setAgencyFilter(e.target.value); setPage(1); }}
+                                className="w-full h-8 px-2 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 cursor-pointer"
+                            >
+                                <option value="all">All Agencies</option>
+                                {(facets.agencies || []).map((a: any) => (
+                                    <option key={a.agency} value={a.agency}>
+                                        {a.agency} ({a.count})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                                Source
+                            </label>
+                            <select
+                                value={source}
+                                onChange={(e) => { setSource(e.target.value); setPage(1); }}
+                                className="w-full h-8 px-2 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 cursor-pointer"
+                            >
+                                <option value="all">All Sources</option>
+                                <option value="referred">🤝 Referred Talent ({facets.overview.referredCount ?? 0})</option>
+                                <option value="new">✨ All New Signups ({facets.overview.newSignupsCount ?? 0})</option>
+                                <option value="scouted">Scouted Database</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 mb-1">
+                                Intake Status
+                            </label>
+                            <select
+                                value={intakeStatus}
+                                onChange={(e) => { setIntakeStatus(e.target.value); setPage(1); }}
+                                className="w-full h-8 px-2 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 cursor-pointer"
+                            >
+                                <option value="all">All Intake Statuses</option>
+                                <option value="COMPLETED">100% Enriched ({facets.overview.enriched})</option>
+                                <option value="VIEWED">Form Opened / Viewed</option>
+                                <option value="SENT">Outreach Invite Sent</option>
+                                <option value="SCRAPED_BASELINE">30% Scraped Baseline</option>
+                            </select>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Dense High-Performance Creators Table */}
