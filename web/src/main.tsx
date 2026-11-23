@@ -104,10 +104,12 @@ import DashboardNotFound from './app/app/not-found';
 import NotFound from './app/not-found';
 import CreatorsLayout from './app/app/creators/layout';
 import CreatorsPage from './app/app/creators/page';
+import CreatorSearchPage from './app/app/creators/search/page';
 import CreatorTemplatesPage from './app/app/creators/templates/page';
 import CreatorDashboardPage from './app/app/creators/dashboard/page';
 import CreatorCampaignsPage from './app/app/creators/campaigns/page';
 import CreatorUniboxPage from './app/app/creators/inbox/page';
+import CreatorTreeHarvestPage from './app/app/creators/harvest/page';
 
 import { Toaster } from '@/components/ui/toaster';
 
@@ -354,6 +356,7 @@ const router = createBrowserRouter([
             children: [
               { index: true, element: <CreatorsPage /> },
               { path: "dashboard", element: <CreatorDashboardPage /> },
+              { path: "search", element: <CreatorSearchPage /> },
               {
                 path: "campaigns",
                 children: [
@@ -376,6 +379,7 @@ const router = createBrowserRouter([
               { path: "inbox/:scope", element: <CreatorUniboxPage /> },
               { path: "inbox/:scope/:threadId", element: <CreatorUniboxPage /> },
               { path: "templates", element: <CreatorTemplatesPage /> },
+              { path: "harvest", element: <CreatorTreeHarvestPage /> },
             ],
           },
           {

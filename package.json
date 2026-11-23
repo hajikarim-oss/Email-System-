@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web run build",
-    "typecheck": "npm --prefix web run typecheck"
+    "typecheck": "npm --prefix web run typecheck",
+    "harvest:tree": "tsx scripts/harvest_tree_worker.ts"
   },
   "dependencies": {
     "pg": "^8.23.0"

@@ -26,7 +26,18 @@ import {
 import {
     scoutAndAutoStoreCreator,
     discoverCreatorsByBrandOrKeyword,
+    discoverCandidateCreatorsFast,
+    discoverSimilarLookalikeHandles,
+    searchDatabaseBrands,
 } from "../../server/creator_scout";
+import {
+    getHarvestQueueStatus,
+    getHarvestTreeView,
+    enqueueSeedAndLookalikes,
+    autoExpandNextSeedInTree,
+    processHarvestQueueBatch,
+    resetHarvestQueue,
+} from "../../server/harvest_queue";
 
 const avatarCache = new Map<string, { buf: Buffer; type: string }>();
 
@@ -99,6 +110,35 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
             }
         }
 
+        // 0a. Fast Phase-1 Candidate Discovery Endpoint (/api/creators/scout/discover)
+        if ((pathname === "/api/creators/scout/discover" || pathname === "/api/v1/creators/scout/discover") && method === "POST") {
+            const body = await parseBody(req);
+            const fastRes = await discoverCandidateCreatorsFast({
+                brand: body.brand,
+                keyword: body.keyword,
+                category: body.category,
+                city: body.city,
+                searchEngine: body.searchEngine || "both",
+                limit: Number(body.limit) || 18,
+            });
+            return sendJson(res, 200, {
+                status: "ok",
+                ...fastRes,
+            });
+        }
+
+        // 0a-2. Engine 1: Lookalike / Similar Creators Graph Expansion (/api/creators/scout/similar)
+        if ((pathname === "/api/creators/scout/similar" || pathname === "/api/v1/creators/scout/similar") && method === "POST") {
+            const body = await parseBody(req);
+            const seedHandle = body.handle || body.seedHandle || "";
+            const limit = Math.min(Math.max(Number(body.limit) || 15, 1), 51);
+            const simRes = await discoverSimilarLookalikeHandles(seedHandle, limit);
+            return sendJson(res, 200, {
+                status: "ok",
+                ...simRes,
+            });
+        }
+
         // 0. Live Creator Scout & Harvester Endpoint (/api/creators/scout)
         if (pathname === "/api/creators/scout" || pathname === "/api/v1/creators/scout") {
             const workspaceId = url.searchParams.get("workspaceId") || "org_troops_outreach";
@@ -140,6 +180,7 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                     brand: body.brand,
                     keyword: body.keyword,
                     category: body.category,
+                    searchEngine: body.searchEngine || "both",
                     urls: singleInput ? [singleInput, ...urls] : urls,
                     limit: Number(body.limit) || 15,
                     workspaceId,
@@ -151,6 +192,80 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                     ...discovered,
                 });
             }
+        }
+
+        // 0b. Live Contacts DB & Creator DB Brand Search Endpoint (/api/creators/brands?q=...)
+        if (pathname === "/api/creators/brands" || pathname === "/api/v1/creators/brands") {
+            const q = url.searchParams.get("q") || "";
+            const limit = Number(url.searchParams.get("limit")) || 25;
+            const brands = await searchDatabaseBrands(q, limit);
+            return sendJson(res, 200, { brands });
+        }
+
+        // 0c. BFS Tree Harvest Queue Endpoints (/api/creators/harvest/status | /tree | /seed | /expand-next | /tick | /reset)
+        if (pathname === "/api/creators/harvest/status" || pathname === "/api/v1/creators/harvest/status") {
+            const workspaceId = url.searchParams.get("workspaceId") || "org_troops_outreach";
+            const status = await getHarvestQueueStatus(workspaceId);
+            return sendJson(res, 200, status);
+        }
+
+        if (pathname === "/api/creators/harvest/tree" || pathname === "/api/v1/creators/harvest/tree") {
+            const workspaceId = url.searchParams.get("workspaceId") || "org_troops_outreach";
+            const seedHandle = url.searchParams.get("seedHandle") || undefined;
+            const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 500, 1), 2000);
+            const proto = (req.headers["x-forwarded-proto"] as string) || (req.headers.host?.includes("localhost") ? "http" : "https");
+            const appOrigin = `${proto}://${req.headers.host || "tbmoutreach.tech"}`;
+            const tree = await getHarvestTreeView({ workspaceId, seedHandle, limit, appOrigin });
+            return sendJson(res, 200, tree);
+        }
+
+        if ((pathname === "/api/creators/harvest/seed" || pathname === "/api/v1/creators/harvest/seed") && method === "POST") {
+            const body = await parseBody(req);
+            const workspaceId = body.workspaceId || url.searchParams.get("workspaceId") || "org_troops_outreach";
+            const seedInput = String(body.seed || body.handle || body.url || "").trim();
+            if (!seedInput) {
+                return sendJson(res, 400, { error: "seed_required", message: "Provide an Instagram @handle or Profile URL to seed the tree." });
+            }
+            const resSeed = await enqueueSeedAndLookalikes(seedInput, {
+                workspaceId,
+                targetCategory: body.category && body.category !== "all" ? body.category : undefined,
+                depth: typeof body.depth === "number" ? body.depth : 1,
+                limit: Number(body.limit) || 55,
+            });
+            const status = await getHarvestQueueStatus(workspaceId);
+            return sendJson(res, 200, { status: "ok", ...resSeed, queue: status });
+        }
+
+        if ((pathname === "/api/creators/harvest/expand-next" || pathname === "/api/v1/creators/harvest/expand-next") && method === "POST") {
+            const body = await parseBody(req);
+            const workspaceId = body.workspaceId || url.searchParams.get("workspaceId") || "org_troops_outreach";
+            const expRes = await autoExpandNextSeedInTree({
+                workspaceId,
+                category: body.category && body.category !== "all" ? body.category : undefined,
+            });
+            const status = await getHarvestQueueStatus(workspaceId);
+            return sendJson(res, 200, { status: "ok", ...expRes, queue: status });
+        }
+
+        if ((pathname === "/api/creators/harvest/tick" || pathname === "/api/v1/creators/harvest/tick") && method === "POST") {
+            const body = await parseBody(req);
+            const workspaceId = body.workspaceId || url.searchParams.get("workspaceId") || "org_troops_outreach";
+            const proto = (req.headers["x-forwarded-proto"] as string) || (req.headers.host?.includes("localhost") ? "http" : "https");
+            const appOrigin = `${proto}://${req.headers.host || "tbmoutreach.tech"}`;
+            const tickRes = await processHarvestQueueBatch({
+                workspaceId,
+                batchSize: Math.min(Math.max(Number(body.batchSize) || 4, 1), 6),
+                appOrigin,
+            });
+            const status = await getHarvestQueueStatus(workspaceId);
+            return sendJson(res, 200, { status: "ok", ...tickRes, queue: status });
+        }
+
+        if ((pathname === "/api/creators/harvest/reset" || pathname === "/api/v1/creators/harvest/reset") && method === "POST") {
+            const body = await parseBody(req);
+            const workspaceId = body.workspaceId || url.searchParams.get("workspaceId") || "org_troops_outreach";
+            const status = await resetHarvestQueue(workspaceId);
+            return sendJson(res, 200, { status: "ok", queue: status });
         }
 
         // 1. Facets Endpoint
@@ -485,6 +600,7 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                 search: url.searchParams.get("search") || url.searchParams.get("query") || "",
                 category: url.searchParams.get("category") || "",
                 brand: url.searchParams.get("brand") || "",
+                language: url.searchParams.get("language") || "",
                 tier: (url.searchParams.get("tier") as any) || "all",
                 intakeStatus: (url.searchParams.get("intakeStatus") as any) || "all",
                 channel: (url.searchParams.get("channel") as any) || "all",

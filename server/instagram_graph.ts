@@ -115,73 +115,136 @@ function parseCountToken(raw: string): number {
     return Math.round(num);
 }
 
+export interface MetaBusinessTokenEntry {
+    igBusinessId: string;
+    accessToken: string;
+    label: string;
+}
+
+let metaTokenRoundRobinIdx = 0;
+
 /**
- * 1. Fetch via Official Meta Instagram Graph API Business Discovery
+ * Multi-Token Meta Business Pool (supports 1 to N free IG_ACCESS_TOKENs for 4,320 * N creators/day):
+ * Reads:
+ * - IG_ACCESS_TOKEN + IG_BUSINESS_ACCOUNT_ID (primary)
+ * - IG_ACCESS_TOKEN_2 + IG_BUSINESS_ACCOUNT_ID_2 ... IG_ACCESS_TOKEN_10
+ * - Or comma-separated IG_ACCESS_TOKENS + IG_BUSINESS_ACCOUNT_IDS
+ */
+export function getMetaTokenPool(): MetaBusinessTokenEntry[] {
+    const pool: MetaBusinessTokenEntry[] = [];
+    const seen = new Set<string>();
+
+    const primaryTok = readEnvVar("IG_ACCESS_TOKEN", ["META_ACCESS_TOKEN"]);
+    const primaryId = readEnvVar("IG_BUSINESS_ACCOUNT_ID", ["INSTAGRAM_BUSINESS_ACCOUNT_ID"]);
+    if (primaryTok && primaryId) {
+        seen.add(primaryTok);
+        pool.push({ igBusinessId: primaryId, accessToken: primaryTok, label: "token_1" });
+    }
+
+    for (let i = 2; i <= 10; i++) {
+        const tok = readEnvVar(`IG_ACCESS_TOKEN_${i}`);
+        const id = readEnvVar(`IG_BUSINESS_ACCOUNT_ID_${i}`) || primaryId;
+        if (tok && id && !seen.has(tok)) {
+            seen.add(tok);
+            pool.push({ igBusinessId: id, accessToken: tok, label: `token_${i}` });
+        }
+    }
+
+    const csvTokens = readEnvVar("IG_ACCESS_TOKENS");
+    const csvIds = readEnvVar("IG_BUSINESS_ACCOUNT_IDS");
+    if (csvTokens) {
+        const toks = csvTokens.split(",").map((s) => s.trim()).filter(Boolean);
+        const ids = csvIds ? csvIds.split(",").map((s) => s.trim()).filter(Boolean) : [];
+        toks.forEach((tok, idx) => {
+            const id = ids[idx] || ids[0] || primaryId;
+            if (tok && id && !seen.has(tok)) {
+                seen.add(tok);
+                pool.push({ igBusinessId: id, accessToken: tok, label: `csv_${idx + 1}` });
+            }
+        });
+    }
+
+    return pool;
+}
+
+/**
+ * 1. Fetch via Official Meta Instagram Graph API Business Discovery (with Multi-Token Round-Robin & 429 Failover)
  * Requires IG_ACCESS_TOKEN and IG_BUSINESS_ACCOUNT_ID in environment.
  */
 async function fetchViaBusinessDiscovery(cleanHandle: string): Promise<InstagramInsightsPayload | null> {
-    const accessToken = readEnvVar("IG_ACCESS_TOKEN", ["META_ACCESS_TOKEN"]);
-    const igBusinessId = readEnvVar("IG_BUSINESS_ACCOUNT_ID", ["INSTAGRAM_BUSINESS_ACCOUNT_ID"]);
-    if (!accessToken || !igBusinessId) return null;
+    const pool = getMetaTokenPool();
+    if (pool.length === 0) return null;
 
-    try {
-        const fields = `business_discovery.username(${cleanHandle}){id,username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count,media.limit(12){id,caption,media_type,media_product_type,like_count,comments_count,timestamp,permalink}}`;
-        const url = `https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(igBusinessId)}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(accessToken)}`;
-        const res = await fetch(url);
-        if (!res.ok) {
-            const errBody = await res.text().catch(() => "");
-            console.warn(`[InstagramGraph] Business discovery HTTP ${res.status} for @${cleanHandle}: ${errBody.slice(0, 300)}`);
-            return null;
+    const fields = `business_discovery.username(${cleanHandle}){id,username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count,media.limit(12){id,caption,media_type,media_product_type,like_count,comments_count,timestamp,permalink}}`;
+
+    for (let attempt = 0; attempt < pool.length; attempt++) {
+        const entry = pool[(metaTokenRoundRobinIdx + attempt) % pool.length];
+        metaTokenRoundRobinIdx = (metaTokenRoundRobinIdx + 1) % pool.length;
+
+        try {
+            const url = `https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(entry.igBusinessId)}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(entry.accessToken)}`;
+            const res = await fetch(url, { signal: AbortSignal.timeout(9000) });
+            if (!res.ok) {
+                const errBody = await res.text().catch(() => "");
+                // Rate limit / token error -> rotate to next token in pool
+                if (res.status === 429 || res.status === 401 || res.status === 403 || errBody.includes("Application request limit reached") || errBody.includes("User request limit reached")) {
+                    console.warn(`[InstagramGraph] Token ${entry.label} rate-limited/expired (HTTP ${res.status}), rotating...`);
+                    continue;
+                }
+                console.warn(`[InstagramGraph] Business discovery HTTP ${res.status} for @${cleanHandle}: ${errBody.slice(0, 240)}`);
+                return null;
+            }
+            const json = (await res.json()) as any;
+            const bd = json?.business_discovery;
+            if (!bd) return null;
+
+            const mediaItems: any[] = Array.isArray(bd.media?.data) ? bd.media.data : [];
+            let totalLikes = 0;
+            let totalComments = 0;
+            for (const m of mediaItems) {
+                totalLikes += Number(m.like_count || 0);
+                totalComments += Number(m.comments_count || 0);
+            }
+            const sampleSize = mediaItems.length || 1;
+            const avgLikes = mediaItems.length > 0 ? Math.round(totalLikes / sampleSize) : 0;
+            const avgComments = mediaItems.length > 0 ? Math.round(totalComments / sampleSize) : 0;
+            const followersCount = Number(bd.followers_count || 0);
+            const engagementRatePct =
+                followersCount > 0 && mediaItems.length > 0
+                    ? Number((((avgLikes + avgComments) / followersCount) * 100).toFixed(2))
+                    : undefined;
+
+            return {
+                handle: bd.username || cleanHandle,
+                fullName: bd.name || undefined,
+                biography: bd.biography || undefined,
+                website: bd.website || undefined,
+                profilePictureUrl: bd.profile_picture_url || undefined,
+                followersCount,
+                followersRaw: formatFollowersRaw(followersCount),
+                followingCount: Number(bd.follows_count || 0),
+                postsCount: Number(bd.media_count || 0),
+                source: "business_discovery",
+                engagementRatePct,
+                avgLikes,
+                avgComments,
+                recentMedia: mediaItems.slice(0, 8).map((m: any) => ({
+                    id: String(m.id),
+                    permalink: m.permalink,
+                    mediaType: m.media_product_type || m.media_type,
+                    likeCount: Number(m.like_count || 0),
+                    commentsCount: Number(m.comments_count || 0),
+                    timestamp: m.timestamp,
+                    caption: typeof m.caption === "string" ? m.caption.slice(0, 280) : undefined,
+                })),
+                syncedAt: new Date().toISOString(),
+            };
+        } catch (e) {
+            console.warn(`[InstagramGraph] Business discovery lookup failed (${entry.label}):`, e);
+            continue;
         }
-        const json = (await res.json()) as any;
-        const bd = json?.business_discovery;
-        if (!bd) return null;
-
-        const mediaItems: any[] = Array.isArray(bd.media?.data) ? bd.media.data : [];
-        let totalLikes = 0;
-        let totalComments = 0;
-        for (const m of mediaItems) {
-            totalLikes += Number(m.like_count || 0);
-            totalComments += Number(m.comments_count || 0);
-        }
-        const sampleSize = mediaItems.length || 1;
-        const avgLikes = mediaItems.length > 0 ? Math.round(totalLikes / sampleSize) : 0;
-        const avgComments = mediaItems.length > 0 ? Math.round(totalComments / sampleSize) : 0;
-        const followersCount = Number(bd.followers_count || 0);
-        const engagementRatePct =
-            followersCount > 0 && mediaItems.length > 0
-                ? Number((((avgLikes + avgComments) / followersCount) * 100).toFixed(2))
-                : undefined;
-
-        return {
-            handle: bd.username || cleanHandle,
-            fullName: bd.name || undefined,
-            biography: bd.biography || undefined,
-            website: bd.website || undefined,
-            profilePictureUrl: bd.profile_picture_url || undefined,
-            followersCount,
-            followersRaw: formatFollowersRaw(followersCount),
-            followingCount: Number(bd.follows_count || 0),
-            postsCount: Number(bd.media_count || 0),
-            source: "business_discovery",
-            engagementRatePct,
-            avgLikes,
-            avgComments,
-            recentMedia: mediaItems.slice(0, 6).map((m: any) => ({
-                id: String(m.id),
-                permalink: m.permalink,
-                mediaType: m.media_product_type || m.media_type,
-                likeCount: Number(m.like_count || 0),
-                commentsCount: Number(m.comments_count || 0),
-                timestamp: m.timestamp,
-                caption: typeof m.caption === "string" ? m.caption.slice(0, 140) : undefined,
-            })),
-            syncedAt: new Date().toISOString(),
-        };
-    } catch (e) {
-        console.warn("[InstagramGraph] Business discovery lookup failed:", e);
-        return null;
     }
+    return null;
 }
 
 /**
@@ -403,15 +466,17 @@ async function persistCreatorInsights(
 
         const newId = `crt_${crypto.randomBytes(8).toString("hex")}`;
         const genToken = `tok_${crypto.randomBytes(10).toString("hex")}`;
+        const normalizedAtHandle = `@${cleanHandle}`;
+        const avatarUrl = insights.profilePictureUrl || null;
         await query(
             `INSERT INTO "Creator" (
-                "id", "workspaceId", "handle", "platform", "fullName", "profileUrl",
+                "id", "workspaceId", "handle", "platform", "fullName", "profileUrl", "avatarUrl",
                 "category", "intakeToken", "intakeStatus", "intakeCompletionPct",
                 "followersCount", "followersRaw", "followingCount", "postsCount", "publicBio",
                 "instagramInsights", "igConnected", "igUserId", "igLastSyncedAt",
                 "createdAt", "updatedAt"
             ) VALUES (
-                $1, 'org_troops_outreach', $2, 'instagram', $3, $4,
+                $1, 'org_troops_outreach', $2, 'instagram', $3, $4, $14,
                 'Creator', $5, 'SCRAPED_BASELINE', 30,
                 $6, $7, $8, $9, $10,
                 $11::jsonb, $12, NULLIF($13, ''), NOW(),
@@ -419,6 +484,7 @@ async function persistCreatorInsights(
             )
             ON CONFLICT ("handle", "workspaceId") DO UPDATE SET
                 "instagramInsights" = EXCLUDED."instagramInsights",
+                "avatarUrl" = COALESCE(NULLIF(EXCLUDED."avatarUrl", ''), "Creator"."avatarUrl"),
                 "igConnected" = CASE WHEN EXCLUDED."igConnected" THEN true ELSE "Creator"."igConnected" END,
                 "igUserId" = COALESCE(EXCLUDED."igUserId", "Creator"."igUserId"),
                 "igLastSyncedAt" = NOW(),
@@ -431,7 +497,7 @@ async function persistCreatorInsights(
                 "updatedAt" = NOW()`,
             [
                 newId,
-                cleanHandle,
+                normalizedAtHandle,
                 fullName,
                 `https://www.instagram.com/${cleanHandle}/`,
                 genToken,
@@ -443,6 +509,7 @@ async function persistCreatorInsights(
                 JSON.stringify(insights),
                 Boolean(isOAuth),
                 igUserId || "",
+                avatarUrl,
             ]
         );
     } catch (e) {

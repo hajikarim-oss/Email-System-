@@ -1,15 +1,17 @@
 import React from "react";
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { UsersIcon, FileTextIcon, LayoutGridIcon, SendIcon, InboxIcon } from "lucide-react";
+import { UsersIcon, FileTextIcon, LayoutGridIcon, SendIcon, InboxIcon, SearchIcon, GitForkIcon } from "lucide-react";
 import useFeatureAccess from "@/hooks/useFeatureAccess";
 
 const TABS = [
     { label: "Dashboard", path: "/dashboard", Icon: LayoutGridIcon },
+    { label: "Search Creator", path: "/search", Icon: SearchIcon },
     { label: "All Creators", path: "", Icon: UsersIcon },
     { label: "Campaigns", path: "/campaigns", Icon: SendIcon },
     { label: "Creator Replies", path: "/inbox", Icon: InboxIcon },
     { label: "Creator Templates", path: "/templates", Icon: FileTextIcon },
+    { label: "Tree Harvester", path: "/harvest", Icon: GitForkIcon },
 ] as const;
 
 export default function CreatorsLayout() {

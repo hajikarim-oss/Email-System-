@@ -72,6 +72,9 @@ export default function CreatorsTable() {
     const [scoutInput, setScoutInput] = useState("");
     const [scoutBrand, setScoutBrand] = useState("");
     const [scoutCategory, setScoutCategory] = useState("Skincare");
+    const [scoutSearchEngine, setScoutSearchEngine] = useState<"both" | "instagram" | "google">("both");
+    const [dbBrandSuggestions, setDbBrandSuggestions] = useState<Array<{ name: string; domain: string | null; categoryKey: string | null; totalContacts: number; creatorCount: number }>>([]);
+    const [brandDropdownOpen, setBrandDropdownOpen] = useState(false);
     const [batchUrlsText, setBatchUrlsText] = useState("");
     const [isScouting, setIsScouting] = useState(false);
     const [scoutStepText, setScoutStepText] = useState("");
@@ -150,12 +153,32 @@ export default function CreatorsTable() {
         }
     }, [debouncedSearch, category, brandFilter, tier, intakeStatus, channel, source, sortBy, reverse, verifiedIndianOnly, page, limit]);
 
+    // Fetch Live Brand Suggestions from Contacts DB (15,117+ brands) + Creator DB
+    useEffect(() => {
+        if (!scoutPanelOpen) return;
+        const timer = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/creators/brands?q=${encodeURIComponent(scoutBrand)}&limit=15`, {
+                    headers: authHeaders(),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setDbBrandSuggestions(data.brands || []);
+                }
+            } catch {
+                // ignore
+            }
+        }, 180);
+        return () => clearTimeout(timer);
+    }, [scoutBrand, scoutPanelOpen]);
+
     // Live Scout & Auto-Store Handler (Single Handle/URL/Reel, Brand Discovery, or Batch URLs)
-    const runLiveScout = async (opts?: { customInput?: string; customUrls?: string[]; customBrand?: string; customCategory?: string }) => {
+    const runLiveScout = async (opts?: { customInput?: string; customUrls?: string[]; customBrand?: string; customCategory?: string; customEngine?: "both" | "instagram" | "google" }) => {
         if (isScouting) return;
         const inputVal = (opts?.customInput ?? scoutInput).trim();
         const brandVal = (opts?.customBrand ?? scoutBrand).trim();
         const catVal = opts?.customCategory ?? scoutCategory;
+        const engineVal = opts?.customEngine ?? scoutSearchEngine;
         const urlsList = opts?.customUrls || [];
 
         if (!inputVal && !brandVal && urlsList.length === 0) {
@@ -164,8 +187,9 @@ export default function CreatorsTable() {
         }
 
         setIsScouting(true);
-        setScoutStepText("1/4 Resolving Instagram handle / Reel shortcode...");
-        const stepTimer1 = setTimeout(() => setScoutStepText("2/4 Fetching profile metrics & Instagram Graph metadata..."), 1100);
+        const engineLabel = engineVal === "instagram" ? "Instagram Profile Search" : engineVal === "google" ? "Google Reel Video Search" : "Instagram + Google Search";
+        setScoutStepText(`1/4 Running ${engineLabel} & resolving handles/Reel shortcodes...`);
+        const stepTimer1 = setTimeout(() => setScoutStepText("2/4 Verifying Indian creator authenticity & filtering out brand store accounts..."), 1100);
         const stepTimer2 = setTimeout(() => setScoutStepText("3/4 Deep mining Bio, Linktree & Serper talent agency contacts..."), 2400);
         const stepTimer3 = setTimeout(() => setScoutStepText("4/4 Auto-storing creator & generating intake form link..."), 3600);
 
@@ -178,6 +202,7 @@ export default function CreatorsTable() {
                     urls: urlsList.length > 0 ? urlsList : undefined,
                     brand: brandVal || undefined,
                     category: catVal && catVal !== "all" ? catVal : undefined,
+                    searchEngine: engineVal,
                     limit: 15,
                 }),
             });
@@ -436,41 +461,37 @@ export default function CreatorsTable() {
                             <div>
                                 <h2 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                                     <SparklesIcon className="w-3.5 h-3.5 text-purple-600" />
-                                    <span>4-Tier Creator Scouting &amp; Contact Mining Engine</span>
+                                    <span>Unified Instagram Search + Google Reel Search Engine (15,117+ Contacts DB Brands + Any New Brand)</span>
                                 </h2>
                                 <p className="text-[11px] text-slate-500">
-                                    Paste any Instagram @handle, Profile URL, or Reel URL — or enter a Brand name to discover &amp; auto-store creators with verified emails, WhatsApp, and intake form links.
+                                    Paste any @handle / Reel URL, or search any Brand (from our 15,117-brand Contacts DB or any brand-new company) across Instagram &amp; Google. Automatically filters out official brand store accounts and saves human Indian creators.
                                 </p>
                             </div>
-                            <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
-                                <span className="text-slate-400 font-medium">Quick Brand Presets:</span>
+                            {/* Search Engine Mode Selector: Instagram + Google | Instagram Search | Google Reel Search */}
+                            <div className="flex items-center gap-1 rounded-lg border border-purple-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-0.5 text-[11px]">
                                 {[
-                                    { brand: "Hyphen", cat: "Skincare" },
-                                    { brand: "boAt", cat: "Tech" },
-                                    { brand: "Nykaa", cat: "Beauty" },
-                                    { brand: "Snitch", cat: "Fashion" },
-                                    { brand: "Zomato", cat: "Food Blogger" },
-                                    { brand: "Mamaearth", cat: "Skincare" },
-                                ].map((p) => (
+                                    { id: "both" as const, label: "⚡ Instagram + Google" },
+                                    { id: "instagram" as const, label: "📸 Instagram Search" },
+                                    { id: "google" as const, label: "🔎 Google Reel Search" },
+                                ].map((mode) => (
                                     <button
-                                        key={p.brand}
+                                        key={mode.id}
                                         type="button"
-                                        onClick={() => {
-                                            setScoutBrand(p.brand);
-                                            setScoutCategory(p.cat);
-                                            setBrandFilter(p.brand);
-                                            setPage(1);
-                                        }}
-                                        className="px-2 py-0.5 rounded-full border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:border-purple-400 text-slate-700 dark:text-zinc-200 font-medium cursor-pointer"
+                                        onClick={() => setScoutSearchEngine(mode.id)}
+                                        className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                                            scoutSearchEngine === mode.id
+                                                ? "bg-purple-600 text-white shadow-2xs"
+                                                : "text-slate-600 dark:text-zinc-400 hover:text-slate-900"
+                                        }`}
                                     >
-                                        {p.brand}
+                                        {mode.label}
                                     </button>
                                 ))}
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                            <div className="md:col-span-5">
+                            <div className="md:col-span-4">
                                 <label className="text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 block mb-1">
                                     Instagram @Handle, Profile URL, or Reel URL
                                 </label>
@@ -485,20 +506,82 @@ export default function CreatorsTable() {
                                     className="w-full h-8 px-3 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
                                 />
                             </div>
-                            <div className="md:col-span-3">
-                                <label className="text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 block mb-1">
-                                    Brand / Competitor Keyword (Optional)
+                            <div className="md:col-span-4 relative">
+                                <label className="text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 flex items-center justify-between mb-1">
+                                    <span>Brand / Keyword (15,117+ Contacts DB or Any New Brand)</span>
+                                    <span className="text-[9.5px] text-purple-600 font-medium">Dynamic • No Exclusions</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={scoutBrand}
-                                    onChange={(e) => setScoutBrand(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") runLiveScout();
+                                    onFocus={() => setBrandDropdownOpen(true)}
+                                    onBlur={() => setTimeout(() => setBrandDropdownOpen(false), 180)}
+                                    onChange={(e) => {
+                                        setScoutBrand(e.target.value);
+                                        setBrandDropdownOpen(true);
                                     }}
-                                    placeholder="e.g. Hyphen, boAt, Myntra..."
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            setBrandDropdownOpen(false);
+                                            runLiveScout();
+                                        }
+                                    }}
+                                    placeholder="Search 15,117+ DB brands or type ANY new brand..."
                                     className="w-full h-8 px-3 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
                                 />
+                                {brandDropdownOpen && (dbBrandSuggestions.length > 0 || scoutBrand.trim()) && (
+                                    <div className="absolute z-40 left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg divide-y divide-slate-100 dark:divide-zinc-800 text-xs">
+                                        {scoutBrand.trim() && !dbBrandSuggestions.some((b) => b.name.toLowerCase() === scoutBrand.trim().toLowerCase()) && (
+                                            <button
+                                                type="button"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    setBrandDropdownOpen(false);
+                                                    runLiveScout({ customBrand: scoutBrand.trim() });
+                                                }}
+                                                className="w-full px-3 py-2 text-left hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center justify-between gap-2 cursor-pointer"
+                                            >
+                                                <span className="font-semibold text-purple-700 dark:text-purple-300">
+                                                    ✨ Scout New Brand: &ldquo;{scoutBrand.trim()}&rdquo;
+                                                </span>
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 font-medium">
+                                                    Live IG + Google
+                                                </span>
+                                            </button>
+                                        )}
+                                        {dbBrandSuggestions.map((b) => (
+                                            <button
+                                                key={b.name}
+                                                type="button"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    setScoutBrand(b.name);
+                                                    setBrandDropdownOpen(false);
+                                                }}
+                                                className="w-full px-3 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center justify-between gap-2 cursor-pointer"
+                                            >
+                                                <div className="truncate">
+                                                    <span className="font-semibold text-slate-900 dark:text-white">{b.name}</span>
+                                                    {b.domain && (
+                                                        <span className="ml-1.5 text-[10px] text-slate-400">({b.domain})</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
+                                                    {b.creatorCount > 0 && (
+                                                        <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
+                                                            {b.creatorCount} creators
+                                                        </span>
+                                                    )}
+                                                    {b.totalContacts > 0 && (
+                                                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                                            {b.totalContacts} contacts in DB
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <div className="md:col-span-2">
                                 <label className="text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 block mb-1">

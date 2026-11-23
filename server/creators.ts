@@ -8,6 +8,7 @@ export interface CreatorSearchParams {
     search?: string;
     category?: string;
     brand?: string;
+    language?: string;
     tier?: "all" | "nano" | "micro" | "mid" | "macro" | "mega";
     intakeStatus?: "all" | "SCRAPED_BASELINE" | "INVITATION_SENT" | "FORM_OPENED" | "PARTIALLY_FILLED" | "COMPLETED" | "REFERRED";
     channel?: "all" | "email" | "phone" | "dual";
@@ -79,6 +80,20 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
         pIdx++;
     }
 
+    if (params.language && params.language !== "all" && params.language.trim() !== "") {
+        const lang = params.language.trim();
+        const langLike = `%${lang.toLowerCase()}%`;
+        conditions.push(`(
+            $${pIdx} = ANY("languages")
+            OR lower(array_to_string("languages", ' ')) LIKE $${pIdx + 1}
+            OR lower(COALESCE("publicBio", '')) LIKE $${pIdx + 1}
+            OR lower(COALESCE("city", '')) LIKE $${pIdx + 1}
+            OR lower(COALESCE("state", '')) LIKE $${pIdx + 1}
+        )`);
+        values.push(lang, langLike);
+        pIdx += 2;
+    }
+
     if (params.tier && params.tier !== "all") {
         if (params.tier === "nano") {
             conditions.push(`"followersCount" < 10000`);
@@ -114,10 +129,22 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     }
 
     if (params.verifiedIndianOnly) {
-        // Multi-signal SQL pre-filter: India signal true + exclude official brand accounts where handle equals brandAffinity
+        // Dynamic structural SQL filter (zero hardcoded brand lists):
+        // 1. India signal true (re-verified across all 6,445 creators)
+        // 2. Creator handle does not start with or equal the brandAffinity handle (@brand, @brandbrands, @letsbrand, @mybrand)
+        // 3. Primary email is not a customer-support store address (care@, support@, customercare@)
         conditions.push(`COALESCE("indiaSignal", true) = true`);
-        conditions.push(`lower(replace("handle", '@', '')) NOT IN ('letshyphen', 'hyphen', 'mamaearth', 'mynykaa', 'nykaabeauty', 'boat.nirvana', 'gonoise', 'myntra', 'flipkart', 'zomato', 'swiggyindia', 'lenskart')`);
-        conditions.push(`("brandAffinity" IS NULL OR lower(replace("handle", '@', '')) <> lower(replace("brandAffinity", ' ', '')))`);
+        conditions.push(`(
+            "brandAffinity" IS NULL
+            OR length(regexp_replace(lower("brandAffinity"), '[^a-z0-9]', '', 'g')) < 3
+            OR (
+                strpos(regexp_replace(lower("handle"), '[^a-z0-9]', '', 'g'), regexp_replace(lower("brandAffinity"), '[^a-z0-9]', '', 'g')) <> 1
+                AND strpos(regexp_replace(lower("handle"), '[^a-z0-9]', '', 'g'), 'lets' || regexp_replace(lower("brandAffinity"), '[^a-z0-9]', '', 'g')) <> 1
+                AND strpos(regexp_replace(lower("handle"), '[^a-z0-9]', '', 'g'), 'my' || regexp_replace(lower("brandAffinity"), '[^a-z0-9]', '', 'g')) <> 1
+                AND regexp_replace(lower(COALESCE("fullName", '')), '[^a-z0-9]', '', 'g') <> regexp_replace(lower("brandAffinity"), '[^a-z0-9]', '', 'g')
+            )
+        )`);
+        conditions.push(`("primaryEmail" IS NULL OR lower("primaryEmail") !~ '^(care|customercare|support|help|orders|shop)@')`);
     }
 
     const whereClause = conditions.join(" AND ");
@@ -189,7 +216,7 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     }
 
     const appOrigin = (process.env.APP_URL || "https://tbmoutreach.tech").replace(/\/$/, "");
-    const enrichedCreators = rows.map((r: any) => {
+    let enrichedCreators = rows.map((r: any) => {
         const ig = (r.instagramInsights && typeof r.instagramInsights === "object") ? r.instagramInsights : {};
         const tok = r.intakeToken || r.id;
         const evalRes = evaluateIndiaAndCreatorAuthenticity({
@@ -216,15 +243,27 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
             scoutFitScore: r.scoutFitScore ?? ig.scoutFitScore ?? (r.primaryEmail ? 75 : 40),
             externalUrl: r.externalUrl ?? ig.externalUrl ?? ig.website ?? null,
             agencyEmail: r.agencyEmail ?? ig.agencyEmail ?? null,
-            indiaConfidenceScore: ig.indiaConfidenceScore ?? evalRes.indiaConfidenceScore,
-            indiaSignals: ig.indiaSignals ?? evalRes.indiaSignals,
-            isIndianCreator: ig.isIndianCreator ?? evalRes.isIndianCreator,
-            isVerifiedHumanCreator: ig.isVerifiedHumanCreator ?? evalRes.isVerifiedHumanCreator,
-            isBrandOrStoreAccount: ig.isBrandOrStoreAccount ?? evalRes.isBrandOrStoreAccount,
-            authenticityScore: ig.authenticityScore ?? evalRes.authenticityScore,
-            authenticitySignals: ig.authenticitySignals ?? evalRes.authenticitySignals,
+            indiaConfidenceScore: evalRes.indiaConfidenceScore,
+            indiaSignals: evalRes.indiaSignals,
+            isIndianCreator: evalRes.isIndianCreator,
+            isVerifiedHumanCreator: evalRes.isVerifiedHumanCreator,
+            isBrandOrStoreAccount: evalRes.isBrandOrStoreAccount,
+            authenticityScore: evalRes.authenticityScore,
+            authenticitySignals: evalRes.authenticitySignals,
         };
     });
+
+    if (params.verifiedIndianOnly) {
+        const staleNonIndianIds: string[] = [];
+        enrichedCreators = enrichedCreators.filter((c: any) => {
+            const valid = Boolean(c.isIndianCreator && !c.isBrandOrStoreAccount && c.indiaConfidenceScore >= 30);
+            if (!valid && c.id) staleNonIndianIds.push(c.id);
+            return valid;
+        });
+        if (staleNonIndianIds.length > 0) {
+            query(`UPDATE "Creator" SET "indiaSignal" = false WHERE id = ANY($1::text[])`, [staleNonIndianIds]).catch(() => {});
+        }
+    }
 
     return {
         creators: enrichedCreators,
