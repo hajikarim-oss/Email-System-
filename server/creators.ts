@@ -1,7 +1,7 @@
 import type { QueryFn } from "./types";
 import { pgQuery } from "./pg";
 import { ensureInstagramColumns } from "./instagram_graph";
-import { scoutAndAutoStoreCreator } from "./creator_scout";
+import { scoutAndAutoStoreCreator, evaluateIndiaAndCreatorAuthenticity } from "./creator_scout";
 
 export interface CreatorSearchParams {
     workspaceId?: string;
@@ -17,6 +17,7 @@ export interface CreatorSearchParams {
     limit?: number;
     offset?: number;
     autoScoutIfEmpty?: boolean;
+    verifiedIndianOnly?: boolean;
 }
 
 export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSearchParams) {
@@ -112,6 +113,13 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
         }
     }
 
+    if (params.verifiedIndianOnly) {
+        // Multi-signal SQL pre-filter: India signal true + exclude official brand accounts where handle equals brandAffinity
+        conditions.push(`COALESCE("indiaSignal", true) = true`);
+        conditions.push(`lower(replace("handle", '@', '')) NOT IN ('letshyphen', 'hyphen', 'mamaearth', 'mynykaa', 'nykaabeauty', 'boat.nirvana', 'gonoise', 'myntra', 'flipkart', 'zomato', 'swiggyindia', 'lenskart')`);
+        conditions.push(`("brandAffinity" IS NULL OR lower(replace("handle", '@', '')) <> lower(replace("brandAffinity", ' ', '')))`);
+    }
+
     const whereClause = conditions.join(" AND ");
 
     // Sorting
@@ -184,6 +192,20 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     const enrichedCreators = rows.map((r: any) => {
         const ig = (r.instagramInsights && typeof r.instagramInsights === "object") ? r.instagramInsights : {};
         const tok = r.intakeToken || r.id;
+        const evalRes = evaluateIndiaAndCreatorAuthenticity({
+            handle: r.handle,
+            fullName: r.fullName,
+            bio: r.publicBio,
+            primaryEmail: r.primaryEmail,
+            agencyEmail: r.agencyEmail ?? ig.agencyEmail,
+            phone: r.whatsappNumber || r.phone,
+            externalUrl: r.externalUrl ?? ig.externalUrl ?? ig.website,
+            city: r.city,
+            state: r.state,
+            brand: r.brandAffinity,
+            followersCount: Number(r.followersCount || 0),
+            isIgVerified: Boolean(r.isVerified),
+        });
         return {
             ...r,
             formLink: `${appOrigin}/creator/intake/${encodeURIComponent(tok)}`,
@@ -194,6 +216,13 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
             scoutFitScore: r.scoutFitScore ?? ig.scoutFitScore ?? (r.primaryEmail ? 75 : 40),
             externalUrl: r.externalUrl ?? ig.externalUrl ?? ig.website ?? null,
             agencyEmail: r.agencyEmail ?? ig.agencyEmail ?? null,
+            indiaConfidenceScore: ig.indiaConfidenceScore ?? evalRes.indiaConfidenceScore,
+            indiaSignals: ig.indiaSignals ?? evalRes.indiaSignals,
+            isIndianCreator: ig.isIndianCreator ?? evalRes.isIndianCreator,
+            isVerifiedHumanCreator: ig.isVerifiedHumanCreator ?? evalRes.isVerifiedHumanCreator,
+            isBrandOrStoreAccount: ig.isBrandOrStoreAccount ?? evalRes.isBrandOrStoreAccount,
+            authenticityScore: ig.authenticityScore ?? evalRes.authenticityScore,
+            authenticitySignals: ig.authenticitySignals ?? evalRes.authenticitySignals,
         };
     });
 

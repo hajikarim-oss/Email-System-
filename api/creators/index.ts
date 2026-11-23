@@ -494,6 +494,7 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                 limit: parseInt(url.searchParams.get("limit") || "50", 10),
                 offset: parseInt(url.searchParams.get("offset") || "0", 10),
                 autoScoutIfEmpty: url.searchParams.get("autoScout") !== "false",
+                verifiedIndianOnly: url.searchParams.get("verifiedIndianOnly") === "true",
             };
 
             const result = await searchCreators(undefined, params);

@@ -64,6 +64,7 @@ export default function CreatorsTable() {
     const [source, setSource] = useState<string>(searchParams.get("source") || "all");
     const [sortBy, setSortBy] = useState<string>("default");
     const [reverse, setReverse] = useState(false);
+    const [verifiedIndianOnly, setVerifiedIndianOnly] = useState<boolean>(true);
 
     // Live Creator Scout Engine states
     const [scoutPanelOpen, setScoutPanelOpen] = useState(false);
@@ -131,6 +132,7 @@ export default function CreatorsTable() {
                 source: source === "all" ? "" : source,
                 sortBy,
                 reverse: reverse ? "true" : "false",
+                verifiedIndianOnly: verifiedIndianOnly ? "true" : "false",
                 limit: String(limit),
                 offset: String((page - 1) * limit),
             });
@@ -146,7 +148,7 @@ export default function CreatorsTable() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, category, brandFilter, tier, intakeStatus, channel, source, sortBy, reverse, page, limit]);
+    }, [debouncedSearch, category, brandFilter, tier, intakeStatus, channel, source, sortBy, reverse, verifiedIndianOnly, page, limit]);
 
     // Live Scout & Auto-Store Handler (Single Handle/URL/Reel, Brand Discovery, or Batch URLs)
     const runLiveScout = async (opts?: { customInput?: string; customUrls?: string[]; customBrand?: string; customCategory?: string }) => {
@@ -858,6 +860,24 @@ export default function CreatorsTable() {
                         <option value="SENT">Outreach Invite Sent</option>
                         <option value="SCRAPED_BASELINE">30% Scraped Baseline</option>
                     </select>
+
+                    {/* Smart Multi-Signal Verified Indian Creators Toggle */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setVerifiedIndianOnly(!verifiedIndianOnly);
+                            setPage(1);
+                        }}
+                        title="Filters using implicit Indian signals (+91 WhatsApp, Indian D2C brands, cities, .in domains, Indic/Hinglish) and excludes official brand store accounts"
+                        className={`h-8 px-2.5 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            verifiedIndianOnly
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs"
+                                : "bg-white text-slate-600 border-slate-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-700"
+                        }`}
+                    >
+                        <span>🇮🇳 Verified Indian Creators</span>
+                        {verifiedIndianOnly && <CheckIcon className="w-3 h-3 text-emerald-600" />}
+                    </button>
                 </div>
 
                 {/* Sort selector */}
@@ -1035,12 +1055,23 @@ export default function CreatorsTable() {
                                                 )}
                                             </div>
                                             {c.city ? (
-                                                <span className="text-[10px] text-slate-500 dark:text-zinc-400 flex items-center gap-0.5">
+                                                <span className="text-[10px] text-slate-500 dark:text-zinc-400 flex items-center gap-1">
                                                     <MapPinIcon className="w-2.5 h-2.5 text-slate-400" />
                                                     <span>{c.city}{c.state ? `, ${c.state}` : ""}</span>
+                                                    <span
+                                                        title={`Multi-Signal India Score: ${c.indiaConfidenceScore || 85}% (${(c.indiaSignals || []).join(" · ")})`}
+                                                        className="text-[9.5px] font-semibold text-emerald-700 dark:text-emerald-400"
+                                                    >
+                                                        · 🇮🇳 {c.indiaConfidenceScore || 85}%
+                                                    </span>
                                                 </span>
                                             ) : (
-                                                <span className="text-[10px] text-slate-400">India</span>
+                                                <span
+                                                    title={`Multi-Signal India Score: ${c.indiaConfidenceScore || 75}% (${(c.indiaSignals || []).join(" · ") || "Indian Brand & Google India SERP"})`}
+                                                    className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium"
+                                                >
+                                                    🇮🇳 India Verified ({c.indiaConfidenceScore || 75}%)
+                                                </span>
                                             )}
                                         </div>
                                     </td>

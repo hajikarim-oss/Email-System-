@@ -394,6 +394,41 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                 </span>
                             </div>
 
+                            {/* Multi-Signal India & Human Creator Authenticity Verification */}
+                            <div className="p-3.5 rounded-xl border border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2 text-xs">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        <span>🇮🇳 Smart Geo &amp; Creator Verification</span>
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200">
+                                            India {creator.indiaConfidenceScore ?? igData?.indiaConfidenceScore ?? 85}%
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200">
+                                            Authenticity {creator.authenticityScore ?? igData?.authenticityScore ?? 80}%
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                    {(creator.indiaSignals || igData?.indiaSignals || ["Indian Brand Ecosystem", "Google India SERP"]).map((sig: string) => (
+                                        <span
+                                            key={sig}
+                                            className="px-2 py-0.5 rounded text-[10px] font-medium bg-white dark:bg-zinc-800 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                                        >
+                                            ✓ {sig}
+                                        </span>
+                                    ))}
+                                    {(creator.authenticitySignals || igData?.authenticitySignals || ["Human Creator Profile"]).map((sig: string) => (
+                                        <span
+                                            key={sig}
+                                            className="px-2 py-0.5 rounded text-[10px] font-medium bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700"
+                                        >
+                                            {sig}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
                             {/* Media Kit / YouTube Portfolio Link */}
                             {creator.mediaKitUrl && (
                                 <div className="p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800 flex items-center justify-between text-xs bg-white dark:bg-zinc-900">

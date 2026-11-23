@@ -136,6 +136,40 @@ const INDIAN_CITIES = [
     { city: "Nagpur", state: "Maharashtra" },
 ];
 
+const DEFAULT_SERPER_KEY_POOL = [
+    "2d8b8fad24671f9fee4dbe7e21981b9007143feb",
+    "3c4a4d935878e81fd7dd4cc1ced0ad3c1871a23d",
+    "3eaf394e428d301facc097b93e7cce894f804fcb",
+];
+
+// Indian-endemic D2C & Consumer Brands (Implicit India Geo-Anchors — creators reviewing these are >98% Indian)
+const INDIAN_ENDEMIC_BRANDS = new Set([
+    "hyphen", "letshyphen", "mamaearth", "nykaa", "nykaabeauty", "nykaafashion", "boat", "boatlifestyle",
+    "noise", "gonoise", "snitch", "myntra", "flipkart", "blinkit", "zepto", "swiggy", "zomato", "tataneu",
+    "lenskart", "minimalist", "beminimalist", "dotandkey", "sugarcosmetics", "foxtale", "plumgoodness",
+    "lakme", "ajio", "meesho", "cred", "zerodha", "groww", "physicswallah", "drsheths", "aquaria",
+    "aqualogica", "mcaffeine", "wowskinscience", "thewholetruth", "purplle", "facescanada", "renee",
+    "mars", "marscosmetics", "swissbeauty", "kaybeauty", "bewakoof", "souledstore", "thesouledstore",
+    "urbanic", "savana", "libas", "biba", "manyavar", "caratlanelive", "caratlane", "tanishq", "giva",
+    "bluestone", "wakefit", "sleepyhead", "pepperfry", "asianpaints", " Berger", "ola", "olaelectric",
+    "ather", "tvs", "bajaj", "heromotocorp", "royalEnfield", "mahindra", "tatamotors", "marutisuzuki",
+    "makemytrip", "ixigo", "cleartrip", "goibibo", "oyo", "airindia", "indigo", "vistara", "paytm",
+    "phonepe", "razorpay", "upstox", "angelone", "icici", "hdfc", "sbi", "axisbank", "kotak", "amul",
+    "britannia", "haldirams", "paperboat", "epigamia", "slurrp", "countrydelight", "licious", "bigbasket",
+    "jiomart", "jio", "airtel", "vi", "croma", "reliance", "titan", "fastrack", "sonata", "kalyan",
+]);
+
+// Known Official Brand Instagram Handles (to prevent brand accounts from being ingested as human creators)
+const OFFICIAL_BRAND_HANDLES = new Set([
+    "letshyphen", "hyphen", "mamaearth", "mynykaa", "nykaabeauty", "nykaafashion", "boat.nirvana",
+    "gonoise", "snitch.co.in", "myntra", "flipkart", "letsblinkit", "zeptUP", "zeptonow", "swiggyindia",
+    "zomato", "tataneuofficial", "lenskart", "beminimalist__", "dotandkey.skincare", "trysugar",
+    "foxtaleskin", "plumgoodness", "lakmeindia", "ajiolife", "meeshoapp", "cred_club", "zerodhaonline",
+    "groww_official", "physicswallah", "drsheths", "aqualogica.in", "mcaffeineofficial", "thewholetruthfoods",
+    "purplle", "marscosmetics", "swissbeautycosmetics", "kaybykatrina", "bewakoofofficial", "thesouledstore",
+    "giva.co", "caratlane", "tanishqjewellery", "wakefitco", "olaelectric", "atherenergy",
+]);
+
 function getSerperKeys(): string[] {
     const keys: string[] = [];
     if (process.env.SERPER_API_KEY) {
@@ -154,7 +188,167 @@ function getSerperKeys(): string[] {
             }
         }
     } catch {}
+    for (const fallbackKey of DEFAULT_SERPER_KEY_POOL) {
+        if (!keys.includes(fallbackKey)) keys.push(fallbackKey);
+    }
     return keys;
+}
+
+export interface IndiaAndAuthenticityEvaluation {
+    isIndianCreator: boolean;
+    indiaConfidenceScore: number; // 0 - 100
+    indiaSignals: string[];
+    isVerifiedHumanCreator: boolean;
+    isBrandOrStoreAccount: boolean;
+    authenticityScore: number; // 0 - 100
+    authenticitySignals: string[];
+}
+
+/**
+ * Smart Multi-Signal Indian & Human Creator Classifier:
+ * Determines whether an Instagram account is (1) an authentic human creator (not a brand store / meme page)
+ * and (2) based in India — using implicit geo-signals (Indian D2C brands, cities, +91 phone, .in domains,
+ * Indian affiliate networks, Indic scripts/Hinglish, and ₹ currency) without requiring the word "India".
+ */
+export function evaluateIndiaAndCreatorAuthenticity(params: {
+    handle: string;
+    fullName?: string;
+    bio?: string;
+    caption?: string;
+    primaryEmail?: string | null;
+    agencyEmail?: string | null;
+    phone?: string | null;
+    externalUrl?: string | null;
+    city?: string | null;
+    state?: string | null;
+    brand?: string | null;
+    followersCount?: number;
+    isIgVerified?: boolean;
+}): IndiaAndAuthenticityEvaluation {
+    const cleanH = String(params.handle || "").replace(/^@+/, "").toLowerCase().trim();
+    const nameLower = String(params.fullName || "").toLowerCase().trim();
+    const bioLower = String(params.bio || "").toLowerCase();
+    const capLower = String(params.caption || "").toLowerCase();
+    const combo = `${cleanH} ${nameLower} ${bioLower} ${capLower} ${params.externalUrl || ""} ${params.primaryEmail || ""} ${params.agencyEmail || ""}`.toLowerCase();
+
+    // --- A. Brand / Store Account vs. Human Creator Detection ---
+    const brandCleaned = String(params.brand || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const handleAlpha = cleanH.replace(/[^a-z0-9]/g, "");
+    const storePhrases = [
+        "official page of", "shop now", "free shipping", "pan india delivery", "cash on delivery",
+        "cod available", "order online", "customer care", "customer support", "store locator",
+        "100% vegan", "cruelty free brand", "dermatologically tested brand", "buy now at",
+    ];
+    const isExactBrandHandle =
+        OFFICIAL_BRAND_HANDLES.has(cleanH) ||
+        (brandCleaned.length >= 4 && (handleAlpha === brandCleaned || handleAlpha === `lets${brandCleaned}` || handleAlpha === `${brandCleaned}india` || handleAlpha === `${brandCleaned}official`));
+    const hasStoreBio = storePhrases.filter((p) => bioLower.includes(p)).length >= 2;
+    const isBrandOrStoreAccount = Boolean(isExactBrandHandle || hasStoreBio);
+
+    const authenticitySignals: string[] = [];
+    let authScore = 40;
+    if (!isBrandOrStoreAccount) {
+        authScore += 20;
+        authenticitySignals.push("Human Creator Profile");
+    } else {
+        authScore = 10;
+        authenticitySignals.push("Brand / Commercial Store Account");
+    }
+
+    if (params.followersCount && params.followersCount >= 1000) {
+        authScore += 15;
+        authenticitySignals.push(`Active Audience (${formatFollowersRaw(params.followersCount)})`);
+    }
+    if (params.primaryEmail || params.agencyEmail) {
+        authScore += 15;
+        authenticitySignals.push("Verified Business Email");
+    }
+    if (params.isIgVerified) {
+        authScore += 10;
+        authenticitySignals.push("Meta Blue Tick Verified");
+    }
+    const creatorPersonaWords = [
+        "creator", "blogger", "influencer", "vlogger", "reviewer", "artist", "mua", "stylist",
+        "chef", "foodie", "fitness", "coach", "doctor", "dr.", "educator", "founder", "actor",
+        "model", "photographer", "gamer", "comedian", "mom", "travel", "collab", "dm for",
+        "managed by", "pr/", "inquiries", "enquiries", "youtube", "youtuber",
+    ];
+    if (creatorPersonaWords.some((w) => combo.includes(w))) {
+        authScore += 10;
+        authenticitySignals.push("Creator Persona Bio");
+    }
+    authScore = Math.min(100, authScore);
+
+    // --- B. Multi-Signal Implicit India Geo-Verification (0 - 100) ---
+    let indiaScore = 0;
+    const indiaSignals: string[] = [];
+
+    // 1. Indian City / State / Pin / Flag / Demonym (+40)
+    if (params.city || params.state) {
+        indiaScore += 40;
+        indiaSignals.push(`Location: ${params.city || params.state}`);
+    } else if (
+        combo.includes("🇮🇳") ||
+        /\b(india|indian|mumbai|delhi|bengaluru|bangalore|hyderabad|pune|chennai|kolkata|ahmedabad|jaipur|chandigarh|kochi|indore|lucknow|goa|surat|guwahati|noida|gurgaon|gurugram|kerala|punjab|maharashtra|gujarat|rajasthan|karnataka|tamil nadu|telangana|bengal|himachal|uttarakhand|assam|odisha|bihar|mumbaikar|delhite|mallu|desi)\b/i.test(combo)
+    ) {
+        indiaScore += 40;
+        indiaSignals.push("Indian Geo / Regional Tag");
+    }
+
+    // 2. Indian Phone (+91) or .in / .co.in Email / Indian Creator Commerce Link (+40)
+    if (params.phone && params.phone.includes("+91")) {
+        indiaScore += 40;
+        indiaSignals.push("Verified +91 Mobile/WhatsApp");
+    }
+    if (
+        (params.primaryEmail && (params.primaryEmail.endsWith(".in") || params.primaryEmail.endsWith(".co.in"))) ||
+        (params.agencyEmail && (params.agencyEmail.endsWith(".in") || params.agencyEmail.endsWith(".co.in"))) ||
+        /\b(wishlink\.com|hypd\.store|lehlah\.club|rigi\.club|cosmofeed\.com|topmate\.io)\b/i.test(combo)
+    ) {
+        indiaScore += 35;
+        indiaSignals.push("Indian Creator Domain / Commerce Stack");
+    }
+
+    // 3. Indian Endemic D2C / Consumer Brand Affinity (+35)
+    const matchedIndianBrand = Array.from(INDIAN_ENDEMIC_BRANDS).find((b) =>
+        b.length >= 4 && (brandCleaned.includes(b) || combo.includes(b))
+    );
+    if (matchedIndianBrand) {
+        indiaScore += 35;
+        indiaSignals.push(`Indian Brand Ecosystem (${params.brand || matchedIndianBrand})`);
+    }
+
+    // 4. Indic Unicode Script, Hinglish, or Indian Rupee Currency (₹ / Rs. / INR) (+30)
+    const hasIndicScript = /[\u0900-\u0D7F]/.test(combo); // Devanagari, Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam
+    const hasRupeeOrHinglish = /(₹|\brs\.?\s*\d|\binr\s*\d|\bhai\b|\bkya\b|\bmera\b|\baccha\b|\bsabse\b|\bsasta\b|\bdesi\b|\bkurti\b|\bsaree\b|\bshaadi\b)/i.test(combo);
+    if (hasIndicScript || hasRupeeOrHinglish) {
+        indiaScore += 30;
+        indiaSignals.push("Indian Language / ₹ Currency Signal");
+    }
+
+    // 5. Baseline Google India Index Discovery (+20)
+    indiaScore += 20;
+
+    // 6. Negative Foreign Signal Penalty (-65)
+    const hasForeignSignal = /(\+1\s*\d{3}|\+44\s*\d|\+92\s*3|\+62\s*8|\+971\s*5|\.pk\b|\.co\.uk\b|\.id\b|\bkarachi\b|\blahore\b|\bislamabad\b|\bjakarta\b|\blagos\b|\bnigeria\b|\bpakistan\b|\buk creator\b|\busa\b|\blondon\b|\bnyc\b)/i.test(combo);
+    if (hasForeignSignal) {
+        indiaScore = Math.max(0, indiaScore - 65);
+        indiaSignals.push("Foreign Geo Penalty");
+    }
+
+    indiaScore = Math.min(100, indiaScore);
+    const isIndianCreator = indiaScore >= 35 && !hasForeignSignal;
+    const isVerifiedHumanCreator = !isBrandOrStoreAccount && authScore >= 55;
+
+    return {
+        isIndianCreator,
+        indiaConfidenceScore: indiaScore,
+        indiaSignals,
+        isVerifiedHumanCreator,
+        isBrandOrStoreAccount,
+        authenticityScore: authScore,
+        authenticitySignals,
+    };
 }
 
 let serperKeyIdx = 0;
@@ -888,6 +1082,23 @@ export async function scoutAndAutoStoreCreator(
     const isVerified = Boolean(webProf?.isVerified || graphOrOg?.isVerified || existing?.isVerified);
     const igConnected = Boolean(existing?.igConnected || graphOrOg?.igConnected);
 
+    // 7b. Run Smart Multi-Signal Indian & Human Creator Verification
+    const verification = evaluateIndiaAndCreatorAuthenticity({
+        handle: cleanHandle,
+        fullName,
+        bio: bioText,
+        caption: reelMeta.caption,
+        primaryEmail,
+        agencyEmail,
+        phone,
+        externalUrl,
+        city,
+        state,
+        brand: brandAffinity,
+        followersCount,
+        isIgVerified: isVerified,
+    });
+
     const enrichedInsights = {
         ...(existing?.instagramInsights || {}),
         ...(graphOrOg || {}),
@@ -915,6 +1126,13 @@ export async function scoutAndAutoStoreCreator(
         scoutFitScore: fitScore,
         agencyEmail,
         allEmails,
+        indiaConfidenceScore: verification.indiaConfidenceScore,
+        indiaSignals: verification.indiaSignals,
+        isIndianCreator: verification.isIndianCreator,
+        isVerifiedHumanCreator: verification.isVerifiedHumanCreator,
+        isBrandOrStoreAccount: verification.isBrandOrStoreAccount,
+        authenticityScore: verification.authenticityScore,
+        authenticitySignals: verification.authenticitySignals,
         recentMedia:
             (webProf?.recentMedia && webProf.recentMedia.length > 0
                 ? webProf.recentMedia
@@ -923,6 +1141,11 @@ export async function scoutAndAutoStoreCreator(
             [],
         syncedAt: new Date().toISOString(),
     };
+
+    // If running automated brand discovery (not an explicit user handle query) and this is a brand store or non-Indian account, skip storing
+    if (opts.brand && !opts.forceRefresh && (verification.isBrandOrStoreAccount || !verification.isIndianCreator)) {
+        return null;
+    }
 
     // 8. Auto-Store (UPSERT) into PostgreSQL "Creator" table
     const formattedHandle = `@${cleanHandle}`;
@@ -946,7 +1169,7 @@ export async function scoutAndAutoStoreCreator(
             $6, $7, $8,
             $9, $10, $11, $12,
             $13, $14, $15, $16,
-            $17, 'TBM 4-Tier Live Scout Engine', $18, true,
+            $17, 'TBM 4-Tier Live Scout Engine', $18, $26,
             $19, $20, $21, $22,
             $23, 'SCRAPED_BASELINE', 35,
             $24::jsonb, $25, NOW(),
@@ -970,6 +1193,7 @@ export async function scoutAndAutoStoreCreator(
             "managementType" = COALESCE("Creator"."managementType", EXCLUDED."managementType"),
             "agencyName" = COALESCE("Creator"."agencyName", EXCLUDED."agencyName"),
             "isVerified" = ("Creator"."isVerified" OR EXCLUDED."isVerified"),
+            "indiaSignal" = EXCLUDED."indiaSignal",
             "instagramInsights" = EXCLUDED."instagramInsights",
             "igLastSyncedAt" = NOW(),
             "updatedAt" = NOW()
@@ -992,7 +1216,7 @@ export async function scoutAndAutoStoreCreator(
             brandAffinity,
             sampleReelUrl,
             opts.brand ? `brand:${opts.brand}` : "live_scout",
-            isVerified,
+            isVerified || verification.isVerifiedHumanCreator,
             city,
             state,
             managementType,
@@ -1000,6 +1224,7 @@ export async function scoutAndAutoStoreCreator(
             intakeToken,
             JSON.stringify(enrichedInsights),
             igConnected,
+            verification.isIndianCreator,
         ]
     ).catch((err) => {
         console.warn("[CreatorScout] Upsert warning:", err?.message);
