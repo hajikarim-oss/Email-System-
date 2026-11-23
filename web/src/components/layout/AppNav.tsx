@@ -137,11 +137,6 @@ const topItems: NavItem[] = [
         icon: LayoutDashboardIcon,
     },
     {
-        title: "Search Creator",
-        url: "/app/creators/search",
-        icon: SparklesIcon,
-    },
-    {
         title: "Inbox",
         url: "/app/unibox",
         icon: InboxIcon,

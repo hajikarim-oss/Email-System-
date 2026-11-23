@@ -6,7 +6,6 @@ import useFeatureAccess from "@/hooks/useFeatureAccess";
 
 const TABS = [
     { label: "Dashboard", path: "/dashboard", Icon: LayoutGridIcon },
-    { label: "Search Creator", path: "/search", Icon: SearchIcon },
     { label: "All Creators", path: "", Icon: UsersIcon },
     { label: "Campaigns", path: "/campaigns", Icon: SendIcon },
     { label: "Creator Replies", path: "/inbox", Icon: InboxIcon },

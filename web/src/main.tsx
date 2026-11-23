@@ -356,7 +356,7 @@ const router = createBrowserRouter([
             children: [
               { index: true, element: <CreatorsPage /> },
               { path: "dashboard", element: <CreatorDashboardPage /> },
-              { path: "search", element: <CreatorSearchPage /> },
+              { path: "search", element: <Navigate to="/app/creators" replace /> },
               {
                 path: "campaigns",
                 children: [

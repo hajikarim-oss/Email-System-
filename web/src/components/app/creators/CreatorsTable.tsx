@@ -99,12 +99,13 @@ export default function CreatorsTable() {
         overview: { total: 6445, emailReady: 4111, whatsappReady: 488, enriched: 43, referredCount: 1, newSignupsCount: 1, insightsReadyCount: 4 },
     });
 
-    // Debounce search
+    // Debounce search (snappy 160ms) + AbortController for instant live typing
+    const searchAbortRef = React.useRef<AbortController | null>(null);
     useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedSearch(search);
             setPage(1);
-        }, 300);
+        }, 160);
         return () => clearTimeout(handler);
     }, [search]);
 
@@ -125,8 +126,13 @@ export default function CreatorsTable() {
         fetchFacets();
     }, [fetchFacets]);
 
-    // Fetch Paginated Creators
+    // Fetch Paginated Creators (fast DB search: autoScout=false during typing + cancels stale requests)
     const fetchCreators = useCallback(async () => {
+        if (searchAbortRef.current) {
+            searchAbortRef.current.abort();
+        }
+        const controller = new AbortController();
+        searchAbortRef.current = controller;
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -144,26 +150,34 @@ export default function CreatorsTable() {
                 sortBy,
                 reverse: reverse ? "true" : "false",
                 verifiedIndianOnly: verifiedIndianOnly ? "true" : "false",
+                autoScout: "false",
                 limit: String(limit),
                 offset: String((page - 1) * limit),
             });
 
-            const res = await fetch(`/api/creators?${params.toString()}`, { headers: authHeaders() });
+            const res = await fetch(`/api/creators?${params.toString()}`, {
+                headers: authHeaders(),
+                signal: controller.signal,
+            });
             if (res.ok) {
                 const data = await res.json();
                 setCreators(data.creators || []);
                 setTotal(data.total || 0);
             }
         } catch (err: any) {
-            toast.error("Failed to fetch creators database");
+            if (err?.name !== "AbortError") {
+                toast.error("Failed to fetch creators database");
+            }
         } finally {
-            setLoading(false);
+            if (searchAbortRef.current === controller) {
+                setLoading(false);
+            }
         }
     }, [debouncedSearch, category, subGenre, languageFilter, cityFilter, agencyFilter, brandFilter, tier, intakeStatus, channel, source, sortBy, reverse, verifiedIndianOnly, page, limit]);
 
     // Fetch Live Brand Suggestions from Contacts DB (15,117+ brands) + Creator DB
     useEffect(() => {
-        if (!scoutPanelOpen) return;
+        if (!scoutPanelOpen && !brandDropdownOpen) return;
         const timer = setTimeout(async () => {
             try {
                 const res = await fetch(`/api/creators/brands?q=${encodeURIComponent(scoutBrand)}&limit=15`, {
@@ -176,9 +190,9 @@ export default function CreatorsTable() {
             } catch {
                 // ignore
             }
-        }, 180);
+        }, 160);
         return () => clearTimeout(timer);
-    }, [scoutBrand, scoutPanelOpen]);
+    }, [scoutBrand, scoutPanelOpen, brandDropdownOpen]);
 
     // Live Scout & Auto-Store Handler (Single Handle/URL/Reel, Brand Discovery, or Batch URLs)
     const runLiveScout = async (opts?: { customInput?: string; customUrls?: string[]; customBrand?: string; customCategory?: string; customEngine?: "both" | "instagram" | "google" }) => {
@@ -754,6 +768,157 @@ export default function CreatorsTable() {
                         <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
                             {(facets.overview.referredCount ?? 0).toLocaleString()}
                         </span>
+                    </div>
+                </div>
+
+                {/* Unified Quick Command Bar (Brand, IG URL / @Handle / Keyword, Category, City + DB Filter / Scout Live) */}
+                <div className="p-3 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900/50">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                        {/* Brand Name with 15,117+ DB Brands Autocomplete */}
+                        <div className="md:col-span-3 relative">
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10.5px] font-semibold text-slate-700 dark:text-zinc-300">
+                                    Brand Name (DB or Any New Brand)
+                                </label>
+                                <span className="text-[9.5px] text-slate-400">15,117+ DB Brands</span>
+                            </div>
+                            <input
+                                type="text"
+                                value={scoutBrand}
+                                onFocus={() => setBrandDropdownOpen(true)}
+                                onBlur={() => setTimeout(() => setBrandDropdownOpen(false), 180)}
+                                onChange={(e) => {
+                                    setScoutBrand(e.target.value);
+                                    setBrandFilter(e.target.value.trim() || "all");
+                                    setPage(1);
+                                }}
+                                placeholder="e.g. Atomberg, Nykaa, Hyphen..."
+                                className="w-full h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                            />
+                            {brandDropdownOpen && dbBrandSuggestions.length > 0 && (
+                                <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-lg max-h-48 overflow-y-auto py-1">
+                                    {dbBrandSuggestions.map((b) => (
+                                        <button
+                                            key={b.name}
+                                            type="button"
+                                            onMouseDown={() => {
+                                                setScoutBrand(b.name);
+                                                setBrandFilter(b.name);
+                                                setBrandDropdownOpen(false);
+                                                setPage(1);
+                                            }}
+                                            className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center justify-between gap-2 cursor-pointer"
+                                        >
+                                            <span className="font-medium text-slate-800 dark:text-zinc-200 truncate">{b.name}</span>
+                                            <span className="text-[10px] text-slate-400 shrink-0">
+                                                {b.creatorCount > 0 ? `${b.creatorCount} creators` : `${b.totalContacts} contacts`}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Creator Keyword, Niche, @Handle or Instagram URL */}
+                        <div className="md:col-span-3">
+                            <label className="text-[10.5px] font-semibold text-slate-700 dark:text-zinc-300 block mb-1">
+                                Creator Keyword, @Handle or IG URL
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && search.trim()) {
+                                            setDebouncedSearch(search.trim());
+                                            setPage(1);
+                                        }
+                                    }}
+                                    placeholder="e.g. @anshuffle, instagram.com/..., skincare"
+                                    className="w-full h-8 pl-2.5 pr-7 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                                />
+                                {search && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSearch("");
+                                            setDebouncedSearch("");
+                                            setPage(1);
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    >
+                                        <XIcon className="w-3 h-3" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Vertical Category */}
+                        <div className="md:col-span-2">
+                            <label className="text-[10.5px] font-semibold text-slate-700 dark:text-zinc-300 block mb-1">
+                                Vertical Category
+                            </label>
+                            <select
+                                value={category}
+                                onChange={(e) => {
+                                    setCategory(e.target.value);
+                                    setPage(1);
+                                }}
+                                className="w-full h-8 px-2 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-800 dark:text-zinc-200 cursor-pointer"
+                            >
+                                <option value="all">All Categories</option>
+                                {(facets.categories || []).map((cat: any) => (
+                                    <option key={cat.category} value={cat.category}>
+                                        {cat.category} ({cat.count})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* City / Region */}
+                        <div className="md:col-span-2">
+                            <label className="text-[10.5px] font-semibold text-slate-700 dark:text-zinc-300 block mb-1">
+                                City / Region (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                value={cityFilter === "all" ? "" : cityFilter}
+                                onChange={(e) => {
+                                    setCityFilter(e.target.value.trim() || "all");
+                                    setPage(1);
+                                }}
+                                placeholder="e.g. Mumbai, Delhi, Bangalore"
+                                className="w-full h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                            />
+                        </div>
+
+                        {/* DB Filter + Scout Live Buttons */}
+                        <div className="md:col-span-2 flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setDebouncedSearch(search.trim());
+                                    setPage(1);
+                                    fetchCreators();
+                                }}
+                                className="h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 text-slate-700 dark:text-zinc-200 text-xs font-medium shrink-0 cursor-pointer"
+                            >
+                                DB Filter
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isScouting}
+                                onClick={() => {
+                                    const targetInput = search.trim() || scoutInput.trim();
+                                    runLiveScout(targetInput || undefined, scoutBrand.trim() || undefined);
+                                }}
+                                className="flex-1 h-8 px-2.5 rounded-md bg-slate-900 hover:bg-black text-white dark:bg-white dark:text-slate-900 text-xs font-semibold flex items-center justify-center gap-1 shadow-2xs disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                            >
+                                <SparklesIcon className={`w-3.5 h-3.5 text-[#FFE600] ${isScouting ? "animate-spin" : ""}`} />
+                                <span>{isScouting ? "Scouting..." : "Scout Live"}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
