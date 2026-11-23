@@ -609,7 +609,7 @@ export function evaluateIndiaAndCreatorAuthenticity(params: {
         extLower.includes(".in/") ||
         extLower.endsWith(".in") ||
         (params.agencyEmail && (params.agencyEmail.endsWith(".in") || params.agencyEmail.endsWith(".co.in"))) ||
-        /\b(wishlink\.com|hypd\.store|lehlah\.club|rigi\.club|cosmofeed\.com|topmate\.io|monk-e\.in|opraahfx\.com|cloutpocketaces\.com|whackedout\.in|nofiltr\.social|collectiveartists\.com)\b/i.test(combo)
+        /\b(theboredmonkey|theboredmonkeyofficial|tbmoutreach|wishlink\.com|hypd\.store|lehlah\.club|rigi\.club|cosmofeed\.com|topmate\.io|monk-e\.in|opraahfx\.com|cloutpocketaces\.com|whackedout\.in|nofiltr\.social|collectiveartists\.com)\b/i.test(combo)
     ) {
         indiaScore += 40;
         indiaSignals.push("Indian Domain / Creator Stack");

@@ -283,15 +283,11 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     });
 
     if (params.verifiedIndianOnly) {
-        const staleNonIndianIds: string[] = [];
+        // Trust PostgreSQL indiaSignal=true (verified by DB audit & gpt-4o-mini) and only filter out obvious brand stores
         enrichedCreators = enrichedCreators.filter((c: any) => {
-            const valid = Boolean(c.isIndianCreator && !c.isBrandOrStoreAccount && c.indiaConfidenceScore >= 30);
-            if (!valid && c.id) staleNonIndianIds.push(c.id);
-            return valid;
+            if (c.isBrandOrStoreAccount) return false;
+            return Boolean(c.indiaSignal === true || (c.isIndianCreator && c.indiaConfidenceScore >= 30));
         });
-        if (staleNonIndianIds.length > 0) {
-            query(`UPDATE "Creator" SET "indiaSignal" = false WHERE id = ANY($1::text[])`, [staleNonIndianIds]).catch(() => {});
-        }
     }
 
     return {
