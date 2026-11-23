@@ -49,13 +49,27 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
     const handleSyncIg = async () => {
         setSyncingIg(true);
         try {
-            const tok = creator.intakeToken || creator.id || "new";
-            const res = await fetch(`/api/creator/intake/${encodeURIComponent(tok)}/ig-lookup?handle=${encodeURIComponent(cleanHandle)}`);
-            if (!res.ok) throw new Error("Failed to sync Instagram insights");
-            const data = await res.json();
-            setLocalIgInsights(data);
-            if (onUpdate) onUpdate({ ...creator, instagramInsights: data, followersRaw: data.followersRaw || creator.followersRaw });
-            toast.success("Instagram profile & verified insights refreshed!");
+            const res = await fetch(`/api/creators/${encodeURIComponent(creator.id)}/sync-instagram`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ handle: cleanHandle }),
+            });
+            if (!res.ok) {
+                const tok = creator.intakeToken || creator.id || "new";
+                const fallbackRes = await fetch(`/api/creator/intake/${encodeURIComponent(tok)}/ig-lookup?handle=${encodeURIComponent(cleanHandle)}`);
+                if (!fallbackRes.ok) throw new Error("Failed to sync Instagram insights");
+                const data = await fallbackRes.json();
+                setLocalIgInsights(data);
+                if (onUpdate) onUpdate({ ...creator, instagramInsights: data, followersRaw: data.followersRaw || creator.followersRaw });
+                toast.success("Instagram profile & verified insights refreshed!");
+                return;
+            }
+            const payload = await res.json();
+            const updatedCreator = payload.creator || creator;
+            const insightsData = payload.insights || updatedCreator.instagramInsights || {};
+            setLocalIgInsights(insightsData);
+            if (onUpdate) onUpdate({ ...creator, ...updatedCreator, instagramInsights: insightsData });
+            toast.success("Insights, engagement metrics & contact endpoints synced and auto-stored!");
         } catch (err: any) {
             toast.error(err?.message || "Unable to sync Instagram insights");
         } finally {
@@ -435,12 +449,22 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                 <span className="font-semibold text-slate-800 dark:text-zinc-200 block">Direct Contact Details</span>
                                 <div className="flex items-center justify-between text-slate-600 dark:text-zinc-400">
                                     <span className="flex items-center gap-1.5">
-                                        <MailIcon className="w-3.5 h-3.5" /> Email
+                                        <MailIcon className="w-3.5 h-3.5" /> Primary Email
                                     </span>
                                     <span className="font-mono text-slate-900 dark:text-white font-medium">
                                         {creator.primaryEmail || creator.email || "Not captured yet"}
                                     </span>
                                 </div>
+                                {(creator.agencyEmail || igData?.agencyEmail) && (
+                                    <div className="flex items-center justify-between text-slate-600 dark:text-zinc-400">
+                                        <span className="flex items-center gap-1.5">
+                                            <BriefcaseIcon className="w-3.5 h-3.5 text-purple-600" /> Agency / Talent Desk
+                                        </span>
+                                        <span className="font-mono text-purple-700 dark:text-purple-300 font-medium">
+                                            {creator.agencyEmail || igData?.agencyEmail}
+                                        </span>
+                                    </div>
+                                )}
                                 <div className="flex items-center justify-between text-slate-600 dark:text-zinc-400">
                                     <span className="flex items-center gap-1.5">
                                         <PhoneIcon className="w-3.5 h-3.5" /> WhatsApp / Phone
@@ -459,6 +483,41 @@ export default function CreatorDetailDrawer({ creator, onClose, onUpdate }: Crea
                                         <span className="text-slate-400">Pending intake form</span>
                                     )}
                                 </div>
+                                {(creator.externalUrl || igData?.externalUrl || igData?.website) && (
+                                    <div className="flex items-center justify-between text-slate-600 dark:text-zinc-400 pt-1 border-t border-slate-200/60 dark:border-zinc-800">
+                                        <span className="flex items-center gap-1.5">
+                                            <ExternalLinkIcon className="w-3.5 h-3.5 text-indigo-500" /> Linktree / Bio Link
+                                        </span>
+                                        <a
+                                            href={
+                                                String(creator.externalUrl || igData?.externalUrl || igData?.website).startsWith("http")
+                                                    ? (creator.externalUrl || igData?.externalUrl || igData?.website)
+                                                    : `https://${creator.externalUrl || igData?.externalUrl || igData?.website}`
+                                            }
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline truncate max-w-[240px]"
+                                        >
+                                            {String(creator.externalUrl || igData?.externalUrl || igData?.website).replace(/^https?:\/\//, "")}
+                                        </a>
+                                    </div>
+                                )}
+                                {creator.sampleReelUrl && (
+                                    <div className="flex items-center justify-between text-slate-600 dark:text-zinc-400 pt-1 border-t border-slate-200/60 dark:border-zinc-800">
+                                        <span className="flex items-center gap-1.5">
+                                            <VideoIcon className="w-3.5 h-3.5 text-rose-500" /> Indexed Reel
+                                        </span>
+                                        <a
+                                            href={creator.sampleReelUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="font-medium text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1"
+                                        >
+                                            <span>Watch Reel</span>
+                                            <ExternalLinkIcon className="w-3 h-3" />
+                                        </a>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

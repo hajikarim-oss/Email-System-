@@ -23,6 +23,10 @@ import {
     getInstagramOAuthConfig,
     completeInstagramOAuthCallback,
 } from "../../server/instagram_graph";
+import {
+    scoutAndAutoStoreCreator,
+    discoverCreatorsByBrandOrKeyword,
+} from "../../server/creator_scout";
 
 const avatarCache = new Map<string, { buf: Buffer; type: string }>();
 
@@ -75,7 +79,7 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
     const method = req.method?.toUpperCase() || "GET";
 
     try {
-        // Protect internal /api/creators endpoints so only Master accounts can access them.
+        // Protect internal /api/creators endpoints so any authenticated team member can access them.
         // External creator intake form routes (/api/creator/intake/:token, /api/creator/intake/new/submit, etc.) remain public.
         const isPublicIntakeRoute =
             pathname.startsWith("/api/creator/intake") ||
@@ -87,10 +91,64 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                 ? authHeader.slice(7).trim()
                 : "";
             const caller = await resolveToken(bearerToken || undefined);
-            if (!caller || caller.role !== "MASTER") {
-                return sendJson(res, 403, {
-                    error: "forbidden",
-                    message: "The Creators database is restricted to Troops Workspace Masters.",
+            if (!caller) {
+                return sendJson(res, 401, {
+                    error: "unauthorized",
+                    message: "Please sign in to access Creator Scouting & Database.",
+                });
+            }
+        }
+
+        // 0. Live Creator Scout & Harvester Endpoint (/api/creators/scout)
+        if (pathname === "/api/creators/scout" || pathname === "/api/v1/creators/scout") {
+            const workspaceId = url.searchParams.get("workspaceId") || "org_troops_outreach";
+            const proto = (req.headers["x-forwarded-proto"] as string) || (req.headers.host?.includes("localhost") ? "http" : "https");
+            const appOrigin = `${proto}://${req.headers.host || "tbmoutreach.tech"}`;
+
+            if (method === "POST") {
+                const body = await parseBody(req);
+                const singleInput = body.input || body.handle || body.url || "";
+                const urls: string[] = Array.isArray(body.urls)
+                    ? body.urls
+                    : typeof body.urls === "string"
+                      ? body.urls.split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean)
+                      : [];
+
+                if (singleInput && urls.length === 0 && !body.brand && !body.keyword) {
+                    const result = await scoutAndAutoStoreCreator(String(singleInput), {
+                        workspaceId,
+                        category: body.category,
+                        brand: body.brand,
+                        forceRefresh: true,
+                        appOrigin,
+                    });
+                    if (!result) {
+                        return sendJson(res, 404, {
+                            status: "error",
+                            message: "Could not resolve an Instagram handle or profile from the provided input.",
+                        });
+                    }
+                    return sendJson(res, 200, {
+                        status: "ok",
+                        creators: [result],
+                        newlyScoutedCount: result.isNewInDb ? 1 : 0,
+                        emailReadyCount: result.primaryEmail ? 1 : 0,
+                    });
+                }
+
+                const discovered = await discoverCreatorsByBrandOrKeyword({
+                    brand: body.brand,
+                    keyword: body.keyword,
+                    category: body.category,
+                    urls: singleInput ? [singleInput, ...urls] : urls,
+                    limit: Number(body.limit) || 15,
+                    workspaceId,
+                    appOrigin,
+                });
+
+                return sendJson(res, 200, {
+                    status: "ok",
+                    ...discovered,
                 });
             }
         }
@@ -378,23 +436,42 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
             }
         }
 
-        // 4. Single Creator by ID or Sync Instagram
+        // 4. Single Creator by ID or On-Demand Sync Instagram + Deep Contact Mining
         if ((pathname.startsWith("/api/creators/") || pathname.startsWith("/api/v1/creators/")) && pathname.split("/").length === 5 && pathname.endsWith("/sync-instagram") && method === "POST") {
             const parts = pathname.split("/").filter(Boolean);
             const id = parts[parts.length - 2];
             const body = await parseBody(req);
-            const insights = await lookupAndSyncInstagramProfile(undefined, {
-                token: id,
-                handle: body.handle || "",
-                markConnected: Boolean(body.connect),
-            });
+            const existing = await getCreatorById(undefined, id);
+            const handleToSync = body.handle || existing?.handle || "";
+            const proto = (req.headers["x-forwarded-proto"] as string) || (req.headers.host?.includes("localhost") ? "http" : "https");
+            const appOrigin = `${proto}://${req.headers.host || "tbmoutreach.tech"}`;
+
+            const [insights, scouted] = await Promise.all([
+                lookupAndSyncInstagramProfile(undefined, {
+                    token: id,
+                    handle: handleToSync,
+                    markConnected: Boolean(body.connect),
+                }),
+                handleToSync
+                    ? scoutAndAutoStoreCreator(handleToSync, {
+                          workspaceId: existing?.workspaceId || "org_troops_outreach",
+                          category: existing?.category,
+                          brand: existing?.brandAffinity,
+                          forceRefresh: true,
+                          appOrigin,
+                      }).catch(() => null)
+                    : Promise.resolve(null),
+            ]);
             const updatedCreator = await getCreatorById(undefined, id);
-            return sendJson(res, 200, { creator: updatedCreator, insights });
+            return sendJson(res, 200, {
+                creator: updatedCreator || scouted,
+                insights: scouted?.instagramInsights || insights,
+            });
         }
 
         if ((pathname.startsWith("/api/creators/") || pathname.startsWith("/api/v1/creators/")) && pathname.split("/").length === 4) {
             const id = pathname.split("/").pop();
-            if (id && id !== "facets" && id !== "templates") {
+            if (id && id !== "facets" && id !== "templates" && id !== "scout") {
                 const creator = await getCreatorById(undefined, id);
                 if (!creator) return sendJson(res, 404, { error: "Creator not found" });
                 return sendJson(res, 200, creator);
@@ -407,6 +484,7 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                 workspaceId: url.searchParams.get("workspaceId") || "org_troops_outreach",
                 search: url.searchParams.get("search") || url.searchParams.get("query") || "",
                 category: url.searchParams.get("category") || "",
+                brand: url.searchParams.get("brand") || "",
                 tier: (url.searchParams.get("tier") as any) || "all",
                 intakeStatus: (url.searchParams.get("intakeStatus") as any) || "all",
                 channel: (url.searchParams.get("channel") as any) || "all",
@@ -415,6 +493,7 @@ export default async function creatorsHandler(req: IncomingMessage, res: ServerR
                 reverse: url.searchParams.get("reverse") === "true",
                 limit: parseInt(url.searchParams.get("limit") || "50", 10),
                 offset: parseInt(url.searchParams.get("offset") || "0", 10),
+                autoScoutIfEmpty: url.searchParams.get("autoScout") !== "false",
             };
 
             const result = await searchCreators(undefined, params);

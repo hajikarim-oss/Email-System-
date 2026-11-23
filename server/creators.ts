@@ -1,11 +1,13 @@
 import type { QueryFn } from "./types";
 import { pgQuery } from "./pg";
 import { ensureInstagramColumns } from "./instagram_graph";
+import { scoutAndAutoStoreCreator } from "./creator_scout";
 
 export interface CreatorSearchParams {
     workspaceId?: string;
     search?: string;
     category?: string;
+    brand?: string;
     tier?: "all" | "nano" | "micro" | "mid" | "macro" | "mega";
     intakeStatus?: "all" | "SCRAPED_BASELINE" | "INVITATION_SENT" | "FORM_OPENED" | "PARTIALLY_FILLED" | "COMPLETED" | "REFERRED";
     channel?: "all" | "email" | "phone" | "dual";
@@ -14,6 +16,7 @@ export interface CreatorSearchParams {
     reverse?: boolean;
     limit?: number;
     offset?: number;
+    autoScoutIfEmpty?: boolean;
 }
 
 export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSearchParams) {
@@ -27,9 +30,35 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     let pIdx = 2;
 
     if (params.search && params.search.trim()) {
-        const s = `%${params.search.trim().toLowerCase()}%`;
-        conditions.push(`(lower("handle") LIKE $${pIdx} OR lower("fullName") LIKE $${pIdx} OR lower("publicBio") LIKE $${pIdx} OR lower("primaryEmail") LIKE $${pIdx} OR lower("discoveryKeyword") LIKE $${pIdx})`);
+        const rawSearch = params.search.trim();
+        // If user pasted an Instagram URL, extract the handle or shortcode for DB matching first
+        const handleFromUrl = rawSearch.match(/instagram\.com\/(?:reel\/|p\/)?([A-Za-z0-9_.]+)/i)?.[1];
+        const cleanTerm = (handleFromUrl && !["reel", "reels", "p", "explore"].includes(handleFromUrl.toLowerCase())
+            ? handleFromUrl
+            : rawSearch
+        ).toLowerCase();
+        const s = `%${cleanTerm}%`;
+        conditions.push(`(
+            lower("handle") LIKE $${pIdx}
+            OR lower("fullName") LIKE $${pIdx}
+            OR lower(COALESCE("publicBio", '')) LIKE $${pIdx}
+            OR lower(COALESCE("primaryEmail", '')) LIKE $${pIdx}
+            OR lower(COALESCE("discoveryKeyword", '')) LIKE $${pIdx}
+            OR lower(COALESCE("brandAffinity", '')) LIKE $${pIdx}
+            OR lower(COALESCE("category", '')) LIKE $${pIdx}
+            OR lower(COALESCE("city", '')) LIKE $${pIdx}
+            OR lower(COALESCE("state", '')) LIKE $${pIdx}
+            OR lower(COALESCE("agencyName", '')) LIKE $${pIdx}
+            OR lower(COALESCE("sampleReelUrl", '')) LIKE $${pIdx}
+        )`);
         values.push(s);
+        pIdx++;
+    }
+
+    if (params.brand && params.brand !== "all" && params.brand.trim() !== "") {
+        const b = `%${params.brand.trim().toLowerCase()}%`;
+        conditions.push(`(lower(COALESCE("brandAffinity", '')) LIKE $${pIdx} OR lower(COALESCE("discoveryKeyword", '')) LIKE $${pIdx} OR lower(COALESCE("publicBio", '')) LIKE $${pIdx})`);
+        values.push(b);
         pIdx++;
     }
 
@@ -94,10 +123,17 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
         : `"intakeCompletionPct" DESC, "followersCount" DESC`;
 
     const countSql = `SELECT count(*)::int as total FROM "Creator" WHERE ${whereClause}`;
+    // Smart Outreach-Ready Projection: omits multi-hundred-KB raw base64 avatar blobs from list responses
+    // and replaces them with the fast cached avatar endpoint URL.
     const dataSql = `
         SELECT 
             "id", "workspaceId", "externalCreatorId", "handle", "platform",
-            "fullName", "profileUrl", "avatarUrl", "primaryEmail", "phone",
+            "fullName", "profileUrl",
+            CASE
+                WHEN "avatarUrl" LIKE 'data:image/%' THEN ('/api/creator/intake/' || COALESCE("intakeToken", "id") || '/avatar')
+                ELSE "avatarUrl"
+            END AS "avatarUrl",
+            "primaryEmail", "phone",
             "followersRaw", "followersCount", "followingCount", "postsCount",
             "publicBio", "category", "subGenres", "languages", "brandAffinity",
             "sampleReelUrl", "matchedKeywords", "isVerified", "indiaSignal",
@@ -119,10 +155,50 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
         query<any>(dataSql, [...values, limit, offset]),
     ]);
 
-    const total = countRows?.[0]?.total || 0;
+    let total = countRows?.[0]?.total || 0;
+    let rows = dataRows || [];
+
+    // Auto-Scout on Search: if the user searched an Instagram URL, Reel link, or @handle not yet in DB,
+    // automatically scout it live, store it in PostgreSQL, and return it!
+    if (total === 0 && offset === 0 && params.autoScoutIfEmpty !== false && params.search && params.search.trim()) {
+        const raw = params.search.trim();
+        const looksLikeUrlOrHandle =
+            raw.includes("instagram.com/") ||
+            raw.startsWith("@") ||
+            (/^[a-zA-Z0-9_.]{3,30}$/.test(raw) && (raw.includes("_") || raw.includes(".")));
+        if (looksLikeUrlOrHandle) {
+            const scouted = await scoutAndAutoStoreCreator(raw, {
+                workspaceId,
+                category: params.category && params.category !== "all" ? params.category : undefined,
+                brand: params.brand && params.brand !== "all" ? params.brand : undefined,
+                query,
+            }).catch(() => null);
+            if (scouted && (scouted.followersCount > 0 || scouted.primaryEmail || scouted.publicBio)) {
+                rows = [scouted];
+                total = 1;
+            }
+        }
+    }
+
+    const appOrigin = (process.env.APP_URL || "https://tbmoutreach.tech").replace(/\/$/, "");
+    const enrichedCreators = rows.map((r: any) => {
+        const ig = (r.instagramInsights && typeof r.instagramInsights === "object") ? r.instagramInsights : {};
+        const tok = r.intakeToken || r.id;
+        return {
+            ...r,
+            formLink: `${appOrigin}/creator/intake/${encodeURIComponent(tok)}`,
+            engagementRatePct: r.engagementRatePct ?? ig.engagementRatePct ?? null,
+            avgLikes: r.avgLikes ?? ig.avgLikes ?? null,
+            avgComments: r.avgComments ?? ig.avgComments ?? null,
+            avgReelViews: r.avgReelViews ?? ig.avgReelViews ?? null,
+            scoutFitScore: r.scoutFitScore ?? ig.scoutFitScore ?? (r.primaryEmail ? 75 : 40),
+            externalUrl: r.externalUrl ?? ig.externalUrl ?? ig.website ?? null,
+            agencyEmail: r.agencyEmail ?? ig.agencyEmail ?? null,
+        };
+    });
 
     return {
-        creators: dataRows,
+        creators: enrichedCreators,
         total,
         page: Math.floor(offset / limit) + 1,
         limit,
@@ -131,7 +207,7 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
 }
 
 export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "org_troops_outreach") {
-    const [catRows, tierRows, statusRows, countsRow, recentEnrichedRows] = await Promise.all([
+    const [catRows, tierRows, statusRows, countsRow, recentEnrichedRows, brandRows] = await Promise.all([
         query<{
             category: string;
             count: number;
@@ -184,7 +260,8 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
                 count(*) FILTER (WHERE "intakeStatus" IN ('FORM_OPENED', 'VIEWED', 'PARTIALLY_FILLED', 'COMPLETED'))::int as form_opened,
                 count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL OR "activeCampaignId" IS NOT NULL OR "intakeStatus" IN ('INVITATION_SENT', 'SENT', 'FORM_OPENED', 'VIEWED', 'PARTIALLY_FILLED', 'COMPLETED'))::int as contacted,
                 count(*) FILTER (WHERE "discoveryKeyword" LIKE 'referral:%')::int as referred_count,
-                count(*) FILTER (WHERE "discoveryKeyword" LIKE 'referral:%' OR "discoveryKeyword" IN ('direct_submission', 'organic_referral'))::int as new_signups_count
+                count(*) FILTER (WHERE "discoveryKeyword" LIKE 'referral:%' OR "discoveryKeyword" IN ('direct_submission', 'organic_referral'))::int as new_signups_count,
+                count(*) FILTER (WHERE "igConnected" = true OR ("instagramInsights" IS NOT NULL AND "instagramInsights" <> '{}'::jsonb))::int as insights_ready_count
             FROM "Creator"
             WHERE "workspaceId" = $1
         `, [workspaceId]),
@@ -199,6 +276,15 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
             ORDER BY COALESCE("lastIntakeActivityAt", "updatedAt") DESC
             LIMIT 25
         `, [workspaceId]),
+
+        query<{ brand: string; count: number }>(`
+            SELECT "brandAffinity" as brand, count(*)::int as count
+            FROM "Creator"
+            WHERE "workspaceId" = $1 AND "brandAffinity" IS NOT NULL AND "brandAffinity" <> ''
+            GROUP BY 1
+            ORDER BY count DESC
+            LIMIT 30
+        `, [workspaceId]).catch(() => []),
     ]);
 
     const total = countsRow?.[0]?.total || 0;
@@ -209,6 +295,7 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
     const contacted = countsRow?.[0]?.contacted || 0;
     const referredCount = countsRow?.[0]?.referred_count || 0;
     const newSignupsCount = countsRow?.[0]?.new_signups_count || 0;
+    const insightsReadyCount = countsRow?.[0]?.insights_ready_count || 0;
 
     return {
         total,
@@ -219,7 +306,9 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
         contactedCount: contacted,
         referredCount,
         newSignupsCount,
+        insightsReadyCount,
         categories: catRows,
+        brands: brandRows || [],
         tiers: tierRows,
         statuses: statusRows,
         recentEnriched: recentEnrichedRows || [],
@@ -232,6 +321,7 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
             contacted,
             referredCount,
             newSignupsCount,
+            insightsReadyCount,
         },
     };
 }

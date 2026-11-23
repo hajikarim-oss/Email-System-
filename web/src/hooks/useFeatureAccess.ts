@@ -117,7 +117,7 @@ export default function useFeatureAccess(): FeatureAccess {
         currentOrganization?.id === "org_troops_outreach" ||
         currentOrganization?.slug === "troops-outreach" ||
         isTroopsMasterUser;
-    const canViewCreators = isMaster && (isTroopsWorkspace || isSimranManager);
+    const canViewCreators = Boolean(user);
 
     return {
         loading: false,

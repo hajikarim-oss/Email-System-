@@ -57,12 +57,24 @@ export default function CreatorsTable() {
     const [search, setSearch] = useState(searchParams.get("search") || "");
     const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") || "");
     const [category, setCategory] = useState(searchParams.get("category") || "all");
+    const [brandFilter, setBrandFilter] = useState(searchParams.get("brand") || "all");
     const [tier, setTier] = useState<string>(searchParams.get("tier") || "all");
     const [intakeStatus, setIntakeStatus] = useState<string>(searchParams.get("intakeStatus") || "all");
     const [channel, setChannel] = useState<string>(searchParams.get("channel") || "all");
     const [source, setSource] = useState<string>(searchParams.get("source") || "all");
     const [sortBy, setSortBy] = useState<string>("default");
     const [reverse, setReverse] = useState(false);
+
+    // Live Creator Scout Engine states
+    const [scoutPanelOpen, setScoutPanelOpen] = useState(false);
+    const [batchModalOpen, setBatchModalOpen] = useState(false);
+    const [scoutInput, setScoutInput] = useState("");
+    const [scoutBrand, setScoutBrand] = useState("");
+    const [scoutCategory, setScoutCategory] = useState("Skincare");
+    const [batchUrlsText, setBatchUrlsText] = useState("");
+    const [isScouting, setIsScouting] = useState(false);
+    const [scoutStepText, setScoutStepText] = useState("");
+    const [syncingRowId, setSyncingRowId] = useState<string | null>(null);
 
     // Selected rows
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -73,9 +85,10 @@ export default function CreatorsTable() {
     // Facets / Aggregation counts
     const [facets, setFacets] = useState<any>({
         categories: [],
+        brands: [],
         tiers: [],
         statuses: [],
-        overview: { total: 6442, emailReady: 4111, whatsappReady: 474, enriched: 43, referredCount: 1, newSignupsCount: 1 },
+        overview: { total: 6445, emailReady: 4111, whatsappReady: 488, enriched: 43, referredCount: 1, newSignupsCount: 1, insightsReadyCount: 4 },
     });
 
     // Debounce search
@@ -111,6 +124,7 @@ export default function CreatorsTable() {
             const params = new URLSearchParams({
                 search: debouncedSearch,
                 category: category === "all" ? "" : category,
+                brand: brandFilter === "all" ? "" : brandFilter,
                 tier: tier === "all" ? "" : tier,
                 intakeStatus: intakeStatus === "all" ? "" : intakeStatus,
                 channel: channel === "all" ? "" : channel,
@@ -132,7 +146,111 @@ export default function CreatorsTable() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, category, tier, intakeStatus, channel, source, sortBy, reverse, page, limit]);
+    }, [debouncedSearch, category, brandFilter, tier, intakeStatus, channel, source, sortBy, reverse, page, limit]);
+
+    // Live Scout & Auto-Store Handler (Single Handle/URL/Reel, Brand Discovery, or Batch URLs)
+    const runLiveScout = async (opts?: { customInput?: string; customUrls?: string[]; customBrand?: string; customCategory?: string }) => {
+        if (isScouting) return;
+        const inputVal = (opts?.customInput ?? scoutInput).trim();
+        const brandVal = (opts?.customBrand ?? scoutBrand).trim();
+        const catVal = opts?.customCategory ?? scoutCategory;
+        const urlsList = opts?.customUrls || [];
+
+        if (!inputVal && !brandVal && urlsList.length === 0) {
+            toast.error("Enter an @handle, Instagram Reel/Profile URL, or Brand name to scout.");
+            return;
+        }
+
+        setIsScouting(true);
+        setScoutStepText("1/4 Resolving Instagram handle / Reel shortcode...");
+        const stepTimer1 = setTimeout(() => setScoutStepText("2/4 Fetching profile metrics & Instagram Graph metadata..."), 1100);
+        const stepTimer2 = setTimeout(() => setScoutStepText("3/4 Deep mining Bio, Linktree & Serper talent agency contacts..."), 2400);
+        const stepTimer3 = setTimeout(() => setScoutStepText("4/4 Auto-storing creator & generating intake form link..."), 3600);
+
+        try {
+            const res = await fetch("/api/creators/scout", {
+                method: "POST",
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    input: inputVal || undefined,
+                    urls: urlsList.length > 0 ? urlsList : undefined,
+                    brand: brandVal || undefined,
+                    category: catVal && catVal !== "all" ? catVal : undefined,
+                    limit: 15,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.status === "error") {
+                throw new Error(data.message || "Could not scout creator from provided input.");
+            }
+            const found: any[] = data.creators || [];
+            if (found.length > 0) {
+                toast.success(
+                    `Scouted & auto-stored ${found.length} creator${found.length === 1 ? "" : "s"} (${data.emailReadyCount || 0} with verified email)!`
+                );
+                // Prepend newly scouted creators to current view and refresh facets
+                setCreators((prev) => {
+                    const existingIds = new Set(found.map((f) => f.id));
+                    return [...found, ...prev.filter((p) => !existingIds.has(p.id))];
+                });
+                fetchFacets();
+                if (found.length === 1) {
+                    setSelectedCreator(found[0]);
+                }
+                setScoutInput("");
+                setBatchModalOpen(false);
+                setBatchUrlsText("");
+            } else {
+                toast.error("No new creators found for that query.");
+            }
+        } catch (err: any) {
+            toast.error(err?.message || "Live scouting failed");
+        } finally {
+            clearTimeout(stepTimer1);
+            clearTimeout(stepTimer2);
+            clearTimeout(stepTimer3);
+            setIsScouting(false);
+            setScoutStepText("");
+        }
+    };
+
+    // On-Demand Row Insights & Contact Sync (Post-Facebook Approval / When Required)
+    const syncRowInsights = async (creator: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (syncingRowId) return;
+        setSyncingRowId(creator.id);
+        try {
+            const res = await fetch(`/api/creators/${encodeURIComponent(creator.id)}/sync-instagram`, {
+                method: "POST",
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: JSON.stringify({ handle: creator.handle }),
+            });
+            if (!res.ok) throw new Error("Failed to fetch insights");
+            const data = await res.json();
+            const updated = data.creator;
+            if (updated) {
+                setCreators((prev) =>
+                    prev.map((c) =>
+                        c.id === creator.id
+                            ? {
+                                  ...c,
+                                  ...updated,
+                                  engagementRatePct: updated.instagramInsights?.engagementRatePct ?? c.engagementRatePct,
+                                  avgLikes: updated.instagramInsights?.avgLikes ?? c.avgLikes,
+                                  avgReelViews: updated.instagramInsights?.avgReelViews ?? c.avgReelViews,
+                                  scoutFitScore: updated.instagramInsights?.scoutFitScore ?? c.scoutFitScore,
+                              }
+                            : c
+                    )
+                );
+            }
+            toast.success(`Fetched live insights & contacts for ${creator.handle}!`);
+        } catch {
+            toast.error(`Could not refresh insights for ${creator.handle}`);
+        } finally {
+            setSyncingRowId(null);
+        }
+    };
 
     useEffect(() => {
         fetchCreators();
@@ -251,17 +369,37 @@ export default function CreatorsTable() {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                            <span>Creator Scouting & Database</span>
+                            <span>Creator Scouting &amp; Intelligence Database</span>
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#FFE600] text-slate-900">
-                                Troops Workspace
+                                4-Tier Live Harvester
                             </span>
                         </h1>
                         <p className="text-xs text-slate-500 pt-0.5">
-                            Scouted influencer database with dynamic Bumble-style intake and automatic profile enrichment.
+                            Search 6,445+ scouted creators, live-scout any Instagram Reel/Profile URL or Brand, auto-store contacts &amp; fetch insights on demand.
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => setScoutPanelOpen(!scoutPanelOpen)}
+                            className={`h-8 px-3 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                scoutPanelOpen
+                                    ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900"
+                                    : "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800"
+                            }`}
+                        >
+                            <SparklesIcon className="w-3.5 h-3.5" />
+                            <span>{scoutPanelOpen ? "Hide Live Scout" : "Live Scout & Auto-Store"}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setBatchModalOpen(true)}
+                            className="h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 hover:bg-slate-50 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                        >
+                            <UploadIcon className="w-3.5 h-3.5" />
+                            <span>Batch Ingest URLs</span>
+                        </button>
                         <button
                             onClick={() => {
                                 fetchCreators();
@@ -288,6 +426,147 @@ export default function CreatorsTable() {
                         </button>
                     </div>
                 </div>
+
+                {/* Live Creator Scout & Auto-Store Command Bar */}
+                {scoutPanelOpen && (
+                    <div className="p-4 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-gradient-to-r from-purple-50/60 via-white to-amber-50/40 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-900 space-y-3 shadow-2xs">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div>
+                                <h2 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                    <SparklesIcon className="w-3.5 h-3.5 text-purple-600" />
+                                    <span>4-Tier Creator Scouting &amp; Contact Mining Engine</span>
+                                </h2>
+                                <p className="text-[11px] text-slate-500">
+                                    Paste any Instagram @handle, Profile URL, or Reel URL — or enter a Brand name to discover &amp; auto-store creators with verified emails, WhatsApp, and intake form links.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
+                                <span className="text-slate-400 font-medium">Quick Brand Presets:</span>
+                                {[
+                                    { brand: "Hyphen", cat: "Skincare" },
+                                    { brand: "boAt", cat: "Tech" },
+                                    { brand: "Nykaa", cat: "Beauty" },
+                                    { brand: "Snitch", cat: "Fashion" },
+                                    { brand: "Zomato", cat: "Food Blogger" },
+                                    { brand: "Mamaearth", cat: "Skincare" },
+                                ].map((p) => (
+                                    <button
+                                        key={p.brand}
+                                        type="button"
+                                        onClick={() => {
+                                            setScoutBrand(p.brand);
+                                            setScoutCategory(p.cat);
+                                            setBrandFilter(p.brand);
+                                            setPage(1);
+                                        }}
+                                        className="px-2 py-0.5 rounded-full border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:border-purple-400 text-slate-700 dark:text-zinc-200 font-medium cursor-pointer"
+                                    >
+                                        {p.brand}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                            <div className="md:col-span-5">
+                                <label className="text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 block mb-1">
+                                    Instagram @Handle, Profile URL, or Reel URL
+                                </label>
+                                <input
+                                    type="text"
+                                    value={scoutInput}
+                                    onChange={(e) => setScoutInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") runLiveScout();
+                                    }}
+                                    placeholder="e.g. @itistanyasingh or https://www.instagram.com/reel/DeecVUIyqsk/"
+                                    className="w-full h-8 px-3 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                                />
+                            </div>
+                            <div className="md:col-span-3">
+                                <label className="text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 block mb-1">
+                                    Brand / Competitor Keyword (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={scoutBrand}
+                                    onChange={(e) => setScoutBrand(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") runLiveScout();
+                                    }}
+                                    placeholder="e.g. Hyphen, boAt, Myntra..."
+                                    className="w-full h-8 px-3 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs focus:outline-none focus:ring-1 focus:ring-purple-600"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="text-[10.5px] font-semibold text-slate-600 dark:text-zinc-400 block mb-1">
+                                    Vertical Category
+                                </label>
+                                <select
+                                    value={scoutCategory}
+                                    onChange={(e) => setScoutCategory(e.target.value)}
+                                    className="w-full h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium cursor-pointer"
+                                >
+                                    {[
+                                        "Skincare",
+                                        "Beauty",
+                                        "Fashion",
+                                        "Lifestyle",
+                                        "Tech",
+                                        "Food Blogger",
+                                        "Chef / Home Chef",
+                                        "Fitness",
+                                        "Finance",
+                                        "Trading & Stock Market",
+                                        "Health",
+                                        "Doctor",
+                                        "Traveller",
+                                        "Appliance Reviewer",
+                                        "Haircare",
+                                        "Men's Grooming",
+                                        "Fragrance",
+                                        "Jewellery & Accessories",
+                                        "Home Decor",
+                                        "Comedy",
+                                        "Gaming",
+                                        "Education",
+                                        "AI & Productivity",
+                                        "Business & Startup",
+                                        "Family & Parenting",
+                                        "Pet Parent",
+                                        "Sports",
+                                        "Automotive (Cars)",
+                                        "Automotive (Bikes)",
+                                        "Podcast",
+                                        "Infotainment",
+                                    ].map((catName) => (
+                                        <option key={catName} value={catName}>
+                                            {catName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="md:col-span-2">
+                                <button
+                                    type="button"
+                                    disabled={isScouting}
+                                    onClick={() => runLiveScout()}
+                                    className="w-full h-8 px-3 rounded-md bg-slate-900 hover:bg-black text-white dark:bg-white dark:text-slate-900 text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-2xs"
+                                >
+                                    <SparklesIcon className={`w-3.5 h-3.5 ${isScouting ? "animate-spin" : ""}`} />
+                                    <span>{isScouting ? "Scouting..." : "Scout & Store"}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {isScouting && scoutStepText && (
+                            <div className="flex items-center gap-2 text-xs text-purple-800 dark:text-purple-300 bg-purple-100/70 dark:bg-purple-950/50 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-800">
+                                <RefreshCcwIcon className="w-3.5 h-3.5 animate-spin text-purple-600 shrink-0" />
+                                <span className="font-medium">{scoutStepText}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* StatStrip with 1-click filter shortcuts */}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
@@ -513,6 +792,23 @@ export default function CreatorsTable() {
                         ))}
                     </div>
 
+                    {/* Brand Affinity Filter */}
+                    <select
+                        value={brandFilter}
+                        onChange={(e) => {
+                            setBrandFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-300 cursor-pointer"
+                    >
+                        <option value="all">All Brands</option>
+                        {(facets.brands || []).map((b: any) => (
+                            <option key={b.brand} value={b.brand}>
+                                {b.brand} ({b.count})
+                            </option>
+                        ))}
+                    </select>
+
                     {/* Source Filter */}
                     <select
                         value={source}
@@ -602,10 +898,11 @@ export default function CreatorsTable() {
                             </th>
                             <th className="px-3 py-2.5">Creator / Instagram</th>
                             <th className="px-3 py-2.5">Followers</th>
-                            <th className="px-3 py-2.5">Vertical & Location</th>
+                            <th className="px-3 py-2.5">Vertical &amp; Brand</th>
+                            <th className="px-3 py-2.5">Insights &amp; Fit</th>
                             <th className="px-3 py-2.5">Outreach Channels</th>
                             <th className="px-3 py-2.5">Intake Status</th>
-                            <th className="w-28 px-3 py-2.5 text-right">Actions</th>
+                            <th className="w-36 px-3 py-2.5 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 font-normal">
@@ -613,6 +910,11 @@ export default function CreatorsTable() {
                             const isSelected = selectedIds.has(c.id);
                             const isEnriched = c.intakeStatus === "COMPLETED" || (c.intakeCompletionPct && c.intakeCompletionPct >= 80);
                             const catStyle = CATEGORY_COLORS[c.category] || { bg: "bg-slate-100", text: "text-slate-800", border: "border-slate-200" };
+                            const ig = (c.instagramInsights && typeof c.instagramInsights === "object") ? c.instagramInsights : {};
+                            const erPct = c.engagementRatePct ?? ig.engagementRatePct;
+                            const estViews = c.avgReelViews ?? ig.avgReelViews ?? ig.reach28d;
+                            const fitScore = c.scoutFitScore ?? ig.scoutFitScore ?? (c.primaryEmail ? 78 : 42);
+                            const isSyncingThisRow = syncingRowId === c.id;
 
                             return (
                                 <tr
@@ -669,6 +971,19 @@ export default function CreatorsTable() {
                                                         <span>{c.handle}</span>
                                                         <ExternalLinkIcon className="w-2.5 h-2.5 text-slate-400" />
                                                     </a>
+                                                    {c.sampleReelUrl && (
+                                                        <a
+                                                            href={c.sampleReelUrl}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            title="Watch indexed Reel on Instagram"
+                                                            className="inline-flex items-center gap-0.5 text-[9.5px] font-medium text-rose-600 bg-rose-50 dark:bg-rose-950/50 dark:text-rose-300 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800 hover:bg-rose-100"
+                                                        >
+                                                            <VideoIcon className="w-2.5 h-2.5" />
+                                                            <span>Reel</span>
+                                                        </a>
+                                                    )}
                                                     {c.discoveryKeyword?.startsWith("referral:") ? (
                                                         <span
                                                             title={`Referred by @${c.discoveryKeyword.replace(/^referral:/, "").trim()}`}
@@ -690,7 +1005,7 @@ export default function CreatorsTable() {
                                     <td className="px-3 py-2 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <span className="font-bold text-slate-900 dark:text-white text-xs">
-                                                {c.followersRaw}
+                                                {c.followersRaw || (c.followersCount ? `${(c.followersCount / 1000).toFixed(1)}K` : "–")}
                                             </span>
                                             <span className="text-[10px] font-medium text-slate-400">
                                                 {c.followersCount >= 1000000
@@ -706,16 +1021,23 @@ export default function CreatorsTable() {
                                         </div>
                                     </td>
 
-                                    {/* Category & Location */}
+                                    {/* Category, Brand & Location */}
                                     <td className="px-3 py-2">
                                         <div className="flex flex-col gap-0.5">
-                                            <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold border w-fit ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
-                                                {c.category}
-                                            </span>
+                                            <div className="flex items-center gap-1 flex-wrap">
+                                                <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold border w-fit ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
+                                                    {c.category}
+                                                </span>
+                                                {c.brandAffinity && (
+                                                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700">
+                                                        {c.brandAffinity}
+                                                    </span>
+                                                )}
+                                            </div>
                                             {c.city ? (
                                                 <span className="text-[10px] text-slate-500 dark:text-zinc-400 flex items-center gap-0.5">
                                                     <MapPinIcon className="w-2.5 h-2.5 text-slate-400" />
-                                                    <span>{c.city}, {c.state}</span>
+                                                    <span>{c.city}{c.state ? `, ${c.state}` : ""}</span>
                                                 </span>
                                             ) : (
                                                 <span className="text-[10px] text-slate-400">India</span>
@@ -723,17 +1045,59 @@ export default function CreatorsTable() {
                                         </div>
                                     </td>
 
+                                    {/* On-Demand Insights & Fit Score */}
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex flex-col">
+                                                <div className="flex items-center gap-1">
+                                                    {erPct ? (
+                                                        <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300">
+                                                            {erPct}% ER
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10.5px] text-slate-400">Insights ready</span>
+                                                    )}
+                                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-semibold">
+                                                        Fit {fitScore}
+                                                    </span>
+                                                </div>
+                                                {estViews ? (
+                                                    <span className="text-[10px] text-slate-400">
+                                                        ~{estViews >= 1000 ? `${(estViews / 1000).toFixed(1)}K` : estViews} views/reel
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => syncRowInsights(c, e)}
+                                                        disabled={isSyncingThisRow}
+                                                        className="text-[10px] text-[#5E43EC] hover:underline font-medium text-left flex items-center gap-1 cursor-pointer"
+                                                    >
+                                                        <RefreshCcwIcon className={`w-2.5 h-2.5 ${isSyncingThisRow ? "animate-spin" : ""}`} />
+                                                        <span>{isSyncingThisRow ? "Fetching..." : "Fetch Insights"}</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </td>
+
                                     {/* Outreach Channels */}
                                     <td className="px-3 py-2 whitespace-nowrap">
                                         <div className="flex items-center gap-2">
                                             {c.primaryEmail ? (
-                                                <span
-                                                    title={c.primaryEmail}
-                                                    className="inline-flex items-center gap-1 text-[11px] text-slate-700 dark:text-zinc-300 font-mono"
-                                                >
-                                                    <MailIcon className="w-3 h-3 text-slate-400" />
-                                                    <span className="truncate max-w-28">{c.primaryEmail}</span>
-                                                </span>
+                                                <div className="flex flex-col">
+                                                    <span
+                                                        title={c.primaryEmail}
+                                                        className="inline-flex items-center gap-1 text-[11px] text-slate-700 dark:text-zinc-300 font-mono"
+                                                    >
+                                                        <MailIcon className="w-3 h-3 text-slate-400" />
+                                                        <span className="truncate max-w-28">{c.primaryEmail}</span>
+                                                    </span>
+                                                    {(c.agencyEmail || c.agencyName) && (
+                                                        <span className="text-[9.5px] text-purple-600 dark:text-purple-400 font-medium truncate max-w-28">
+                                                            Agency: {c.agencyName || c.agencyEmail}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="text-[10px] text-slate-300">No email</span>
                                             )}
@@ -759,19 +1123,19 @@ export default function CreatorsTable() {
                                         <div className="space-y-1 max-w-32">
                                             <div className="flex items-center justify-between text-[10px]">
                                                 <span className={`font-semibold flex items-center gap-1 ${
-                                                    isEnriched ? "text-emerald-600 dark:text-emerald-400" : c.intakeStatus === "VIEWED" ? "text-amber-600" : "text-slate-500"
+                                                    isEnriched ? "text-emerald-600 dark:text-emerald-400" : c.intakeStatus === "VIEWED" || c.intakeStatus === "FORM_OPENED" ? "text-amber-600" : "text-slate-500"
                                                 }`}>
                                                     {isEnriched ? (
                                                         <>
                                                             <CheckCircle2Icon className="w-3 h-3" />
                                                             <span>100% Enriched</span>
                                                         </>
-                                                    ) : c.intakeStatus === "VIEWED" ? (
+                                                    ) : c.intakeStatus === "VIEWED" || c.intakeStatus === "FORM_OPENED" ? (
                                                         <>
                                                             <EyeIcon className="w-3 h-3" />
                                                             <span>Form Opened</span>
                                                         </>
-                                                    ) : c.intakeStatus === "SENT" ? (
+                                                    ) : c.intakeStatus === "SENT" || c.intakeStatus === "INVITATION_SENT" ? (
                                                         <>
                                                             <SendIcon className="w-3 h-3" />
                                                             <span>Invite Sent</span>
@@ -784,7 +1148,7 @@ export default function CreatorsTable() {
                                             <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
                                                 <div
                                                     className={`h-full rounded-full transition-all ${
-                                                        isEnriched ? "bg-emerald-500" : c.intakeStatus === "VIEWED" ? "bg-amber-400" : "bg-[#FFE600]"
+                                                        isEnriched ? "bg-emerald-500" : c.intakeStatus === "VIEWED" || c.intakeStatus === "FORM_OPENED" ? "bg-amber-400" : "bg-[#FFE600]"
                                                     }`}
                                                     style={{ width: `${c.intakeCompletionPct || 30}%` }}
                                                 />
@@ -795,6 +1159,15 @@ export default function CreatorsTable() {
                                     {/* Action Buttons */}
                                     <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                         <div className="flex items-center justify-end gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => syncRowInsights(c, e)}
+                                                disabled={isSyncingThisRow}
+                                                className="size-7 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 hover:text-purple-700 dark:hover:text-purple-300 flex items-center justify-center transition-colors cursor-pointer"
+                                                title="Fetch / Refresh Live Insights & Contacts"
+                                            >
+                                                <RefreshCcwIcon className={`w-3.5 h-3.5 ${isSyncingThisRow ? "animate-spin text-purple-600" : ""}`} />
+                                            </button>
                                             <button
                                                 onClick={(e) => copyIntakeLink(c, e)}
                                                 className="h-7 px-2 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 text-[11px] font-medium transition-colors cursor-pointer"
@@ -820,12 +1193,29 @@ export default function CreatorsTable() {
                     </tbody>
                 </table>
 
-                {/* Empty State */}
+                {/* Empty State with 1-Click Live Scout from Instagram */}
                 {!loading && creators.length === 0 && (
-                    <div className="p-12 text-center text-slate-400 space-y-2">
+                    <div className="p-12 text-center text-slate-400 space-y-3">
                         <LayersIcon className="w-8 h-8 mx-auto text-slate-300 mb-1" />
-                        <p className="text-sm font-medium text-slate-700 dark:text-zinc-300">No creators found</p>
-                        <p className="text-xs text-slate-400">Try broadening your search or resetting category filters.</p>
+                        <p className="text-sm font-medium text-slate-700 dark:text-zinc-300">
+                            {search ? `No creator matching "${search}" in database yet` : "No creators found"}
+                        </p>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                            {search
+                                ? "Click below to live-scout this @handle, Instagram URL, or Brand directly from Instagram & Serper and auto-store it into your database."
+                                : "Try broadening your search or resetting category filters."}
+                        </p>
+                        {search && (
+                            <button
+                                type="button"
+                                disabled={isScouting}
+                                onClick={() => runLiveScout({ customInput: search })}
+                                className="mt-2 h-8 px-4 rounded-md bg-slate-900 hover:bg-black text-white dark:bg-white dark:text-slate-900 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                            >
+                                <SparklesIcon className={`w-3.5 h-3.5 ${isScouting ? "animate-spin" : ""}`} />
+                                <span>{isScouting ? "Scouting Live..." : `Live Scout & Auto-Store "${search}"`}</span>
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -900,11 +1290,139 @@ export default function CreatorsTable() {
                 </div>
             )}
 
+            {/* Batch Ingest Reel / Profile URLs Modal */}
+            {batchModalOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-xs p-4"
+                    onClick={() => !isScouting && setBatchModalOpen(false)}
+                >
+                    <div
+                        className="w-full max-w-lg rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="px-5 py-4 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                    <SparklesIcon className="w-4 h-4 text-purple-600" />
+                                    <span>Batch Ingest Instagram Reel &amp; Profile URLs</span>
+                                </h3>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                    Paste Instagram Reel links, Profile URLs, or @handles (one per line). Every profile is enriched and auto-stored in PostgreSQL.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => !isScouting && setBatchModalOpen(false)}
+                                className="size-7 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center cursor-pointer"
+                            >
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 space-y-3">
+                            <div>
+                                <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300 block mb-1">
+                                    Instagram Reel URLs, Profile Links, or @Handles
+                                </label>
+                                <textarea
+                                    rows={6}
+                                    value={batchUrlsText}
+                                    onChange={(e) => setBatchUrlsText(e.target.value)}
+                                    placeholder={"https://www.instagram.com/reel/DeecVUIyqsk/\nhttps://www.instagram.com/itistanyasingh/\n@prableenkaurbhomrah"}
+                                    className="w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 p-3 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-purple-600"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2.5">
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-zinc-400 block mb-1">
+                                        Brand Context (Optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={scoutBrand}
+                                        onChange={(e) => setScoutBrand(e.target.value)}
+                                        placeholder="e.g. Hyphen, boAt..."
+                                        className="w-full h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-zinc-400 block mb-1">
+                                        Category Tag
+                                    </label>
+                                    <select
+                                        value={scoutCategory}
+                                        onChange={(e) => setScoutCategory(e.target.value)}
+                                        className="w-full h-8 px-2.5 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs"
+                                    >
+                                        {["Skincare", "Beauty", "Fashion", "Lifestyle", "Tech", "Food Blogger", "Fitness", "Finance", "Traveller"].map((c) => (
+                                            <option key={c} value={c}>
+                                                {c}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {isScouting && scoutStepText && (
+                                <div className="flex items-center gap-2 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-800">
+                                    <RefreshCcwIcon className="w-3.5 h-3.5 animate-spin text-purple-600 shrink-0" />
+                                    <span className="font-medium">{scoutStepText}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="px-5 py-3.5 bg-slate-50 dark:bg-zinc-900/90 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setBatchUrlsText(
+                                        "https://www.instagram.com/reel/DeecVUIyqsk/\nhttps://www.instagram.com/itistanyasingh/\nhttps://www.instagram.com/letshyphen/"
+                                    )
+                                }
+                                className="text-xs text-purple-600 hover:underline font-medium cursor-pointer"
+                            >
+                                Load sample links
+                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    disabled={isScouting}
+                                    onClick={() => setBatchModalOpen(false)}
+                                    className="h-8 px-3 rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-medium text-slate-700 dark:text-zinc-300 cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isScouting || !batchUrlsText.trim()}
+                                    onClick={() => {
+                                        const lines = batchUrlsText
+                                            .split(/[\r\n,]+/)
+                                            .map((l) => l.trim())
+                                            .filter(Boolean);
+                                        runLiveScout({ customUrls: lines });
+                                    }}
+                                    className="h-8 px-4 rounded-md bg-[#FFE600] hover:bg-[#F2DC00] text-slate-950 font-semibold text-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
+                                >
+                                    <SparklesIcon className={`w-3.5 h-3.5 ${isScouting ? "animate-spin" : ""}`} />
+                                    <span>{isScouting ? "Ingesting & Enriching..." : "Ingest & Auto-Store (4-Tier)"}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Slide-over Detail Drawer */}
             {selectedCreator && (
                 <CreatorDetailDrawer
                     creator={selectedCreator}
                     onClose={() => setSelectedCreator(null)}
+                    onUpdate={(updated) => {
+                        setSelectedCreator(updated);
+                        setCreators((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
+                    }}
                 />
             )}
         </div>
