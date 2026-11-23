@@ -40,8 +40,9 @@ const INDIAN_TALENT_AGENCY_DIRECTORY: Array<{
     name: string;
     email: string;
 }> = [
+    { handles: ["theboredmonkeyofficial", "theboredmonkey", "tbmoutreach"], name: "The Bored Monkey", email: "" },
     { handles: ["chtrbox", "chatterbox"], name: "Chtrbox Talent", email: "talent@chtrbox.com" },
-    { handles: ["monk_e", "monke", "monketalent"], name: "Monk-E (Viraj Sheth / BeerBiceps)", email: "talent@monk-e.in" },
+    { handles: ["monk_e", "monk-e", "monketalent", "monkentertainment"], name: "Monk-E (Viraj Sheth / BeerBiceps)", email: "talent@monk-e.in" },
     { handles: ["opraahfx", "opraah"], name: "OpraahFx", email: "connect@opraahfx.com" },
     { handles: ["cloutpocketaces", "clout", "pocketaces"], name: "Clout by Pocket Aces", email: "clout@pocketaces.in" },
     { handles: ["collectiveartists", "collectiveartistsnetwork", "bigbangsocial"], name: "Collective Artists Network", email: "info@collectiveartists.com" },
@@ -61,7 +62,11 @@ const INDIAN_TALENT_AGENCY_DIRECTORY: Array<{
 function resolveIndianAgencyFromBio(bioText: string): { agencyName: string; agencyEmail: string } | null {
     const lower = String(bioText || "").toLowerCase();
     for (const agency of INDIAN_TALENT_AGENCY_DIRECTORY) {
-        if (agency.handles.some((h) => lower.includes(`@${h}`) || lower.includes(h))) {
+        const matched = agency.handles.some((h) => {
+            const escaped = h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            return new RegExp(`(?:^|[^a-z0-9_])${escaped}(?:$|[^a-z0-9_])`, "i").test(lower);
+        });
+        if (matched) {
             return { agencyName: agency.name, agencyEmail: agency.email };
         }
     }
