@@ -100,13 +100,12 @@ export default function CreatorsTable() {
         overview: { total: 6445, emailReady: 4111, whatsappReady: 488, enriched: 43, referredCount: 1, newSignupsCount: 1, insightsReadyCount: 4 },
     });
 
-    // Debounce search (snappy 160ms) + AbortController for instant live typing
-    const searchAbortRef = React.useRef<AbortController | null>(null);
+    // Debounce search (snappy 200ms)
     useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedSearch(search);
             setPage(1);
-        }, 160);
+        }, 200);
         return () => clearTimeout(handler);
     }, [search]);
 
@@ -127,13 +126,8 @@ export default function CreatorsTable() {
         fetchFacets();
     }, [fetchFacets]);
 
-    // Fetch Paginated Creators (fast DB search: autoScout=false during typing + cancels stale requests)
+    // Fetch Paginated Creators (fast DB search: autoScout=false during typing)
     const fetchCreators = useCallback(async () => {
-        if (searchAbortRef.current) {
-            searchAbortRef.current.abort();
-        }
-        const controller = new AbortController();
-        searchAbortRef.current = controller;
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -158,7 +152,6 @@ export default function CreatorsTable() {
 
             const res = await fetch(`/api/creators?${params.toString()}`, {
                 headers: authHeaders(),
-                signal: controller.signal,
             });
             if (res.ok) {
                 const data = await res.json();
@@ -166,13 +159,9 @@ export default function CreatorsTable() {
                 setTotal(data.total || 0);
             }
         } catch (err: any) {
-            if (err?.name !== "AbortError") {
-                toast.error("Failed to fetch creators database");
-            }
+            toast.error("Failed to fetch creators database");
         } finally {
-            if (searchAbortRef.current === controller) {
-                setLoading(false);
-            }
+            setLoading(false);
         }
     }, [debouncedSearch, category, subGenre, languageFilter, cityFilter, agencyFilter, brandFilter, tier, intakeStatus, channel, source, sortBy, reverse, verifiedIndianOnly, page, limit]);
 

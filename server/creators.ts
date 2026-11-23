@@ -319,13 +319,7 @@ export async function searchCreators(query: QueryFn = pgQuery, params: CreatorSe
     };
 }
 
-const facetsCache = new Map<string, { data: any; expiresAt: number }>();
-
 export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "org_troops_outreach") {
-    const cached = facetsCache.get(workspaceId);
-    if (cached && cached.expiresAt > Date.now()) {
-        return cached.data;
-    }
     const [catRows, tierRows, statusRows, countsRow, recentEnrichedRows, brandRows, subGenreRows, languageRows, cityRows, agencyRows] = await Promise.all([
         query<{
             category: string;
@@ -452,7 +446,7 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
     const newSignupsCount = countsRow?.[0]?.new_signups_count || 0;
     const insightsReadyCount = countsRow?.[0]?.insights_ready_count || 0;
 
-    const result = {
+    return {
         total,
         withEmail: emailReady,
         withPhone: whatsappReady,
@@ -483,8 +477,6 @@ export async function getCreatorFacets(query: QueryFn = pgQuery, workspaceId = "
             insightsReadyCount,
         },
     };
-    facetsCache.set(workspaceId, { data: result, expiresAt: Date.now() + 60_000 });
-    return result;
 }
 
 export async function getCreatorById(query: QueryFn = pgQuery, id: string) {
