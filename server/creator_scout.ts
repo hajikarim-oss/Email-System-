@@ -1546,10 +1546,11 @@ export async function resolveMentionedAgencyViaMetaGraph(
         return agencyMetaCache.get(target)!;
     }
 
-    const cred = tokenPool[0];
+    const token = tokenPool[0];
+    const igAccountId = process.env.IG_BUSINESS_ACCOUNT_ID?.trim() || "17841479794137517";
     try {
         const fields = `business_discovery.username(${encodeURIComponent(target)}){username,name,biography,website}`;
-        const url = `https://graph.facebook.com/v21.0/${cred.igAccountId}?fields=${fields}&access_token=${encodeURIComponent(cred.token)}`;
+        const url = `https://graph.facebook.com/v21.0/${igAccountId}?fields=${fields}&access_token=${encodeURIComponent(token)}`;
         const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
         if (!res.ok) {
             const empty = { email: null, phone: null, agencyName: null };
@@ -1562,7 +1563,7 @@ export async function resolveMentionedAgencyViaMetaGraph(
         const agWeb = String(bd?.website || "");
         const agName = String(bd?.name || `@${target}`).trim();
 
-        const rawEmails = agBio.match(EMAIL_RE) || [];
+        const rawEmails: string[] = Array.from(agBio.match(EMAIL_RE) || []);
         let phone = cleanPhones(agBio);
 
         // If agency bio didn't have an email directly, check the agency's website (1 hop)
