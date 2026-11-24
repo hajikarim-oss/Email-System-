@@ -70,7 +70,8 @@ function buildWhere(req: ContactsRequest, scope: DataScope): Where {
     const conds: string[] = [];
 
     // All contacts are accessible to both master and team members across the workspace.
-    // When a campaign filter is chosen in the dropdown, filter by that campaign.
+    // When a campaign filter is chosen in the dropdown, filter by that campaign
+    // (including matching by providerCampaignId or name if a replica has a different UUID).
     const campaignIds = (req.campaignIds || []).map(String).filter(Boolean);
     if (campaignIds.length > 0) {
         const placeholders = campaignIds.map((id) => push(id));
@@ -320,38 +321,78 @@ function mapLead(l: any, campaignScoped: boolean) {
     };
 }
 
+let cachedGlobalCounts: { at: number; data: ContactsCounts } | null = null;
+let inFlightGlobalCounts: Promise<ContactsCounts> | null = null;
+const GLOBAL_COUNTS_TTL_MS = 60_000;
+
 async function readCounts(query: QueryFn, scope: DataScope): Promise<ContactsCounts> {
-    const [facetRows, categoryRows, contactRows] = await Promise.all([
-        query(`
-            SELECT
-                count(*)::int AS total,
-                count(*) FILTER (
-                    WHERE status NOT IN ('UNSUBSCRIBED', 'BOUNCED') AND "outreachState"::text <> 'BURNED'
-                )::int AS subscribed,
-                count(*) FILTER (WHERE "campaignId" IS NOT NULL)::int AS in_campaign
-            FROM "Lead"
-        `),
-        query(`
-            SELECT "outreachState"::text AS category_id, count(*)::int AS count
-            FROM "Lead"
-            GROUP BY 1
-            ORDER BY 2 DESC
-        `),
-        query(`SELECT count(*) FILTER (WHERE "totalOutbound" > 0)::int AS contacted FROM "Lead"`),
-    ]);
+    if (cachedGlobalCounts && Date.now() - cachedGlobalCounts.at < GLOBAL_COUNTS_TTL_MS) {
+        return cachedGlobalCounts.data;
+    }
+    if (inFlightGlobalCounts) {
+        return inFlightGlobalCounts;
+    }
+    inFlightGlobalCounts = (async () => {
+        try {
+            const [facetRows, categoryRows] = await Promise.all([
+                query(`
+                    SELECT
+                        count(*)::int AS total,
+                        count(*) FILTER (
+                            WHERE status NOT IN ('UNSUBSCRIBED', 'BOUNCED') AND "outreachState"::text <> 'BURNED'
+                        )::int AS subscribed,
+                        count(*) FILTER (WHERE "campaignId" IS NOT NULL)::int AS in_campaign,
+                        count(*) FILTER (WHERE "totalOutbound" > 0)::int AS contacted
+                    FROM "Lead"
+                `),
+                query(`
+                    SELECT "outreachState"::text AS category_id, count(*)::int AS count
+                    FROM "Lead"
+                    GROUP BY 1
+                    ORDER BY 2 DESC
+                `),
+            ]);
 
-    const total = facetRows[0]?.total ?? 0;
-    const subscribed = facetRows[0]?.subscribed ?? 0;
-    const contacted = contactRows[0]?.contacted ?? 0;
+            const total = facetRows[0]?.total ?? 0;
+            const subscribed = facetRows[0]?.subscribed ?? 0;
+            const contacted = facetRows[0]?.contacted ?? 0;
 
-    return {
-        total,
-        subscribed,
-        unsubscribed: Math.max(0, total - subscribed),
-        in_campaign: facetRows[0]?.in_campaign ?? 0,
-        not_contacted: Math.max(0, total - contacted),
-        categories: categoryRows.map((r) => ({ category_id: r.category_id, count: r.count })),
-    };
+            const result: ContactsCounts = {
+                total,
+                subscribed,
+                unsubscribed: Math.max(0, total - subscribed),
+                in_campaign: facetRows[0]?.in_campaign ?? 0,
+                not_contacted: Math.max(0, total - contacted),
+                categories: categoryRows.map((r) => ({ category_id: r.category_id, count: r.count })),
+            };
+            cachedGlobalCounts = { at: Date.now(), data: result };
+            return result;
+        } finally {
+            inFlightGlobalCounts = null;
+        }
+    })();
+    return inFlightGlobalCounts;
+}
+
+async function resolveExpandedCampaignIds(query: QueryFn, campaignIds: string[]): Promise<string[]> {
+    const clean = campaignIds.map(String).filter(Boolean);
+    if (clean.length === 0) return [];
+    try {
+        const rows = await query<{ id: string }>(
+            `SELECT DISTINCT c2.id
+             FROM "Campaign" c1
+             JOIN "Campaign" c2
+               ON c2.id = c1.id
+               OR (c1."providerCampaignId" IS NOT NULL AND c1."providerCampaignId" != '' AND c2."providerCampaignId" = c1."providerCampaignId")
+               OR (lower(trim(c2.name)) = lower(trim(c1.name)) AND c2."userId" IS NOT DISTINCT FROM c1."userId")
+             WHERE c1.id = ANY($1::text[]) OR c1."providerCampaignId" = ANY($1::text[])`,
+            [clean]
+        );
+        const set = new Set<string>([...clean, ...rows.map((r) => String(r.id))]);
+        return Array.from(set);
+    } catch {
+        return clean;
+    }
 }
 
 async function readLeadCounts(query: QueryFn, campaignIds: string[], scope: DataScope): Promise<LeadCounts> {
@@ -399,10 +440,11 @@ async function readLeadCounts(query: QueryFn, campaignIds: string[], scope: Data
 export async function getContacts(req: ContactsRequest, query: QueryFn, scope: DataScope): Promise<ContactsResponse> {
     const page = Math.max(1, req.page || 1);
     const limit = Math.min(100, Math.max(1, req.limit || 50));
-    const campaignIds = (req.campaignIds || []).map(String).filter(Boolean);
-    const campaignScoped = campaignIds.length > 0;
+    const rawCampaignIds = (req.campaignIds || []).map(String).filter(Boolean);
+    const campaignScoped = rawCampaignIds.length > 0;
+    const campaignIds = campaignScoped ? await resolveExpandedCampaignIds(query, rawCampaignIds) : [];
 
-    const where = buildWhere(req, scope);
+    const where = buildWhere({ ...req, campaignIds }, scope);
     const order = campaignScoped
         ? `ORDER BY "lastContactedAt" ASC NULLS LAST, "createdAt" ASC`
         : `ORDER BY "lastContactedAt" DESC NULLS LAST, "createdAt" DESC`;

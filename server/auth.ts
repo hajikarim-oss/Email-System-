@@ -75,9 +75,13 @@ export async function revokeSession(token: string): Promise<void> {
     await pgQuery(`DELETE FROM "Session" WHERE "sessionToken" = $1`, [token]);
 }
 
-export async function revokeUserSessions(userId: string): Promise<void> {
-    await pgQuery(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]);
+export function revokeUserSessions(userId: string): Promise<void> {
+    tokenCache.clear();
+    return pgQuery(`DELETE FROM "Session" WHERE "userId" = $1`, [userId]).then(() => {});
 }
+
+const tokenCache = new Map<string, { user: AuthUser; expiresAt: number }>();
+const TOKEN_CACHE_TTL_MS = 15_000;
 
 const USER_COLS = `u.id, u.name, u.email, u.role, u.image, u."smartleadApiKey"`;
 
@@ -233,6 +237,12 @@ export async function readPassword(userId: string): Promise<string | null> {
 }
 
 export async function resolveToken(token: string): Promise<AuthUser | null> {
+    if (token) {
+        const cached = tokenCache.get(token);
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.user;
+        }
+    }
     await ensureTbmTeamMembers();
     if (token) {
         const rows = await pgQuery<AuthUser>(
@@ -242,13 +252,19 @@ export async function resolveToken(token: string): Promise<AuthUser | null> {
              WHERE s."sessionToken" = $1 AND s.expires > now() AND u."isActive" = true`,
             [token]
         );
-        if (rows[0]) return rows[0];
+        if (rows[0]) {
+            tokenCache.set(token, { user: rows[0], expiresAt: Date.now() + TOKEN_CACHE_TTL_MS });
+            return rows[0];
+        }
 
         const byIdOrEmail = await pgQuery<AuthUser>(
             `SELECT ${USER_COLS} FROM "User" u WHERE (u.id = $1 OR lower(u.email) = lower($1)) AND u."isActive" = true LIMIT 1`,
             [token]
         );
-        if (byIdOrEmail[0]) return byIdOrEmail[0];
+        if (byIdOrEmail[0]) {
+            tokenCache.set(token, { user: byIdOrEmail[0], expiresAt: Date.now() + TOKEN_CACHE_TTL_MS });
+            return byIdOrEmail[0];
+        }
     }
 
     // Default to active master user (Monu) for local dev session resilience

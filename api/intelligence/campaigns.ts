@@ -144,7 +144,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 try {
                     const parsed = JSON.parse(rawBody || "{}");
                     campId = parsed.id || parsed.campaignId;
-                } catch {}
+                } catch { }
             }
 
             if (!campId) {
@@ -267,7 +267,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                                 .map((m: any) => m.id)
                                 .filter(Boolean);
                         }
-                    } catch {}
+                    } catch { }
                 }
                 console.log(`[Launch] Troops campaign detected (#${camp.id}). Routing strictly through @tbmtroop.com accounts (${slMailboxIds.join(",")})`);
             } else {
@@ -288,13 +288,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                         const mbRes = await slApiCall("/email-accounts", "GET", undefined, apiKey);
                         if (Array.isArray(mbRes.data)) {
                             slMailboxIds = mbRes.data
-                                .filter((m: any) => m.id !== 24993809 && 
+                                .filter((m: any) => m.id !== 24993809 &&
                                     String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com" &&
                                     !String(m.from_email || "").toLowerCase().includes("tbmtroop"))
                                 .map((m: any) => m.id)
                                 .filter(Boolean);
                         }
-                    } catch {}
+                    } catch { }
                 }
             }
             if (slMailboxIds.length === 0) {
@@ -325,7 +325,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                  SET "smartleadCampaignId" = COALESCE($1, "smartleadCampaignId"), "status" = 'ACTIVE', "updatedAt" = NOW()
                  WHERE id = $2 OR lower(trim(name)) = lower(trim($3))`,
                 [Number(smartleadId) || null, camp.id, camp.name]
-            ).catch(() => {});
+            ).catch(() => { });
 
             // 4. Ensure sequences are present in Smartlead
             const steps = await pgQuery<any>(
@@ -337,7 +337,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 try {
                     const seqCheck = await slApiCall(`/campaigns/${smartleadId}/sequences`, "GET", undefined, apiKey);
                     if (Array.isArray(seqCheck.data)) existingSeqs = seqCheck.data;
-                } catch {}
+                } catch { }
 
                 const hasBareFormLink = existingSeqs.some((es: any) =>
                     /(?<!href=[\x27\x22])\{\{form_link\}\}/i.test(es.email_body || "") ||
@@ -373,13 +373,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     const unwanted = isMasterCamp
                         ? curAccs.data.filter((a: any) => a.id !== 24993809).map((a: any) => a.id)
                         : isTroops
-                        ? curAccs.data.filter((a: any) => !String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop")).map((a: any) => a.id)
-                        : curAccs.data.filter((a: any) => a.id === 24993809 || String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop")).map((a: any) => a.id);
+                            ? curAccs.data.filter((a: any) => !String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop")).map((a: any) => a.id)
+                            : curAccs.data.filter((a: any) => a.id === 24993809 || String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop")).map((a: any) => a.id);
                     if (unwanted.length > 0) {
                         await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "DELETE", { email_account_ids: unwanted }, apiKey);
                     }
                 }
-            } catch {}
+            } catch { }
 
             const mbLinkRes = await slApiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
                 email_account_ids: slMailboxIds,
@@ -391,9 +391,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             try {
                 const slLeadsCheck = await slApiCall(`/campaigns/${smartleadId}/leads?limit=1`, "GET", undefined, apiKey);
                 slTotalLeads = Number(slLeadsCheck.data?.total_leads) || 0;
-            } catch {}
+            } catch { }
 
             console.log(`[Launch] Campaign #${smartleadId} has ${slTotalLeads} leads in Smartlead, ${leads.length} in DB`);
+
+            // Disable Smartlead link-click wrapping (go.tbmtroop.com lacks SSL on open.sleadtrack.com)
+            // so creators always receive direct https://tbmoutreach.tech/creator/intake/... HTTPS links.
+            try {
+                await slApiCall(`/campaigns/${smartleadId}/settings`, "POST", {
+                    stop_lead_settings: "REPLY_TO_AN_EMAIL",
+                    track_settings: ["DONT_TRACK_LINK_CLICK"],
+                }, apiKey);
+            } catch { }
 
             const hasFormLinkInSteps = steps.some((s: any) =>
                 (s.bodyTemplate || "").includes("form_link") ||
@@ -511,7 +520,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             // 9. Ensure immediate sending window
             try {
                 await ensureImmediateSendingSchedule(smartleadId, { timezone: tz, days, start_time: configuredStartH, end_time: configuredEndH, apiKey });
-            } catch {}
+            } catch { }
 
             // 10. Register webhook
             const webhookUrl = process.env.WEBHOOK_URL || "https://tbmoutreach.tech/api/webhooks/smartlead";
@@ -519,7 +528,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 name: "TBM Webhook",
                 webhook_url: webhookUrl,
                 event_types: ["EMAIL_OPEN", "EMAIL_SENT", "EMAIL_REPLY", "EMAIL_BOUNCE", "EMAIL_LINK_CLICK", "LEAD_UNSUBSCRIBED"],
-            }, apiKey).catch(() => {});
+            }, apiKey).catch(() => { });
 
             console.log(`[Launch] Campaign "${camp.name}" fully synced to Smartlead #${smartleadId} (${leads.length} leads, ${slMailboxIds.length} mailboxes)`);
 
@@ -558,7 +567,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             if (camp.providerCampaignId) {
                 const apiKey = smartleadPrimary();
                 if (apiKey) {
-                    await slApiCall(`/campaigns/${camp.providerCampaignId}/status`, "POST", { status: "PAUSED" }, apiKey).catch(() => {});
+                    await slApiCall(`/campaigns/${camp.providerCampaignId}/status`, "POST", { status: "PAUSED" }, apiKey).catch(() => { });
                     console.log(`[Pause] Paused Smartlead campaign #${camp.providerCampaignId} ("${camp.name}")`);
                 }
             }
@@ -581,7 +590,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const camp = existing[0];
             const rawBody = await readBody(req);
             let input: any = {};
-            try { input = JSON.parse(rawBody || "{}"); } catch {}
+            try { input = JSON.parse(rawBody || "{}"); } catch { }
 
             const apiKey = smartleadPrimary();
             let smartleadId = camp.providerCampaignId;
@@ -621,7 +630,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                     } else {
                         const mbList = await slApiCall("/email-accounts", "GET", undefined, apiKey);
                         const mbIds = Array.isArray(mbList.data)
-                            ? mbList.data.filter((m: any) => m.id !== 24993809 && 
+                            ? mbList.data.filter((m: any) => m.id !== 24993809 &&
                                 String(m.from_email || "").toLowerCase() !== "kumar.monu@theboredmonkey.com" &&
                                 !String(m.from_email || "").toLowerCase().includes("tbmtroop")).map((m: any) => m.id)
                             : [];
@@ -720,7 +729,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 }
             }
 
-            await pgQuery(`UPDATE "Campaign" SET "testSentAt" = NOW() WHERE id = $1`, [camp.id]).catch(() => {});
+            await pgQuery(`UPDATE "Campaign" SET "testSentAt" = NOW() WHERE id = $1`, [camp.id]).catch(() => { });
 
             send(res, 200, {
                 success: true,
@@ -825,7 +834,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                             await pgQuery(
                                 `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
                                 [campaignId, mb.id]
-                            ).catch(() => {});
+                            ).catch(() => { });
                         }
                     } else if (scope.master && userEmail.includes("monu")) {
                         // TBM Master account exclusively uses kumar.monu@theboredmonkey.com (24993809)
@@ -836,7 +845,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                             await pgQuery(
                                 `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
                                 [campaignId, masterMb[0].id]
-                            ).catch(() => {});
+                            ).catch(() => { });
                         }
                     } else {
                         // Team members keep their rotational pool intact, strictly excluding Master's email and Troops mailboxes
@@ -847,10 +856,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                             await pgQuery(
                                 `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
                                 [campaignId, mb.id]
-                            ).catch(() => {});
+                            ).catch(() => { });
                         }
                     }
-                } catch {}
+                } catch { }
 
                 // NO CACHE on campaign creation - devices must sync immediately
                 send(res, 201, {
@@ -873,11 +882,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             const campRows = await pgQuery<any>(
                 `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
                         c."sendTimezone", c."preferredSendHour", c."preferredSendDays",
-                        COUNT(l.id)::int AS lead_count
+                        (
+                            SELECT COUNT(*)::int FROM "Lead" l
+                            WHERE l."campaignId" IN (
+                                SELECT c2.id FROM "Campaign" c2
+                                WHERE c2.id = c.id
+                                   OR (c."providerCampaignId" IS NOT NULL AND c."providerCampaignId" != '' AND c2."providerCampaignId" = c."providerCampaignId")
+                                   OR (lower(trim(c2.name)) = lower(trim(c.name)) AND c2."userId" IS NOT DISTINCT FROM c."userId")
+                            )
+                        ) AS lead_count
                  FROM "Campaign" c
-                 LEFT JOIN "Lead" l ON l."campaignId" = c.id
                  WHERE c.id = $1 OR c."providerCampaignId" = $1 OR lower(c.name) = lower($1)
-                 GROUP BY c.id
+                 ORDER BY CASE WHEN c.id = $1 THEN 0 WHEN c."providerCampaignId" = $1 THEN 1 ELSE 2 END
                  LIMIT 1`,
                 [campIdParam]
             );
@@ -989,12 +1005,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
         console.log(`[Campaigns API] User: ${user.email}, Role: ${user.role}, Master: ${scope.master}`);
 
-        // Automatically reconcile Smartlead campaigns so newly created campaigns register without manual sync
-        await reconcileSmartleadCampaigns().catch(() => {});
+        // Automatically reconcile Smartlead campaigns in the background so GET /api/campaigns returns in <150ms without blocking
+        reconcileSmartleadCampaigns().catch(() => { });
 
         // Optional `?scope=creator` returns ONLY creator campaigns (those registered in
         // CreatorCampaign). Default behaviour (no param) hides them from outreach lists.
         const creatorClause = parsedUrl.searchParams.get("scope") === "creator" ? "AND EXISTS" : "AND NOT EXISTS";
+        const leadCountsSubquery = `(SELECT "campaignId", COUNT(*)::int AS lead_count FROM "Lead" WHERE "campaignId" IS NOT NULL GROUP BY "campaignId")`;
 
         let campaigns: any[] = [];
 
@@ -1003,9 +1020,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 // Troops Master sees campaigns created by Troops team 
                 campaigns = await pgQuery<any>(
                     `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
-                            COUNT(l.id)::int AS lead_count
+                            COALESCE(lc.lead_count, 0)::int AS lead_count
                      FROM "Campaign" c
-                     LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                     LEFT JOIN ${leadCountsSubquery} lc ON lc."campaignId" = c.id
                      WHERE (c."userId" IN (SELECT id FROM "User" WHERE email LIKE '%@tbmtroop%' OR id LIKE 'usr_troops_%')
                         OR lower(c.name) LIKE '%troops%')
                        ${creatorClause} (
@@ -1014,16 +1031,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                               OR cc.id = c.id
                               OR lower(trim(cc.name)) = lower(trim(c.name))
                        )
-                     GROUP BY c.id
                      ORDER BY c."createdAt" DESC`
                 );
             } else {
                 // TheBoredMonkey Workspace Master sees all TBM workspace campaigns 
                 campaigns = await pgQuery<any>(
                     `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
-                            COUNT(l.id)::int AS lead_count
+                            COALESCE(lc.lead_count, 0)::int AS lead_count
                      FROM "Campaign" c
-                     LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                     LEFT JOIN ${leadCountsSubquery} lc ON lc."campaignId" = c.id
                      WHERE (c."userId" IS NULL OR c."userId" NOT IN (SELECT id FROM "User" WHERE email LIKE '%@tbmtroop%' OR id LIKE 'usr_troops_%'))
                        AND (c.name IS NULL OR lower(c.name) NOT LIKE '%troops%')
                        ${creatorClause} (
@@ -1032,7 +1048,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                               OR cc.id = c.id
                               OR lower(trim(cc.name)) = lower(trim(c.name))
                        )
-                     GROUP BY c.id
                      ORDER BY c."createdAt" DESC`
                 );
             }
@@ -1040,9 +1055,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             // Team member sees strictly their own outreach campaigns 
             campaigns = await pgQuery<any>(
                 `SELECT c.id, c.name, c.status, c."providerCampaignId", c."createdAt", c."updatedAt", c."userId",
-                        COUNT(l.id)::int AS lead_count
+                        COALESCE(lc.lead_count, 0)::int AS lead_count
                  FROM "Campaign" c
-                 LEFT JOIN "Lead" l ON l."campaignId" = c.id
+                 LEFT JOIN ${leadCountsSubquery} lc ON lc."campaignId" = c.id
                  WHERE c."userId" = $1
                    ${creatorClause} (
                        SELECT 1 FROM "CreatorCampaign" cc 
@@ -1050,7 +1065,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                           OR cc.id = c.id
                           OR lower(trim(cc.name)) = lower(trim(c.name))
                    )
-                 GROUP BY c.id
                  ORDER BY c."createdAt" DESC`,
                 [scope.userId]
             );

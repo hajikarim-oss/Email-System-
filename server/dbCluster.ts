@@ -1,18 +1,19 @@
 /**
  * High-Availability Database Cluster Manager
- * 
+ *
  * Topology:
  * - Node 1 (Primary / Default Leader): Tokyo (ap-northeast-1) [hsmudwkfwmvinhtggxyd]
  * - Node 2 (Standby / Auto-Failover Target): Seoul (ap-northeast-2) [qlzlsjpncknjliyalfmj]
  * - Node 3 (Continuous Backup Replica): Singapore (ap-southeast-1) [adlwwkqgexykuhkdkpfu]
- * 
+ *
  * Features:
- * 1. Automatic Zero-Downtime Failover (Node 1 -> Node 2) upon network drop or node failure.
- * 2. Continuous Multi-Write Replication across all 3 nodes.
+ * 1. Always Stick to Primary (Tokyo) unless Primary genuinely crashes (3 consecutive missed heartbeats).
+ * 2. Continuous Multi-Write Replication across all 3 nodes with pre-resolved UUIDs so Primary, Replica 2, and Replica 3 share identical row IDs.
  * 3. Asynchronous WAL Queue for transient network partitions with auto-reconciliation.
  * 4. Active Health Heartbeat & Latency Telemetry.
  */
 
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Pool } from "pg";
@@ -20,19 +21,51 @@ import type { PoolConfig } from "pg";
 import type { QueryFn, QueryRow } from "./types";
 
 function resolveIsolatedNode(): NodeId | null {
-  const fromEnv = (process.env.BRAIN_DB_TARGET || process.env.DB_TARGET_NODE || "").trim().toLowerCase();
+  // Always use Primary (Tokyo) as Leader unless DB_TARGET_NODE explicitly overrides it.
+  // Never read BRAIN_DB_TARGET here so legacy .env settings cannot hijack the main cluster away from Primary!
+  const fromEnv = (process.env.DB_TARGET_NODE || "").trim().toLowerCase();
   if (fromEnv === "replica3" || fromEnv === "replica2" || fromEnv === "primary") {
     return fromEnv as NodeId;
   }
-  try {
-    const content = fs.readFileSync(path.resolve(process.cwd(), ".env"), "utf8");
-    const m = content.match(/^\s*(?:BRAIN_DB_TARGET|DB_TARGET_NODE)\s*=\s*(.+)\s*$/m);
-    if (m) {
-      const val = m[1].trim().replace(/^["']|["']$/g, "").toLowerCase();
-      if (val === "replica3" || val === "replica2" || val === "primary") return val as NodeId;
-    }
-  } catch {}
   return null;
+}
+
+function preResolveGeneratedIds(sql: string): string {
+  if (!/gen_random_uuid\s*\(\s*\)/i.test(sql)) return sql;
+  return sql.replace(/gen_random_uuid\s*\(\s*\)(?:::text)?/gi, () => `'${crypto.randomUUID()}'`);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Transient (retryable) connection error — routine for the Supabase pooler on idle sockets. */
+function isTransientDbError(err: any): boolean {
+  return (
+    err?.code === "ECONNRESET" ||
+    err?.code === "ETIMEDOUT" ||
+    err?.code === "57P01" ||
+    err?.code === "XX000" ||
+    err?.code === "08006" ||
+    err?.code === "08003" ||
+    /Connection terminated|connection closed|timeout|timed out|ECHECKOUTTIMEOUT|pool|authentication did not complete/i.test(
+      String(err?.message || "")
+    )
+  );
+}
+
+/** Fail a hung query fast instead of freezing the dashboard. */
+async function withTimeout<R>(p: Promise<R>, ms: number, label: string): Promise<R> {
+  let t: any;
+  const timeout = new Promise<never>((_, rej) => {
+    t = setTimeout(
+      () => rej(Object.assign(new Error(`query timed out after ${ms}ms (${label})`), { code: "ETIMEDOUT" })),
+      ms
+    );
+  });
+  try {
+    return (await Promise.race([p, timeout])) as R;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 export type NodeId = "primary" | "replica2" | "replica3";
@@ -86,7 +119,7 @@ export const CLUSTER_CONFIGS: Record<NodeId, ClusterNodeConfig> = {
     port: 6543,
     user: "postgres.hsmudwkfwmvinhtggxyd",
     database: "postgres",
-    password: DEFAULT_PASSWORD
+    password: DEFAULT_PASSWORD,
   },
   replica2: {
     id: "replica2",
@@ -98,7 +131,7 @@ export const CLUSTER_CONFIGS: Record<NodeId, ClusterNodeConfig> = {
     port: 6543,
     user: "postgres.qlzlsjpncknjliyalfmj",
     database: "postgres",
-    password: DEFAULT_PASSWORD
+    password: DEFAULT_PASSWORD,
   },
   replica3: {
     id: "replica3",
@@ -110,8 +143,8 @@ export const CLUSTER_CONFIGS: Record<NodeId, ClusterNodeConfig> = {
     port: 6543,
     user: "postgres.adlwwkqgexykuhkdkpfu",
     database: "postgres",
-    password: DEFAULT_PASSWORD
-  }
+    password: DEFAULT_PASSWORD,
+  },
 };
 
 class DatabaseClusterManager {
@@ -151,18 +184,62 @@ class DatabaseClusterManager {
 
   private initPools() {
     if (this.pools.size > 0) return;
+
+    let fileEnv: Record<string, string> = {};
+    try {
+      for (const root of [process.cwd(), path.resolve(process.cwd(), "..")]) {
+        const envPath = path.join(root, ".env");
+        if (fs.existsSync(envPath)) {
+          const content = fs.readFileSync(envPath, "utf8");
+          for (const line of content.split("\n")) {
+            const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.+)\s*$/);
+            if (m && !fileEnv[m[1]]) {
+              fileEnv[m[1]] = m[2].trim().replace(/^["']|["']$/g, "");
+            }
+          }
+        }
+      }
+    } catch {}
+
+    const envUrlFor = (id: NodeId): string | undefined => {
+      const raw =
+        id === "primary"
+          ? process.env.DATABASE_URL || fileEnv.DATABASE_URL
+          : id === "replica2"
+          ? process.env.DATABASE_REPLICA2_URL || fileEnv.DATABASE_REPLICA2_URL
+          : process.env.DATABASE_REPLICA3_URL || fileEnv.DATABASE_REPLICA3_URL;
+      if (!raw) return undefined;
+      try {
+        const parsed = new URL(raw);
+        parsed.searchParams.delete("sslmode");
+        parsed.searchParams.delete("pgbouncer");
+        return parsed.toString();
+      } catch {
+        return undefined;
+      }
+    };
+
     for (const [id, config] of Object.entries(CLUSTER_CONFIGS) as [NodeId, ClusterNodeConfig][]) {
-      const poolConfig: PoolConfig = {
-        host: config.host,
-        port: config.port,
-        user: config.user,
-        password: config.password,
-        database: config.database,
-        ssl: { rejectUnauthorized: false },
-        max: 15,
-        idleTimeoutMillis: 30_000,
-        connectionTimeoutMillis: 30_000,
-      };
+      const cs = envUrlFor(id);
+      const poolConfig: PoolConfig = cs
+        ? {
+            connectionString: cs,
+            ssl: { rejectUnauthorized: false },
+            max: 3,
+            idleTimeoutMillis: 10_000,
+            connectionTimeoutMillis: 10_000,
+          }
+        : {
+            host: config.host,
+            port: config.port,
+            user: config.user,
+            password: config.password,
+            database: config.database,
+            ssl: { rejectUnauthorized: false },
+            max: 3,
+            idleTimeoutMillis: 10_000,
+            connectionTimeoutMillis: 10_000,
+          };
 
       const pool = new Pool(poolConfig);
       pool.on("error", (err: any) => {
@@ -178,7 +255,7 @@ class DatabaseClusterManager {
         isCurrentLeader: id === this.currentLeaderId,
         latencyMs: null,
         lastHealthyAt: new Date(),
-        consecutiveFailures: 0
+        consecutiveFailures: 0,
       });
     }
   }
@@ -201,22 +278,21 @@ class DatabaseClusterManager {
       currentLeader: this.currentLeaderId,
       nodes: Array.from(this.health.values()),
       queueSize: this.syncQueue.length,
-      failoverHistory: this.failoverHistory
+      failoverHistory: this.failoverHistory,
     };
   }
 
   /**
-   * Automatic failover trigger
+   * Automatic failover trigger (only invoked when Primary misses 3 consecutive heartbeats or write connection drops)
    */
   public triggerFailover(toNodeId: NodeId = "replica2", reason: string = "Health check failure or query exception") {
     const prevLeader = this.currentLeaderId;
     if (prevLeader === toNodeId) return;
 
     console.error(`\n🚨 [DBCluster FAILOVER] Switching leader from ${prevLeader} to ${toNodeId}! Reason: ${reason}`);
-    
+
     this.currentLeaderId = toNodeId;
-    
-    // Update health records
+
     const prevRecord = this.health.get(prevLeader);
     if (prevRecord) {
       prevRecord.isCurrentLeader = false;
@@ -233,7 +309,7 @@ class DatabaseClusterManager {
       timestamp: new Date(),
       from: prevLeader,
       to: toNodeId,
-      reason
+      reason,
     });
 
     console.log(`✅ [DBCluster FAILOVER COMPLETE] New active leader is ${toNodeId}.`);
@@ -259,9 +335,10 @@ class DatabaseClusterManager {
           record.lastHealthyAt = new Date();
           record.consecutiveFailures = 0;
 
-          // Automatic Failback: When primary leader (Tokyo) is online and healthy, restore leadership to primary (unless pinned to isolated node)
           if (!this.isolatedNode && id === "primary" && this.currentLeaderId !== "primary") {
-            console.log(`\n🔄 [DBCluster FAILBACK] Primary leader (Tokyo) is online and responsive (${latency}ms). Restoring leadership to primary.`);
+            console.log(
+              `\n🔄 [DBCluster FAILBACK] Primary leader (Tokyo) is online and responsive (${latency}ms). Restoring leadership to primary.`
+            );
             this.currentLeaderId = "primary";
             record.isCurrentLeader = true;
             for (const [otherId, otherRec] of this.health.entries()) {
@@ -275,7 +352,6 @@ class DatabaseClusterManager {
 
           if (record.consecutiveFailures >= 3) {
             record.status = "OFFLINE";
-            // If the primary leader fails 3 times, failover automatically
             if (id === this.currentLeaderId) {
               const fallback = id === "primary" ? "replica2" : "replica3";
               this.triggerFailover(fallback, `Leader ${id} missed 3 consecutive heartbeat pings`);
@@ -305,15 +381,17 @@ class DatabaseClusterManager {
         if (targetPool && this.health.get(item.targetNodeId)?.status !== "OFFLINE") {
           try {
             await targetPool.query(item.sql, item.params as any[]);
-            // Successfully replicated! Dequeue
             this.syncQueue.shift();
           } catch (err: any) {
             item.attempts++;
-            if (item.attempts >= 10) {
-              console.error(`[DBCluster WAL Queue] Giving up on item ${item.id} after 10 attempts:`, err.message);
+            const nonRetryable = ["23503", "23505", "42P01", "42703", "22P02"].includes(String(err?.code));
+            if (nonRetryable || item.attempts >= 5) {
+              console.warn(
+                `[DBCluster WAL Queue] Dropping item ${item.id} (code=${err?.code || "n/a"}, attempts=${item.attempts}):`,
+                err.message
+              );
               this.syncQueue.shift();
             } else {
-              // Rotate to end of queue to retry later
               this.syncQueue.push(this.syncQueue.shift()!);
             }
           }
@@ -351,101 +429,113 @@ class DatabaseClusterManager {
 
   /**
    * Primary cluster query execution function
-   * - Read queries execute on currentLeader, with transparent failover retry.
-   * - Write queries execute on currentLeader, then replicate to all healthy standby/backup nodes.
+   * - Read queries ALWAYS stick to Primary (Tokyo) unless Primary is genuinely OFFLINE (crashed).
+   * - Write queries execute on Primary (with pre-resolved UUIDs) and replicate to Replica 2 & Replica 3.
    */
   public async query<T = QueryRow>(sql: string, params: unknown[] = []): Promise<T[]> {
     const isWrite = this.isMutation(sql);
 
     // ─────────────────────────────────────────────
-    // 1. READ QUERY FLOW
+    // 1. READ QUERY FLOW (Locked to Primary Tokyo)
     // ─────────────────────────────────────────────
     if (!isWrite) {
-      let attempts = 0;
-      let targetNode = this.currentLeaderId;
+      const QUERY_TIMEOUT_MS = 10_000;
+      const runOn = async (node: NodeId): Promise<T[]> => {
+        const pool = this.getPool(node);
+        const result = await withTimeout<any>(pool.query(sql, params as any[]), QUERY_TIMEOUT_MS, `read:${node}`);
+        return (result?.rows || []) as unknown as T[];
+      };
 
-      while (attempts < 2) {
-        attempts++;
+      const primaryOffline = this.health.get("primary")?.status === "OFFLINE";
+      const order: NodeId[] = this.isolatedNode
+        ? [this.isolatedNode]
+        : primaryOffline
+        ? ["replica2", "replica3", "primary"]
+        : ["primary", "replica2", "replica3"];
+
+      let lastErr: any = null;
+      for (let i = 0; i < order.length; i++) {
+        const node = order[i];
         try {
-          const pool = this.getPool(targetNode);
-          const result = await pool.query(sql, params as any[]);
-          return result.rows as unknown as T[];
-        } catch (err: any) {
-          const isNetworkError = 
-            err.code === "ECONNRESET" || 
-            err.code === "ETIMEDOUT" || 
-            err.message?.includes("Connection terminated") || 
-            err.message?.includes("closed") ||
-            err.message?.includes("timeout");
-
-          if (isNetworkError && attempts < 2) {
-            // Read from standby node for this query without permanently demoting primary
-            const standby: NodeId = targetNode === "primary" ? "replica2" : "replica3";
-            console.warn(`[DBCluster] Read query transient issue on ${targetNode} (${err.message}). Falling back to ${standby} for this query.`);
-            targetNode = standby;
-            continue;
+          if (node === "primary") {
+            try {
+              return await runOn("primary");
+            } catch (firstErr: any) {
+              if (!isTransientDbError(firstErr)) throw firstErr;
+              await sleep(150);
+              return await runOn("primary");
+            }
           }
-          throw err;
+          return await runOn(node);
+        } catch (err: any) {
+          lastErr = err;
+          if (!isTransientDbError(err)) throw err;
+          const nextNode = order[i + 1];
+          if (nextNode) {
+            console.warn(`[DBCluster] Primary unreachable after retry (${err.message}). Emergency fallback to ${nextNode}.`);
+          }
         }
       }
+      if (lastErr) throw lastErr;
       return [] as unknown as T[];
     }
 
     // ─────────────────────────────────────────────
     // 2. WRITE QUERY FLOW (Always-Synced Replication)
     // ─────────────────────────────────────────────
+    const resolvedSql = preResolveGeneratedIds(sql);
     let leaderResult: any = null;
     let leaderNode = this.currentLeaderId;
 
     try {
       const leaderPool = this.getPool(leaderNode);
-      leaderResult = await leaderPool.query(sql, params as any[]);
+      leaderResult = await withTimeout(leaderPool.query(resolvedSql, params as any[]), 10_000, `write:${leaderNode}`);
     } catch (err: any) {
-      // Primary leader failed during write
+      if (!isTransientDbError(err)) {
+        throw err;
+      }
       const standby: NodeId = leaderNode === "primary" ? "replica2" : "replica3";
-      this.triggerFailover(standby, `Write failed on leader ${leaderNode}: ${err.message}`);
-      
-      // Retry immediately on new leader
+      this.triggerFailover(standby, `Write connection failed on leader ${leaderNode}: ${err.message}`);
+
       const fallbackPool = this.getPool(standby);
-      leaderResult = await fallbackPool.query(sql, params as any[]);
+      leaderResult = await withTimeout(fallbackPool.query(resolvedSql, params as any[]), 10_000, `write:${standby}`);
       leaderNode = standby;
     }
 
-    // If pinned to an isolated node (e.g. BRAIN_DB_TARGET=replica3 for local dev/testing), do NOT fan out writes to Primary or other replicas!
     if (this.isolatedNode) {
       return (leaderResult?.rows || []) as unknown as T[];
     }
 
-    // Now replicate the write to all other replica nodes
-    const otherNodes: NodeId[] = (["primary", "replica2", "replica3"] as NodeId[])
-      .filter(id => id !== leaderNode);
+    const otherNodes: NodeId[] = (["primary", "replica2", "replica3"] as NodeId[]).filter((id) => id !== leaderNode);
 
     for (const replicaId of otherNodes) {
       const replicaPool = this.pools.get(replicaId);
       const isOnline = this.health.get(replicaId)?.status === "ONLINE";
 
       if (replicaPool && isOnline) {
-        // Fire-and-settle replication; if replica is slow or errors, fallback to syncQueue
-        replicaPool.query(sql, params as any[]).catch((repErr: any) => {
+        replicaPool.query(resolvedSql, params as any[]).catch((repErr: any) => {
+          const nonRetryable = ["23503", "23505", "42P01", "42703", "22P02"].includes(String(repErr?.code));
+          if (nonRetryable) return;
           console.warn(`[DBCluster Replicate] Immediate replicate to ${replicaId} failed (${repErr.message}). Enqueuing to syncQueue.`);
-          this.syncQueue.push({
-            id: `mutation_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            sql,
-            params,
-            targetNodeId: replicaId,
-            attempts: 0,
-            enqueuedAt: Date.now()
-          });
+          if (this.syncQueue.length < 500) {
+            this.syncQueue.push({
+              id: `mutation_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              sql: resolvedSql,
+              params,
+              targetNodeId: replicaId,
+              attempts: 0,
+              enqueuedAt: Date.now(),
+            });
+          }
         });
-      } else {
-        // Node is offline/degraded, buffer into syncQueue for automatic replay upon recovery
+      } else if (this.syncQueue.length < 500) {
         this.syncQueue.push({
           id: `mutation_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          sql,
+          sql: resolvedSql,
           params,
           targetNodeId: replicaId,
           attempts: 0,
-          enqueuedAt: Date.now()
+          enqueuedAt: Date.now(),
         });
       }
     }
@@ -454,7 +544,6 @@ class DatabaseClusterManager {
   }
 }
 
-// Global Singleton Instance
 export const clusterManager = new DatabaseClusterManager();
 export const clusterQuery: QueryFn = <T = QueryRow>(sql: string, params: unknown[] = []) => clusterManager.query<T>(sql, params);
 export default clusterManager;

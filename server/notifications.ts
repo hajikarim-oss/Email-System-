@@ -29,6 +29,7 @@ interface NotifCacheEntry {
     expiresAt: number;
 }
 const notifCache = new Map<string, NotifCacheEntry>();
+const notifInFlight = new Map<string, Promise<any>>();
 const NOTIF_CACHE_TTL = 15_000;
 
 export async function handleNotifications(req: IncomingMessage, res: ServerResponse) {
@@ -93,7 +94,14 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
             send(res, 200, cached.data, 0);
             return;
         }
+        const pendingNotif = notifInFlight.get(cacheKey);
+        if (pendingNotif) {
+            const sharedPayload = await pendingNotif;
+            send(res, 200, sharedPayload, 0);
+            return;
+        }
 
+        const buildPromise = (async () => {
         const teamUsersSub = `(
             SELECT ut."userId" FROM "UserTeam" ut
             WHERE ut."teamId" IN (SELECT "teamId" FROM "UserTeam" WHERE "userId" = '${scope.userId}')
@@ -139,19 +147,41 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
         }
 
         // Always supplement with live reply events from the last 14 days
-        const replyNotifs = await pgQuery<any>(
-            `SELECT e.id, e."leadId", e."fromEmail", e."eventType", e."rawPayload", e."createdAt",
-                    l.email as "leadEmail", l."firstName", l."lastName",
-                    c.name as "campaignName", c.id as "campaignId"
-             FROM "EmailEvent" e
-             JOIN "Lead" l ON l.id = e."leadId"
-             LEFT JOIN "Campaign" c ON c.id = l."campaignId"
-             WHERE e."eventType" = 'replied'
-               AND e."createdAt" >= NOW() - INTERVAL '14 days'
-               AND ${allowedCampOwnerFilter}
-             ORDER BY e."createdAt" DESC
-             LIMIT 20`
-        );
+        const [replyNotifs, bounceNotifs, pausedCampaigns] = await Promise.all([
+            pgQuery<any>(
+                `SELECT e.id, e."leadId", e."fromEmail", e."eventType", e."rawPayload", e."createdAt",
+                        l.email as "leadEmail", l."firstName", l."lastName",
+                        c.name as "campaignName", c.id as "campaignId"
+                 FROM "EmailEvent" e
+                 JOIN "Lead" l ON l.id = e."leadId"
+                 LEFT JOIN "Campaign" c ON c.id = l."campaignId"
+                 WHERE e."eventType" = 'replied'
+                   AND e."createdAt" >= NOW() - INTERVAL '14 days'
+                   AND ${allowedCampOwnerFilter}
+                 ORDER BY e."createdAt" DESC
+                 LIMIT 20`
+            ),
+            pgQuery<any>(
+                `SELECT l.id, l.email, l."firstName", l."lastName", l."updatedAt",
+                        c.name as "campaignName"
+                 FROM "Lead" l
+                 LEFT JOIN "Campaign" c ON c.id = l."campaignId"
+                 WHERE l.status = 'BOUNCED'
+                   AND l."updatedAt" >= NOW() - INTERVAL '7 days'
+                   AND ${allowedCampOwnerFilter}
+                 ORDER BY l."updatedAt" DESC
+                 LIMIT 10`
+            ),
+            pgQuery<any>(
+                `SELECT c.id, c.name, c.status, c."updatedAt"
+                 FROM "Campaign" c
+                 WHERE (c.status::text ILIKE 'paused%' OR c.status::text = 'PAUSED')
+                   AND c."updatedAt" >= NOW() - INTERVAL '7 days'
+                   AND ${allowedCampOwnerFilter}
+                 ORDER BY c."updatedAt" DESC
+                 LIMIT 5`
+            ),
+        ]);
 
         const existingIds = new Set(notifications.map(n => n.id));
         for (const r of replyNotifs) {
@@ -173,19 +203,6 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
             });
         }
 
-        // Bounced leads in last 7 days
-        const bounceNotifs = await pgQuery<any>(
-            `SELECT l.id, l.email, l."firstName", l."lastName", l."updatedAt",
-                    c.name as "campaignName"
-             FROM "Lead" l
-             LEFT JOIN "Campaign" c ON c.id = l."campaignId"
-             WHERE l.status = 'BOUNCED'
-               AND l."updatedAt" >= NOW() - INTERVAL '7 days'
-               AND ${allowedCampOwnerFilter}
-             ORDER BY l."updatedAt" DESC
-             LIMIT 10`
-        );
-
         for (const b of bounceNotifs) {
             const notifId = `notif_bounce_${b.id}`;
             if (existingIds.has(notifId)) continue;
@@ -200,17 +217,6 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
                 created_at: b.updatedAt,
             });
         }
-
-        // Paused campaigns
-        const pausedCampaigns = await pgQuery<any>(
-            `SELECT c.id, c.name, c.status, c."updatedAt"
-             FROM "Campaign" c
-             WHERE (c.status::text ILIKE 'paused%' OR c.status::text = 'PAUSED')
-               AND c."updatedAt" >= NOW() - INTERVAL '7 days'
-               AND ${allowedCampOwnerFilter}
-             ORDER BY c."updatedAt" DESC
-             LIMIT 5`
-        );
 
         for (const p of pausedCampaigns) {
             const notifId = `notif_paused_${p.id}`;
@@ -235,13 +241,19 @@ export async function handleNotifications(req: IncomingMessage, res: ServerRespo
         const finalList = unreadOnly ? notifications.filter(n => !n.read_at) : notifications;
         const unreadCount = notifications.filter(n => !n.read_at).length;
 
-        const payload = {
+        const builtPayload = {
             notifications: finalList.slice(0, limit),
             unread: unreadCount,
         };
-        notifCache.set(cacheKey, { data: payload, expiresAt: Date.now() + NOTIF_CACHE_TTL });
+        notifCache.set(cacheKey, { data: builtPayload, expiresAt: Date.now() + NOTIF_CACHE_TTL });
 
         console.log(`[Notifications] Returning ${finalList.length} notifications (${unreadCount} unread) for ${isMaster ? "master" : scope.userId}`);
+        return builtPayload;
+        })().finally(() => {
+            notifInFlight.delete(cacheKey);
+        });
+        notifInFlight.set(cacheKey, buildPromise);
+        const payload = await buildPromise;
 
         send(res, 200, payload, 0);
     } catch (err: any) {

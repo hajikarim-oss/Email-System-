@@ -75,7 +75,7 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
             fetchSmartleadStatus();
             queryClient.invalidateQueries({ queryKey: ["campaigns", campaign.id] });
             queryClient.invalidateQueries({ queryKey: ["analytics", "campaigns", campaign.id] });
-        }, 5000);
+        }, 30_000);
         return () => clearInterval(interval);
     }, [fetchSmartleadStatus, queryClient, campaign.id]);
 

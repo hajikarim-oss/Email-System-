@@ -128,7 +128,7 @@ export async function ensureImmediateSendingSchedule(
     const schedRes = await apiCall(`/campaigns/${smartleadId}/schedule`, "POST", payload, apiKey);
 
     // Re-trigger START status so the scheduler immediately re-evaluates the queue
-    await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, apiKey).catch(() => {});
+    await apiCall(`/campaigns/${smartleadId}/status`, "POST", { status: "START" }, apiKey).catch(() => { });
 
     return { ok: schedRes.status >= 200 && schedRes.status < 300, schedule: payload };
 }
@@ -156,172 +156,172 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
             const accounts = getAllSmartleadKeys();
             if (accounts.length === 0) return;
 
-        // Fetch team members from DB to correctly map campaign ownership
-        const users = await pgQuery<any>(`SELECT id, email, name, role FROM "User"`);
-        if (!users || users.length === 0) return;
+            // Fetch team members from DB to correctly map campaign ownership
+            const users = await pgQuery<any>(`SELECT id, email, name, role FROM "User"`);
+            if (!users || users.length === 0) return;
 
-        let masterUserId = users[0].id;
-        for (const u of users) {
-            if (u.role === "MASTER") {
-                masterUserId = u.id;
-                break;
+            let masterUserId = users[0].id;
+            for (const u of users) {
+                if (u.role === "MASTER") {
+                    masterUserId = u.id;
+                    break;
+                }
             }
-        }
 
-        const snehalId = users.find((u: any) => (u.name || "").toLowerCase().includes("snehal") || (u.email || "").toLowerCase().includes("snehal"))?.id || masterUserId;
-        const vatsalId = users.find((u: any) => (u.name || "").toLowerCase().includes("vatsal") || (u.email || "").toLowerCase().includes("vatsal"))?.id || masterUserId;
-        const preetiId = users.find((u: any) => (u.name || "").toLowerCase().includes("preeti") || (u.email || "").toLowerCase().includes("preeti"))?.id || masterUserId;
+            const snehalId = users.find((u: any) => (u.name || "").toLowerCase().includes("snehal") || (u.email || "").toLowerCase().includes("snehal"))?.id || masterUserId;
+            const vatsalId = users.find((u: any) => (u.name || "").toLowerCase().includes("vatsal") || (u.email || "").toLowerCase().includes("vatsal"))?.id || masterUserId;
+            const preetiId = users.find((u: any) => (u.name || "").toLowerCase().includes("preeti") || (u.email || "").toLowerCase().includes("preeti"))?.id || masterUserId;
 
-        // Query campaigns from all active accounts
-        const allSlCampaigns: any[] = [];
-        const seenIds = new Set<number>();
+            // Query campaigns from all active accounts
+            const allSlCampaigns: any[] = [];
+            const seenIds = new Set<number>();
 
-        for (const acc of accounts) {
-            const listRes = await apiCall("/campaigns", "GET", undefined, acc.key);
-            if (Array.isArray(listRes.data)) {
-                for (const camp of listRes.data) {
-                    if (camp?.id && !seenIds.has(camp.id)) {
-                        seenIds.add(camp.id);
-                        allSlCampaigns.push({ ...camp, _apiKey: acc.key });
+            for (const acc of accounts) {
+                const listRes = await apiCall("/campaigns", "GET", undefined, acc.key);
+                if (Array.isArray(listRes.data)) {
+                    for (const camp of listRes.data) {
+                        if (camp?.id && !seenIds.has(camp.id)) {
+                            seenIds.add(camp.id);
+                            allSlCampaigns.push({ ...camp, _apiKey: acc.key });
+                        }
                     }
                 }
             }
-        }
 
-        if (allSlCampaigns.length === 0) return;
+            if (allSlCampaigns.length === 0) return;
 
-        for (const sl of allSlCampaigns) {
-            const providerId = String(sl.id);
-            const slName = (sl.name || `Campaign ${sl.id}`).trim();
+            for (const sl of allSlCampaigns) {
+                const providerId = String(sl.id);
+                const slName = (sl.name || `Campaign ${sl.id}`).trim();
 
-            const existing = await pgQuery<any>(
-                `SELECT id, name, status, "providerCampaignId", "userId" FROM "Campaign"
+                const existing = await pgQuery<any>(
+                    `SELECT id, name, status, "providerCampaignId", "userId" FROM "Campaign"
                  WHERE "providerCampaignId" = $1
                     OR (("providerCampaignId" IS NULL OR "providerCampaignId" = '')
                         AND LOWER(name) = LOWER($2)
                         AND NOT EXISTS (SELECT 1 FROM "Campaign" c2 WHERE c2."providerCampaignId" = $1))
                  ORDER BY CASE WHEN "providerCampaignId" = $1 THEN 0 ELSE 1 END, "createdAt" DESC
                  LIMIT 1`,
-                [providerId, slName]
-            );
+                    [providerId, slName]
+                );
 
-            let targetUserId = masterUserId;
-            const nameLower = slName.toLowerCase();
-            if (nameLower.includes("snehal")) targetUserId = snehalId;
-            else if (nameLower.includes("vatsal")) targetUserId = vatsalId;
-            else if (nameLower.includes("preeti")) targetUserId = preetiId;
+                let targetUserId = masterUserId;
+                const nameLower = slName.toLowerCase();
+                if (nameLower.includes("snehal")) targetUserId = snehalId;
+                else if (nameLower.includes("vatsal")) targetUserId = vatsalId;
+                else if (nameLower.includes("preeti")) targetUserId = preetiId;
 
-            let mappedStatus = "DRAFT";
-            const slStatus = (sl.status || "").toUpperCase();
-            if (slStatus === "ACTIVE" || slStatus === "RUNNING" || slStatus === "START") mappedStatus = "ACTIVE";
-            else if (slStatus === "COMPLETED" || slStatus === "FINISHED") mappedStatus = "COMPLETED";
-            else if (slStatus === "PAUSED" || slStatus === "STOPPED") mappedStatus = "PAUSED";
+                let mappedStatus = "DRAFT";
+                const slStatus = (sl.status || "").toUpperCase();
+                if (slStatus === "ACTIVE" || slStatus === "RUNNING" || slStatus === "START") mappedStatus = "ACTIVE";
+                else if (slStatus === "COMPLETED" || slStatus === "FINISHED") mappedStatus = "COMPLETED";
+                else if (slStatus === "PAUSED" || slStatus === "STOPPED") mappedStatus = "PAUSED";
 
-            let campDbId = "";
+                let campDbId = "";
 
-            if (existing.length === 0) {
-                console.log(`[Auto-Reconcile] Discovered new Smartlead campaign #${providerId} "${slName}", registering in database...`);
-                const inserted = await pgQuery<any>(
-                    `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendHour", "preferredSendDays", "createdAt", "updatedAt")
+                if (existing.length === 0) {
+                    console.log(`[Auto-Reconcile] Discovered new Smartlead campaign #${providerId} "${slName}", registering in database...`);
+                    const inserted = await pgQuery<any>(
+                        `INSERT INTO "Campaign" (id, "userId", name, status, "providerCampaignId", "sendTimezone", "preferredSendHour", "preferredSendDays", "createdAt", "updatedAt")
                      VALUES (gen_random_uuid()::text, $1, $2, $3, $4, 'Asia/Kolkata', 10, '{1,2,3,4,5}', COALESCE($5::timestamptz, NOW()), NOW())
                      RETURNING id`,
-                    [targetUserId, slName, mappedStatus, providerId, sl.created_at || null]
-                );
-                campDbId = inserted?.[0]?.id || "";
-            } else {
-                campDbId = existing[0].id;
-                if (existing[0].userId) {
-                    targetUserId = existing[0].userId;
-                }
-                // Keep providerCampaignId and status updated
-                await pgQuery(
-                    `UPDATE "Campaign"
+                        [targetUserId, slName, mappedStatus, providerId, sl.created_at || null]
+                    );
+                    campDbId = inserted?.[0]?.id || "";
+                } else {
+                    campDbId = existing[0].id;
+                    if (existing[0].userId) {
+                        targetUserId = existing[0].userId;
+                    }
+                    // Keep providerCampaignId and status updated
+                    await pgQuery(
+                        `UPDATE "Campaign"
                      SET "providerCampaignId" = $1, status = $2, "updatedAt" = NOW()
                      WHERE id = $3`,
-                    [providerId, mappedStatus, campDbId]
-                );
-            }
-
-            if (!campDbId) continue;
-
-            // Link Master's dedicated mailbox for Master-owned campaigns
-            if (targetUserId === masterUserId) {
-                const masterMb = await pgQuery<any>(
-                    `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`
-                );
-                if (masterMb && masterMb.length > 0) {
-                    await pgQuery(
-                        `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                        [campDbId, masterMb[0].id]
-                    ).catch(() => {});
+                        [providerId, mappedStatus, campDbId]
+                    );
                 }
-            }
 
-            // Check if leads exist for this campaign
-            const dbLeadCount = await pgQuery<any>(
-                `SELECT COUNT(*)::int as count FROM "Lead" WHERE "campaignId" = $1`,
-                [campDbId]
-            );
-            const count = dbLeadCount?.[0]?.count || 0;
+                if (!campDbId) continue;
 
-            if (count === 0) {
-                // Fetch leads from Smartlead (max 500 leads per campaign sync)
-                const leadsRes = await apiCall(`/campaigns/${providerId}/leads?limit=100&offset=0`, "GET", undefined, sl._apiKey);
-                const total = leadsRes.data?.total_leads || 0;
-                let rawList = Array.isArray(leadsRes.data?.data) ? leadsRes.data.data : [];
-
-                // If more leads exist, fetch up to 500 leads
-                if (total > 100) {
-                    for (let offset = 100; offset < Math.min(total, 500); offset += 100) {
-                        const nextRes = await apiCall(`/campaigns/${providerId}/leads?limit=100&offset=${offset}`, "GET", undefined, sl._apiKey);
-                        if (Array.isArray(nextRes.data?.data)) {
-                            rawList.push(...nextRes.data.data);
-                        } else {
-                            break;
-                        }
+                // Link Master's dedicated mailbox for Master-owned campaigns
+                if (targetUserId === masterUserId) {
+                    const masterMb = await pgQuery<any>(
+                        `SELECT id FROM "Mailbox" WHERE "providerMailboxId" = '24993809' OR lower("senderEmail") = 'kumar.monu@theboredmonkey.com' LIMIT 1`
+                    );
+                    if (masterMb && masterMb.length > 0) {
+                        await pgQuery(
+                            `INSERT INTO "CampaignMailbox" ("campaignId", "mailboxId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                            [campDbId, masterMb[0].id]
+                        ).catch(() => { });
                     }
                 }
 
-                if (rawList.length > 0) {
-                    for (let i = 0; i < rawList.length; i += 50) {
-                        const chunk = rawList.slice(i, i + 50);
-                        const values: string[] = [];
-                        const params: any[] = [];
-                        let pIdx = 1;
+                // Check if leads exist for this campaign
+                const dbLeadCount = await pgQuery<any>(
+                    `SELECT COUNT(*)::int as count FROM "Lead" WHERE "campaignId" = $1`,
+                    [campDbId]
+                );
+                const count = dbLeadCount?.[0]?.count || 0;
 
-                        for (const item of chunk) {
-                            const l = item.lead || item;
-                            const email = (l.email || l.lead_email || "").toLowerCase().trim();
-                            if (!email || !email.includes("@")) continue;
-                            const fName = (l.first_name || l.firstName || email.split("@")[0]).slice(0, 100);
-                            const lName = (l.last_name || l.lastName || "").slice(0, 100);
-                            const customData = JSON.stringify({
-                                company: l.company_name || l.company || "",
-                                title: l.custom_fields?.title || "",
-                            });
+                if (count === 0) {
+                    // Fetch leads from Smartlead (max 500 leads per campaign sync)
+                    const leadsRes = await apiCall(`/campaigns/${providerId}/leads?limit=100&offset=0`, "GET", undefined, sl._apiKey);
+                    const total = leadsRes.data?.total_leads || 0;
+                    let rawList = Array.isArray(leadsRes.data?.data) ? leadsRes.data.data : [];
 
-                            values.push(`(gen_random_uuid()::text, $${pIdx}, $${pIdx+1}, $${pIdx+2}, $${pIdx+3}, $${pIdx+4}::jsonb, 'smartlead', 'ACTIVE', NOW(), NOW())`);
-                            params.push(campDbId, email, fName, lName, customData);
-                            pIdx += 5;
+                    // If more leads exist, fetch up to 500 leads
+                    if (total > 100) {
+                        for (let offset = 100; offset < Math.min(total, 500); offset += 100) {
+                            const nextRes = await apiCall(`/campaigns/${providerId}/leads?limit=100&offset=${offset}`, "GET", undefined, sl._apiKey);
+                            if (Array.isArray(nextRes.data?.data)) {
+                                rawList.push(...nextRes.data.data);
+                            } else {
+                                break;
+                            }
                         }
+                    }
 
-                        if (values.length > 0) {
-                            await pgQuery(
-                                `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", "customData", source, status, "createdAt", "updatedAt")
+                    if (rawList.length > 0) {
+                        for (let i = 0; i < rawList.length; i += 50) {
+                            const chunk = rawList.slice(i, i + 50);
+                            const values: string[] = [];
+                            const params: any[] = [];
+                            let pIdx = 1;
+
+                            for (const item of chunk) {
+                                const l = item.lead || item;
+                                const email = (l.email || l.lead_email || "").toLowerCase().trim();
+                                if (!email || !email.includes("@")) continue;
+                                const fName = (l.first_name || l.firstName || email.split("@")[0]).slice(0, 100);
+                                const lName = (l.last_name || l.lastName || "").slice(0, 100);
+                                const customData = JSON.stringify({
+                                    company: l.company_name || l.company || "",
+                                    title: l.custom_fields?.title || "",
+                                });
+
+                                values.push(`(gen_random_uuid()::text, $${pIdx}, $${pIdx + 1}, $${pIdx + 2}, $${pIdx + 3}, $${pIdx + 4}::jsonb, 'smartlead', 'ACTIVE', NOW(), NOW())`);
+                                params.push(campDbId, email, fName, lName, customData);
+                                pIdx += 5;
+                            }
+
+                            if (values.length > 0) {
+                                await pgQuery(
+                                    `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", "customData", source, status, "createdAt", "updatedAt")
                                  VALUES ${values.join(", ")}`,
-                                params
-                            ).catch(() => {});
+                                    params
+                                ).catch(() => { });
+                            }
                         }
+                        console.log(`[Auto-Reconcile] ✓ Synced ${rawList.length} leads for campaign #${providerId}`);
                     }
-                    console.log(`[Auto-Reconcile] ✓ Synced ${rawList.length} leads for campaign #${providerId}`);
                 }
             }
+        } catch (err: any) {
+            console.warn("[Auto-Reconcile] Reconciliation warning (non-fatal):", err?.message);
+        } finally {
+            inFlightReconcile = null;
         }
-    } catch (err: any) {
-        console.warn("[Auto-Reconcile] Reconciliation warning (non-fatal):", err?.message);
-    } finally {
-        inFlightReconcile = null;
-    }
     })();
 
     return inFlightReconcile;
@@ -454,7 +454,7 @@ export async function reconcileSmartleadMailboxes(force = false): Promise<{
                 const curIds = new Set(curAccs.map((a: any) => a.id));
                 const curHasTroops = curAccs.some((a: any) => String(a.from_email || a.email || "").toLowerCase().includes("tbmtroop"));
 
-                const isTroopsCamp = 
+                const isTroopsCamp =
                     campOwnerEmail.includes("pratik") || campOwnerEmail.includes("naveen") || campOwnerEmail.includes("meenakshi") ||
                     campOwnerId === "usr_troops_0c4c79fd" || campOwnerId === "usr_troops_87e6f943" || campOwnerId === "usr_troops_4d72a76b" ||
                     nameLower.includes("troops") || (Array.isArray(camp.tags) && camp.tags.some((t: any) => String(t).toLowerCase().includes("troops"))) ||

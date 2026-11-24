@@ -75,7 +75,101 @@ export async function reconcileCampaign(
         [mappedStatus, dbCampId]
     );
 
-    // Fetch statistics
+    // 1. Ensure production Smartlead webhook is registered on this campaign so all future sends/opens/clicks/replies/bounces stream in real time
+    const webhookUrl = process.env.WEBHOOK_URL || "https://tbmoutreach.tech/api/webhooks/smartlead";
+    try {
+        const whRes = await fetch(`${SMARTLEAD_BASE}/campaigns/${slId}/webhooks?api_key=${apiKey}`);
+        if (whRes.ok) {
+            const whList = await whRes.json();
+            const hasWh = Array.isArray(whList) && whList.some((w: any) => w.webhook_url === webhookUrl);
+            if (!hasWh) {
+                await fetch(`${SMARTLEAD_BASE}/campaigns/${slId}/webhooks?api_key=${apiKey}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name: "Email System Live Webhook",
+                        webhook_url: webhookUrl,
+                        event_types: ["EMAIL_OPEN", "EMAIL_SENT", "EMAIL_REPLY", "EMAIL_BOUNCE", "EMAIL_LINK_CLICK", "LEAD_UNSUBSCRIBED"],
+                    }),
+                });
+            }
+        }
+    } catch {}
+
+    // 2. If local DB lead count is less than Smartlead's enrolled leads, pull all leads from Smartlead (deduplicated by email)
+    try {
+        const slLeadsFirst = await fetch(`${SMARTLEAD_BASE}/campaigns/${slId}/leads?limit=100&offset=0&api_key=${apiKey}`);
+        if (slLeadsFirst.ok) {
+            const firstJson = await slLeadsFirst.json();
+            const slTotal = Number(firstJson?.total_leads || 0);
+            const dbCountRows = await pgQuery<{ cnt: number }>(`SELECT count(*)::int AS cnt FROM "Lead" WHERE "campaignId" = $1`, [dbCampId]);
+            const dbCount = dbCountRows[0]?.cnt || 0;
+
+            if (slTotal > 0 && dbCount !== slTotal) {
+                const allSlLeads: any[] = Array.isArray(firstJson?.data) ? [...firstJson.data] : [];
+                for (let off = 100; off < Math.min(slTotal, 5000); off += 100) {
+                    const nextRes = await fetch(`${SMARTLEAD_BASE}/campaigns/${slId}/leads?limit=100&offset=${off}&api_key=${apiKey}`);
+                    if (!nextRes.ok) break;
+                    const nextJson = await nextRes.json();
+                    const chunk = Array.isArray(nextJson?.data) ? nextJson.data : [];
+                    if (!chunk.length) break;
+                    allSlLeads.push(...chunk);
+                }
+
+                // Deduplicate any duplicate email rows inside this campaign first
+                await pgQuery(
+                    `DELETE FROM "Lead" a USING "Lead" b
+                     WHERE a."campaignId" = $1 AND b."campaignId" = $1
+                       AND lower(a.email) = lower(b.email)
+                       AND a.id > b.id`,
+                    [dbCampId]
+                ).catch(() => {});
+
+                const existingSet = new Set<string>(
+                    (await pgQuery<{ email: string }>(`SELECT lower(trim(email)) AS email FROM "Lead" WHERE "campaignId" = $1`, [dbCampId])).map((r) => r.email)
+                );
+
+                const missingLeads = allSlLeads.filter((item) => {
+                    const l = item.lead || item;
+                    const em = (l.email || l.lead_email || "").toLowerCase().trim();
+                    if (!em || !em.includes("@") || existingSet.has(em)) return false;
+                    existingSet.add(em);
+                    return true;
+                });
+
+                for (let i = 0; i < missingLeads.length; i += 100) {
+                    const batch = missingLeads.slice(i, i + 100);
+                    const vals: string[] = [];
+                    const params: any[] = [];
+                    let p = 1;
+                    for (const item of batch) {
+                        const l = item.lead || item;
+                        const em = (l.email || l.lead_email || "").toLowerCase().trim();
+                        const fName = (l.first_name || l.firstName || em.split("@")[0]).slice(0, 100);
+                        const lName = (l.last_name || l.lastName || "").slice(0, 100);
+                        const dom = em.split("@")[1] || "";
+                        const customData = JSON.stringify({
+                            company: l.company_name || l.company || "",
+                            title: l.custom_fields?.title || "",
+                            ...(l.custom_fields || {}),
+                        });
+                        vals.push(`(gen_random_uuid()::text, $${p}, $${p + 1}, $${p + 2}, $${p + 3}, $${p + 4}, $${p + 5}::jsonb, 'smartlead', 'ACTIVE', 'NEVER_REACHED', NOW(), NOW())`);
+                        params.push(dbCampId, em, fName, lName, dom, customData);
+                        p += 6;
+                    }
+                    if (vals.length > 0) {
+                        await pgQuery(
+                            `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", domain, "customData", source, status, "outreachState", "createdAt", "updatedAt")
+                             VALUES ${vals.join(", ")}`,
+                            params
+                        ).catch(() => {});
+                    }
+                }
+            }
+        }
+    } catch {}
+
+    // 3. Fetch statistics
     let offset = 0;
     const limit = 500;
     let allStats: any[] = [];

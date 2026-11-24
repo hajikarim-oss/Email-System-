@@ -40,15 +40,13 @@ export function getEnvVar(key: string, fallback = ""): string {
 }
 
 export function resolveBrainDatabaseUrl(): { url: string; target: "replica3" | "primary" } {
-  const target = (getEnvVar("BRAIN_DB_TARGET", "replica3") || "replica3").toLowerCase();
-  if (target === "primary") {
-    const primaryUrl = getEnvVar("DIRECT_URL") || getEnvVar("DATABASE_URL");
-    if (!primaryUrl) throw new Error("PRIMARY DATABASE_URL is not configured");
-    return { url: primaryUrl, target: "primary" };
+  const target = (getEnvVar("BRAIN_DB_TARGET", "primary") || "primary").toLowerCase();
+  if (target === "replica3") {
+    const r3Url = getEnvVar("DIRECT_REPLICA3_URL") || getEnvVar("DATABASE_REPLICA3_URL");
+    if (r3Url) return { url: r3Url, target: "replica3" };
   }
-  const r3Url = getEnvVar("DIRECT_REPLICA3_URL") || getEnvVar("DATABASE_REPLICA3_URL");
-  if (!r3Url) throw new Error("DIRECT_REPLICA3_URL / DATABASE_REPLICA3_URL is not configured");
-  return { url: r3Url, target: "replica3" };
+  const primaryUrl = getEnvVar("DIRECT_URL") || getEnvVar("DATABASE_URL") || "postgresql://postgres.hsmudwkfwmvinhtggxyd:9538564601Aa@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require";
+  return { url: primaryUrl, target: "primary" };
 }
 
 let _brainPool: Pool | null = null;
@@ -66,9 +64,9 @@ export function getBrainPool(): Pool {
   _brainPool = new Pool({
     connectionString: parsed.toString(),
     ssl: { rejectUnauthorized: false },
-    max: 15,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 30_000,
+    max: 4,
+    idleTimeoutMillis: 15_000,
+    connectionTimeoutMillis: 15_000,
   });
 
   _brainPool.on("error", (err: any) => {

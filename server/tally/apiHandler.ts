@@ -6,12 +6,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import http from 'node:http';
 import os from 'node:os';
-import { getPool } from '../pg';
+import { pgQuery } from '../pg';
 import { TallyDbRepository } from './db';
 import { TallyReconciliationEngine } from './reconciliation';
 import { TallyXmlBuilder } from './xmlBuilder';
 import { TallyXmlParser } from './xmlParser';
 import type { TallySyncStatusResponse } from './types';
+
+let cachedTallyStatus: { at: number; data: any } | null = null;
 
 function sendJson(res: ServerResponse, statusCode: number, data: any) {
     res.writeHead(statusCode, {
@@ -553,30 +555,33 @@ export async function handleTallyApi(req: IncomingMessage, res: ServerResponse):
                 return;
             }
 
+            if (cachedTallyStatus && Date.now() - cachedTallyStatus.at < 30_000) {
+                sendJson(res, 200, cachedTallyStatus.data);
+                return;
+            }
             try {
-                const pool = getPool();
-                const agentRes = await pool.query(`
-                    SELECT id, machine_name, status, active_company_name, tally_version, last_heartbeat_at
-                    FROM tally_sync_agents
-                    ORDER BY last_heartbeat_at DESC NULLS LAST
-                    LIMIT 1;
-                `);
+                const [agentRows, checkpointRows, discrepanciesRows] = await Promise.all([
+                    pgQuery<any>(`
+                        SELECT id, machine_name, status, active_company_name, tally_version, last_heartbeat_at
+                        FROM tally_sync_agents
+                        ORDER BY last_heartbeat_at DESC NULLS LAST
+                        LIMIT 1;
+                    `),
+                    pgQuery<any>(`
+                        SELECT last_sync_timestamp 
+                        FROM tally_sync_checkpoints 
+                        WHERE entity_type = 'VOUCHERS'
+                        ORDER BY updated_at DESC LIMIT 1;
+                    `),
+                    pgQuery<any>(`
+                        SELECT COUNT(*) as count 
+                        FROM tally_reconciliation_discrepancies 
+                        WHERE status = 'PENDING_REVIEW';
+                    `),
+                ]);
 
-                const checkpointRes = await pool.query(`
-                    SELECT last_sync_timestamp 
-                    FROM tally_sync_checkpoints 
-                    WHERE entity_type = 'VOUCHERS'
-                    ORDER BY updated_at DESC LIMIT 1;
-                `);
-
-                const discrepanciesCount = await pool.query(`
-                    SELECT COUNT(*) as count 
-                    FROM tally_reconciliation_discrepancies 
-                    WHERE status = 'PENDING_REVIEW';
-                `);
-
-                const agent = agentRes.rows[0];
-                const lastSync = checkpointRes.rows[0]?.last_sync_timestamp || agent?.last_heartbeat_at;
+                const agent = agentRows[0];
+                const lastSync = checkpointRows[0]?.last_sync_timestamp || agent?.last_heartbeat_at;
 
                 let minutesSinceLastSync = 0;
                 if (lastSync) {
@@ -595,7 +600,7 @@ export async function handleTallyApi(req: IncomingMessage, res: ServerResponse):
                 } else if (agent.status === 'TALLY_OFFLINE') {
                     systemStatus = 'DEGRADED';
                     warningMessage = 'Tally application is closed on office desktop.';
-                } else if (Number(discrepanciesCount.rows[0]?.count || 0) > 10) {
+                } else if (Number(discrepanciesRows[0]?.count || 0) > 10) {
                     systemStatus = 'DEGRADED';
                     warningMessage = 'High volume of unresolved reconciliation discrepancies.';
                 }
@@ -612,12 +617,13 @@ export async function handleTallyApi(req: IncomingMessage, res: ServerResponse):
                     },
                     backlog: {
                         pendingTasks: 0,
-                        unreconciledDiscrepancies: Number(discrepanciesCount.rows[0]?.count || 0),
+                        unreconciledDiscrepancies: Number(discrepanciesRows[0]?.count || 0),
                         unclassifiedParties: 0,
                     },
                     warningMessage,
                 };
 
+                cachedTallyStatus = { at: Date.now(), data: response };
                 sendJson(res, 200, response);
                 return;
             } catch {
@@ -661,8 +667,8 @@ export async function handleTallyApi(req: IncomingMessage, res: ServerResponse):
         // 3. GET /api/tally/reconcile (Reconciliation Report)
         // ----------------------------------------------------------------------
         if (pathname === '/api/tally/reconcile' && req.method === 'GET') {
-            const pool = getPool();
-            const discrepancies = await pool.query(`
+            const statusFilter = url.searchParams.get('status') || 'PENDING_REVIEW';
+            const discrepancies = await pgQuery<any>(`
                 SELECT id, company_guid, discrepancy_type, dashboard_entity, dashboard_record_id,
                        tally_voucher_no, party_name, dashboard_amount, tally_amount, variance_amount,
                        status, resolution_notes, detected_at
@@ -674,8 +680,8 @@ export async function handleTallyApi(req: IncomingMessage, res: ServerResponse):
 
             sendJson(res, 200, {
                 status: 'success',
-                count: discrepancies.rows.length,
-                discrepancies: discrepancies.rows,
+                count: discrepancies.length,
+                discrepancies,
             });
             return;
         }
@@ -800,29 +806,28 @@ export async function handleTallyApi(req: IncomingMessage, res: ServerResponse):
             }
 
             try {
-                const pool = getPool();
-                const revenueRes = await pool.query(`
-                    SELECT COALESCE(SUM(taxable_value), 0) as tally_taxable_revenue
-                    FROM tally_sales_invoices;
-                `);
-
-                const debtorsRes = await pool.query(`
-                    SELECT COALESCE(SUM(closing_balance), 0) as tally_debtors_balance
-                    FROM tally_ledgers
-                    WHERE parent_group = 'Sundry Debtors';
-                `);
-
-                const depRes = await pool.query(`
-                    SELECT closing_balance as tally_depreciation
-                    FROM tally_trial_balance
-                    WHERE ledger = 'Depreciation'
-                    LIMIT 1;
-                `);
+                const [revenueRows, debtorsRows, depRows] = await Promise.all([
+                    pgQuery<any>(`
+                        SELECT COALESCE(SUM(taxable_value), 0) as tally_taxable_revenue
+                        FROM tally_sales_invoices;
+                    `),
+                    pgQuery<any>(`
+                        SELECT COALESCE(SUM(closing_balance), 0) as tally_debtors_balance
+                        FROM tally_ledgers
+                        WHERE parent_group = 'Sundry Debtors';
+                    `),
+                    pgQuery<any>(`
+                        SELECT closing_balance as tally_depreciation
+                        FROM tally_trial_balance
+                        WHERE ledger = 'Depreciation'
+                        LIMIT 1;
+                    `),
+                ]);
 
                 sendJson(res, 200, {
-                    tallyRevenue: Number(revenueRes.rows[0]?.tally_taxable_revenue || 0),
-                    tallyDebtors: Number(debtorsRes.rows[0]?.tally_debtors_balance || 0),
-                    tallyDepreciation: Number(depRes.rows[0]?.tally_depreciation || 0),
+                    tallyRevenue: Number(revenueRows[0]?.tally_taxable_revenue || 0),
+                    tallyDebtors: Number(debtorsRows[0]?.tally_debtors_balance || 0),
+                    tallyDepreciation: Number(depRows[0]?.tally_depreciation || 0),
                 });
                 return;
             } catch {

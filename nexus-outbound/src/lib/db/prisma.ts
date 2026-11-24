@@ -50,7 +50,7 @@ if (process.env.NODE_ENV !== "production") {
  * - Mutation Queries (create, update, delete): Execute on Primary, and replicate to Standby & Backup.
  */
 const isIsolatedReplica3 =
-  (process.env.BRAIN_DB_TARGET || process.env.DB_TARGET_NODE || "").toLowerCase() === "replica3";
+  (process.env.DB_TARGET_NODE || "").toLowerCase() === "replica3";
 
 export const prisma =
   globalForPrisma.prisma ??
@@ -78,15 +78,21 @@ export const prisma =
               const isConnError =
                 err.code === "P1001" ||
                 err.code === "P1002" ||
-                err.message?.includes("closed") ||
-                err.message?.includes("Connection terminated") ||
-                err.message?.includes("ECONNRESET");
+                err.code === "P2024" ||
+                /closed|Connection terminated|ECONNRESET|timeout|ECHECKOUTTIMEOUT/i.test(String(err.message || ""));
 
               if (standbyPrisma && isConnError) {
                 console.warn(
                   `[Prisma HA Failover] Primary DB unreachable on ${model}.${operation}. Failing over to Standby DB (Replica 2).`
                 );
-                return await (standbyPrisma as any)[model][operation](args);
+                try {
+                  return await (standbyPrisma as any)[model][operation](args);
+                } catch (standbyErr: any) {
+                  if (backupPrisma) {
+                    return await (backupPrisma as any)[model][operation](args);
+                  }
+                  throw standbyErr;
+                }
               }
               throw err;
             }

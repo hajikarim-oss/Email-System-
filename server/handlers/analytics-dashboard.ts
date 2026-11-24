@@ -6,7 +6,8 @@ import { requireUser } from "./auth";
 import { Memo, send } from "./send";
 
 const CACHE_SECONDS = 60;
-const memo = new Memo<unknown>(30_000);
+const memo = new Memo<unknown>(30_000, 16);
+const inFlight = new Map<string, Promise<unknown>>();
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {
@@ -28,7 +29,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             send(res, 200, hit, CACHE_SECONDS);
             return;
         }
-        const payload = await getDashboard({ period, from, to }, pgQuery, scope);
+        let pending = inFlight.get(key);
+        if (!pending) {
+            pending = getDashboard({ period, from, to }, pgQuery, scope).finally(() => {
+                inFlight.delete(key);
+            });
+            inFlight.set(key, pending);
+        }
+        const payload = await pending;
         memo.set(key, payload);
         send(res, 200, payload, CACHE_SECONDS);
     } catch (err: any) {

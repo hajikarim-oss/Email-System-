@@ -25,19 +25,27 @@ export async function getMailboxes(query: QueryFn, scope: DataScope): Promise<Ma
         .replace("T", " ");
 
     return query<MailboxRow>(
-        `WITH sends AS (
+        `WITH active_mailboxes AS (
+            SELECT lower("senderEmail") AS email
+            FROM "Mailbox"
+            WHERE status != 'RETIRED' AND "senderEmail" IS NOT NULL
+        ),
+        sends AS (
             SELECT lower("senderEmail") AS email,
                    count(*)::int AS total_sent,
                    count(*) FILTER (WHERE "createdAt" >= $1::timestamp)::int AS sent_today
             FROM "EmailMessage"
             WHERE "senderEmail" IS NOT NULL
+              AND lower("senderEmail") IN (SELECT email FROM active_mailboxes)
             GROUP BY 1
             UNION ALL
             SELECT lower("fromEmail") AS email,
                    count(*)::int AS total_sent,
                    count(*) FILTER (WHERE "createdAt" >= $1::timestamp)::int AS sent_today
             FROM "EmailEvent"
-            WHERE "eventType" = 'sent' AND "fromEmail" IS NOT NULL
+            WHERE "eventType" = 'sent'
+              AND "fromEmail" IS NOT NULL
+              AND lower("fromEmail") IN (SELECT email FROM active_mailboxes)
             GROUP BY 1
         ),
         totals AS (

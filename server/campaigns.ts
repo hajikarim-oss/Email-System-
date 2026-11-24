@@ -54,14 +54,25 @@ export async function getCampaignStats(query: QueryFn, scope: DataScope): Promis
               AND ${leadOwned(scope, `"Lead"`)}
             GROUP BY 1
         ),
+        event_per_lead AS (
+            SELECT "leadId",
+                   bool_or("eventType" = '${SENT_EVENT}') AS has_sent,
+                   bool_or("eventType" IN ${inList(OPEN_EVENTS)}) AS has_open,
+                   bool_or("eventType" IN ${inList(CLICK_EVENTS)}) AS has_click,
+                   bool_or("eventType" IN ${inList(REPLY_EVENTS)}) AS has_reply,
+                   bool_or("eventType" IN ${inList(BOUNCE_EVENTS)}) AS has_bounce
+            FROM "EmailEvent"
+            WHERE "leadId" IS NOT NULL
+            GROUP BY "leadId"
+        ),
         event_stats AS (
             SELECT l."campaignId" AS id,
-                count(DISTINCT e."leadId") FILTER (WHERE e."eventType" = '${SENT_EVENT}')::int AS event_sent,
-                count(DISTINCT e."leadId") FILTER (WHERE e."eventType" IN ${inList(OPEN_EVENTS)})::int AS event_opens,
-                count(DISTINCT e."leadId") FILTER (WHERE e."eventType" IN ${inList(CLICK_EVENTS)})::int AS event_clicks,
-                count(DISTINCT e."leadId") FILTER (WHERE e."eventType" IN ${inList(REPLY_EVENTS)})::int AS event_replies,
-                count(DISTINCT e."leadId") FILTER (WHERE e."eventType" IN ${inList(BOUNCE_EVENTS)})::int AS event_bounces
-            FROM "EmailEvent" e
+                count(*) FILTER (WHERE e.has_sent)::int AS event_sent,
+                count(*) FILTER (WHERE e.has_open)::int AS event_opens,
+                count(*) FILTER (WHERE e.has_click)::int AS event_clicks,
+                count(*) FILTER (WHERE e.has_reply)::int AS event_replies,
+                count(*) FILTER (WHERE e.has_bounce)::int AS event_bounces
+            FROM event_per_lead e
             JOIN "Lead" l ON l.id = e."leadId"
             WHERE l."campaignId" IS NOT NULL
               AND ${leadOwned(scope, "l")}

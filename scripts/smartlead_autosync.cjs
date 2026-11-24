@@ -97,10 +97,68 @@ async function fetchWithRetry(url, retries = 5) {
   return lastRes;
 }
 
+const LOCK_FILE = "/tmp/smartlead_autosync.lock";
+
+function acquireSingleInstanceLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      const stat = fs.statSync(LOCK_FILE);
+      const ageMs = Date.now() - stat.mtimeMs;
+      const oldPid = Number(fs.readFileSync(LOCK_FILE, "utf8").trim());
+      if (ageMs < 12 * 60 * 1000 && oldPid && oldPid !== process.pid) {
+        try {
+          process.kill(oldPid, 0);
+          console.log(`[Smartlead AutoSync] Another sync instance (PID ${oldPid}) is already running. Skipping duplicate run.`);
+          return false;
+        } catch (_) {
+          // Process no longer exists; stale lock
+        }
+      }
+    }
+    fs.writeFileSync(LOCK_FILE, String(process.pid), "utf8");
+    return true;
+  } catch (_) {
+    return true;
+  }
+}
+
+function releaseSingleInstanceLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      const pid = Number(fs.readFileSync(LOCK_FILE, "utf8").trim());
+      if (pid === process.pid) fs.unlinkSync(LOCK_FILE);
+    }
+  } catch (_) {}
+}
+
 async function reconcileCampaigns() {
+  if (!acquireSingleInstanceLock()) return;
+  try {
   console.log("=====================================================");
   console.log(`[Smartlead AutoSync] Starting reconciliation at ${new Date().toISOString()}`);
   console.log("=====================================================");
+
+  // Pre-load known reply counts per providerCampaignId from Primary so we only deep-scan campaigns with NEW replies
+  const knownReplyCounts = new Map();
+  try {
+    const cPrimary = new Client({ connectionString: DB_CONNECTIONS[0].url, ssl: { rejectUnauthorized: false } });
+    await cPrimary.connect();
+    const res = await cPrimary.query(`
+      SELECT c."providerCampaignId" AS sl_id,
+             count(DISTINCT e."leadId")::int AS reply_leads
+      FROM "Campaign" c
+      LEFT JOIN "Lead" l ON l."campaignId" = c.id
+      LEFT JOIN "EmailEvent" e ON e."leadId" = l.id AND e."eventType" IN ('replied', 'email_reply', 'reply')
+      WHERE c."providerCampaignId" IS NOT NULL
+      GROUP BY c."providerCampaignId"
+    `);
+    for (const r of res.rows) {
+      knownReplyCounts.set(String(r.sl_id), Number(r.reply_leads || 0));
+    }
+    await cPrimary.end();
+  } catch (e) {
+    console.warn("[Smartlead AutoSync] Could not pre-read known reply counts:", e.message);
+  }
 
   // 1. Fetch campaigns from Smartlead
   const campRes = await fetchWithRetry(`${BASE_URL}/campaigns?api_key=${SMARTLEAD_KEY}`);
@@ -113,7 +171,7 @@ async function reconcileCampaigns() {
   // 2. Scan active campaigns for analytics and replies
   const campaignData = [];
   for (const c of campaigns) {
-    await sleep(75); // rate limit guard
+    await sleep(220); // rate limit guard
     try {
       const aRes = await fetchWithRetry(`${BASE_URL}/campaigns/${c.id}/analytics?api_key=${SMARTLEAD_KEY}`);
       if (!aRes.ok) continue;
@@ -124,6 +182,7 @@ async function reconcileCampaigns() {
       const openCount = Number(a.open_count || 0);
       const clickCount = Number(a.click_count || 0);
       const bounceCount = Number(a.bounced_count || 0);
+      const knownReplies = knownReplyCounts.get(String(c.id)) || 0;
 
       campaignData.push({
         id: String(c.id),
@@ -134,7 +193,7 @@ async function reconcileCampaigns() {
         openCount,
         clickCount,
         bounceCount,
-        hasReplies: replyCount > 0
+        hasReplies: replyCount > 0 && replyCount > knownReplies
       });
     } catch (err) {
       console.warn(`Error fetching analytics for campaign ${c.id}:`, err.message);
@@ -352,6 +411,9 @@ async function reconcileCampaigns() {
   console.log("\n=====================================================");
   console.log(`[Smartlead AutoSync] Completed reconciliation successfully at ${new Date().toISOString()}`);
   console.log("=====================================================");
+  } finally {
+    releaseSingleInstanceLock();
+  }
 }
 
 if (require.main === module) {

@@ -465,13 +465,13 @@ function smartleadApiPlugin() {
                                     console.log(`[Smartlead API] Reusing existing campaign #${found.id} ("${campaignName}")`);
                                 }
                             }
-                        } catch {}
+                        } catch { }
 
                         if (!createRes) {
                             createRes = await apiCall("/campaigns/create", "POST", { name: campaignName }, chosenKey);
                         }
                         if (createRes.status >= 200 && createRes.status < 300 && createRes.data?.id) {
-                            await reconcileSmartleadCampaigns(true).catch(() => {});
+                            await reconcileSmartleadCampaigns(true).catch(() => { });
                         }
                         res.writeHead(createRes.status, { "Content-Type": "application/json" });
                         res.end(JSON.stringify(createRes.data));
@@ -601,7 +601,7 @@ function smartleadApiPlugin() {
                                         console.log(`[Smartlead API] Reusing existing campaign #${smartleadId} ("${campaignName}")`);
                                     }
                                 }
-                            } catch {}
+                            } catch { }
                         }
 
                         if (!smartleadId) {
@@ -648,9 +648,9 @@ function smartleadApiPlugin() {
                                 console.warn("[Smartlead Sync] DB safeguard check failed:", e);
                             }
                         }
-                        const isMaster = !isTroops && ((parsed.is_master === true) || 
-                                         (sender.includes("kumar.monu") || sender.includes("monu@theboredmonkey.com") || userEmail.includes("monu")) ||
-                                         (Array.isArray(parsed.mailbox_ids) && (parsed.mailbox_ids.includes(24993809) || parsed.mailbox_ids.includes("24993809"))));
+                        const isMaster = !isTroops && ((parsed.is_master === true) ||
+                            (sender.includes("kumar.monu") || sender.includes("monu@theboredmonkey.com") || userEmail.includes("monu")) ||
+                            (Array.isArray(parsed.mailbox_ids) && (parsed.mailbox_ids.includes(24993809) || parsed.mailbox_ids.includes("24993809"))));
                         let mailboxIds = isMaster ? [24993809] : (isPreeti ? [23458016] : [23457457]);
                         if (!isMaster) {
                             try {
@@ -691,7 +691,7 @@ function smartleadApiPlugin() {
                                     }
                                 }
                             }
-                        } catch {}
+                        } catch { }
 
                         await apiCall(`/campaigns/${smartleadId}/email-accounts`, "POST", {
                             email_account_ids: mailboxIds,
@@ -704,7 +704,7 @@ function smartleadApiPlugin() {
                             if (Array.isArray(seqCheck.data)) {
                                 existingSeqs = seqCheck.data;
                             }
-                        } catch {}
+                        } catch { }
 
                         if (existingSeqs.length === 0) {
                             const seqSteps = (parsed.steps && parsed.steps.length > 0)
@@ -797,7 +797,7 @@ function smartleadApiPlugin() {
                                 const em = ((el.lead || el).email || "").toLowerCase().trim();
                                 if (em) existingLeadEmails.add(em);
                             }
-                        } catch {}
+                        } catch { }
 
                         const rawLeads = parsed.leads || [];
                         const newLeads = rawLeads.filter((l: any) => !existingLeadEmails.has((l.email || "").toLowerCase().trim()));
@@ -872,7 +872,7 @@ function smartleadApiPlugin() {
                         }
 
                         // 6.2 Persist campaign and leads into PostgreSQL via auto-reconciliation
-                        await reconcileSmartleadCampaigns(true).catch(() => {});
+                        await reconcileSmartleadCampaigns(true).catch(() => { });
 
                         // 7. Ensure Live Webhook is registered on Smartlead for this campaign
                         try {
@@ -1103,7 +1103,7 @@ function databaseIntelligencePlugin() {
                     if (!scope) return;
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     if (urlObj.searchParams.get("sync") === "true") {
-                        await reconcileSmartleadMailboxes(true).catch(() => {});
+                        await reconcileSmartleadMailboxes(true).catch(() => { });
                     }
                     const payload = await getMailboxes(prismaQuery, scope);
                     res.writeHead(200, { "Content-Type": "application/json" });
@@ -1168,16 +1168,11 @@ function databaseIntelligencePlugin() {
             // this dev middleware and the deployed /api/intelligence/contacts
             // function are guaranteed to return the same numbers.
             const prismaQuery = async <T extends QueryRow = QueryRow>(sql: string, params: unknown[] = []): Promise<T[]> => {
-                try {
-                    return await pgQuery<T>(sql, params);
-                } catch (pgErr: any) {
-                    console.error("[prismaQuery] pgQuery failed:", pgErr?.message || pgErr);
-                    const prisma = getPrisma();
-                    if (!prisma) throw pgErr;
-                    return (await prisma.$queryRawUnsafe(sql, ...(params as any[]))) as T[];
-                }
+                return pgQuery<T>(sql, params);
             };
 
+            let contactsCache = new Map<string, { at: number; data: any }>();
+            let contactsInFlight = new Map<string, Promise<any>>();
             server.middlewares.use("/api/intelligence/contacts", async (req: any, res: any) => {
                 let body = "";
                 req.on("data", (chunk: any) => { body += chunk; });
@@ -1185,15 +1180,6 @@ function databaseIntelligencePlugin() {
                     try {
                         const scope = await requireScope(req, res);
                         if (!scope) return;
-                        const prisma = getPrisma();
-                        if (!prisma) {
-                            res.writeHead(503, { "Content-Type": "application/json" });
-                            res.end(JSON.stringify({
-                                error: "database_unavailable",
-                                message: "Prisma could not connect to DATABASE_URL, so live contact data cannot be read.",
-                            }));
-                            return;
-                        }
 
                         const parsed = req.method === "POST" ? JSON.parse(body || "{}") : {};
                         const urlObj = new URL(req.url, "http://localhost:5173");
@@ -1218,22 +1204,34 @@ function databaseIntelligencePlugin() {
                             activeScope = { ...scope, userId: memberId, master: false };
                         }
 
-                        const payload = await getContacts(
-                            {
-                                query: pick("query") || pick("q") || "",
-                                page: parseInt(String(pick("page") || "1"), 10) || 1,
-                                limit: parseInt(String(pick("limit") || "50"), 10) || 50,
-                                campaignIds: [...new Set(rawCampaignIds)],
-                                outreachState: pick("outreach_state") || undefined,
-                                recencyBucket: pick("recency_bucket") || undefined,
-                                subscribed,
-                                company: pick("company") || "",
-                                domain: pick("domain") || pick("domains") || "",
-                                category: pick("category") || pick("category_ids") || "",
-                            },
-                            prismaQuery,
-                            activeScope,
-                        );
+                        const reqObj = {
+                            query: pick("query") || pick("q") || "",
+                            page: parseInt(String(pick("page") || "1"), 10) || 1,
+                            limit: parseInt(String(pick("limit") || "50"), 10) || 50,
+                            campaignIds: [...new Set(rawCampaignIds)],
+                            outreachState: pick("outreach_state") || undefined,
+                            recencyBucket: pick("recency_bucket") || undefined,
+                            subscribed,
+                            company: pick("company") || "",
+                            domain: pick("domain") || pick("domains") || "",
+                            category: pick("category") || pick("category_ids") || "",
+                        };
+                        const cKey = `${activeScope.master ? "master" : activeScope.userId}|${JSON.stringify(reqObj)}`;
+                        const hit = contactsCache.get(cKey);
+                        if (hit && Date.now() - hit.at < 15_000) {
+                            res.writeHead(200, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify(hit.data));
+                            return;
+                        }
+                        let pending = contactsInFlight.get(cKey);
+                        if (!pending) {
+                            pending = getContacts(reqObj, prismaQuery, activeScope).finally(() => {
+                                contactsInFlight.delete(cKey);
+                            });
+                            contactsInFlight.set(cKey, pending);
+                        }
+                        const payload = await pending;
+                        contactsCache.set(cKey, { at: Date.now(), data: payload });
 
                         res.writeHead(200, { "Content-Type": "application/json" });
                         res.end(JSON.stringify(payload));
@@ -1256,12 +1254,6 @@ function databaseIntelligencePlugin() {
                 try {
                     const scope = await requireScope(req, res);
                     if (!scope) return;
-                    const prisma = getPrisma();
-                    if (!prisma) {
-                        res.writeHead(503, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ error: "database_unavailable", message: "The live database is not reachable." }));
-                        return;
-                    }
 
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     const period = urlObj.searchParams.get("period") || "7d";
@@ -1577,12 +1569,26 @@ function databaseIntelligencePlugin() {
             });
 
             // 8. Live database campaigns query
-            // Lifetime campaign statistics, aggregated from Lead + EmailEvent
+            // Lifetime campaign statistics, aggregated from Lead + EmailEvent (with 30s memo + in-flight deduplication)
+            let statsCache: { at: number; key: string; data: any } | null = null;
+            let statsInFlight: Promise<any> | null = null;
             server.middlewares.use("/api/campaigns/stats", async (req: any, res: any) => {
                 try {
                     const scope = await requireScope(req, res);
                     if (!scope) return;
-                    const stats = await getCampaignStats(prismaQuery, scope);
+                    const cacheKey = `${scope.master ? "master" : scope.userId}_${scope.isTroops ? "troops" : "tbm"}`;
+                    if (statsCache && statsCache.key === cacheKey && Date.now() - statsCache.at < 30_000) {
+                        res.writeHead(200, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify(statsCache.data));
+                        return;
+                    }
+                    if (!statsInFlight) {
+                        statsInFlight = getCampaignStats(prismaQuery, scope).finally(() => {
+                            statsInFlight = null;
+                        });
+                    }
+                    const stats = await statsInFlight;
+                    statsCache = { at: Date.now(), key: cacheKey, data: stats };
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(stats));
                 } catch (e) {
@@ -1783,6 +1789,8 @@ function databaseIntelligencePlugin() {
                 }
             });
 
+            const campaignsListCache = new Map<string, { at: number; data: any }>();
+            const campaignsListInFlight = new Map<string, Promise<any>>();
             const handleCampaignsRoute = async (req: any, res: any) => {
                 try {
                     const scope = await requireScope(req, res);
@@ -1805,7 +1813,7 @@ function databaseIntelligencePlugin() {
                             try {
                                 const parsed = JSON.parse(Buffer.concat(bodyParts).toString() || "{}");
                                 campId = parsed.id || parsed.campaignId;
-                            } catch {}
+                            } catch { }
                         }
                         if (!campId) {
                             res.writeHead(400, { "Content-Type": "application/json" });
@@ -1856,7 +1864,7 @@ function databaseIntelligencePlugin() {
                             req.on("end", resolve);
                         });
                         let input: any = {};
-                        try { input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}"); } catch {}
+                        try { input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}"); } catch { }
 
                         const camp = await prisma.campaign.findFirst({
                             where: { OR: [{ id: campIdParam }, { providerCampaignId: campIdParam }] },
@@ -1881,7 +1889,7 @@ function databaseIntelligencePlugin() {
                                 const chosenKey = isPreeti ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY;
                                 const leadCheck = await apiCall(`/campaigns/${camp.providerCampaignId}/leads?limit=1`, "GET", undefined, chosenKey);
                                 existingSlLeadCount = Number(leadCheck.data?.total_leads) || (Array.isArray(leadCheck.data?.data) ? leadCheck.data.data.length : 0);
-                            } catch {}
+                            } catch { }
                         }
 
                         // Guard against re-starting an already active campaign with all leads enrolled
@@ -1901,7 +1909,7 @@ function databaseIntelligencePlugin() {
                             const sender = (camp.mailboxes?.[0]?.mailbox?.senderEmail || "").toLowerCase();
                             const isPreeti = sender.includes("preeti");
                             const chosenKey = isPreeti ? SECONDARY_SMARTLEAD_KEY : DEFAULT_SMARTLEAD_KEY;
-                            await apiCall(`/campaigns/${slId}/status`, "POST", { status: "START" }, chosenKey).catch(() => {});
+                            await apiCall(`/campaigns/${slId}/status`, "POST", { status: "START" }, chosenKey).catch(() => { });
                             await prisma.campaign.update({
                                 where: { id: camp.id },
                                 data: { status: "ACTIVE" },
@@ -1957,20 +1965,20 @@ function databaseIntelligencePlugin() {
 
                         const steps = camp.steps || [];
                         const isTroopsCamp = (camp.name || "").toLowerCase().includes("troops") ||
-                                             (camp.userId === "usr_troops_0c4c79fd") ||
-                                             (scope?.isTroops === true) ||
-                                             (camp.teamId === "team_troops_outreach");
+                            (camp.userId === "usr_troops_0c4c79fd") ||
+                            (scope?.isTroops === true) ||
+                            (camp.teamId === "team_troops_outreach");
                         const isMasterCamp = !isTroopsCamp && ((scope?.master === true) ||
-                                             (camp.userId === "cmtr9pp8t0000cygeyjpsz5lt") ||
-                                             (camp.mailboxes || []).some((mb: any) => mb.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || mb.mailboxId === "mbx_kumar_monu_master") ||
-                                             (input.is_master === true) ||
-                                             (String(input.sender_email || "").includes("kumar.monu")));
+                            (camp.userId === "cmtr9pp8t0000cygeyjpsz5lt") ||
+                            (camp.mailboxes || []).some((mb: any) => mb.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || mb.mailboxId === "mbx_kumar_monu_master") ||
+                            (input.is_master === true) ||
+                            (String(input.sender_email || "").includes("kumar.monu")));
 
                         const senderEmail = isMasterCamp
                             ? "kumar.monu@theboredmonkey.com"
                             : isTroopsCamp
-                            ? (camp.mailboxes?.[0]?.mailbox?.senderEmail || "pratik@theboredmonkey.com")
-                            : (camp.mailboxes?.[0]?.mailbox?.senderEmail || (camp.name.toLowerCase().includes("vatsal") ? "vatsal.vadecha@theboredmonkey.com" : ""));
+                                ? (camp.mailboxes?.[0]?.mailbox?.senderEmail || "pratik@theboredmonkey.com")
+                                : (camp.mailboxes?.[0]?.mailbox?.senderEmail || (camp.name.toLowerCase().includes("vatsal") ? "vatsal.vadecha@theboredmonkey.com" : ""));
 
                         let mailboxIds: string[] = [];
                         if (isMasterCamp) {
@@ -2086,7 +2094,7 @@ function databaseIntelligencePlugin() {
                                      SET "smartleadCampaignId" = $1, "status" = 'ACTIVE', "updatedAt" = NOW()
                                      WHERE id = $2 OR lower(trim(name)) = lower(trim($3))`,
                                     [Number(syncRes.data.smartlead_id) || null, camp.id, camp.name]
-                                ).catch(() => {});
+                                ).catch(() => { });
                             } else {
                                 await prisma.campaign.update({
                                     where: { id: camp.id },
@@ -2097,7 +2105,7 @@ function databaseIntelligencePlugin() {
                                      SET "status" = 'ACTIVE', "updatedAt" = NOW()
                                      WHERE id = $1 OR lower(trim(name)) = lower(trim($2))`,
                                     [camp.id, camp.name]
-                                ).catch(() => {});
+                                ).catch(() => { });
                             }
 
                             res.writeHead(200, { "Content-Type": "application/json" });
@@ -2112,7 +2120,7 @@ function databaseIntelligencePlugin() {
                             await prisma.campaign.update({
                                 where: { id: camp.id },
                                 data: { status: "ACTIVE" },
-                            }).catch(() => {});
+                            }).catch(() => { });
                             res.writeHead(500, { "Content-Type": "application/json" });
                             res.end(JSON.stringify({ error: launchErr.message }));
                         }
@@ -2140,7 +2148,7 @@ function databaseIntelligencePlugin() {
                                     await fetch(
                                         `https://server.smartlead.ai/api/v1/campaigns/${camp.providerCampaignId}/status?api_key=${slKey}`,
                                         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "PAUSED" }) }
-                                    ).catch(() => {});
+                                    ).catch(() => { });
                                     console.log(`[Vite] Paused Smartlead campaign #${camp.providerCampaignId}`);
                                 }
                             }
@@ -2163,7 +2171,7 @@ function databaseIntelligencePlugin() {
                                 req.on("end", resolve);
                             });
                             let input: any = {};
-                            try { input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}"); } catch {}
+                            try { input = JSON.parse(Buffer.concat(bodyParts).toString() || "{}"); } catch { }
 
                             const camp = await prisma.campaign.findFirst({
                                 where: { OR: [{ id: campIdParam }, { providerCampaignId: campIdParam }] },
@@ -2187,20 +2195,20 @@ function databaseIntelligencePlugin() {
                                 console.log(`[Vite Test Campaign] Campaign ${camp.id} (${camp.name}) not yet on Smartlead. Syncing as DRAFT...`);
                                 const steps = camp.steps || [];
                                 const isTroopsTest = (camp.name || "").toLowerCase().includes("troops") ||
-                                                     (camp.userId === "usr_troops_0c4c79fd") ||
-                                                     (scope?.isTroops === true) ||
-                                                     (camp.teamId === "team_troops_outreach");
+                                    (camp.userId === "usr_troops_0c4c79fd") ||
+                                    (scope?.isTroops === true) ||
+                                    (camp.teamId === "team_troops_outreach");
                                 const isMasterTest = !isTroopsTest && ((scope?.master === true) ||
-                                                     (camp.userId === "cmtr9pp8t0000cygeyjpsz5lt") ||
-                                                     (camp.mailboxes || []).some((mb: any) => mb.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || mb.mailboxId === "mbx_kumar_monu_master") ||
-                                                     (input.is_master === true) ||
-                                                     (String(input.sender_email || "").includes("kumar.monu")));
+                                    (camp.userId === "cmtr9pp8t0000cygeyjpsz5lt") ||
+                                    (camp.mailboxes || []).some((mb: any) => mb.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || mb.mailboxId === "mbx_kumar_monu_master") ||
+                                    (input.is_master === true) ||
+                                    (String(input.sender_email || "").includes("kumar.monu")));
 
                                 const senderEmail = isMasterTest
                                     ? "kumar.monu@theboredmonkey.com"
                                     : isTroopsTest
-                                    ? (camp.mailboxes?.[0]?.mailbox?.senderEmail || "pratik@theboredmonkey.com")
-                                    : (camp.mailboxes?.[0]?.mailbox?.senderEmail || (camp.name.toLowerCase().includes("vatsal") ? "vatsal.vadecha@theboredmonkey.com" : ""));
+                                        ? (camp.mailboxes?.[0]?.mailbox?.senderEmail || "pratik@theboredmonkey.com")
+                                        : (camp.mailboxes?.[0]?.mailbox?.senderEmail || (camp.name.toLowerCase().includes("vatsal") ? "vatsal.vadecha@theboredmonkey.com" : ""));
 
                                 let mailboxIds: string[] = [];
                                 if (isMasterTest) {
@@ -2387,7 +2395,7 @@ function databaseIntelligencePlugin() {
                             await prisma.campaign.update({
                                 where: { id: camp.id },
                                 data: { testSentAt: new Date() },
-                            }).catch(() => {});
+                            }).catch(() => { });
 
                             res.writeHead(200, { "Content-Type": "application/json" });
                             res.end(JSON.stringify({
@@ -2564,11 +2572,11 @@ function databaseIntelligencePlugin() {
                                 mbIds = explicitIds.filter((id: string) => id !== "mbx_kumar_monu_master");
                             } else {
                                 const activeMbs = await prisma.mailbox.findMany({
-                                    where: { 
-                                        status: "ACTIVE", 
-                                        senderEmail: { 
+                                    where: {
+                                        status: "ACTIVE",
+                                        senderEmail: {
                                             not: "kumar.monu@theboredmonkey.com",
-                                        } 
+                                        }
                                     },
                                     select: { id: true, senderEmail: true }
                                 });
@@ -2583,7 +2591,7 @@ function databaseIntelligencePlugin() {
                                 await prisma.campaignMailbox.create({
                                     data: { campaignId: created.id, mailboxId: mbId },
                                 });
-                            } catch {}
+                            } catch { }
                         }
 
                         // If contacts/leads provided, save them now
@@ -2650,54 +2658,55 @@ function databaseIntelligencePlugin() {
                     let allowedUserIds = [scope.userId];
                     if (scope.master) {
                         try {
-                            const userTeams = await prisma.userTeam.findMany({ where: { userId: scope.userId }, select: { teamId: true } });
+                            const userTeams = await prismaQuery<{ teamId: string }>(`SELECT "teamId" FROM "UserTeam" WHERE "userId" = $1`, [scope.userId]);
                             if (userTeams.length > 0) {
                                 const teamIds = userTeams.map((t: any) => t.teamId);
-                                const peers = await prisma.userTeam.findMany({ where: { teamId: { in: teamIds } }, select: { userId: true } });
+                                const peers = await prismaQuery<{ userId: string }>(`SELECT "userId" FROM "UserTeam" WHERE "teamId" = ANY($1::text[])`, [teamIds]);
                                 allowedUserIds = Array.from(new Set([scope.userId, ...peers.map((p: any) => p.userId)]));
                             }
-                        } catch {}
+                        } catch { }
                     }
 
                     // Single campaign GET: /:id
-                    const rawCampId = (req.url || "").split("?")[0].replace(/^\//, "").trim();
-                    if (rawCampId && rawCampId !== "" && !["stats", "steps", "analytics", "logs"].includes(rawCampId)) {
-                        const camp = await prisma.campaign.findFirst({
-                            where: {
-                                AND: [
-                                    {
-                                        OR: [
-                                            { id: rawCampId },
-                                            { providerCampaignId: rawCampId },
-                                            { name: { contains: rawCampId, mode: "insensitive" } },
-                                        ],
-                                    },
-                                    { userId: { in: allowedUserIds } },
-                                ],
-                            },
-                            include: {
-                                steps: { orderBy: { stepNumber: "asc" } },
-                                mailboxes: { include: { mailbox: true } },
-                                _count: { select: { leads: true } },
-                            },
-                        });
+                    const urlPathOnly = (req.url || "").split("?")[0];
+                    const campMatch = urlPathOnly.match(/(?:^|\/campaigns\/)([^/?#]+)$/);
+                    const rawCampId = campMatch ? decodeURIComponent(campMatch[1]).trim() : urlPathOnly.replace(/^\//, "").trim();
+                    if (rawCampId && rawCampId !== "" && !["campaigns", "stats", "steps", "analytics", "logs"].includes(rawCampId)) {
+                        const campRows = await prismaQuery<any>(
+                            `SELECT c.*
+                             FROM "Campaign" c
+                             WHERE (c.id = $1 OR c."providerCampaignId" = $1 OR lower(c.name) = lower($1))
+                             ORDER BY CASE WHEN c.id = $1 THEN 0 WHEN c."providerCampaignId" = $1 THEN 1 ELSE 2 END
+                             LIMIT 1`,
+                            [rawCampId]
+                        );
+                        const camp = campRows[0];
 
                         if (camp) {
-                            const leadAgg = await prismaQuery(`
-                                SELECT count(*)::int AS total,
-                                       count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS sent,
-                                       count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "lastOpenAt" IS NOT NULL)::int AS opens,
-                                       count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL OR "lastRepliedAt" IS NOT NULL)::int AS replies,
-                                       count(*) FILTER (WHERE "totalBounced" > 0 OR "bounceCount" > 0 OR "lastBouncedAt" IS NOT NULL)::int AS bounces
-                                FROM "Lead"
-                                WHERE "campaignId" = $1 OR "campaignId" = $2
-                            `, [camp.id, camp.providerCampaignId || ""]).catch(() => []);
+                            const [steps, mailboxRows, leadAgg] = await Promise.all([
+                                prismaQuery<any>(`SELECT * FROM "CampaignStep" WHERE "campaignId" = $1 ORDER BY "stepNumber" ASC`, [camp.id]).catch(() => []),
+                                prismaQuery<any>(`SELECT m.* FROM "CampaignMailbox" cm JOIN "Mailbox" m ON m.id = cm."mailboxId" WHERE cm."campaignId" = $1`, [camp.id]).catch(() => []),
+                                prismaQuery<any>(`
+                                    SELECT count(*)::int AS total,
+                                           count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS sent,
+                                           count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "lastOpenAt" IS NOT NULL)::int AS opens,
+                                           count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL OR "lastRepliedAt" IS NOT NULL)::int AS replies,
+                                           count(*) FILTER (WHERE "totalBounced" > 0 OR "bounceCount" > 0 OR "lastBouncedAt" IS NOT NULL)::int AS bounces
+                                    FROM "Lead"
+                                    WHERE "campaignId" IN (
+                                        SELECT c2.id FROM "Campaign" c2
+                                        WHERE c2.id = $1
+                                           OR ($2 != '' AND c2."providerCampaignId" = $2)
+                                           OR (lower(trim(c2.name)) = lower(trim($3)))
+                                    )
+                                `, [camp.id, camp.providerCampaignId || "", camp.name || ""]).catch(() => []),
+                            ]);
                             const la = leadAgg?.[0] || {};
                             const effectiveSent = Math.max(camp.sent || 0, la.sent || 0);
                             const effectiveOpens = Math.max(camp.opens || 0, la.opens || 0);
                             const effectiveReplies = Math.max(camp.replies || 0, la.replies || 0);
                             const effectiveBounces = Math.max(camp.bounces || 0, la.bounces || 0);
-                            const effectiveLeads = Math.max(camp._count?.leads || 0, la.total || 0);
+                            const effectiveLeads = Math.max(la.total || 0, 0);
 
                             const mappedCamp = {
                                 id: camp.id,
@@ -2739,7 +2748,7 @@ function databaseIntelligencePlugin() {
                                 bounce_rate: effectiveSent > 0 ? Number(((effectiveBounces / effectiveSent) * 100).toFixed(1)) : 0,
                                 smartlead_id: camp.providerCampaignId ? parseInt(camp.providerCampaignId) : undefined,
                                 smartlead_status: camp.status === "ACTIVE" ? "ACTIVE" : "PAUSED",
-                                steps: (camp.steps || []).map((s: any) => ({
+                                steps: (steps || []).map((s: any) => ({
                                     id: s.id,
                                     stepNumber: s.stepNumber,
                                     position: s.stepNumber,
@@ -2749,7 +2758,7 @@ function databaseIntelligencePlugin() {
                                     body_html: s.bodyTemplate || "",
                                     wait_after: s.delayDays ?? (s.stepNumber === 1 ? 0 : 3),
                                 })),
-                                mailboxes: (camp.mailboxes || []).map((mb: any) => mb.mailbox),
+                                mailboxes: mailboxRows || [],
                                 created_at: camp.createdAt,
                                 updated_at: camp.updatedAt,
                             };
@@ -2760,73 +2769,86 @@ function databaseIntelligencePlugin() {
                     }
 
                     // Auto-reconcile with Smartlead asynchronously in background (debounced)
-                    reconcileSmartleadCampaigns().catch(() => {});
+                    reconcileSmartleadCampaigns().catch(() => { });
 
-                    const [dbCampaigns, leadAggs] = await Promise.all([
-                        prisma.campaign.findMany({
-                            where: { userId: { in: allowedUserIds } },
-                            include: {
-                                _count: { select: { leads: true } },
-                                steps: { orderBy: { stepNumber: "asc" } },
-                            },
-                            orderBy: { createdAt: "desc" },
-                        }),
-                        prismaQuery(`
-                            SELECT "campaignId",
-                                   count(*)::int AS total,
-                                   count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS sent,
-                                   count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "lastOpenAt" IS NOT NULL)::int AS opens,
-                                   count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL OR "lastRepliedAt" IS NOT NULL)::int AS replies,
-                                   count(*) FILTER (WHERE "totalBounced" > 0 OR "bounceCount" > 0 OR "lastBouncedAt" IS NOT NULL)::int AS bounces
-                            FROM "Lead"
-                            WHERE "campaignId" IS NOT NULL
-                            GROUP BY 1
-                        `).catch(() => []),
-                    ]);
-
-                    const aggMap = new Map<string, any>();
-                    for (const a of leadAggs) {
-                        if (a.campaignId) aggMap.set(String(a.campaignId), a);
-                    }
-
-                    // Creator campaigns (registered in CreatorCampaign) are hidden from outreach lists and
-                    // returned only for `?scope=creator`, mirroring api/intelligence/campaigns.ts.
-                    const creatorLinks = await prismaQuery(`SELECT id, "smartleadCampaignId"::text AS sl, lower(trim(name)) AS name_key FROM "CreatorCampaign"`).catch(() => []);
-                    const creatorIds = new Set<string>(creatorLinks.map((r: any) => String(r.id)));
-                    const creatorSlIds = new Set<string>(creatorLinks.filter((r: any) => r.sl).map((r: any) => String(r.sl)));
-                    const creatorNames = new Set<string>(creatorLinks.filter((r: any) => r.name_key).map((r: any) => String(r.name_key)));
                     const wantCreator = new URL(req.url || "", "http://localhost").searchParams.get("scope") === "creator";
-                    const isCreatorCamp = (c: any) =>
-                        creatorIds.has(String(c.id)) ||
-                        (!!c.providerCampaignId && creatorSlIds.has(String(c.providerCampaignId))) ||
-                        (!!c.name && creatorNames.has(String(c.name).trim().toLowerCase()));
+                    const listCacheKey = `${scope.master ? "master" : scope.userId}_${scope.isTroops ? "troops" : "tbm"}_${wantCreator ? "creator" : "outreach"}`;
+                    const hitList = campaignsListCache.get(listCacheKey);
+                    if (hitList && Date.now() - hitList.at < 15_000) {
+                        res.writeHead(200, { "Content-Type": "application/json" });
+                        res.end(JSON.stringify(hitList.data));
+                        return;
+                    }
+                    let pendingList = campaignsListInFlight.get(listCacheKey);
+                    if (!pendingList) {
+                        pendingList = (async () => {
+                            const [dbCampaigns, leadAggs, creatorLinks] = await Promise.all([
+                                prismaQuery<any>(
+                                    scope.master
+                                        ? `SELECT * FROM "Campaign" ORDER BY "createdAt" DESC`
+                                        : `SELECT * FROM "Campaign" WHERE "userId" = ANY($1::text[]) ORDER BY "createdAt" DESC`,
+                                    scope.master ? [] : [allowedUserIds]
+                                ),
+                                prismaQuery(`
+                                    SELECT "campaignId",
+                                           count(*)::int AS total,
+                                           count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS sent,
+                                           count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "lastOpenAt" IS NOT NULL)::int AS opens,
+                                           count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL OR "lastRepliedAt" IS NOT NULL)::int AS replies,
+                                           count(*) FILTER (WHERE "totalBounced" > 0 OR "bounceCount" > 0 OR "lastBouncedAt" IS NOT NULL)::int AS bounces
+                                    FROM "Lead"
+                                    WHERE "campaignId" IS NOT NULL
+                                    GROUP BY 1
+                                `).catch(() => []),
+                                prismaQuery(`SELECT id, "smartleadCampaignId"::text AS sl, lower(trim(name)) AS name_key FROM "CreatorCampaign"`).catch(() => []),
+                            ]);
 
-                    const formatted = dbCampaigns.filter((c: any) => isCreatorCamp(c) === wantCreator).map((c: any) => {
-                        const agg = aggMap.get(String(c.id)) || (c.providerCampaignId ? aggMap.get(String(c.providerCampaignId)) : null);
-                        const sentCount = Math.max(c.sent || 0, agg?.sent || 0);
-                        const openCount = Math.max(c.opens || 0, agg?.opens || 0);
-                        const replyCount = Math.max(c.replies || 0, agg?.replies || 0);
-                        const bounceCount = Math.max(c.bounces || 0, agg?.bounces || 0);
-                        const totalLeads = Math.max(c._count?.leads || 0, agg?.total || 0);
+                            const aggMap = new Map<string, any>();
+                            for (const a of leadAggs) {
+                                if (a.campaignId) aggMap.set(String(a.campaignId), a);
+                            }
 
-                        return {
-                            ...c,
-                            status: (c.status || "draft").toLowerCase(),
-                            total_leads: totalLeads,
-                            lead_count: totalLeads,
-                            sent: sentCount,
-                            sent_count: sentCount,
-                            opens: openCount,
-                            open_count: openCount,
-                            replies: replyCount,
-                            reply_count: replyCount,
-                            bounces: bounceCount,
-                            bounce_count: bounceCount,
-                            open_rate: sentCount > 0 ? Number(((openCount / sentCount) * 100).toFixed(1)) : 0,
-                            reply_rate: sentCount > 0 ? Number(((replyCount / sentCount) * 100).toFixed(1)) : 0,
-                            bounce_rate: sentCount > 0 ? Number(((bounceCount / sentCount) * 100).toFixed(1)) : 0,
-                        };
-                    });
+                            const creatorIds = new Set<string>(creatorLinks.map((r: any) => String(r.id)));
+                            const creatorSlIds = new Set<string>(creatorLinks.filter((r: any) => r.sl).map((r: any) => String(r.sl)));
+                            const creatorNames = new Set<string>(creatorLinks.filter((r: any) => r.name_key).map((r: any) => String(r.name_key)));
+                            const isCreatorCamp = (c: any) =>
+                                creatorIds.has(String(c.id)) ||
+                                (!!c.providerCampaignId && creatorSlIds.has(String(c.providerCampaignId))) ||
+                                (!!c.name && creatorNames.has(String(c.name).trim().toLowerCase()));
+
+                            return dbCampaigns.filter((c: any) => isCreatorCamp(c) === wantCreator).map((c: any) => {
+                                const agg = aggMap.get(String(c.id)) || (c.providerCampaignId ? aggMap.get(String(c.providerCampaignId)) : null);
+                                const sentCount = Math.max(c.sent || 0, agg?.sent || 0);
+                                const openCount = Math.max(c.opens || 0, agg?.opens || 0);
+                                const replyCount = Math.max(c.replies || 0, agg?.replies || 0);
+                                const bounceCount = Math.max(c.bounces || 0, agg?.bounces || 0);
+                                const totalLeads = Math.max(c._count?.leads || 0, agg?.total || 0);
+
+                                return {
+                                    ...c,
+                                    status: (c.status || "draft").toLowerCase(),
+                                    total_leads: totalLeads,
+                                    lead_count: totalLeads,
+                                    sent: sentCount,
+                                    sent_count: sentCount,
+                                    opens: openCount,
+                                    open_count: openCount,
+                                    replies: replyCount,
+                                    reply_count: replyCount,
+                                    bounces: bounceCount,
+                                    bounce_count: bounceCount,
+                                    open_rate: sentCount > 0 ? Number(((openCount / sentCount) * 100).toFixed(1)) : 0,
+                                    reply_rate: sentCount > 0 ? Number(((replyCount / sentCount) * 100).toFixed(1)) : 0,
+                                    bounce_rate: sentCount > 0 ? Number(((bounceCount / sentCount) * 100).toFixed(1)) : 0,
+                                };
+                            });
+                        })().finally(() => {
+                            campaignsListInFlight.delete(listCacheKey);
+                        });
+                        campaignsListInFlight.set(listCacheKey, pendingList);
+                    }
+                    const formatted = await pendingList;
+                    campaignsListCache.set(listCacheKey, { at: Date.now(), data: formatted });
 
                     res.writeHead(200, { "Content-Type": "application/json" });
                     res.end(JSON.stringify(formatted));
@@ -2881,12 +2903,6 @@ function databaseIntelligencePlugin() {
                 try {
                     const scope = await requireScope(req, res);
                     if (!scope) return;
-                    const prisma = getPrisma();
-                    if (!prisma) {
-                        res.writeHead(503, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ error: "database_unavailable", message: "The live database is not reachable." }));
-                        return;
-                    }
 
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     const memberId = urlObj.searchParams.get("member_id");

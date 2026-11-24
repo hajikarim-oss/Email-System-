@@ -239,8 +239,14 @@ async function readCampaignMeta(query: QueryFn, scope: DataScope): Promise<Query
         `SELECT c.id AS campaign_id,
                 c.name,
                 c.status,
-                (SELECT count(*)::int FROM "Lead" l WHERE l."campaignId" = c.id)::int AS leads
+                coalesce(lc.leads, 0)::int AS leads
          FROM "Campaign" c
+         LEFT JOIN (
+             SELECT "campaignId", count(*)::int AS leads
+             FROM "Lead"
+             WHERE "campaignId" IS NOT NULL
+             GROUP BY "campaignId"
+         ) lc ON lc."campaignId" = c.id
          WHERE ${ownerOwned(scope, `c."userId"`)}`,
     );
 }
