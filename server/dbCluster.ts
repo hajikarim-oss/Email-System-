@@ -116,7 +116,7 @@ export const CLUSTER_CONFIGS: Record<NodeId, ClusterNodeConfig> = {
     region: "ap-northeast-1",
     restUrl: "https://hsmudwkfwmvinhtggxyd.supabase.co/rest/v1/",
     host: "aws-0-ap-northeast-1.pooler.supabase.com",
-    port: 6543,
+    port: 5432,
     user: "postgres.hsmudwkfwmvinhtggxyd",
     database: "postgres",
     password: DEFAULT_PASSWORD,
@@ -128,7 +128,7 @@ export const CLUSTER_CONFIGS: Record<NodeId, ClusterNodeConfig> = {
     region: "ap-northeast-2",
     restUrl: "https://qlzlsjpncknjliyalfmj.supabase.co/rest/v1/",
     host: "aws-0-ap-northeast-2.pooler.supabase.com",
-    port: 6543,
+    port: 5432,
     user: "postgres.qlzlsjpncknjliyalfmj",
     database: "postgres",
     password: DEFAULT_PASSWORD,
@@ -140,7 +140,7 @@ export const CLUSTER_CONFIGS: Record<NodeId, ClusterNodeConfig> = {
     region: "ap-southeast-1",
     restUrl: "https://adlwwkqgexykuhkdkpfu.supabase.co/rest/v1/",
     host: "aws-0-ap-southeast-1.pooler.supabase.com",
-    port: 6543,
+    port: 5432,
     user: "postgres.adlwwkqgexykuhkdkpfu",
     database: "postgres",
     password: DEFAULT_PASSWORD,
@@ -199,18 +199,20 @@ class DatabaseClusterManager {
           }
         }
       }
-    } catch {}
+    } catch { }
 
     const envUrlFor = (id: NodeId): string | undefined => {
       const raw =
         id === "primary"
-          ? process.env.DATABASE_URL || fileEnv.DATABASE_URL
+          ? process.env.DIRECT_URL || fileEnv.DIRECT_URL || process.env.DATABASE_URL || fileEnv.DATABASE_URL
           : id === "replica2"
-          ? process.env.DATABASE_REPLICA2_URL || fileEnv.DATABASE_REPLICA2_URL
-          : process.env.DATABASE_REPLICA3_URL || fileEnv.DATABASE_REPLICA3_URL;
+          ? process.env.DIRECT_REPLICA2_URL || fileEnv.DIRECT_REPLICA2_URL || process.env.DATABASE_REPLICA2_URL || fileEnv.DATABASE_REPLICA2_URL
+          : process.env.DIRECT_REPLICA3_URL || fileEnv.DIRECT_REPLICA3_URL || process.env.DATABASE_REPLICA3_URL || fileEnv.DATABASE_REPLICA3_URL;
       if (!raw) return undefined;
       try {
         const parsed = new URL(raw);
+        // Use port 5432 (session pooler) so connections stay authenticated and never fail with 15000ms Transaction mode ECHECKOUTTIMEOUT
+        if (parsed.port === "6543") parsed.port = "5432";
         parsed.searchParams.delete("sslmode");
         parsed.searchParams.delete("pgbouncer");
         return parsed.toString();
@@ -223,23 +225,23 @@ class DatabaseClusterManager {
       const cs = envUrlFor(id);
       const poolConfig: PoolConfig = cs
         ? {
-            connectionString: cs,
-            ssl: { rejectUnauthorized: false },
-            max: 3,
-            idleTimeoutMillis: 10_000,
-            connectionTimeoutMillis: 10_000,
-          }
+          connectionString: cs,
+          ssl: { rejectUnauthorized: false },
+          max: 3,
+          idleTimeoutMillis: 10_000,
+          connectionTimeoutMillis: 10_000,
+        }
         : {
-            host: config.host,
-            port: config.port,
-            user: config.user,
-            password: config.password,
-            database: config.database,
-            ssl: { rejectUnauthorized: false },
-            max: 3,
-            idleTimeoutMillis: 10_000,
-            connectionTimeoutMillis: 10_000,
-          };
+          host: config.host,
+          port: config.port,
+          user: config.user,
+          password: config.password,
+          database: config.database,
+          ssl: { rejectUnauthorized: false },
+          max: 3,
+          idleTimeoutMillis: 10_000,
+          connectionTimeoutMillis: 10_000,
+        };
 
       const pool = new Pool(poolConfig);
       pool.on("error", (err: any) => {
@@ -415,7 +417,7 @@ class DatabaseClusterManager {
       this.queueTimer = null;
     }
     for (const pool of this.pools.values()) {
-      await pool.end().catch(() => {});
+      await pool.end().catch(() => { });
     }
     this.pools.clear();
   }
@@ -450,8 +452,8 @@ class DatabaseClusterManager {
       const order: NodeId[] = this.isolatedNode
         ? [this.isolatedNode]
         : primaryOffline
-        ? ["replica2", "replica3", "primary"]
-        : ["primary", "replica2", "replica3"];
+          ? ["replica2", "replica3", "primary"]
+          : ["primary", "replica2", "replica3"];
 
       let lastErr: any = null;
       for (let i = 0; i < order.length; i++) {
