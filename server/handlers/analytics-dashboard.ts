@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import { getDashboard } from "../analytics";
 import { DatabaseUnavailableError, pgQuery } from "../pg";
 import { scopeFor, scopeKey } from "../scope";
+import { syncSentEvents } from "../sentEventsSync";
 import { requireUser } from "./auth";
 import { Memo, send } from "./send";
 
@@ -13,6 +14,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     try {
         const user = await requireUser(req, res);
         if (!user) return;
+        syncSentEvents({ days: 2 }).catch(() => {});
         const urlObj = new URL(req.url || "", "http://localhost:3000");
         const memberId = urlObj.searchParams.get("member_id");
         let scope = scopeFor(user);

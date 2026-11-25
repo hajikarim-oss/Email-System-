@@ -22,6 +22,7 @@ import organizationHandler from "../server/handlers/organization";
 import { handleUnibox } from "../server/unibox";
 import { handleNotifications } from "../server/notifications";
 import { reconcileSmartleadCampaigns, reconcileSmartleadMailboxes, ensureImmediateSendingSchedule } from "../server/smartleadSync";
+import { syncSentEvents } from "../server/sentEventsSync";
 import { handleTallyApi } from "../server/tally/apiHandler";
 import creatorsHandler from "../api/creators/index";
 import brainHandler from "../api/brain";
@@ -1254,6 +1255,9 @@ function databaseIntelligencePlugin() {
                 try {
                     const scope = await requireScope(req, res);
                     if (!scope) return;
+
+                    // Trigger background self-healing Smartlead sent/open/click/reply/bounce sync (debounced every 3 min)
+                    syncSentEvents({ days: 2 }).catch(() => {});
 
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     const period = urlObj.searchParams.get("period") || "7d";

@@ -12,11 +12,6 @@ export interface MailboxRow extends QueryRow {
     total_sent: number;
 }
 
-// Mailboxes with their real send counters. Sends are counted from the mail log
-// (EmailMessage.senderEmail) plus the webhook sends recorded on EmailEvent —
-// both are database rows, so a mailbox with no recorded sends reports 0 instead
-// of a seeded fixture number. "Today" means the current UTC day, matching the
-// naive UTC timestamps on those columns.
 export async function getMailboxes(query: QueryFn, scope: DataScope): Promise<MailboxRow[]> {
     const now = new Date();
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
@@ -46,6 +41,23 @@ export async function getMailboxes(query: QueryFn, scope: DataScope): Promise<Ma
             WHERE "eventType" = 'sent'
               AND "fromEmail" IS NOT NULL
               AND lower("fromEmail") IN (SELECT email FROM active_mailboxes)
+            GROUP BY 1
+            UNION ALL
+            SELECT lower(m_assigned."senderEmail") AS email,
+                   count(*)::int AS total_sent,
+                   count(*) FILTER (WHERE e."createdAt" >= $1::timestamp)::int AS sent_today
+            FROM "EmailEvent" e
+            JOIN "Lead" l ON l.id = e."leadId"
+            JOIN LATERAL (
+                SELECT mb."senderEmail"
+                FROM "CampaignMailbox" cm
+                JOIN "Mailbox" mb ON mb.id = cm."mailboxId"
+                WHERE cm."campaignId" = l."campaignId" AND mb.status != 'RETIRED'
+                ORDER BY mb."createdAt" ASC
+                LIMIT 1
+            ) m_assigned ON TRUE
+            WHERE e."eventType" = 'sent'
+              AND e."fromEmail" IS NULL
             GROUP BY 1
         ),
         totals AS (
