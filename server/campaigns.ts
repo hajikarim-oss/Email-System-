@@ -39,78 +39,69 @@ function rate(numerator: number, denominator: number): number {
  * `lastContactedAt`, plus send events for leads that were never stamped), so
  * older sends and their opens/replies still fit under it.
  */
-export async function getCampaignStats(query: QueryFn, scope: DataScope): Promise<CampaignStats[]> {
-    const rows: QueryRow[] = await query(
-        `WITH lead_stats AS (
-            SELECT "campaignId" AS id,
-                   count(*)::int AS total_leads,
-                   count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL OR "totalReplied" > 0 OR "openCount" > 0 OR "clickCount" > 0)::int AS lead_sent,
-                   count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL)::int AS opens,
-                   count(*) FILTER (WHERE "clickCount" > 0)::int AS clicks,
-                   count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL)::int AS replies,
-                   count(*) FILTER (WHERE "totalBounced" > 0 OR "bounceCount" > 0 OR status::text = 'BOUNCED')::int AS bounces
-            FROM "Lead"
-            WHERE "campaignId" IS NOT NULL
-              AND ${leadOwned(scope, `"Lead"`)}
-            GROUP BY 1
-        ),
-        event_per_lead AS (
-            SELECT "leadId",
-                   bool_or("eventType" = '${SENT_EVENT}') AS has_sent,
-                   bool_or("eventType" IN ${inList(OPEN_EVENTS)}) AS has_open,
-                   bool_or("eventType" IN ${inList(CLICK_EVENTS)}) AS has_click,
-                   bool_or("eventType" IN ${inList(REPLY_EVENTS)}) AS has_reply,
-                   bool_or("eventType" IN ${inList(BOUNCE_EVENTS)}) AS has_bounce
-            FROM "EmailEvent"
-            WHERE "leadId" IS NOT NULL
-            GROUP BY "leadId"
-        ),
-        event_stats AS (
-            SELECT l."campaignId" AS id,
-                count(*) FILTER (WHERE e.has_sent)::int AS event_sent,
-                count(*) FILTER (WHERE e.has_open)::int AS event_opens,
-                count(*) FILTER (WHERE e.has_click)::int AS event_clicks,
-                count(*) FILTER (WHERE e.has_reply)::int AS event_replies,
-                count(*) FILTER (WHERE e.has_bounce)::int AS event_bounces
-            FROM event_per_lead e
-            JOIN "Lead" l ON l.id = e."leadId"
-            WHERE l."campaignId" IS NOT NULL
-              AND ${leadOwned(scope, "l")}
-            GROUP BY 1
-        )
-        SELECT coalesce(lead_stats.id, event_stats.id) AS id,
-               coalesce(lead_stats.total_leads, 0)::int AS total_leads,
-               GREATEST(coalesce(lead_stats.lead_sent, 0)::int, coalesce(event_stats.event_sent, 0)::int) AS sent_count,
-               GREATEST(coalesce(lead_stats.opens, 0)::int, coalesce(event_stats.event_opens, 0)::int) AS open_count,
-               GREATEST(coalesce(lead_stats.clicks, 0)::int, coalesce(event_stats.event_clicks, 0)::int) AS click_count,
-               GREATEST(coalesce(lead_stats.replies, 0)::int, coalesce(event_stats.event_replies, 0)::int) AS reply_count,
-               GREATEST(coalesce(lead_stats.bounces, 0)::int, coalesce(event_stats.event_bounces, 0)::int) AS bounce_count
-        FROM lead_stats
-        FULL OUTER JOIN event_stats ON event_stats.id = lead_stats.id`,
-    );
+let cachedCampaignStats = new Map<string, { at: number; data: CampaignStats[] }>();
+let inFlightCampaignStats = new Map<string, Promise<CampaignStats[]>>();
 
-    return rows.map((row) => {
-        const sent = Number(row.sent_count) || 0;
-        const bounces = Number(row.bounce_count) || 0;
-        const opens = Number(row.open_count) || 0;
-        const clicks = Number(row.click_count) || 0;
-        const replies = Number(row.reply_count) || 0;
-        const delivered = Math.max(0, sent - bounces);
-        const engagementDenom = Math.max(delivered, opens, clicks, replies);
-        return {
-            id: String(row.id),
-            total_leads: Number(row.total_leads) || 0,
-            sent_count: sent,
-            open_count: opens,
-            click_count: clicks,
-            reply_count: replies,
-            bounce_count: bounces,
-            open_rate: rate(opens, engagementDenom),
-            click_rate: rate(clicks, engagementDenom),
-            reply_rate: rate(replies, engagementDenom),
-            bounce_rate: rate(bounces, Math.max(sent, bounces)),
-        };
-    });
+export async function getCampaignStats(query: QueryFn, scope: DataScope): Promise<CampaignStats[]> {
+    const cacheKey = `${scope.master ? "master" : scope.userId}_${scope.isTroops ? "troops" : "tbm"}`;
+    const hit = cachedCampaignStats.get(cacheKey);
+    if (hit && Date.now() - hit.at < 30_000) {
+        return hit.data;
+    }
+    if (inFlightCampaignStats.has(cacheKey)) {
+        return inFlightCampaignStats.get(cacheKey)!;
+    }
+
+    const pending = (async () => {
+        try {
+            const rows: QueryRow[] = await query(
+                `SELECT "campaignId" AS id,
+                        count(*)::int AS total_leads,
+                        count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL OR "totalOutbound" > 0 OR "totalReplied" > 0 OR "openCount" > 0 OR "clickCount" > 0)::int AS sent_count,
+                        count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "lastOpenAt" IS NOT NULL)::int AS open_count,
+                        count(*) FILTER (WHERE "clickCount" > 0)::int AS click_count,
+                        count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL OR "lastRepliedAt" IS NOT NULL)::int AS reply_count,
+                        count(*) FILTER (WHERE "totalBounced" > 0 OR "bounceCount" > 0 OR "lastBouncedAt" IS NOT NULL OR status::text = 'BOUNCED')::int AS bounce_count
+                 FROM "Lead"
+                 WHERE "campaignId" IS NOT NULL
+                   AND ${leadOwned(scope, `"Lead"`)}
+                 GROUP BY 1`,
+            );
+
+            const stats = rows.map((row) => {
+                const sent = Number(row.sent_count) || 0;
+                const bounces = Number(row.bounce_count) || 0;
+                const opens = Number(row.open_count) || 0;
+                const clicks = Number(row.click_count) || 0;
+                const replies = Number(row.reply_count) || 0;
+                const delivered = Math.max(0, sent - bounces);
+                const engagementDenom = Math.max(delivered, opens, clicks, replies);
+                return {
+                    id: String(row.id),
+                    total_leads: Number(row.total_leads) || 0,
+                    sent_count: sent,
+                    open_count: opens,
+                    click_count: clicks,
+                    reply_count: replies,
+                    bounce_count: bounces,
+                    open_rate: rate(opens, engagementDenom),
+                    click_rate: rate(clicks, engagementDenom),
+                    reply_rate: rate(replies, engagementDenom),
+                    bounce_rate: rate(bounces, Math.max(sent, bounces)),
+                };
+            });
+            cachedCampaignStats.set(cacheKey, { at: Date.now(), data: stats });
+            return stats;
+        } catch (err) {
+            if (hit?.data) return hit.data;
+            throw err;
+        } finally {
+            inFlightCampaignStats.delete(cacheKey);
+        }
+    })();
+
+    inFlightCampaignStats.set(cacheKey, pending);
+    return pending;
 }
 
 export interface CampaignDailyPoint {

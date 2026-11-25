@@ -12,7 +12,7 @@ interface UseSearchContactsProps {
     keepPrevious?: boolean;
 }
 
-export default function useSearchContacts({ options, limit = DEFAULT_PAGINATION_LIMIT, enabled = true, keepPrevious = false }: UseSearchContactsProps) {
+export default function useSearchContacts({ options, limit = DEFAULT_PAGINATION_LIMIT, enabled = true, keepPrevious = true }: UseSearchContactsProps) {
     const queryResult = useInfiniteQuery<
         SearchContactsResult,
         Error,

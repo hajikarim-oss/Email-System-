@@ -137,15 +137,6 @@ function engagementCte(scope: DataScope): string {
               AND e."createdAt" >= $1::timestamp AND e."createdAt" < $2::timestamp
             GROUP BY 1
         ),
-        message_dates AS (
-            SELECT lower("contactEmail") AS email,
-                   min("createdAt") FILTER (WHERE "replied") AS reply_at,
-                   min("createdAt") FILTER (WHERE "bounced") AS bounce_at
-            FROM "EmailMessage"
-            WHERE ${messageOwned(scope, `"EmailMessage"`)}
-              AND "createdAt" >= $1::timestamp AND "createdAt" < $2::timestamp
-            GROUP BY 1
-        ),
         engagement AS (
             SELECT la.lead_id,
                    'open'::text AS kind,
@@ -157,21 +148,19 @@ function engagementCte(scope: DataScope): string {
             UNION ALL
             SELECT la.lead_id,
                    'reply',
-                   coalesce(la.reply_at, ed.reply_at, md.reply_at,
+                   coalesce(la.reply_at, ed.reply_at,
                             CASE WHEN la.has_reply THEN la.send_at END) AS occurred_at
             FROM lead_activity la
             LEFT JOIN event_dates ed ON ed.lead_id = la.lead_id
-            LEFT JOIN message_dates md ON md.email = la.email AND la.email <> ''
-            WHERE la.has_reply OR ed.reply_at IS NOT NULL OR md.reply_at IS NOT NULL
+            WHERE la.has_reply OR ed.reply_at IS NOT NULL
             UNION ALL
             SELECT la.lead_id,
                    'bounce',
-                   coalesce(la.bounce_at, ed.bounce_at, md.bounce_at,
+                   coalesce(la.bounce_at, ed.bounce_at,
                             CASE WHEN la.has_bounce THEN la.send_at END) AS occurred_at
             FROM lead_activity la
             LEFT JOIN event_dates ed ON ed.lead_id = la.lead_id
-            LEFT JOIN message_dates md ON md.email = la.email AND la.email <> ''
-            WHERE la.has_bounce OR ed.bounce_at IS NOT NULL OR md.bounce_at IS NOT NULL
+            WHERE la.has_bounce OR ed.bounce_at IS NOT NULL
         ),
         engagement_window AS (
             SELECT lead_id, kind, occurred_at
@@ -378,6 +367,7 @@ interface DashboardCacheEntry {
     expiresAt: number;
 }
 const dashboardCache = new Map<string, DashboardCacheEntry>();
+const lastGoodDashboards = new Map<string, any>();
 const inFlightDashboards = new Map<string, Promise<any>>();
 const DASHBOARD_CACHE_TTL = 60_000;
 
@@ -397,7 +387,15 @@ export async function getDashboard(req: DashboardRequest, query: QueryFn, scope:
         try {
             const data = await fetchDashboardInternal(req, query, scope);
             dashboardCache.set(key, { data, expiresAt: Date.now() + DASHBOARD_CACHE_TTL });
+            lastGoodDashboards.set(key, data);
             return data;
+        } catch (err) {
+            const fallback = lastGoodDashboards.get(key) || cached?.data;
+            if (fallback) {
+                console.warn("[getDashboard] Serving last known good dashboard on refresh error:", (err as any)?.message);
+                return fallback;
+            }
+            throw err;
         } finally {
             inFlightDashboards.delete(key);
         }

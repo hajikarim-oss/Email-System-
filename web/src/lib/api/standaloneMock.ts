@@ -4264,7 +4264,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             console.warn("[standaloneMock] live analytics endpoint unavailable, using fixtures:", e);
         }
         if (liveAnalyticsError) {
-            throw new Error(liveAnalyticsError);
+            console.warn("[standaloneMock] live analytics returned error, falling back to cached campaigns:", liveAnalyticsError);
         }
 
         // 2. Fixture fallback for static hosting without an /api deployment.
@@ -4369,7 +4369,7 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             console.warn("[standaloneMock] live report endpoint unavailable, using fixtures:", e);
         }
         if (liveReportError) {
-            throw new Error(liveReportError);
+            console.warn("[standaloneMock] live report returned error, falling back to cached campaigns:", liveReportError);
         }
 
         // 2. Fixture fallback for static hosting without an /api deployment.

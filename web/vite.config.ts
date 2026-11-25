@@ -1745,12 +1745,7 @@ function databaseIntelligencePlugin() {
                          FROM "EmailEvent" e
                          JOIN "Lead" l ON l.id = e."leadId"
                          JOIN "Campaign" c ON c.id = l."campaignId"
-                         WHERE (l."campaignId" = $1 OR c."providerCampaignId" = $1)
-                           AND (
-                               e."rawPayload"->>'email_campaign_id' IS NULL
-                               OR e."rawPayload"->>'email_campaign_id' = c."providerCampaignId"
-                               OR e."rawPayload"->>'campaign_id' = c."providerCampaignId"
-                           )
+                         WHERE l."campaignId" = $1 OR c."providerCampaignId" = $1
                          ORDER BY e."createdAt" DESC
                          LIMIT 50`,
                         [campaignId]

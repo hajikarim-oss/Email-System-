@@ -8,9 +8,9 @@
  *
  * Features:
  * 1. Always Stick to Primary (Tokyo) unless Primary genuinely crashes (3 consecutive missed heartbeats).
- * 2. Continuous Multi-Write Replication across all 3 nodes with pre-resolved UUIDs so Primary, Replica 2, and Replica 3 share identical row IDs.
- * 3. Asynchronous WAL Queue for transient network partitions with auto-reconciliation.
- * 4. Active Health Heartbeat & Latency Telemetry.
+ * 2. Concurrency Semaphore (max 3 simultaneous checkouts per node) so local query bursts queue cleanly in Node memory without exhausting Supabase Supavisor session/auth limits.
+ * 3. Continuous Multi-Write Replication across all 3 nodes with pre-resolved UUIDs so Primary, Replica 2, and Replica 3 share identical row IDs.
+ * 4. Asynchronous WAL Queue for transient network partitions with auto-reconciliation.
  */
 
 import * as crypto from "node:crypto";
@@ -22,7 +22,6 @@ import type { QueryFn, QueryRow } from "./types";
 
 function resolveIsolatedNode(): NodeId | null {
   // Always use Primary (Tokyo) as Leader unless DB_TARGET_NODE explicitly overrides it.
-  // Never read BRAIN_DB_TARGET here so legacy .env settings cannot hijack the main cluster away from Primary!
   const fromEnv = (process.env.DB_TARGET_NODE || "").trim().toLowerCase();
   if (fromEnv === "replica3" || fromEnv === "replica2" || fromEnv === "primary") {
     return fromEnv as NodeId;
@@ -43,16 +42,17 @@ function isTransientDbError(err: any): boolean {
     err?.code === "ECONNRESET" ||
     err?.code === "ETIMEDOUT" ||
     err?.code === "57P01" ||
+    err?.code === "57014" ||
     err?.code === "XX000" ||
     err?.code === "08006" ||
     err?.code === "08003" ||
-    /Connection terminated|connection closed|timeout|timed out|ECHECKOUTTIMEOUT|pool|authentication did not complete/i.test(
+    /Connection terminated|connection closed|timeout|timed out|ECHECKOUTTIMEOUT|pool|authentication did not complete|canceling statement/i.test(
       String(err?.message || "")
     )
   );
 }
 
-/** Fail a hung query fast instead of freezing the dashboard. */
+/** Fail a hung query fast (measured AFTER semaphore acquisition) instead of freezing the dashboard. */
 async function withTimeout<R>(p: Promise<R>, ms: number, label: string): Promise<R> {
   let t: any;
   const timeout = new Promise<never>((_, rej) => {
@@ -65,6 +65,26 @@ async function withTimeout<R>(p: Promise<R>, ms: number, label: string): Promise
     return (await Promise.race([p, timeout])) as R;
   } finally {
     clearTimeout(t);
+  }
+}
+
+class AsyncSemaphore {
+  private active = 0;
+  private waiters: Array<() => void> = [];
+  constructor(private readonly maxConcurrency: number) {}
+
+  public async run<R>(fn: () => Promise<R>): Promise<R> {
+    if (this.active >= this.maxConcurrency) {
+      await new Promise<void>((resolve) => this.waiters.push(resolve));
+    }
+    this.active++;
+    try {
+      return await fn();
+    } finally {
+      this.active--;
+      const next = this.waiters.shift();
+      if (next) next();
+    }
   }
 }
 
@@ -149,6 +169,7 @@ export const CLUSTER_CONFIGS: Record<NodeId, ClusterNodeConfig> = {
 
 class DatabaseClusterManager {
   private pools: Map<NodeId, Pool> = new Map();
+  private semaphores: Map<NodeId, AsyncSemaphore> = new Map();
   private health: Map<NodeId, NodeHealth> = new Map();
   private isolatedNode: NodeId | null = resolveIsolatedNode();
   private currentLeaderId: NodeId = resolveIsolatedNode() || "primary";
@@ -206,12 +227,11 @@ class DatabaseClusterManager {
         id === "primary"
           ? process.env.DIRECT_URL || fileEnv.DIRECT_URL || process.env.DATABASE_URL || fileEnv.DATABASE_URL
           : id === "replica2"
-          ? process.env.DIRECT_REPLICA2_URL || fileEnv.DIRECT_REPLICA2_URL || process.env.DATABASE_REPLICA2_URL || fileEnv.DATABASE_REPLICA2_URL
-          : process.env.DIRECT_REPLICA3_URL || fileEnv.DIRECT_REPLICA3_URL || process.env.DATABASE_REPLICA3_URL || fileEnv.DATABASE_REPLICA3_URL;
+            ? process.env.DIRECT_REPLICA2_URL || fileEnv.DIRECT_REPLICA2_URL || process.env.DATABASE_REPLICA2_URL || fileEnv.DATABASE_REPLICA2_URL
+            : process.env.DIRECT_REPLICA3_URL || fileEnv.DIRECT_REPLICA3_URL || process.env.DATABASE_REPLICA3_URL || fileEnv.DATABASE_REPLICA3_URL;
       if (!raw) return undefined;
       try {
         const parsed = new URL(raw);
-        // Use port 5432 (session pooler) so connections stay authenticated and never fail with 15000ms Transaction mode ECHECKOUTTIMEOUT
         if (parsed.port === "6543") parsed.port = "5432";
         parsed.searchParams.delete("sslmode");
         parsed.searchParams.delete("pgbouncer");
@@ -228,8 +248,8 @@ class DatabaseClusterManager {
           connectionString: cs,
           ssl: { rejectUnauthorized: false },
           max: 3,
-          idleTimeoutMillis: 10_000,
-          connectionTimeoutMillis: 10_000,
+          idleTimeoutMillis: 15_000,
+          connectionTimeoutMillis: 12_000,
         }
         : {
           host: config.host,
@@ -239,8 +259,8 @@ class DatabaseClusterManager {
           database: config.database,
           ssl: { rejectUnauthorized: false },
           max: 3,
-          idleTimeoutMillis: 10_000,
-          connectionTimeoutMillis: 10_000,
+          idleTimeoutMillis: 15_000,
+          connectionTimeoutMillis: 12_000,
         };
 
       const pool = new Pool(poolConfig);
@@ -249,6 +269,7 @@ class DatabaseClusterManager {
       });
 
       this.pools.set(id, pool);
+      this.semaphores.set(id, new AsyncSemaphore(3));
       this.health.set(id, {
         id,
         name: config.name,
@@ -268,6 +289,16 @@ class DatabaseClusterManager {
     const pool = this.pools.get(id);
     if (!pool) throw new Error(`[DBCluster] Pool not found for node ${id}`);
     return pool;
+  }
+
+  private getSemaphore(nodeId: NodeId): AsyncSemaphore {
+    this.ensureInitialized();
+    let sem = this.semaphores.get(nodeId);
+    if (!sem) {
+      sem = new AsyncSemaphore(3);
+      this.semaphores.set(nodeId, sem);
+    }
+    return sem;
   }
 
   public getCurrentLeader(): NodeId {
@@ -329,7 +360,8 @@ class DatabaseClusterManager {
         if (!record) continue;
 
         try {
-          await pool.query("SELECT 1;");
+          // Run heartbeat directly on the pool so queued dashboard queries on the semaphore never cause false heartbeat timeouts
+          await withTimeout(pool.query("SELECT 1;"), 12_000, `heartbeat:${id}`);
 
           const latency = Date.now() - start;
           record.latencyMs = latency;
@@ -352,16 +384,16 @@ class DatabaseClusterManager {
           record.latencyMs = null;
           console.warn(`[DBCluster Heartbeat] Node ${id} ping failed (${record.consecutiveFailures}x):`, err.message);
 
-          if (record.consecutiveFailures >= 3) {
+          if (record.consecutiveFailures >= 5) {
             record.status = "OFFLINE";
             if (id === this.currentLeaderId) {
               const fallback = id === "primary" ? "replica2" : "replica3";
-              this.triggerFailover(fallback, `Leader ${id} missed 3 consecutive heartbeat pings`);
+              this.triggerFailover(fallback, `Leader ${id} missed 5 consecutive heartbeat pings`);
             }
           }
         }
       }
-    }, 10_000);
+    }, 15_000);
     if (typeof this.heartbeatTimer?.unref === "function") {
       this.heartbeatTimer.unref();
     }
@@ -382,7 +414,7 @@ class DatabaseClusterManager {
 
         if (targetPool && this.health.get(item.targetNodeId)?.status !== "OFFLINE") {
           try {
-            await targetPool.query(item.sql, item.params as any[]);
+            await this.getSemaphore(item.targetNodeId).run(() => targetPool.query(item.sql, item.params as any[]));
             this.syncQueue.shift();
           } catch (err: any) {
             item.attempts++;
@@ -441,11 +473,14 @@ class DatabaseClusterManager {
     // 1. READ QUERY FLOW (Locked to Primary Tokyo)
     // ─────────────────────────────────────────────
     if (!isWrite) {
-      const QUERY_TIMEOUT_MS = 10_000;
+      const QUERY_TIMEOUT_MS = 12_000;
       const runOn = async (node: NodeId): Promise<T[]> => {
         const pool = this.getPool(node);
-        const result = await withTimeout<any>(pool.query(sql, params as any[]), QUERY_TIMEOUT_MS, `read:${node}`);
-        return (result?.rows || []) as unknown as T[];
+        const sem = this.getSemaphore(node);
+        return sem.run(async () => {
+          const result = await withTimeout<any>(pool.query(sql, params as any[]), QUERY_TIMEOUT_MS, `read:${node}`);
+          return (result?.rows || []) as unknown as T[];
+        });
       };
 
       const primaryOffline = this.health.get("primary")?.status === "OFFLINE";
@@ -491,7 +526,10 @@ class DatabaseClusterManager {
 
     try {
       const leaderPool = this.getPool(leaderNode);
-      leaderResult = await withTimeout(leaderPool.query(resolvedSql, params as any[]), 10_000, `write:${leaderNode}`);
+      const sem = this.getSemaphore(leaderNode);
+      leaderResult = await sem.run(() =>
+        withTimeout(leaderPool.query(resolvedSql, params as any[]), 12_000, `write:${leaderNode}`)
+      );
     } catch (err: any) {
       if (!isTransientDbError(err)) {
         throw err;
@@ -500,7 +538,10 @@ class DatabaseClusterManager {
       this.triggerFailover(standby, `Write connection failed on leader ${leaderNode}: ${err.message}`);
 
       const fallbackPool = this.getPool(standby);
-      leaderResult = await withTimeout(fallbackPool.query(resolvedSql, params as any[]), 10_000, `write:${standby}`);
+      const sem = this.getSemaphore(standby);
+      leaderResult = await sem.run(() =>
+        withTimeout(fallbackPool.query(resolvedSql, params as any[]), 12_000, `write:${standby}`)
+      );
       leaderNode = standby;
     }
 
@@ -515,21 +556,23 @@ class DatabaseClusterManager {
       const isOnline = this.health.get(replicaId)?.status === "ONLINE";
 
       if (replicaPool && isOnline) {
-        replicaPool.query(resolvedSql, params as any[]).catch((repErr: any) => {
-          const nonRetryable = ["23503", "23505", "42P01", "42703", "22P02"].includes(String(repErr?.code));
-          if (nonRetryable) return;
-          console.warn(`[DBCluster Replicate] Immediate replicate to ${replicaId} failed (${repErr.message}). Enqueuing to syncQueue.`);
-          if (this.syncQueue.length < 500) {
-            this.syncQueue.push({
-              id: `mutation_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-              sql: resolvedSql,
-              params,
-              targetNodeId: replicaId,
-              attempts: 0,
-              enqueuedAt: Date.now(),
-            });
-          }
-        });
+        this.getSemaphore(replicaId)
+          .run(() => replicaPool.query(resolvedSql, params as any[]))
+          .catch((repErr: any) => {
+            const nonRetryable = ["23503", "23505", "42P01", "42703", "22P02"].includes(String(repErr?.code));
+            if (nonRetryable) return;
+            console.warn(`[DBCluster Replicate] Immediate replicate to ${replicaId} failed (${repErr.message}). Enqueuing to syncQueue.`);
+            if (this.syncQueue.length < 500) {
+              this.syncQueue.push({
+                id: `mutation_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                sql: resolvedSql,
+                params,
+                targetNodeId: replicaId,
+                attempts: 0,
+                enqueuedAt: Date.now(),
+              });
+            }
+          });
       } else if (this.syncQueue.length < 500) {
         this.syncQueue.push({
           id: `mutation_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
