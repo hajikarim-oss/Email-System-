@@ -71,13 +71,12 @@ function isMemberMatch(
     // Monu / Master role mapping
     const isMasterUser =
         mName.includes("monu") ||
-        (m.role && m.role.toLowerCase() === "master") ||
         (m.email && m.email.toLowerCase().includes("monu"));
 
     if (isMasterUser) {
-        // If the reply is labeled as Master or has no team member assigned
-        if (rTeam.includes("master") || !r.team_member_id) {
-            const belongsToOther = ["snehal", "vatsal", "preeti"].some(
+        // If the reply is labeled as Master/Monu or has no team member assigned
+        if (rTeam.includes("master") || rTeam.includes("monu") || !r.team_member_id) {
+            const belongsToOther = ["snehal", "vatsal", "preeti", "sanika", "riya", "simran", "pratik", "naveen", "meenakshi"].some(
                 (other) => rTeam.includes(other) || (r.campaign || "").toLowerCase().includes(other)
             );
             if (!belongsToOther) return true;
@@ -305,9 +304,9 @@ export function RepliesHubView({
                                                 </span>
                                             )}
                                             {r.team_member && (
-                                                <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-800 flex items-center gap-1">
-                                                    <UsersIcon className="w-2.5 h-2.5 text-slate-500" />
-                                                    {r.team_member}
+                                                <span className="px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center gap-1">
+                                                    <UsersIcon className="w-2.5 h-2.5 text-emerald-600" />
+                                                    Owner: {r.team_member}
                                                 </span>
                                             )}
                                         </div>

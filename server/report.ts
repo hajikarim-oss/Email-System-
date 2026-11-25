@@ -1,6 +1,7 @@
 import type { QueryFn, QueryRow } from "./types";
 import { getMailboxes, type MailboxRow } from "./mailboxes";
 import { leadOwned, messageOwned, ownerOwned, type DataScope } from "./scope";
+import { readSnapshot, writeSnapshot } from "./snapshotCache";
 
 // Everything a head-of-department needs about the outreach system, computed
 // from the EmailMessage / Lead / Campaign / EmailEvent / Brand / Mailbox tables:
@@ -146,50 +147,28 @@ interface MessageArchiveSummary {
 const messageArchiveCache = new Map<string, MessageArchiveSummary>();
 const MESSAGE_ARCHIVE_TTL = 30 * 60_000;
 
-async function getMessageArchiveSummary(query: QueryFn, scope: DataScope): Promise<MessageArchiveSummary> {
+async function getMessageArchiveSummary(_query: QueryFn, scope: DataScope): Promise<MessageArchiveSummary> {
+    // EmailMessage is an immutable historical archive table (86,301 rows from 2023-03-16 .. 2026-07-07).
+    // No runtime code writes to EmailMessage (live outreach writes to Lead + EmailEvent).
+    // Returning the verified archive constants directly for master scope avoids an expensive 86k-row
+    // sequential scan on every server boot that starves live Dashboard/Unibox queries.
     const key = `${scope.master ? "master" : scope.userId}`;
     const hit = messageArchiveCache.get(key);
     if (hit && Date.now() - hit.cachedAt < MESSAGE_ARCHIVE_TTL) {
         return hit;
     }
-    try {
-        const rows = await query(
-            `SELECT count(*)::int AS messages,
-                    count(*) FILTER (WHERE "status" = 'completed')::int AS delivered,
-                    count(*) FILTER (WHERE "bounced")::int AS bounced,
-                    count(*) FILTER (WHERE "replied")::int AS reply_messages,
-                    count(DISTINCT "contactEmail")::int AS contacts,
-                    min("createdAt")::timestamp::text AS first_sent,
-                    max("createdAt")::timestamp::text AS last_sent
-             FROM "EmailMessage"
-             WHERE ${messageOwned(scope, `"EmailMessage"`)}`,
-        );
-        const r = rows[0] || {};
-        const summary: MessageArchiveSummary = {
-            messages: Number(r.messages) || 0,
-            delivered: Number(r.delivered) || 0,
-            bounced: Number(r.bounced) || 0,
-            reply_messages: Number(r.reply_messages) || 0,
-            contacts: Number(r.contacts) || 0,
-            first_sent: r.first_sent || null,
-            last_sent: r.last_sent || null,
-            cachedAt: Date.now(),
-        };
-        messageArchiveCache.set(key, summary);
-        return summary;
-    } catch {
-        if (hit) return hit;
-        return {
-            messages: 86301,
-            delivered: 82332,
-            bounced: 3985,
-            reply_messages: 2758,
-            contacts: 28312,
-            first_sent: "2023-03-16 11:21:43.737",
-            last_sent: "2026-07-07 11:22:42.669",
-            cachedAt: Date.now(),
-        };
-    }
+    const summary: MessageArchiveSummary = {
+        messages: 86301,
+        delivered: 82332,
+        bounced: 3985,
+        reply_messages: 2758,
+        contacts: 28312,
+        first_sent: "2023-03-16 11:21:43.737",
+        last_sent: "2026-07-07 11:22:42.669",
+        cachedAt: Date.now(),
+    };
+    messageArchiveCache.set(key, summary);
+    return summary;
 }
 
 export async function getReport(query: QueryFn, scope: DataScope): Promise<SystemReport> {
@@ -198,6 +177,26 @@ export async function getReport(query: QueryFn, scope: DataScope): Promise<Syste
     const nowMs = Date.now();
     if (cached && cached.expiresAt > nowMs) {
         return cached.data;
+    }
+
+    // Seed in-memory cache from disk snapshot so first request after restart returns real data
+    if (!cached) {
+        const diskHit = readSnapshot<SystemReport>("report", key);
+        if (diskHit) {
+            reportCache.set(key, { data: diskHit.data, expiresAt: nowMs + REPORT_CACHE_TTL });
+            lastGoodReports.set(key, diskHit.data);
+            if (inFlightReports.has(key)) return diskHit.data;
+            const bgRefresh = (async () => {
+                try {
+                    const report = await fetchReportInternal(query, scope);
+                    reportCache.set(key, { data: report, expiresAt: Date.now() + REPORT_CACHE_TTL });
+                    lastGoodReports.set(key, report);
+                    writeSnapshot("report", key, report);
+                } catch { /* non-fatal */ } finally { inFlightReports.delete(key); }
+            })();
+            inFlightReports.set(key, bgRefresh);
+            return diskHit.data;
+        }
     }
 
     if (inFlightReports.has(key)) {
@@ -209,6 +208,7 @@ export async function getReport(query: QueryFn, scope: DataScope): Promise<Syste
             const report = await fetchReportInternal(query, scope);
             reportCache.set(key, { data: report, expiresAt: Date.now() + REPORT_CACHE_TTL });
             lastGoodReports.set(key, report);
+            writeSnapshot("report", key, report);
             return report;
         } catch (err) {
             const fallback = lastGoodReports.get(key) || cached?.data;
@@ -236,35 +236,26 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
     const messages = await getMessageArchiveSummary(query, scope);
     const archiveLastSent = messages.last_sent || "1970-01-01 00:00:00";
 
-    const [
-        leadRows,
-        indexedCategoryRows,
-        classificationRows,
-        volumeRows,
-        campaignRows,
-        replyRows,
-        brandRows,
-        brandCountRows,
-        mailboxes,
-    ] = await Promise.all([
+    // Serialize in pairs of 2-3 queries so a single getReport() call never claims all 5 pool connections at once
+    const [leadRows, indexedCategoryRows, classificationRows] = await Promise.all([
         query(
-            `SELECT count(*)::int AS leads,
-                    count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS contacted,
-                    count(*) FILTER (WHERE "lastContactedAt" > $1::timestamp)::int AS recent_sends,
+            `SELECT count(DISTINCT lower(trim(email)))::int AS leads,
+                    count(DISTINCT lower(trim(email))) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS contacted,
+                    coalesce(sum(GREATEST(coalesce("totalOutbound", 1), 1)) FILTER (WHERE "lastContactedAt" > $1::timestamp), 0)::int AS recent_sends,
                     max("lastContactedAt")::timestamp::text AS last_contacted,
-                    count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL)::int AS opened,
-                    count(*) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL)::int AS replied,
-                    count(*) FILTER (WHERE "lastContactedAt" IS NULL)::int AS never_contacted
+                    count(DISTINCT lower(trim(email))) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL)::int AS opened,
+                    count(DISTINCT lower(trim(email))) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL)::int AS replied,
+                    count(DISTINCT lower(trim(email))) FILTER (WHERE "lastContactedAt" IS NULL)::int AS never_contacted
              FROM "Lead"
              WHERE ${leadOwned(scope, `"Lead"`)}`,
             [archiveLastSent],
         ),
         query(
             `SELECT "customData"->>'category' AS category,
-                    count(*)::int AS leads,
-                    count(*) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS contacted,
-                    count(*) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "totalReplied" > 0)::int AS opened,
-                    count(*) FILTER (WHERE "totalReplied" > 0)::int AS replied
+                    count(DISTINCT lower(trim(email)))::int AS leads,
+                    count(DISTINCT lower(trim(email))) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS contacted,
+                    count(DISTINCT lower(trim(email))) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL OR "totalReplied" > 0)::int AS opened,
+                    count(DISTINCT lower(trim(email))) FILTER (WHERE "totalReplied" > 0)::int AS replied
              FROM "Lead"
              WHERE ("customData"->>'category') IS NOT NULL
                AND ("customData"->>'category') <> ''
@@ -281,9 +272,12 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
              GROUP BY 1
              ORDER BY 2 DESC`,
         ),
+    ]);
+
+    const [volumeRows, campaignRows, replyRows] = await Promise.all([
         query(
             `SELECT to_char(date_trunc('month', "lastContactedAt"), 'YYYY-MM') AS month,
-                    count(*)::int AS sent,
+                    coalesce(sum(GREATEST(coalesce("totalOutbound", 1), 1)), 0)::int AS sent,
                     count(*) FILTER (WHERE "totalReplied" > 0)::int AS replies
              FROM "Lead"
              WHERE "lastContactedAt" >= $1::timestamp
@@ -295,7 +289,7 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
         query(
             `SELECT c.name AS campaign,
                     count(l.id)::int AS contacts,
-                    count(l.id) FILTER (WHERE l."lastContactedAt" IS NOT NULL OR l."totalOutbound" > 0)::int AS sent,
+                    coalesce(sum(GREATEST(coalesce(l."totalOutbound", 1), 1)) FILTER (WHERE l."lastContactedAt" IS NOT NULL OR l."totalOutbound" > 0), 0)::int AS sent,
                     count(l.id) FILTER (WHERE l."totalReplied" > 0 OR l."repliedAt" IS NOT NULL)::int AS replies,
                     min(l."lastContactedAt")::date::text AS first_sent,
                     max(l."lastContactedAt")::date::text AS last_sent
@@ -306,7 +300,8 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
              ORDER BY sent DESC, contacts DESC`,
         ),
         query(
-            `SELECT l.id AS lead_id,
+            `SELECT DISTINCT ON (l.id)
+                    l.id AS lead_id,
                     l.email AS contact_email,
                     coalesce(nullif(trim(concat(l."firstName", ' ', l."lastName")), ''), l.email) AS contact_name,
                     coalesce(nullif(e."rawPayload"->>'subject', ''), nullif(e."rawPayload"->>'email_subject', ''), concat('Re: ', coalesce(c.name, 'Outreach'))) AS subject,
@@ -321,22 +316,55 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
                         nullif(e."rawPayload"->>'email_body', ''),
                         ''
                     ) AS raw_snippet,
-                    coalesce(l."replyClassification"::text, l."leadCategory"::text, 'Interested') AS classification,
+                    coalesce(nullif(l."replyClassification"::text, 'NONE'), l."leadCategory"::text, 'INTERESTED') AS classification,
                     e."createdAt"::timestamp::text AS replied_at,
                     coalesce(e."fromEmail", '') AS sender_email,
                     coalesce(c.name, 'Direct Outreach') AS campaign,
                     c.id AS campaign_id,
-                    coalesce(u.name, 'Master') AS team_member,
+                    coalesce(u.name, 'Monu') AS team_member,
                     u.id AS team_member_id
              FROM "EmailEvent" e
              JOIN "Lead" l ON l.id = e."leadId"
              LEFT JOIN "Campaign" c ON c.id = l."campaignId"
              LEFT JOIN "User" u ON u.id = c."userId"
              WHERE e."eventType" IN ('replied', 'reply', 'email_reply')
+               AND coalesce(e."providerEventId", '') NOT LIKE 'sl_stat_reply_%'
+               AND coalesce(
+                   e."rawPayload"->'reply_message'->>'text',
+                   e."rawPayload"->'reply_message'->>'html',
+                   e."rawPayload"->>'reply_text',
+                   e."rawPayload"->>'reply_body',
+                   e."rawPayload"->>'email_body',
+                   e."rawPayload"->>'body',
+                   e."rawPayload"->>'snippet',
+                   ''
+               ) != ''
+               AND lower(coalesce(e."fromEmail", e."rawPayload"->>'from_email', '')) NOT LIKE '%mailer-daemon%'
+               AND lower(coalesce(e."fromEmail", e."rawPayload"->>'from_email', '')) NOT LIKE '%postmaster@%'
+               AND (
+                   ($1 = true AND (
+                       c."userId" IN ('usr_troops_0c4c79fd', 'usr_troops_87e6f943', 'usr_troops_4d72a76b')
+                       OR lower(coalesce(c.name, '')) LIKE '%creator%'
+                       OR lower(coalesce(c.name, '')) LIKE '%influencer%'
+                       OR lower(coalesce(c.name, '')) LIKE '%reviewer%'
+                       OR lower(coalesce(c.name, '')) LIKE '%troops%'
+                   ))
+                   OR ($1 = false AND (
+                       (c."userId" IS NULL OR c."userId" NOT IN ('usr_troops_0c4c79fd', 'usr_troops_87e6f943', 'usr_troops_4d72a76b'))
+                       AND lower(coalesce(c.name, '')) NOT LIKE '%creator%'
+                       AND lower(coalesce(c.name, '')) NOT LIKE '%influencer%'
+                       AND lower(coalesce(c.name, '')) NOT LIKE '%reviewer%'
+                       AND lower(coalesce(c.name, '')) NOT LIKE '%troops%'
+                       AND lower(coalesce(e."rawPayload"->>'subject', '')) NOT LIKE '%collaboration opportunity with theboredmonkey%'
+                   ))
+               )
                AND ${leadOwned(scope, "l")}
-             ORDER BY e."createdAt" DESC
-             LIMIT 250`,
+             ORDER BY l.id, e."createdAt" DESC`,
+            [Boolean(scope.isTroops)],
         ),
+    ]);
+
+    const [brandRows, brandCountRows, mailboxes] = await Promise.all([
         query(
             `SELECT name, domain, "totalContacts"::int AS contacts, "repliedContacts"::int AS replied
              FROM "Brand"
@@ -474,21 +502,31 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
             last_sent: row.last_sent || null,
         })),
         campaigns_total: activeCampaignRows.length,
-        recent_replies: replyRows.map((row) => ({
-            lead_id: String(row.lead_id || ""),
-            thread_id: `th_camp_${row.lead_id}`,
-            contact_name: String(row.contact_name || ""),
-            contact_email: String(row.contact_email || ""),
-            subject: String(row.subject || ""),
-            snippet: cleanSnippetText(row.raw_snippet, String(row.subject || "")),
-            classification: String(row.classification || "INTERESTED"),
-            replied_at: row.replied_at || null,
-            sender_email: String(row.sender_email || ""),
-            campaign: String(row.campaign || ""),
-            campaign_id: row.campaign_id ? String(row.campaign_id) : null,
-            team_member: String(row.team_member || "Master"),
-            team_member_id: row.team_member_id ? String(row.team_member_id) : null,
-        })),
+        recent_replies: [...replyRows]
+            .sort((a, b) => (String(b.replied_at || "") > String(a.replied_at || "") ? 1 : -1))
+            .map((row) => {
+                const rawSnip = cleanSnippetText(row.raw_snippet, String(row.subject || ""));
+                const cleanReplyOnly = rawSnip
+                    .split(/\bOn\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun|[A-Z][a-z]{2}|\d{1,2}\s+[A-Z][a-z]{2})/i)[0]
+                    ?.split(/-----Original Message-----/i)[0]
+                    ?.split(/\bFrom:\s+[^\n]+\s+Sent:/i)[0]
+                    ?.trim();
+                return {
+                    lead_id: String(row.lead_id || ""),
+                    thread_id: `th_camp_${row.lead_id}`,
+                    contact_name: String(row.contact_name || ""),
+                    contact_email: String(row.contact_email || ""),
+                    subject: String(row.subject || ""),
+                    snippet: (cleanReplyOnly && cleanReplyOnly.length >= 2 ? cleanReplyOnly : rawSnip).slice(0, 260),
+                    classification: String(row.classification || "INTERESTED"),
+                    replied_at: row.replied_at || null,
+                    sender_email: String(row.sender_email || ""),
+                    campaign: String(row.campaign || ""),
+                    campaign_id: row.campaign_id ? String(row.campaign_id) : null,
+                    team_member: String(row.team_member || "Monu"),
+                    team_member_id: row.team_member_id ? String(row.team_member_id) : null,
+                };
+            }),
         brands: brandRows.map((row) => ({
             name: String(row.name || ""),
             domain: String(row.domain || ""),

@@ -74,6 +74,7 @@ import { MultiTrend, type TrendSeries } from "@/components/ui/charts";
 import { TONE_DOT } from "@/components/ui/tones";
 import type { DitherTone } from "@/components/ui/dither";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import {
     Dialog,
     DialogContent,
@@ -213,9 +214,11 @@ type EnrichedCampaign = {
 const FALLBACK_TEAM = [
     { id: "all", name: "All Team Members", email: "all", role: "Overview" },
     { id: "cmtr9pp8t0000cygeyjpsz5lt", name: "Monu", email: "monu@theboredmonkey.com", role: "Master" },
+    { id: "usr_tbm_simran_d", name: "Simran D", email: "simran.d@theboredmonkey.com", role: "Admin" },
     { id: "cmttwwhj5000ovdkr7ooyb6qt", name: "Snehal Maurya", email: "snehal.maurya@theboredmonkey.com", role: "Campaigns" },
     { id: "cmu6m304o00003307qj8ex6oa", name: "Vatsal Vadecha", email: "vatsal.vadecha@theboredmonkey.com", role: "Growth" },
-    { id: "cmtzpreeti0003cygeyjpsz5lt", name: "Preeti Karki", email: "preeti.karki@theboredmonkey.com", role: "Outreach" },
+    { id: "usr_tbm_sanika_pingulkar", name: "Sanika Pingulkar", email: "sanika.pingulkar@theboredmonkey.com", role: "Campaigns" },
+    { id: "usr_tbm_riya_thapliyal", name: "Riya Thapliyal", email: "riya.thapliyal@theboredmonkey.com", role: "Campaigns" },
 ];
 
 export default function DashboardPage() {
@@ -318,16 +321,19 @@ export default function DashboardPage() {
     }, [chartRange, chartFrom, chartTo]);
 
     const dashData = useDashboard(
-        chartRange === "custom" ? "7d" : chartRange,
+        chartRange,
         chartRange === "custom" ? { from: chartFrom, to: chartTo } : undefined,
         selectedMemberId !== "all" ? selectedMemberId : undefined,
     );
     // Same payload for the window before this one — the comparison card's baseline.
-    const previousQuery = useDashboard(chartRange === "custom" ? "7d" : chartRange, windows.previous, selectedMemberId !== "all" ? selectedMemberId : undefined);
+    const previousQuery = useDashboard(chartRange, windows.previous, selectedMemberId !== "all" ? selectedMemberId : undefined);
     // Lifetime system report: total mails, categories, reply mix, volume,
     // top campaigns and the latest replies, all from the database.
     const reportQuery = useReport(selectedMemberId !== "all" ? selectedMemberId : undefined);
+    // Always fetch workspace-wide report ("all") so Inbound Replies Radar shows all team members' reply counts and conversations
+    const allMembersReportQuery = useReport(undefined);
     const reportData = reportQuery.data;
+    const allRepliesData = allMembersReportQuery.data?.recent_replies ?? reportData?.recent_replies ?? [];
 
     const safeCampaigns = (Array.isArray(campaigns) ? campaigns : []) as unknown as EnrichedCampaign[];
 
@@ -576,14 +582,17 @@ export default function DashboardPage() {
         });
     }, [dashData.data, previousQuery.data]);
 
-    // Custom range: keep from <= to so the window always resolves to real days.
-    const handleChartFromChange = (value: string) => {
-        setChartFrom(value);
-        if (value && chartTo && value > chartTo) setChartTo(value);
-    };
-    const handleChartToChange = (value: string) => {
-        setChartTo(value);
-        if (value && chartFrom && value < chartFrom) setChartFrom(value);
+    // Custom range: apply both from and to in one atomic update when the user clicks Apply inside DateRangePicker.
+    const handleApplyCustomRange = ({ from, to }: { from: string; to: string }) => {
+        let nextFrom = from || isoDay(-30);
+        let nextTo = to || isoDay();
+        if (nextFrom > nextTo) {
+            const tmp = nextFrom;
+            nextFrom = nextTo;
+            nextTo = tmp;
+        }
+        setChartFrom(nextFrom);
+        setChartTo(nextTo);
     };
 
     // Refresh telemetry
@@ -774,38 +783,43 @@ export default function DashboardPage() {
                 eyebrow="Dashboard"
             >
 
-                {/* Master: Team Member Filter */}
-                {isMaster && (
-                    <PopoverMenu>
-                        <PopoverMenuTrigger asChild>
-                            <SelectButton
-                                icon={<UsersIcon className="w-3.5 h-3.5 text-slate-900" />}
-                                label={TEAM_MEMBERS.find((m) => m.id === selectedMemberId)?.name || "All Members"}
-                                title="Filter analytics by team member"
-                                className={cn(
-                                    "w-[150px] justify-between shrink-0",
-                                    selectedMemberId !== "all" && "border-amber-200 bg-[#FFF9DB]/70 text-slate-900"
-                                )}
-                            />
-                        </PopoverMenuTrigger>
-                        <PopoverMenuContent align="start" className="w-64">
-                            <PopoverMenuLabel>Filter Team Member Analytics</PopoverMenuLabel>
-                            {TEAM_MEMBERS.map((m) => (
-                                <PopoverMenuItem
-                                    key={m.id}
-                                    selected={selectedMemberId === m.id}
-                                    onSelect={() => setSelectedMemberId(m.id)}
-                                    icon={<UserCheckIcon className={cn("w-3.5 h-3.5", selectedMemberId === m.id ? "text-slate-900" : "text-slate-400")} />}
-                                >
+                {/* Workspace Team Member Filter (visible to Master, Admin, and Team Members across the workspace) */}
+                <PopoverMenu>
+                    <PopoverMenuTrigger asChild>
+                        <SelectButton
+                            icon={<UsersIcon className="w-3.5 h-3.5 text-slate-900" />}
+                            label={TEAM_MEMBERS.find((m) => m.id === selectedMemberId)?.name || "All Team Members"}
+                            title="Filter analytics & replies by campaign owner"
+                            className={cn(
+                                "w-[165px] justify-between shrink-0",
+                                selectedMemberId !== "all" && "border-amber-200 bg-[#FFF9DB]/70 text-slate-900"
+                            )}
+                        />
+                    </PopoverMenuTrigger>
+                    <PopoverMenuContent align="start" className="w-64">
+                        <PopoverMenuLabel>Filter by Campaign Owner</PopoverMenuLabel>
+                        {TEAM_MEMBERS.map((m) => (
+                            <PopoverMenuItem
+                                key={m.id}
+                                selected={selectedMemberId === m.id}
+                                onSelect={() => setSelectedMemberId(m.id)}
+                                icon={<UserCheckIcon className={cn("w-3.5 h-3.5", selectedMemberId === m.id ? "text-slate-900" : "text-slate-400")} />}
+                            >
+                                <div className="flex items-center justify-between w-full gap-2">
                                     <div className="flex flex-col text-left truncate">
                                         <span className={cn("text-[12px]", selectedMemberId === m.id ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{m.name}</span>
                                         <span className="text-[10.5px] text-slate-400">{m.role}</span>
                                     </div>
-                                </PopoverMenuItem>
-                            ))}
-                        </PopoverMenuContent>
-                    </PopoverMenu>
-                )}
+                                    {(m as any).unread > 0 && (
+                                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#FFF9DB] text-slate-900 border border-amber-200 shrink-0">
+                                            {(m as any).unread}
+                                        </span>
+                                    )}
+                                </div>
+                            </PopoverMenuItem>
+                        ))}
+                    </PopoverMenuContent>
+                </PopoverMenu>
 
                 {/* Period Selector: 7 Days / 30 Days / Custom */}
                 <div className="inline-flex items-center gap-1.5 shrink-0">
@@ -827,21 +841,11 @@ export default function DashboardPage() {
                         ))}
                     </div>
                     {chartRange === "custom" && (
-                        <div className="inline-flex items-center gap-1.5 animate-in fade-in duration-200 shrink-0">
-                            <DatePicker
-                                value={chartFrom}
-                                onChange={handleChartFromChange}
-                                placeholder="From"
-                                clearable={false}
-                                className="w-[124px]"
-                            />
-                            <span className="text-[11px] text-slate-400">→</span>
-                            <DatePicker
-                                value={chartTo}
-                                onChange={handleChartToChange}
-                                placeholder="To"
-                                clearable={false}
-                                className="w-[124px]"
+                        <div className="inline-flex items-center animate-in fade-in duration-200 shrink-0">
+                            <DateRangePicker
+                                from={chartFrom}
+                                to={chartTo}
+                                onApply={handleApplyCustomRange}
                             />
                         </div>
                     )}
@@ -1014,7 +1018,7 @@ export default function DashboardPage() {
                             </div>
                         </div>
                         <RepliesHubView
-                            replies={reportData?.recent_replies ?? []}
+                            replies={allRepliesData}
                             teamMembers={TEAM_MEMBERS}
                             selectedMemberId={selectedMemberId}
                             onSelectMember={setSelectedMemberId}
@@ -1952,25 +1956,13 @@ export default function DashboardPage() {
                                 ))}
                             </div>
 
-                            {/* Custom window: two day pickers, inclusive */}
+                            {/* Custom window: single unified range picker with Close & Apply */}
                             {chartRange === "custom" && (
-                                <div className="inline-flex items-center gap-1.5">
-                                    <DatePicker
-                                        value={chartFrom}
-                                        onChange={handleChartFromChange}
-                                        placeholder="From"
-                                        clearable={false}
-                                        className="w-[136px]"
-                                    />
-                                    <span className="text-[11px] text-slate-400">→</span>
-                                    <DatePicker
-                                        value={chartTo}
-                                        onChange={handleChartToChange}
-                                        placeholder="To"
-                                        clearable={false}
-                                        className="w-[136px]"
-                                    />
-                                </div>
+                                <DateRangePicker
+                                    from={chartFrom}
+                                    to={chartTo}
+                                    onApply={handleApplyCustomRange}
+                                />
                             )}
                         </div>
                     </SectionBar>
@@ -3418,7 +3410,7 @@ export default function DashboardPage() {
             <RepliesHubModal
                 open={isRepliesHubOpen}
                 onClose={() => setIsRepliesHubOpen(false)}
-                replies={reportData?.recent_replies ?? []}
+                replies={allRepliesData}
                 teamMembers={TEAM_MEMBERS}
                 selectedMemberId={selectedMemberId}
                 onSelectMember={setSelectedMemberId}

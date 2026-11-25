@@ -109,15 +109,20 @@ export default function useFeatureAccess(): FeatureAccess {
         nameLower.includes("pratik");
     const canViewFinance = Boolean(user) && (isMonu || isPratik) && !isSimranManager;
 
-    const isTroopsMasterUser =
+    const isTroopsUser =
         userId === "usr_troops_0c4c79fd" ||
+        userId === "usr_troops_87e6f943" ||
+        userId === "usr_troops_4d72a76b" ||
         emailLower === "pratik@theboredmonkey.com" ||
-        emailLower.includes("pratik");
+        emailLower.includes("pratik") ||
+        emailLower.includes("naveen") ||
+        emailLower.includes("meenakshi") ||
+        emailLower.endsWith("@tbmtroop.com");
     const isTroopsWorkspace =
         currentOrganization?.id === "org_troops_outreach" ||
         currentOrganization?.slug === "troops-outreach" ||
-        isTroopsMasterUser;
-    const canViewCreators = Boolean(user);
+        isTroopsUser;
+    const canViewCreators = Boolean(user) && isTroopsWorkspace;
 
     return {
         loading: false,

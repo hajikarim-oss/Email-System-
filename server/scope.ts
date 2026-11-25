@@ -55,40 +55,63 @@ function teamUsersSubquery(userId: string): string {
     )`;
 }
 
+const TROOPS_USER_IDS = `'usr_troops_0c4c79fd', 'usr_troops_87e6f943', 'usr_troops_4d72a76b'`;
+
+function isTroopsCampaignSql(campAlias = "sc"): string {
+    return `(
+        ${campAlias}."userId" IN (${TROOPS_USER_IDS})
+        OR lower(coalesce(${campAlias}.name, '')) LIKE '%creator%'
+        OR lower(coalesce(${campAlias}.name, '')) LIKE '%influencer%'
+        OR lower(coalesce(${campAlias}.name, '')) LIKE '%reviewer%'
+        OR lower(coalesce(${campAlias}.name, '')) LIKE '%troops%'
+    )`;
+}
+
 /** Direct owner column: `column` defaults to the bare "userId" of the FROM. */
 export function ownerOwned(scope: DataScope, column = `"userId"`): string {
-    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach");
-    if (scope.master && !isTroops) {
-        return "TRUE";
+    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach" || scope.isTroops);
+    const campPrefix = column.includes(".") ? `${column.split(".")[0]}.` : "";
+    const nameMatch = campPrefix
+        ? `(${campPrefix}name IS NOT NULL AND (lower(${campPrefix}name) LIKE '%creator%' OR lower(${campPrefix}name) LIKE '%influencer%' OR lower(${campPrefix}name) LIKE '%reviewer%' OR lower(${campPrefix}name) LIKE '%troops%'))`
+        : "false";
+    if (isTroops) {
+        if (scope.master) return `(${column} IN (${TROOPS_USER_IDS}) OR ${nameMatch})`;
+        return `${column} = ${lit(scope.userId)}`;
     }
     if (scope.master) {
-        return `${column} IN ${teamUsersSubquery(scope.userId)}`;
+        return `(${column} IS NULL OR (${column} NOT IN (${TROOPS_USER_IDS}) AND NOT ${nameMatch}))`;
     }
     return `${column} = ${lit(scope.userId)}`;
 }
 
 /** Lead rows owned through their campaign. `alias` is the Lead alias or table name. */
 export function leadOwned(scope: DataScope, alias = "l"): string {
-    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach");
-    if (scope.master && !isTroops) {
-        return "TRUE";
+    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach" || scope.isTroops);
+    if (isTroops) {
+        if (scope.master) {
+            return `EXISTS (SELECT 1 FROM "Campaign" sc WHERE sc.id = ${alias}."campaignId" AND ${isTroopsCampaignSql("sc")})`;
+        }
+        return `EXISTS (SELECT 1 FROM "Campaign" sc WHERE sc.id = ${alias}."campaignId" AND sc."userId" = ${lit(scope.userId)})`;
     }
     if (scope.master) {
-        return `(${alias}."campaignId" IS NULL OR EXISTS (SELECT 1 FROM "Campaign" sc WHERE sc.id = ${alias}."campaignId" AND sc."userId" IN ${teamUsersSubquery(scope.userId)}))`;
+        return `(${alias}."campaignId" IS NULL OR EXISTS (SELECT 1 FROM "Campaign" sc WHERE sc.id = ${alias}."campaignId" AND NOT ${isTroopsCampaignSql("sc")}))`;
     }
-    return `EXISTS (SELECT 1 FROM "Campaign" sc WHERE sc.id = ${alias}."campaignId" AND sc."userId" = ${lit(scope.userId)})`;
+    return `EXISTS (SELECT 1 FROM "Campaign" sc WHERE sc.id = ${alias}."campaignId" AND sc."userId" = ${lit(scope.userId)} AND NOT ${isTroopsCampaignSql("sc")})`;
 }
 
 /** EmailEvent rows owned through lead -> campaign. `alias` is the event alias. */
 export function eventOwned(scope: DataScope, alias = "e"): string {
-    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach");
-    if (scope.master && !isTroops) {
-        return "TRUE";
+    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach" || scope.isTroops);
+    if (isTroops) {
+        if (scope.master) {
+            return `EXISTS (SELECT 1 FROM "Lead" sl JOIN "Campaign" sc ON sc.id = sl."campaignId" WHERE sl.id = ${alias}."leadId" AND ${isTroopsCampaignSql("sc")})`;
+        }
+        return `EXISTS (SELECT 1 FROM "Lead" sl JOIN "Campaign" sc ON sc.id = sl."campaignId" WHERE sl.id = ${alias}."leadId" AND sc."userId" = ${lit(scope.userId)})`;
     }
     if (scope.master) {
-        return `EXISTS (SELECT 1 FROM "Lead" sl LEFT JOIN "Campaign" sc ON sc.id = sl."campaignId" WHERE sl.id = ${alias}."leadId" AND (sc."userId" IS NULL OR sc."userId" IN ${teamUsersSubquery(scope.userId)}))`;
+        return `EXISTS (SELECT 1 FROM "Lead" sl LEFT JOIN "Campaign" sc ON sc.id = sl."campaignId" WHERE sl.id = ${alias}."leadId" AND (sc.id IS NULL OR NOT ${isTroopsCampaignSql("sc")}))`;
     }
-    return `EXISTS (SELECT 1 FROM "Lead" sl JOIN "Campaign" sc ON sc.id = sl."campaignId" WHERE sl.id = ${alias}."leadId" AND sc."userId" = ${lit(scope.userId)})`;
+    return `EXISTS (SELECT 1 FROM "Lead" sl JOIN "Campaign" sc ON sc.id = sl."campaignId" WHERE sl.id = ${alias}."leadId" AND sc."userId" = ${lit(scope.userId)} AND NOT ${isTroopsCampaignSql("sc")})`;
 }
 
 /** EmailMessage rows owned through the sending mailbox. `alias` is the message alias or table name. */

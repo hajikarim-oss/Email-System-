@@ -324,7 +324,7 @@ export function ConversationList({
                       <ConversationItem
                         email={{
                           id: e.id,
-                          from: e.from_addr?.[0] ?? "",
+                          from: (e as any).from || e.from_addr?.[0] || "",
                           to: e.to_addr?.[0] ?? "",
                           subject: e.subject,
                           snippet: e.snippet,
@@ -336,6 +336,8 @@ export function ConversationList({
                           account_id: e.email_id,
                           message_count: e.message_count,
                           labels: e.labels,
+                          campaign_id: e.campaign_id,
+                          campaign_name: e.campaign_name,
                         }}
                       />
                     </div>

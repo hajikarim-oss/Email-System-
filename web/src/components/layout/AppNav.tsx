@@ -467,12 +467,14 @@ function MeetingsActivity() {
     );
 }
 
-// Contacts row: total contacts. Reads pagination.total from a small search — the
-// limit MUST be >= the backend LimitMin (10) or validate.Limit rejects it (400)
-// and the whole count comes back as 0.
+// Contacts row: total unique contacts (deduplicated by email).
+// Uses counts.total from the search response, which deduplicates by email.
+// limit 10 is the backend minimum; we only read counts.total, not the page data.
 function ContactsActivity() {
     const { data } = useSearchContacts({ options: CONTACTS_COUNT_SEARCH, limit: 10 });
-    const total = data?.pages?.[0]?.pagination?.total ?? 0;
+    // counts.total = deduplicated unique contacts (via DISTINCT ON lower(trim(email)))
+    // pagination.total = raw Lead rows (can be 68k+, includes multi-campaign enrollments)
+    const total = data?.pages?.[0]?.counts?.total ?? data?.pages?.[0]?.pagination?.total ?? 0;
     return <TabStat total={total} title={`${total.toLocaleString()} contacts`} />;
 }
 
@@ -639,7 +641,10 @@ function LivePanel() {
             const key = d.toISOString().slice(0, 10);
             out.push({ date: key, sent: byDate.get(key) ?? 0 });
         }
-        return { sentToday: out[out.length - 1].sent, trend: out };
+        return {
+            sentToday: dash.data?.today_sent ?? out[out.length - 1].sent,
+            trend: out,
+        };
     }, [dash.data]);
 
     const scrub = hovered != null ? trend[hovered] : undefined;

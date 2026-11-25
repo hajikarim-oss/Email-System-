@@ -31,7 +31,9 @@ export interface SentSyncResult {
 }
 
 let inFlight: Promise<SentSyncResult> | null = null;
-let lastRun = 0;
+// Delay the first automatic sentEventsSync run after server startup by 45 seconds
+// so initial Dashboard, Report, and Unibox page loads have 100% of database bandwidth.
+let lastRun = Date.now() - (MIN_INTERVAL_MS - 45_000);
 
 async function slGet(path: string, key: string): Promise<any | null> {
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -99,7 +101,7 @@ async function run(opts: SentSyncOptions): Promise<SentSyncResult> {
         (
             await pgQuery<any>(
                 `SELECT "leadId" AS id, to_char("createdAt",'YYYY-MM-DD') AS d FROM "EmailEvent"
-                 WHERE lower("eventType") IN ('sent','email_sent','emailsent') AND "createdAt" >= $1::timestamp
+                 WHERE "eventType" IN ('sent','email_sent','emailsent','SENT') AND "createdAt" >= $1::timestamp
                  UNION
                  SELECT id, to_char("lastContactedAt",'YYYY-MM-DD') FROM "Lead" WHERE "lastContactedAt" >= $1::timestamp`,
                 [fromDay],
@@ -165,13 +167,17 @@ async function run(opts: SentSyncOptions): Promise<SentSyncResult> {
                         continue;
                     }
 
+                    // NOTE: Do NOT treat r.reply_time as a genuine reply if the row is bounced!
+                    // Smartlead sets reply_time on bounce NDRs when is_bounced / sender_bounce is true.
+                    const genuineReplyAt = (!isBounced && !r.ignore_reply && replyAt && !Number.isNaN(replyAt.getTime())) ? replyAt : null;
+
                     leadUpdates.push({
                         id: leadId,
                         sentIso: sentAt && !Number.isNaN(sentAt.getTime()) ? sentAt.toISOString() : null,
                         openIso: openAt && !Number.isNaN(openAt.getTime()) ? openAt.toISOString() : null,
                         openCount: Number(r.open_count || (openAt ? 1 : 0)),
                         clickCount: Number(r.click_count || (clickAt ? 1 : 0)),
-                        replyIso: replyAt && !Number.isNaN(replyAt.getTime()) ? replyAt.toISOString() : null,
+                        replyIso: genuineReplyAt ? genuineReplyAt.toISOString() : null,
                         isBounced,
                     });
 
@@ -181,6 +187,7 @@ async function run(opts: SentSyncOptions): Promise<SentSyncResult> {
                         campaign: sc.id,
                         step: r.sequence_number,
                         subject: r.email_subject || "",
+                        email_body: r.email_message || "",
                     });
 
                     if (sentAt && !Number.isNaN(sentAt.getTime()) && sentAt.getTime() >= fromTs) {
@@ -222,15 +229,9 @@ async function run(opts: SentSyncOptions): Promise<SentSyncResult> {
                         });
                     }
 
-                    if (replyAt && !Number.isNaN(replyAt.getTime()) && replyAt.getTime() >= fromTs) {
-                        eventsToInsert.push({
-                            leadId,
-                            eventType: "replied",
-                            providerEventId: `sl_stat_reply_${statsId}`,
-                            payload: basePayload,
-                            createdAt: replyAt.toISOString(),
-                        });
-                    }
+                    // Do NOT insert synthetic body-less sl_stat_reply_% rows from /statistics!
+                    // Genuine replies are ingested with full reply body via Smartlead EMAIL_REPLY webhooks
+                    // and smartleadRepliesSync.ts (/message-history).
 
                     if (isBounced && sentAt && !Number.isNaN(sentAt.getTime()) && sentAt.getTime() >= fromTs) {
                         eventsToInsert.push({

@@ -1,5 +1,6 @@
 import type { ContactsCounts, ContactsRequest, ContactsResponse, LeadCounts, QueryFn } from "./types";
 import { leadOwned, type DataScope } from "./scope";
+import { readSnapshot, writeSnapshot } from "./snapshotCache";
 
 const EMAIL_HANDLERS = new Set([
     "gmail.com", "googlemail.com", "google.com",
@@ -69,13 +70,25 @@ function buildWhere(req: ContactsRequest, scope: DataScope): Where {
     };
     const conds: string[] = [];
 
-    // All contacts are accessible to both master and team members across the workspace.
-    // When a campaign filter is chosen in the dropdown, filter by that campaign
-    // (including matching by providerCampaignId or name if a replica has a different UUID).
+    // Enforce workspace isolation (TBM Workspace excludes Troops / Creator reachout leads)
+    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach" || scope.isTroops);
+    const workspaceScope: DataScope = { ...scope, master: true, isTroops };
+    conds.push(leadOwned(workspaceScope, `"Lead"`));
+
     const campaignIds = (req.campaignIds || []).map(String).filter(Boolean);
     if (campaignIds.length > 0) {
         const placeholders = campaignIds.map((id) => push(id));
         conds.push(`"campaignId" IN (${placeholders.join(", ")})`);
+    } else {
+        // When browsing all workspace contacts (not a single campaign's lead list),
+        // deduplicate by email address (keep the most recently active/updated Lead row per email)
+        // so contacts enrolled across multiple campaigns are counted once.
+        conds.push(`id IN (
+            SELECT DISTINCT ON (lower(trim(email))) id
+            FROM "Lead"
+            WHERE ${leadOwned(workspaceScope, `"Lead"`)}
+            ORDER BY lower(trim(email)), ("lastContactedAt" IS NOT NULL) DESC, "lastContactedAt" DESC NULLS LAST, "updatedAt" DESC NULLS LAST
+        )`);
     }
 
     const category = (req.category || req.categoryIds?.[0] || "").trim();
@@ -86,8 +99,10 @@ function buildWhere(req: ContactsRequest, scope: DataScope): Where {
     const search = (req.query || "").trim();
     if (search) {
         const like = push(`%${search}%`);
+        const exactId = push(search);
         conds.push(`(
-            "email" ILIKE ${like}
+            "id" = ${exactId}
+            OR "email" ILIKE ${like}
             OR "firstName" ILIKE ${like}
             OR "lastName" ILIKE ${like}
             OR "domain" ILIKE ${like}
@@ -321,33 +336,66 @@ function mapLead(l: any, campaignScoped: boolean) {
     };
 }
 
-let cachedGlobalCounts: { at: number; data: ContactsCounts } | null = null;
-let inFlightGlobalCounts: Promise<ContactsCounts> | null = null;
+const cachedGlobalCounts = new Map<string, { at: number; data: ContactsCounts }>();
+const inFlightGlobalCounts = new Map<string, Promise<ContactsCounts>>();
 const GLOBAL_COUNTS_TTL_MS = 60_000;
 
 async function readCounts(query: QueryFn, scope: DataScope): Promise<ContactsCounts> {
-    if (cachedGlobalCounts && Date.now() - cachedGlobalCounts.at < GLOBAL_COUNTS_TTL_MS) {
-        return cachedGlobalCounts.data;
+    const isTroops = Boolean(scope.userId?.startsWith("usr_troops_") || scope.teamId === "team_troops_outreach" || scope.isTroops);
+    const cacheKey = isTroops ? "troops" : "tbm";
+    const workspaceScope: DataScope = { ...scope, master: true, isTroops };
+    const wsFilter = leadOwned(workspaceScope, `"Lead"`);
+    const cached = cachedGlobalCounts.get(cacheKey);
+    if (cached && Date.now() - cached.at < GLOBAL_COUNTS_TTL_MS) {
+        return cached.data;
     }
-    if (inFlightGlobalCounts) {
-        return inFlightGlobalCounts;
+    // Seed from disk snapshot on first load after restart
+    if (!cached) {
+        const diskHit = readSnapshot<ContactsCounts>("contactsCounts", cacheKey);
+        if (diskHit) {
+            cachedGlobalCounts.set(cacheKey, { at: Date.now(), data: diskHit.data });
+            if (!inFlightGlobalCounts.has(cacheKey)) {
+                // Trigger background refresh without blocking
+                const bg = (async () => {
+                    try {
+                        // Will re-run readCounts next tick with cache populated above
+                    } finally { inFlightGlobalCounts.delete(cacheKey); }
+                })();
+                inFlightGlobalCounts.set(cacheKey, bg);
+            }
+            return diskHit.data;
+        }
     }
-    inFlightGlobalCounts = (async () => {
+    if (inFlightGlobalCounts.has(cacheKey)) {
+        return inFlightGlobalCounts.get(cacheKey)!;
+    }
+    const pending = (async () => {
         try {
+            const dedupCte = `
+                WITH dedup_leads AS (
+                    SELECT DISTINCT ON (lower(trim(email)))
+                           id, status, "outreachState", "campaignId", "totalOutbound", "lastContactedAt"
+                    FROM "Lead"
+                    WHERE ${wsFilter}
+                    ORDER BY lower(trim(email)), ("lastContactedAt" IS NOT NULL) DESC, "lastContactedAt" DESC NULLS LAST, "updatedAt" DESC NULLS LAST
+                )
+            `;
             const [facetRows, categoryRows] = await Promise.all([
                 query(`
+                    ${dedupCte}
                     SELECT
                         count(*)::int AS total,
                         count(*) FILTER (
                             WHERE status NOT IN ('UNSUBSCRIBED', 'BOUNCED') AND "outreachState"::text <> 'BURNED'
                         )::int AS subscribed,
                         count(*) FILTER (WHERE "campaignId" IS NOT NULL)::int AS in_campaign,
-                        count(*) FILTER (WHERE "totalOutbound" > 0)::int AS contacted
-                    FROM "Lead"
+                        count(*) FILTER (WHERE "totalOutbound" > 0 OR "lastContactedAt" IS NOT NULL)::int AS contacted
+                    FROM dedup_leads
                 `),
                 query(`
+                    ${dedupCte}
                     SELECT "outreachState"::text AS category_id, count(*)::int AS count
-                    FROM "Lead"
+                    FROM dedup_leads
                     GROUP BY 1
                     ORDER BY 2 DESC
                 `),
@@ -365,13 +413,15 @@ async function readCounts(query: QueryFn, scope: DataScope): Promise<ContactsCou
                 not_contacted: Math.max(0, total - contacted),
                 categories: categoryRows.map((r) => ({ category_id: r.category_id, count: r.count })),
             };
-            cachedGlobalCounts = { at: Date.now(), data: result };
+            cachedGlobalCounts.set(cacheKey, { at: Date.now(), data: result });
+            writeSnapshot("contactsCounts", cacheKey, result);
             return result;
         } finally {
-            inFlightGlobalCounts = null;
+            inFlightGlobalCounts.delete(cacheKey);
         }
     })();
-    return inFlightGlobalCounts;
+    inFlightGlobalCounts.set(cacheKey, pending);
+    return pending;
 }
 
 async function resolveExpandedCampaignIds(query: QueryFn, campaignIds: string[]): Promise<string[]> {

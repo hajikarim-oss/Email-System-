@@ -23,7 +23,6 @@ import {
   MoreVerticalIcon,
   SendIcon,
   TrashIcon,
-  UserIcon,
   XIcon,
 } from "lucide-react";
 
@@ -35,7 +34,6 @@ import ResourceViewers from "@/components/app/presence/ResourceViewers";
 import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { usePresenceResource } from "@/hooks/PresenceProvider";
 import { ThreadLabelMenu } from "./ThreadLabelMenu";
-import ContactContextPanel from "./ContactContextPanel";
 import BookACallButton from "@/components/app/integrations/BookACallButton";
 import { CategoryChip } from "@/components/app/contacts/CategoryPicker";
 import { SectionBar } from "@/components/layout/Page";
@@ -83,6 +81,8 @@ function toUniboxEmail(m: UniboxThreadMessage): UniboxEmail {
     account_id: m.email_id,
     body_html: (m as any).body_html,
     body_plain: (m as any).body_plain,
+    direction: (m as any).direction,
+    prospect_email: (m as any).prospect_email,
   } as any;
 }
 
@@ -161,27 +161,6 @@ export function ThreadView({ threadId, emailId }: ThreadViewProps) {
   // Conversation labels (read for the header chips; the menu writes).
   const threadLabels = useThreadLabels(threadId);
   const [labelMenuOpen, setLabelMenuOpen] = React.useState(false);
-
-  // CRM context rail (right side). Open by default on lg+, where it renders
-  // as a static rail beside the thread; below lg it is an overlay drawer, so
-  // it starts closed and is opened from the header toggle.
-  const [crmOpen, setCrmOpen] = React.useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 1024px)").matches,
-  );
-
-  // The initial state is read once, so narrowing past lg with the rail open
-  // turned it into an overlay sitting on top of the thread (a rotated tablet,
-  // a window dragged to half a screen). Close it on the way down.
-  React.useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const onChange = (e: MediaQueryListEvent) => {
-      if (!e.matches) setCrmOpen(false);
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   // `c` opens the label menu while a thread is open — ignored while
   // typing into the composer / any input so it never eats keystrokes.
@@ -332,25 +311,35 @@ export function ThreadView({ threadId, emailId }: ThreadViewProps) {
     );
   }
 
-  const subject = messages[0]?.subject || "(no subject)";
+  const subject = messages[messages.length - 1]?.subject || messages[0]?.subject || "(no subject)";
   const participants = new Set(
-    messages.map((m) => m.from).filter((f): f is string => Boolean(f)),
+    messages.flatMap((m) => [m.from, m.to]).filter((f): f is string => Boolean(f)),
   );
   const mailbox = accounts.find((a) => a.id === messages[0]?.account_id);
 
-  // The external party of the thread = the first message address that isn't
-  // our own mailbox. Addresses arrive as "Name <addr>" or bare "addr"; reduce
-  // to the bare address so the comparison + the CRM panel lookup both work.
+  // The external party of the thread = the prospect address (never our own @theboredmonkey.com / @tbmtroop.com mailbox).
   const mailboxEmail = mailbox?.email?.toLowerCase();
   const bareAddr = (s: string) => {
     const m = s.match(/<([^>]+)>/);
     return (m ? m[1] : s).trim();
   };
+  const isInternalAddr = (addr: string) => {
+    const lower = addr.toLowerCase();
+    return (
+      !lower ||
+      lower === mailboxEmail ||
+      lower.endsWith("@theboredmonkey.com") ||
+      lower.endsWith("@theboredmonkey.in") ||
+      lower.endsWith("@tbmtroop.com")
+    );
+  };
+  const explicitProspect = (messages[0] as any)?.prospect_email;
   const contactEmail =
+    (explicitProspect && !isInternalAddr(explicitProspect) ? explicitProspect : null) ??
     messages
-      .map((m) => bareAddr(m.from))
-      .find((e) => e && e.toLowerCase() !== mailboxEmail) ??
-    bareAddr(messages[0]?.from ?? "");
+      .flatMap((m) => [bareAddr(m.from), bareAddr(m.to)])
+      .find((e) => e && !isInternalAddr(e)) ??
+    bareAddr(messages[messages.length - 1]?.from ?? messages[0]?.from ?? "");
 
   const submitCustomSnooze = () => {
     if (!customValue) return;
@@ -395,19 +384,6 @@ export function ThreadView({ threadId, emailId }: ThreadViewProps) {
         )}
         <ResourceViewers resource={`thread:${threadId}`} className="shrink-0" />
         <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setCrmOpen((o) => !o)}
-            aria-label={crmOpen ? "Hide contact panel" : "Show contact panel"}
-            className={
-              "inline-flex size-7 rounded-md items-center justify-center transition-colors " +
-              (crmOpen
-                ? "text-slate-900 bg-[#FFF9DB]"
-                : "text-slate-500 hover:text-slate-900 hover:bg-slate-100")
-            }
-          >
-            <UserIcon className="w-3.5 h-3.5" />
-          </button>
           <BookACallButton email={contactEmail} className="hidden sm:inline-flex" />
           <ThreadLabelMenu
             threadId={threadId}
@@ -638,14 +614,6 @@ export function ThreadView({ threadId, emailId }: ThreadViewProps) {
         )}
       </AnimatePresence>
       </div>
-
-      {crmOpen && (
-        <ContactContextPanel
-          email={contactEmail}
-          mailboxId={mailbox?.id}
-          onClose={() => setCrmOpen(false)}
-        />
-      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import type { QueryFn, QueryRow } from "./types";
 import { eventOwned, leadOwned, messageOwned, ownerOwned, type DataScope } from "./scope";
+import { readSnapshot, writeSnapshot } from "./snapshotCache";
 
 export interface DashboardRequest {
     period?: string;
@@ -106,68 +107,91 @@ function rate(numerator: number, denominator: number): number {
 // ---------------------------------------------------------------------------
 function engagementCte(scope: DataScope): string {
     return `
-        lead_activity AS (
-            SELECT l.id AS lead_id,
-                   lower(coalesce(l.email, '')) AS email,
-                   l."lastContactedAt" AS send_at,
-                   l."lastOpenAt" AS open_at,
-                   coalesce(l."lastRepliedAt", l."repliedAt") AS reply_at,
-                   l."lastBouncedAt" AS bounce_at,
-                   (l."openCount" > 0 OR l."firstOpenAt" IS NOT NULL) AS has_open,
-                   (l."totalReplied" > 0) AS has_reply,
-                   (l."totalBounced" > 0 OR l."bounceCount" > 0) AS has_bounce,
-                   l."updatedAt" AS updated_at
-            FROM "Lead" l
-            WHERE ${leadOwned(scope, "l")} AND l."campaignId" IS NOT NULL
-              AND (
-                (l."lastContactedAt" >= $1::timestamp AND l."lastContactedAt" < $2::timestamp)
-                OR (l."lastOpenAt" >= $1::timestamp AND l."lastOpenAt" < $2::timestamp)
-                OR (coalesce(l."lastRepliedAt", l."repliedAt") >= $1::timestamp AND coalesce(l."lastRepliedAt", l."repliedAt") < $2::timestamp)
-                OR (l."lastBouncedAt" >= $1::timestamp AND l."lastBouncedAt" < $2::timestamp)
-                OR (l."updatedAt" >= $1::timestamp AND l."updatedAt" < $2::timestamp)
-              )
-        ),
-        event_dates AS (
+        open_rows AS (
             SELECT e."leadId" AS lead_id,
-                   min(e."createdAt") FILTER (WHERE e."eventType" IN ${inList(OPEN_EVENTS)}) AS open_at,
-                   min(e."createdAt") FILTER (WHERE e."eventType" IN ${inList(REPLY_EVENTS)}) AS reply_at,
-                   min(e."createdAt") FILTER (WHERE e."eventType" IN ${inList(BOUNCE_EVENTS)}) AS bounce_at
-            FROM "EmailEvent" e
-            WHERE ${eventOwned(scope, "e")}
-              AND e."createdAt" >= $1::timestamp AND e."createdAt" < $2::timestamp
-            GROUP BY 1
-        ),
-        engagement AS (
-            SELECT la.lead_id,
                    'open'::text AS kind,
-                   coalesce(la.open_at, ed.open_at,
-                            CASE WHEN la.has_open THEN la.send_at END) AS occurred_at
-            FROM lead_activity la
-            LEFT JOIN event_dates ed ON ed.lead_id = la.lead_id
-            WHERE la.has_open OR ed.open_at IS NOT NULL
+                   e."createdAt" AS occurred_at,
+                   1::int AS weight
+            FROM "EmailEvent" e
+            JOIN "Lead" l ON l.id = e."leadId"
+            WHERE e."eventType" IN ${inList(OPEN_EVENTS)}
+              AND e."createdAt" >= $1::timestamp
+              AND e."createdAt" < $2::timestamp
+              AND ${leadOwned(scope, "l")}
             UNION ALL
-            SELECT la.lead_id,
-                   'reply',
-                   coalesce(la.reply_at, ed.reply_at,
-                            CASE WHEN la.has_reply THEN la.send_at END) AS occurred_at
-            FROM lead_activity la
-            LEFT JOIN event_dates ed ON ed.lead_id = la.lead_id
-            WHERE la.has_reply OR ed.reply_at IS NOT NULL
+            SELECT l.id AS lead_id,
+                   'open'::text AS kind,
+                   coalesce(l."lastOpenAt", l."firstOpenAt", l."lastContactedAt") AS occurred_at,
+                   (GREATEST(coalesce(l."openCount", 1), 1) - coalesce(ev_open.cnt, 0))::int AS weight
+            FROM "Lead" l
+            LEFT JOIN (
+                SELECT "leadId", count(*)::int AS cnt
+                FROM "EmailEvent"
+                WHERE "eventType" IN ${inList(OPEN_EVENTS)}
+                  AND "createdAt" >= $1::timestamp
+                  AND "createdAt" < $2::timestamp
+                GROUP BY "leadId"
+            ) ev_open ON ev_open."leadId" = l.id
+            WHERE (l."openCount" > 0 OR l."firstOpenAt" IS NOT NULL)
+              AND coalesce(l."lastOpenAt", l."firstOpenAt", l."lastContactedAt") >= $1::timestamp
+              AND coalesce(l."lastOpenAt", l."firstOpenAt", l."lastContactedAt") < $2::timestamp
+              AND ${leadOwned(scope, "l")}
+              AND GREATEST(coalesce(l."openCount", 1), 1) > coalesce(ev_open.cnt, 0)
+        ),
+        reply_rows AS (
+            SELECT DISTINCT ON (e."leadId", date_trunc('day', e."createdAt"))
+                   e."leadId" AS lead_id,
+                   'reply'::text AS kind,
+                   e."createdAt" AS occurred_at,
+                   1::int AS weight
+            FROM "EmailEvent" e
+            JOIN "Lead" l ON l.id = e."leadId"
+            WHERE e."eventType" IN ${inList(REPLY_EVENTS)}
+              AND coalesce(e."providerEventId", '') NOT LIKE 'sl_stat_reply_%'
+              AND lower(coalesce(e."fromEmail", e."rawPayload"->>'from_email', '')) NOT LIKE '%mailer-daemon%'
+              AND lower(coalesce(e."fromEmail", e."rawPayload"->>'from_email', '')) NOT LIKE '%postmaster@%'
+              AND e."createdAt" >= $1::timestamp
+              AND e."createdAt" < $2::timestamp
+              AND ${leadOwned(scope, "l")}
+            ORDER BY e."leadId", date_trunc('day', e."createdAt"), e."createdAt" DESC
+        ),
+        bounce_rows AS (
+            SELECT e."leadId" AS lead_id,
+                   'bounce'::text AS kind,
+                   e."createdAt" AS occurred_at,
+                   1::int AS weight
+            FROM "EmailEvent" e
+            JOIN "Lead" l ON l.id = e."leadId"
+            WHERE e."eventType" IN ${inList(BOUNCE_EVENTS)}
+              AND e."createdAt" >= $1::timestamp
+              AND e."createdAt" < $2::timestamp
+              AND ${leadOwned(scope, "l")}
             UNION ALL
-            SELECT la.lead_id,
-                   'bounce',
-                   coalesce(la.bounce_at, ed.bounce_at,
-                            CASE WHEN la.has_bounce THEN la.send_at END) AS occurred_at
-            FROM lead_activity la
-            LEFT JOIN event_dates ed ON ed.lead_id = la.lead_id
-            WHERE la.has_bounce OR ed.bounce_at IS NOT NULL
+            SELECT l.id AS lead_id,
+                   'bounce'::text AS kind,
+                   coalesce(l."lastBouncedAt", l."lastContactedAt") AS occurred_at,
+                   (GREATEST(coalesce(l."totalBounced", 0), coalesce(l."bounceCount", 0), 1) - coalesce(ev_b.cnt, 0))::int AS weight
+            FROM "Lead" l
+            LEFT JOIN (
+                SELECT "leadId", count(*)::int AS cnt
+                FROM "EmailEvent"
+                WHERE "eventType" IN ${inList(BOUNCE_EVENTS)}
+                  AND "createdAt" >= $1::timestamp
+                  AND "createdAt" < $2::timestamp
+                GROUP BY "leadId"
+            ) ev_b ON ev_b."leadId" = l.id
+            WHERE (l."totalBounced" > 0 OR l."bounceCount" > 0 OR l.status = 'BOUNCED')
+              AND coalesce(l."lastBouncedAt", l."lastContactedAt") >= $1::timestamp
+              AND coalesce(l."lastBouncedAt", l."lastContactedAt") < $2::timestamp
+              AND ${leadOwned(scope, "l")}
+              AND GREATEST(coalesce(l."totalBounced", 0), coalesce(l."bounceCount", 0), 1) > coalesce(ev_b.cnt, 0)
         ),
         engagement_window AS (
-            SELECT lead_id, kind, occurred_at
-            FROM engagement
-            WHERE occurred_at IS NOT NULL
-              AND occurred_at >= $1::timestamp
-              AND occurred_at < $2::timestamp
+            SELECT lead_id, kind, occurred_at, weight FROM open_rows
+            UNION ALL
+            SELECT lead_id, kind, occurred_at, weight FROM reply_rows
+            UNION ALL
+            SELECT lead_id, kind, occurred_at, weight FROM bounce_rows
         )`;
 }
 
@@ -187,31 +211,69 @@ async function readActivityRows(query: QueryFn, startTs: string, endTs: string, 
               AND ${eventOwned(scope, "e")}
         ),
         send_rows AS (
-            SELECT l.id AS lead_id, 'sent'::text AS type, l."lastContactedAt" AS ts
-            FROM "Lead" l
-            WHERE l."lastContactedAt" >= $1::timestamp
-              AND l."lastContactedAt" < $2::timestamp
-              AND ${leadOwned(scope, "l")}
-            UNION
-            SELECT e."leadId", 'sent', e."createdAt"
+            SELECT e."leadId" AS lead_id,
+                   'sent'::text AS type,
+                   e."createdAt" AS ts,
+                   1::int AS weight
             FROM "EmailEvent" e
             JOIN "Lead" l ON l.id = e."leadId"
             WHERE e."eventType" = '${SENT_EVENT}'
               AND e."createdAt" >= $1::timestamp
               AND e."createdAt" < $2::timestamp
-              AND (l."lastContactedAt" IS NULL
-                   OR date_trunc('day', l."lastContactedAt") <> date_trunc('day', e."createdAt"))
               AND ${leadOwned(scope, "l")}
+            UNION ALL
+            SELECT l.id AS lead_id,
+                   'sent'::text AS type,
+                   l."lastContactedAt" AS ts,
+                   (
+                       CASE
+                           WHEN l."lastContactedAt" >= CURRENT_DATE THEN 1
+                           ELSE GREATEST(coalesce(l."totalOutbound", 1), 1)
+                       END - coalesce(
+                           CASE
+                               WHEN l."lastContactedAt" >= CURRENT_DATE THEN ev_cnt.today_cnt
+                               ELSE ev_cnt.cnt
+                           END,
+                           0
+                       )
+                   )::int AS weight
+            FROM "Lead" l
+            LEFT JOIN (
+                SELECT "leadId",
+                       count(*)::int AS cnt,
+                       count(*) FILTER (WHERE "createdAt" >= CURRENT_DATE)::int AS today_cnt
+                FROM "EmailEvent"
+                WHERE "eventType" = '${SENT_EVENT}'
+                  AND "createdAt" >= $1::timestamp
+                  AND "createdAt" < $2::timestamp
+                GROUP BY "leadId"
+            ) ev_cnt ON ev_cnt."leadId" = l.id
+            WHERE l."lastContactedAt" >= $1::timestamp
+              AND l."lastContactedAt" < $2::timestamp
+              AND ${leadOwned(scope, "l")}
+              AND (
+                  CASE
+                      WHEN l."lastContactedAt" >= CURRENT_DATE THEN 1
+                      ELSE GREATEST(coalesce(l."totalOutbound", 1), 1)
+                  END
+              ) > coalesce(
+                  CASE
+                      WHEN l."lastContactedAt" >= CURRENT_DATE THEN ev_cnt.today_cnt
+                      ELSE ev_cnt.cnt
+                  END,
+                  0
+              )
         ),
         activity AS (
-            SELECT lead_id, type, ts FROM send_rows
+            SELECT lead_id, type, ts, weight FROM send_rows
             UNION ALL
-            SELECT lead_id, kind, occurred_at FROM engagement_window
+            SELECT lead_id, kind, occurred_at, weight FROM engagement_window
             UNION ALL
-            SELECT lead_id, type, ts FROM click_rows
+            SELECT lead_id, type, ts, 1::int AS weight FROM click_rows
         )
         SELECT a.lead_id,
                a.type,
+               a.weight,
                to_char(a.ts, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS ts,
                l."campaignId" AS campaign_id,
                coalesce(c.name, '') AS campaign_name,
@@ -264,22 +326,25 @@ async function readActiveCounts(query: QueryFn, scope: DataScope): Promise<{ act
 // chart window ends in the past (Custom range).
 async function readTodaySends(query: QueryFn, startTs: string, endTs: string, scope: DataScope): Promise<number> {
     const rows = await query(
-        `SELECT coalesce(sum(sent), 0)::int AS sent
-         FROM (
-            SELECT count(*)::int AS sent
-            FROM "Lead"
-            WHERE "lastContactedAt" >= $1::timestamp AND "lastContactedAt" < $2::timestamp
-              AND ${leadOwned(scope, `"Lead"`)}
-            UNION ALL
-            SELECT count(DISTINCT e."leadId")::int
-            FROM "EmailEvent" e
-            JOIN "Lead" l ON l.id = e."leadId"
-            WHERE e."eventType" = '${SENT_EVENT}'
-              AND e."createdAt" >= $1::timestamp AND e."createdAt" < $2::timestamp
-              AND (l."lastContactedAt" IS NULL
-                   OR date_trunc('day', l."lastContactedAt") <> date_trunc('day', e."createdAt"))
-              AND ${leadOwned(scope, "l")}
-         ) parts`,
+        `SELECT (
+            (SELECT count(*)::int
+             FROM "EmailEvent" e
+             JOIN "Lead" l ON l.id = e."leadId"
+             WHERE e."eventType" = '${SENT_EVENT}'
+               AND e."createdAt" >= $1::timestamp AND e."createdAt" < $2::timestamp
+               AND ${leadOwned(scope, "l")})
+            +
+            (SELECT count(*)::int
+             FROM "Lead" l
+             WHERE l."lastContactedAt" >= $1::timestamp AND l."lastContactedAt" < $2::timestamp
+               AND ${leadOwned(scope, "l")}
+               AND NOT EXISTS (
+                   SELECT 1 FROM "EmailEvent" e2
+                   WHERE e2."leadId" = l.id
+                     AND e2."eventType" = '${SENT_EVENT}'
+                     AND e2."createdAt" >= $1::timestamp AND e2."createdAt" < $2::timestamp
+               ))
+         )::int AS sent`,
         [startTs, endTs],
     );
     return rows[0]?.sent ?? 0;
@@ -379,6 +444,27 @@ export async function getDashboard(req: DashboardRequest, query: QueryFn, scope:
         return cached.data;
     }
 
+    // Seed in-memory cache from disk snapshot so first request after restart returns real data
+    if (!cached) {
+        const diskHit = readSnapshot<any>("dashboard", key);
+        if (diskHit) {
+            dashboardCache.set(key, { data: diskHit.data, expiresAt: nowMs + DASHBOARD_CACHE_TTL });
+            lastGoodDashboards.set(key, diskHit.data);
+            // Return stale disk data immediately; background refresh will update it shortly
+            if (inFlightDashboards.has(key)) return diskHit.data;
+            const bgRefresh = (async () => {
+                try {
+                    const data = await fetchDashboardInternal(req, query, scope);
+                    dashboardCache.set(key, { data, expiresAt: Date.now() + DASHBOARD_CACHE_TTL });
+                    lastGoodDashboards.set(key, data);
+                    writeSnapshot("dashboard", key, data);
+                } catch { /* non-fatal */ } finally { inFlightDashboards.delete(key); }
+            })();
+            inFlightDashboards.set(key, bgRefresh);
+            return diskHit.data;
+        }
+    }
+
     if (inFlightDashboards.has(key)) {
         return inFlightDashboards.get(key)!;
     }
@@ -388,6 +474,7 @@ export async function getDashboard(req: DashboardRequest, query: QueryFn, scope:
             const data = await fetchDashboardInternal(req, query, scope);
             dashboardCache.set(key, { data, expiresAt: Date.now() + DASHBOARD_CACHE_TTL });
             lastGoodDashboards.set(key, data);
+            writeSnapshot("dashboard", key, data);
             return data;
         } catch (err) {
             const fallback = lastGoodDashboards.get(key) || cached?.data;
@@ -413,12 +500,17 @@ async function fetchDashboardInternal(req: DashboardRequest, query: QueryFn, sco
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const todayEnd = new Date(todayStart.getTime() + DAY_MS);
 
-    const [activity, campaignMeta, healthRows, activeCounts, todaySent] = await Promise.all([
+    // Stage in two small groups so multiple concurrent getDashboard() calls
+    // (e.g. AppNav 30d + Dashboard current window + Dashboard previous window)
+    // never saturate the 5-connection primary semaphore at once.
+    const [activity, todaySent] = await Promise.all([
         readActivityRows(query, startTs, endTs, scope),
+        readTodaySends(query, toTs(todayStart), toTs(todayEnd), scope),
+    ]);
+    const [campaignMeta, healthRows, activeCounts] = await Promise.all([
         readCampaignMeta(query, scope),
         readAccountHealth(query, scope),
         readActiveCounts(query, scope),
-        readTodaySends(query, toTs(todayStart), toTs(todayEnd), scope),
     ]);
 
     const daily = new Map<string, DailyBucket>();
@@ -456,23 +548,25 @@ async function fetchDashboardInternal(req: DashboardRequest, query: QueryFn, sco
         const campaignBucket = campaignId ? campaignBucketFor(campaignId) : null;
 
         if (type === "sent") {
-            bucket.sent += 1;
-            if (campaignBucket) campaignBucket.sent += 1;
+            const w = Math.max(1, Number(row.weight) || 1);
+            bucket.sent += w;
+            if (campaignBucket) campaignBucket.sent += w;
             continue;
         }
 
         engagedLeads.add(leadId);
         if (campaignBucket) campaignBucket.engaged.add(leadId);
+        const w = Math.max(1, Number(row.weight) || 1);
 
         if (type === "open") {
-            bucket.opens += 1;
-            if (campaignBucket) campaignBucket.opens += 1;
+            bucket.opens += w;
+            if (campaignBucket) campaignBucket.opens += w;
         } else if (type === "reply") {
-            bucket.replies += 1;
-            if (campaignBucket) campaignBucket.replies += 1;
+            bucket.replies += w;
+            if (campaignBucket) campaignBucket.replies += w;
         } else if (type === "bounce") {
-            bucket.bounces += 1;
-            if (campaignBucket) campaignBucket.bounces += 1;
+            bucket.bounces += w;
+            if (campaignBucket) campaignBucket.bounces += w;
         } else if (type === "click") {
             let clickers = clickLeadsByDay.get(date);
             if (!clickers) {

@@ -77,11 +77,8 @@ export default function UniboxPage() {
     return teamMembers.find((m: any) => m.email?.toLowerCase() === user?.email?.toLowerCase());
   }, [user, teamMembers]);
 
-  // Master starts at "all"; individual team members are locked to their own profile
-  const [selectedMemberId, setSelectedMemberId] = React.useState<string>(() => {
-    if (!isMaster && userTeamMember) return userTeamMember.id;
-    return "all";
-  });
+  // Both Master and Team Members default to viewing all workspace replies, with full dropdown filtering by campaign owner
+  const [selectedMemberId, setSelectedMemberId] = React.useState<string>("all");
 
   const [selectedCampaignId, setSelectedCampaignId] = React.useState<string>("all");
   const [dateFilter, setDateFilter] = React.useState<UniboxDateFilterState>({ preset: "all" });
@@ -146,13 +143,6 @@ export default function UniboxPage() {
       label,
     });
   }, []);
-
-  // Sync if user profile loads late
-  React.useEffect(() => {
-    if (!isMaster && userTeamMember && selectedMemberId !== userTeamMember.id) {
-      setSelectedMemberId(userTeamMember.id);
-    }
-  }, [isMaster, userTeamMember, selectedMemberId]);
 
   // ── URL state ──────────────────────────────────────────────────
   // Readable, path-based URLs: /app/unibox/<scope>[/<threadId>]. The scope is a

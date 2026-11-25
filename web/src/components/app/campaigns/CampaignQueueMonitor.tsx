@@ -117,13 +117,13 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
     const inFlightCount = Math.max(0, totalLeads - sentCount);
 
     const isMasterCamp = enrichedCampaign.is_master === true ||
-                         enrichedCampaign.userId === "cmtr9pp8t0000cygeyjpsz5lt" ||
-                         enrichedCampaign.name?.toLowerCase().includes("mon test") ||
-                         (enrichedCampaign.mailboxes && Array.isArray(enrichedCampaign.mailboxes) && enrichedCampaign.mailboxes.some((m: any) => 
-                             m.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" || 
-                             m.mailboxId === "mbx_kumar_monu_master" || 
-                             m.mailbox?.id === "mbx_kumar_monu_master"
-                         ));
+        enrichedCampaign.userId === "cmtr9pp8t0000cygeyjpsz5lt" ||
+        enrichedCampaign.name?.toLowerCase().includes("mon test") ||
+        (enrichedCampaign.mailboxes && Array.isArray(enrichedCampaign.mailboxes) && enrichedCampaign.mailboxes.some((m: any) =>
+            m.mailbox?.senderEmail === "kumar.monu@theboredmonkey.com" ||
+            m.mailboxId === "mbx_kumar_monu_master" ||
+            m.mailbox?.id === "mbx_kumar_monu_master"
+        ));
 
     const activePoolText = isMasterCamp
         ? "1 Dedicated Mailbox (kumar.monu@theboredmonkey.com)"
@@ -157,8 +157,8 @@ export function CampaignQueueMonitor({ campaign }: CampaignQueueMonitorProps) {
                         </span>
                         <span
                             className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${isActive
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : "bg-amber-50 text-amber-700 border-amber-200"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
                                 }`}
                         >
                             {isActive ? "ACTIVE DISPATCH" : "PAUSED"}

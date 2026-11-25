@@ -3184,42 +3184,47 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
                 intParams.set("member_id", memberId);
             }
 
-            const intRes = await safeFetch(`/api/intelligence/contacts?${intParams.toString()}`, { headers: authHeaders() });
-            if (intRes.ok) {
-                const intJson = await intRes.json();
-                const isFixtureCampaign = campIds.some(id =>
-                    id.includes("1789718475256") || id === "cmp_1789718475256_g91f" ||
-                    id.includes("1790233732719") || id === "cmp_1790233732719_dvlj"
-                );
-                // For non-fixture campaigns, the live PostgreSQL database is the single source of truth
-                if (!isFixtureCampaign || (intJson.total > 0 && intJson.data?.length > 0)) {
-                    return res({
-                        data: intJson.data || [],
-                        total: intJson.total || 0,
-                        counts: intJson.counts,
-                        lead_counts: intJson.lead_counts,
-                        pagination: intJson.pagination,
-                    });
-                }
-            } else {
-                const errText = await intRes.text().catch(() => "");
-                try {
-                    const errBody = JSON.parse(errText);
-                    // The endpoint exists and answered with a structured error
-                    // (e.g. the database is unreachable). Surface it instead of
-                    // quietly serving fixture rows that contradict the database.
-                    if (errBody && typeof errBody.error === "string") {
-                        liveContactsError = errBody.message || errBody.error;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const intRes = await safeFetch(`/api/intelligence/contacts?${intParams.toString()}`, { headers: authHeaders() });
+                if (intRes.ok) {
+                    const intJson = await intRes.json();
+                    const isFixtureCampaign = campIds.some(id =>
+                        id.includes("1789718475256") || id === "cmp_1789718475256_g91f" ||
+                        id.includes("1790233732719") || id === "cmp_1790233732719_dvlj"
+                    );
+                    // For non-fixture campaigns, the live PostgreSQL database is the single source of truth
+                    if (!isFixtureCampaign || (intJson.total > 0 && intJson.data?.length > 0)) {
+                        return res({
+                            data: intJson.data || [],
+                            total: intJson.total || 0,
+                            counts: intJson.counts,
+                            lead_counts: intJson.lead_counts,
+                            pagination: intJson.pagination,
+                        });
                     }
-                } catch {
-                    /* non-JSON (SPA index.html) → endpoint not deployed, fall back */
+                    break;
+                } else {
+                    const errText = await intRes.text().catch(() => "");
+                    try {
+                        const errBody = JSON.parse(errText);
+                        if (errBody && typeof errBody.error === "string") {
+                            liveContactsError = errBody.message || errBody.error;
+                        }
+                    } catch {
+                        /* non-JSON (SPA index.html) → endpoint not deployed, fall back */
+                    }
+                    if (intRes.status >= 500 && attempt === 0) {
+                        await new Promise((r) => setTimeout(r, 400));
+                        continue;
+                    }
+                    break;
                 }
             }
         } catch (e) {
             console.warn("[standaloneMock] Failed to query intelligence contacts, falling back:", e);
         }
         if (liveContactsError) {
-            console.warn("[standaloneMock] Live contacts endpoint unavailable, falling back to local dataset:", liveContactsError);
+            throw new Error(liveContactsError);
         }
 
         // Campaign scoping — if campaign_ids is specified, query dedicated campaign leads registry
@@ -3401,6 +3406,57 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
 
     if (pathWithoutQuery === "/contacts/lookup") {
         const queryEmail = (queryParams.get("email") || "").toLowerCase().trim();
+        if (queryEmail) {
+            try {
+                const liveRes = await safeFetch(
+                    `/api/intelligence/contacts?query=${encodeURIComponent(queryEmail)}&limit=10`,
+                    { headers: authHeaders() },
+                );
+                if (liveRes.ok) {
+                    const liveJson = await liveRes.json();
+                    const rows: any[] = Array.isArray(liveJson?.data) ? liveJson.data : [];
+                    const exact =
+                        rows.find((r: any) => (r.email || "").toLowerCase().trim() === queryEmail) ||
+                        rows[0];
+                    if (exact) {
+                        const sentCnt = Number(exact.campaign_lead?.sent || exact.engagement_state?.total_messages || 1);
+                        const openCnt = Number(exact.open_count || exact.campaign_lead?.opened || 0);
+                        const clickCnt = Number(exact.click_count || exact.campaign_lead?.clicked || 0);
+                        const replyCnt = Number(exact.reply_count || exact.engagement_state?.total_replied || 0);
+                        return res({
+                            contact: {
+                                ...exact,
+                                company: exact.company_name || exact.company || exact.domain || "Direct Contact",
+                                campaigns:
+                                    Array.isArray(exact.campaigns) && exact.campaigns.length > 0
+                                        ? exact.campaigns
+                                        : exact.last_message_context?.campaign
+                                          ? [{ id: exact.campaignId || "camp_live", name: exact.last_message_context.campaign }]
+                                          : [],
+                                engagement: {
+                                    total_sent: sentCnt,
+                                    total_opened: openCnt,
+                                    total_clicked: clickCnt,
+                                    total_replied: replyCnt,
+                                    total_bounced: 0,
+                                    total_complained: 0,
+                                    total_messages: sentCnt + replyCnt,
+                                    total_opens: openCnt,
+                                    total_clicks: clickCnt,
+                                    total_replies: replyCnt,
+                                    last_sent_at: exact.temporal_state?.last_contacted_at || exact.created_at,
+                                    last_contacted_at: exact.temporal_state?.last_contacted_at || exact.created_at,
+                                    last_opened_at: exact.updated_at,
+                                    last_replied_at: exact.updated_at,
+                                },
+                            },
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn("[standaloneMock] live /contacts/lookup query error:", e);
+            }
+        }
         let found = contacts.find((c: any) => (c.email || "").toLowerCase() === queryEmail);
         if (!found && queryEmail.includes("hajikarimbeldaar")) {
             found = {
@@ -3482,7 +3538,58 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
             return res({ data: [] });
         }
 
-        const found = contacts.find((c: any) => c.id === contactId || (c.email && c.email.includes(contactId))) || contacts[0];
+        if (contactId) {
+            try {
+                const liveRes = await safeFetch(
+                    `/api/intelligence/contacts?query=${encodeURIComponent(contactId)}&limit=10`,
+                    { headers: authHeaders() },
+                );
+                if (liveRes.ok) {
+                    const liveJson = await liveRes.json();
+                    const rows: any[] = Array.isArray(liveJson?.data) ? liveJson.data : [];
+                    const exact =
+                        rows.find((r: any) => r.id === contactId || (r.email || "").toLowerCase() === contactId.toLowerCase()) ||
+                        rows[0];
+                    if (exact) {
+                        const sentCnt = Number(exact.campaign_lead?.sent || exact.engagement_state?.total_messages || 1);
+                        const openCnt = Number(exact.open_count || exact.campaign_lead?.opened || 0);
+                        const clickCnt = Number(exact.click_count || exact.campaign_lead?.clicked || 0);
+                        const replyCnt = Number(exact.reply_count || exact.engagement_state?.total_replied || 0);
+                        return res({
+                            ...exact,
+                            company: exact.company_name || exact.company || exact.domain || "Direct Contact",
+                            campaigns:
+                                Array.isArray(exact.campaigns) && exact.campaigns.length > 0
+                                    ? exact.campaigns
+                                    : exact.last_message_context?.campaign
+                                      ? [{ id: exact.campaignId || "camp_live", name: exact.last_message_context.campaign }]
+                                      : [],
+                            engagement: {
+                                total_sent: sentCnt,
+                                total_opened: openCnt,
+                                total_clicked: clickCnt,
+                                total_replied: replyCnt,
+                                total_bounced: 0,
+                                total_complained: 0,
+                                total_messages: sentCnt + replyCnt,
+                                total_opens: openCnt,
+                                total_clicks: clickCnt,
+                                total_replies: replyCnt,
+                                last_sent_at: exact.temporal_state?.last_contacted_at || exact.created_at,
+                                last_contacted_at: exact.temporal_state?.last_contacted_at || exact.created_at,
+                                last_opened_at: exact.updated_at,
+                                last_replied_at: exact.updated_at,
+                            },
+                            source: "campaign",
+                            source_detail: exact.last_message_context?.campaign || "Outreach Sequence",
+                            first_seen_at: exact.created_at || new Date().toISOString(),
+                        });
+                    }
+                }
+            } catch {}
+        }
+
+        const found = contacts.find((c: any) => c.id === contactId || (c.email && c.email.includes(contactId)));
         if (found) {
             return res({
                 ...found,
@@ -4238,33 +4345,44 @@ export async function handleStandaloneRequest(config: AxiosRequestConfig): Promi
         //    Lead and Mailbox tables, so "sent today" is whatever the database
         //    actually recorded — never a pinned historical value.
         let liveAnalyticsError: string | null = null;
-        try {
-            const dashQuery = new URLSearchParams({ period });
-            if (from) dashQuery.set("from", from);
-            if (to) dashQuery.set("to", to);
-            if (memberId && memberId !== "all") dashQuery.set("member_id", memberId);
-            const dashRes = await safeFetch(`/api/analytics/dashboard?${dashQuery.toString()}`, { headers: authHeaders() });
-            if (dashRes.ok) {
-                const dashJson = await dashRes.json();
-                if (dashJson && dashJson.overall_stats) {
-                    return res({ ...dashJson, period: dashJson.period || period });
-                }
-            } else {
-                const errText = await dashRes.text().catch(() => "");
-                try {
-                    const errBody = JSON.parse(errText);
-                    if (errBody && typeof errBody.error === "string") {
-                        liveAnalyticsError = errBody.message || errBody.error;
+        const dashQuery = new URLSearchParams({ period });
+        if (from) dashQuery.set("from", from);
+        if (to) dashQuery.set("to", to);
+        if (memberId && memberId !== "all") dashQuery.set("member_id", memberId);
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const dashRes = await safeFetch(`/api/analytics/dashboard?${dashQuery.toString()}`, { headers: authHeaders() });
+                if (dashRes.ok) {
+                    const dashJson = await dashRes.json();
+                    if (dashJson && dashJson.overall_stats) {
+                        return res({ ...dashJson, period: dashJson.period || period });
                     }
-                } catch {
-                    /* non-JSON (SPA index.html) → endpoint not deployed, use fixtures */
+                } else {
+                    const errText = await dashRes.text().catch(() => "");
+                    try {
+                        const errBody = JSON.parse(errText);
+                        if (errBody && typeof errBody.error === "string") {
+                            liveAnalyticsError = errBody.message || errBody.error;
+                        }
+                    } catch {
+                        /* non-JSON (SPA index.html) → endpoint not deployed, use fixtures */
+                    }
+                    if (dashRes.status >= 500 && attempt === 0) {
+                        await new Promise((r) => setTimeout(r, 400));
+                        continue;
+                    }
                 }
+                break;
+            } catch (e) {
+                if (attempt === 0) {
+                    await new Promise((r) => setTimeout(r, 400));
+                    continue;
+                }
+                console.warn("[standaloneMock] live analytics endpoint unavailable, using fixtures:", e);
             }
-        } catch (e) {
-            console.warn("[standaloneMock] live analytics endpoint unavailable, using fixtures:", e);
         }
         if (liveAnalyticsError) {
-            console.warn("[standaloneMock] live analytics returned error, falling back to cached campaigns:", liveAnalyticsError);
+            throw new Error(liveAnalyticsError);
         }
 
         // 2. Fixture fallback for static hosting without an /api deployment.

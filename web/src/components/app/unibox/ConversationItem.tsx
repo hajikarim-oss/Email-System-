@@ -29,6 +29,13 @@ function fromName(s: string): string {
   return s.replace(/<.+>/, "").trim() || s;
 }
 
+function fromEmailOnly(s: string): string | null {
+  if (!s) return null;
+  const m = s.match(/<([^>]+)>/);
+  if (m) return m[1].trim();
+  return null;
+}
+
 function initials(s: string): string {
   const name = fromName(s);
   const parts = name.split(/\s+/).filter(Boolean);
@@ -65,12 +72,14 @@ export function ConversationItem({ email }: ConversationItemProps) {
 
   const mailbox = accounts.find((a) => a.id === email.account_id);
   const sender = fromName(email.from);
-  const hue = hueFor(sender);
+  const senderEmail = fromEmailOnly(email.from);
+  const hue = hueFor(senderEmail || sender);
 
   // Thread-stacking: count of messages in the conversation behind this
   // row, and the conversation's assigned labels (categories).
   const messageCount = email.message_count ?? 1;
   const labels = email.labels ?? [];
+  const campaignName = email.campaign_name;
 
   // A teammate already has this conversation open (or is replying):
   // surface it on the row so nobody double-handles the same email.
@@ -164,11 +173,11 @@ export function ConversationItem({ email }: ConversationItemProps) {
         >
           {email.subject || "(no subject)"}
         </div>
-        <div className="text-[11px] text-slate-400 truncate mt-0.5">
+        <div className="text-[11.5px] text-slate-600 line-clamp-2 mt-0.5 leading-snug">
           {preview || "(no preview)"}
         </div>
-        {(mailbox || labels.length > 0) && (
-          <div className="mt-1 flex items-center gap-1 min-w-0 flex-wrap">
+        {(mailbox || campaignName || labels.length > 0) && (
+          <div className="mt-1.5 flex items-center gap-1 min-w-0 flex-wrap">
             {/* Conversation labels: colored dot + name chips, the
                             per-thread categories the user assigned. */}
             {labels.slice(0, 3).map((l) => (
@@ -183,6 +192,11 @@ export function ConversationItem({ email }: ConversationItemProps) {
                   .join(", ")}
               >
                 +{labels.length - 3}
+              </span>
+            )}
+            {campaignName && (
+              <span className="inline-flex items-center h-4 px-1.5 rounded-sm bg-slate-100 text-slate-600 text-[9.5px] font-medium truncate max-w-[165px]">
+                {campaignName}
               </span>
             )}
             {mailbox && (

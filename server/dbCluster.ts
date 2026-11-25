@@ -21,12 +21,13 @@ import type { PoolConfig } from "pg";
 import type { QueryFn, QueryRow } from "./types";
 
 function resolveIsolatedNode(): NodeId | null {
-  // Always use Primary (Tokyo) as Leader unless DB_TARGET_NODE explicitly overrides it.
-  const fromEnv = (process.env.DB_TARGET_NODE || "").trim().toLowerCase();
+  // Always stick strictly to Primary (Tokyo) unless DB_TARGET_NODE explicitly overrides it.
+  // This prevents any slow query or transient timeout from failing over to an out-of-sync replica (replica2/replica3).
+  const fromEnv = (process.env.DB_TARGET_NODE || "primary").trim().toLowerCase();
   if (fromEnv === "replica3" || fromEnv === "replica2" || fromEnv === "primary") {
     return fromEnv as NodeId;
   }
-  return null;
+  return "primary";
 }
 
 function preResolveGeneratedIds(sql: string): string {
@@ -71,7 +72,7 @@ async function withTimeout<R>(p: Promise<R>, ms: number, label: string): Promise
 class AsyncSemaphore {
   private active = 0;
   private waiters: Array<() => void> = [];
-  constructor(private readonly maxConcurrency: number) {}
+  constructor(private readonly maxConcurrency: number) { }
 
   public async run<R>(fn: () => Promise<R>): Promise<R> {
     if (this.active >= this.maxConcurrency) {
@@ -242,14 +243,20 @@ class DatabaseClusterManager {
     };
 
     for (const [id, config] of Object.entries(CLUSTER_CONFIGS) as [NodeId, ClusterNodeConfig][]) {
+      // When locked to an isolated node (e.g. "primary"), do NOT initialize pools for replica2/replica3
+      if (this.isolatedNode && id !== this.isolatedNode) {
+        continue;
+      }
       const cs = envUrlFor(id);
       const poolConfig: PoolConfig = cs
         ? {
           connectionString: cs,
           ssl: { rejectUnauthorized: false },
-          max: 3,
-          idleTimeoutMillis: 15_000,
+          max: 2,
+          idleTimeoutMillis: 10_000,
           connectionTimeoutMillis: 12_000,
+          statement_timeout: 30_000,
+          query_timeout: 31_000,
         }
         : {
           host: config.host,
@@ -258,9 +265,11 @@ class DatabaseClusterManager {
           password: config.password,
           database: config.database,
           ssl: { rejectUnauthorized: false },
-          max: 3,
-          idleTimeoutMillis: 15_000,
+          max: 2,
+          idleTimeoutMillis: 10_000,
           connectionTimeoutMillis: 12_000,
+          statement_timeout: 30_000,
+          query_timeout: 31_000,
         };
 
       const pool = new Pool(poolConfig);
@@ -269,7 +278,7 @@ class DatabaseClusterManager {
       });
 
       this.pools.set(id, pool);
-      this.semaphores.set(id, new AsyncSemaphore(3));
+      this.semaphores.set(id, new AsyncSemaphore(2));
       this.health.set(id, {
         id,
         name: config.name,
@@ -295,7 +304,7 @@ class DatabaseClusterManager {
     this.ensureInitialized();
     let sem = this.semaphores.get(nodeId);
     if (!sem) {
-      sem = new AsyncSemaphore(3);
+      sem = new AsyncSemaphore(2);
       this.semaphores.set(nodeId, sem);
     }
     return sem;
@@ -355,6 +364,7 @@ class DatabaseClusterManager {
     if (this.isBuildEnv() || this.heartbeatTimer) return;
     this.heartbeatTimer = setInterval(async () => {
       for (const [id, pool] of this.pools.entries()) {
+        if (this.isolatedNode && id !== this.isolatedNode) continue;
         const start = Date.now();
         const record = this.health.get(id);
         if (!record) continue;
@@ -384,7 +394,7 @@ class DatabaseClusterManager {
           record.latencyMs = null;
           console.warn(`[DBCluster Heartbeat] Node ${id} ping failed (${record.consecutiveFailures}x):`, err.message);
 
-          if (record.consecutiveFailures >= 5) {
+          if (!this.isolatedNode && record.consecutiveFailures >= 5) {
             record.status = "OFFLINE";
             if (id === this.currentLeaderId) {
               const fallback = id === "primary" ? "replica2" : "replica3";
@@ -473,7 +483,7 @@ class DatabaseClusterManager {
     // 1. READ QUERY FLOW (Locked to Primary Tokyo)
     // ─────────────────────────────────────────────
     if (!isWrite) {
-      const QUERY_TIMEOUT_MS = 12_000;
+      const QUERY_TIMEOUT_MS = 30_000; // 30s for heavy analytics queries (engagementCte, dedup contacts scan)
       const runOn = async (node: NodeId): Promise<T[]> => {
         const pool = this.getPool(node);
         const sem = this.getSemaphore(node);
@@ -499,7 +509,7 @@ class DatabaseClusterManager {
               return await runOn("primary");
             } catch (firstErr: any) {
               if (!isTransientDbError(firstErr)) throw firstErr;
-              await sleep(150);
+              await sleep(250);
               return await runOn("primary");
             }
           }
@@ -528,21 +538,31 @@ class DatabaseClusterManager {
       const leaderPool = this.getPool(leaderNode);
       const sem = this.getSemaphore(leaderNode);
       leaderResult = await sem.run(() =>
-        withTimeout(leaderPool.query(resolvedSql, params as any[]), 12_000, `write:${leaderNode}`)
+        withTimeout(leaderPool.query(resolvedSql, params as any[]), 20_000, `write:${leaderNode}`)
       );
     } catch (err: any) {
       if (!isTransientDbError(err)) {
         throw err;
       }
-      const standby: NodeId = leaderNode === "primary" ? "replica2" : "replica3";
-      this.triggerFailover(standby, `Write connection failed on leader ${leaderNode}: ${err.message}`);
+      // If pinned to an isolated node (default: primary), retry on primary instead of failing over to replica2!
+      if (this.isolatedNode) {
+        await sleep(300);
+        const leaderPool = this.getPool(leaderNode);
+        const sem = this.getSemaphore(leaderNode);
+        leaderResult = await sem.run(() =>
+          withTimeout(leaderPool.query(resolvedSql, params as any[]), 25_000, `write:${leaderNode}:retry`)
+        );
+      } else {
+        const standby: NodeId = leaderNode === "primary" ? "replica2" : "replica3";
+        this.triggerFailover(standby, `Write connection failed on leader ${leaderNode}: ${err.message}`);
 
-      const fallbackPool = this.getPool(standby);
-      const sem = this.getSemaphore(standby);
-      leaderResult = await sem.run(() =>
-        withTimeout(fallbackPool.query(resolvedSql, params as any[]), 12_000, `write:${standby}`)
-      );
-      leaderNode = standby;
+        const fallbackPool = this.getPool(standby);
+        const sem = this.getSemaphore(standby);
+        leaderResult = await sem.run(() =>
+          withTimeout(fallbackPool.query(resolvedSql, params as any[]), 20_000, `write:${standby}`)
+        );
+        leaderNode = standby;
+      }
     }
 
     if (this.isolatedNode) {
@@ -589,6 +609,13 @@ class DatabaseClusterManager {
   }
 }
 
-export const clusterManager = new DatabaseClusterManager();
+// Singleton cluster instance (stored on globalThis so Vite HMR server restarts reuse the same pool)
+// IMPORTANT: Never close the previous pool on HMR — closing drains connections mid-flight causing
+// cascading ETIMEDOUT errors. Instead, reuse the existing instance across restarts.
+const globalForCluster = globalThis as unknown as { __tbmClusterManager?: DatabaseClusterManager };
+if (!globalForCluster.__tbmClusterManager) {
+  globalForCluster.__tbmClusterManager = new DatabaseClusterManager();
+}
+export const clusterManager = globalForCluster.__tbmClusterManager;
 export const clusterQuery: QueryFn = <T = QueryRow>(sql: string, params: unknown[] = []) => clusterManager.query<T>(sql, params);
 export default clusterManager;

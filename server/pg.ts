@@ -66,7 +66,7 @@ export function getPool(): Pool {
     pool = new Pool({
         connectionString: parsed.toString(),
         ssl: useSsl ? { rejectUnauthorized: false } : undefined,
-        max: 15,
+        max: 2,
         idleTimeoutMillis: 30_000,
         connectionTimeoutMillis: 30_000,
     });

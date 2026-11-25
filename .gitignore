@@ -67,3 +67,9 @@ restore_chats/
 c:*/
 c:\*
 web/src/test_write.txt
+
+# Local build caches
+web/.cache/
+.cache/
+*.bak
+

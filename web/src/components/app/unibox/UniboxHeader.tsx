@@ -133,60 +133,34 @@ export function UniboxHeader({
         unread: 0,
     };
 
-    // Filter available campaigns for current user if not master, or for selected member if master
+    // Filter available campaigns by selected member across the workspace
     const visibleCampaigns = React.useMemo(() => {
-        if (isMaster) {
-            if (selectedMemberId && selectedMemberId !== "all") {
-                return [
-                    allCampaignsList[0],
-                    ...allCampaignsList.filter(c => 
-                        c.id !== "all" && (
-                            !c.memberId || 
-                            c.memberId === selectedMemberId || 
-                            (selectedMemberId === "cmttwwhj5000ovdkr7ooyb6qt" && (
-                                c.id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" || 
-                                c.id === "cmv0x5vfu0001dynzwtnxg8ul" || 
-                                (c.name || "").toLowerCase().includes("health") || 
-                                (c.name || "").toLowerCase().includes("snehal") ||
-                                (c.name || "").toLowerCase().includes("personal care")
-                            )) ||
-                            (selectedMemberId === "cmu6m304o00003307qj8ex6oa" && (
-                                c.id === "cmp_1790233732719_dvlj" ||
-                                (c.name || "").toLowerCase().includes("vatsal") ||
-                                (c.name || "").toLowerCase().includes("q3") ||
-                                (c.name || "").toLowerCase().includes("bewakoof")
-                            ))
-                        )
+        if (selectedMemberId && selectedMemberId !== "all") {
+            return [
+                allCampaignsList[0],
+                ...allCampaignsList.filter(c => 
+                    c.id !== "all" && (
+                        !c.memberId || 
+                        c.memberId === selectedMemberId || 
+                        (selectedMemberId === "cmttwwhj5000ovdkr7ooyb6qt" && (
+                            c.id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" || 
+                            c.id === "cmv0x5vfu0001dynzwtnxg8ul" || 
+                            (c.name || "").toLowerCase().includes("health") || 
+                            (c.name || "").toLowerCase().includes("snehal") ||
+                            (c.name || "").toLowerCase().includes("personal care")
+                        )) ||
+                        (selectedMemberId === "cmu6m304o00003307qj8ex6oa" && (
+                            c.id === "cmp_1790233732719_dvlj" ||
+                            (c.name || "").toLowerCase().includes("vatsal") ||
+                            (c.name || "").toLowerCase().includes("q3") ||
+                            (c.name || "").toLowerCase().includes("bewakoof")
+                        ))
                     )
-                ];
-            }
-            return allCampaignsList;
-        }
-        const userMem = teamMembers.find(m => m.email?.toLowerCase() === currentUser?.email?.toLowerCase());
-        if (!userMem) return allCampaignsList;
-        return [
-            allCampaignsList[0],
-            ...allCampaignsList.filter(c => 
-                c.id !== "all" && (
-                    !c.memberId || 
-                    c.memberId === userMem.id || 
-                    (userMem.id === "cmttwwhj5000ovdkr7ooyb6qt" && (
-                        c.id === "3bdf7199-cc30-4461-873d-d9928b9c31ec" || 
-                        c.id === "cmv0x5vfu0001dynzwtnxg8ul" || 
-                        (c.name || "").toLowerCase().includes("health") || 
-                        (c.name || "").toLowerCase().includes("snehal") ||
-                        (c.name || "").toLowerCase().includes("personal care")
-                    )) ||
-                    (userMem.id === "cmu6m304o00003307qj8ex6oa" && (
-                        c.id === "cmp_1790233732719_dvlj" ||
-                        (c.name || "").toLowerCase().includes("vatsal") ||
-                        (c.name || "").toLowerCase().includes("q3") ||
-                        (c.name || "").toLowerCase().includes("bewakoof")
-                    ))
                 )
-            )
-        ];
-    }, [isMaster, currentUser, allCampaignsList, teamMembers, selectedMemberId]);
+            ];
+        }
+        return allCampaignsList;
+    }, [allCampaignsList, selectedMemberId]);
 
     const [customFrom, setCustomFrom] = React.useState(dateFilter.customStart || "");
     const [customTo, setCustomTo] = React.useState(dateFilter.customEnd || "");
@@ -214,68 +188,60 @@ export function UniboxHeader({
                 {title || (creatorOnly ? "Creator Replies" : "Inbox")}
             </span>
 
-            {/* Team Member Filter: Master has full workspace selector; Team member locked to own profile */}
-            {isMaster ? (
-                <PopoverMenu align="start">
-                    <PopoverMenuTrigger asChild>
-                        <SelectButton
-                            icon={<UsersIcon className="w-3.5 h-3.5 text-slate-900" />}
-                            label={currentMember?.name || "All Team Members"}
-                            className="h-7 text-xs font-medium w-[160px] justify-between shrink-0"
-                        />
-                    </PopoverMenuTrigger>
-                    <PopoverMenuContent minWidth={290} className="w-[300px] p-1.5 shadow-xl border border-slate-200/90 rounded-xl bg-white z-50">
-                        <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-slate-100 mb-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Team Members</span>
-                            <span className="text-[10px] text-slate-400 font-medium">{Math.max(0, (teamMembers?.length || 1) - 1)} members</span>
-                        </div>
-                        {(teamMembers || []).map((member) => (
-                            <PopoverMenuItem
-                                key={member.id}
-                                selected={selectedMemberId === member.id}
-                                onSelect={() => onSelectMember?.(member.id)}
-                                trailing={
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                        {member.unread > 0 && (
-                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF3B0] text-slate-900 shrink-0">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-[#18181B] shrink-0" />
-                                                {member.unread} unread
-                                            </span>
-                                        )}
-                                        {selectedMemberId === member.id && (
-                                            <CheckIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
-                                        )}
-                                    </div>
-                                }
-                                className={cn(
-                                    "flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors mb-0.5",
-                                    selectedMemberId === member.id
-                                        ? "bg-[#FFF9DB] text-slate-900 font-medium"
-                                        : "hover:bg-slate-50 text-slate-700"
-                                )}
-                            >
-                                <div className="flex flex-col min-w-0 pr-1">
-                                    <span className={cn(
-                                        "text-[12.5px] truncate leading-snug",
-                                        selectedMemberId === member.id ? "font-semibold text-slate-900" : "font-medium text-slate-800"
-                                    )}>
-                                        {member.name}
-                                    </span>
-                                    <span className="text-[10.5px] text-slate-400 truncate">
-                                        {member.role}
-                                    </span>
+            {/* Team Member Filter: Master, Admin, and Team Members can switch across all workspace campaign owners */}
+            <PopoverMenu align="start">
+                <PopoverMenuTrigger asChild>
+                    <SelectButton
+                        icon={<UsersIcon className="w-3.5 h-3.5 text-slate-900" />}
+                        label={currentMember?.name || "All Team Members"}
+                        className="h-7 text-xs font-medium w-[160px] justify-between shrink-0"
+                    />
+                </PopoverMenuTrigger>
+                <PopoverMenuContent minWidth={290} className="w-[300px] p-1.5 shadow-xl border border-slate-200/90 rounded-xl bg-white z-50">
+                    <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-slate-100 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Team Members</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{Math.max(0, (teamMembers?.length || 1) - 1)} members</span>
+                    </div>
+                    {(teamMembers || []).map((member) => (
+                        <PopoverMenuItem
+                            key={member.id}
+                            selected={selectedMemberId === member.id}
+                            onSelect={() => onSelectMember?.(member.id)}
+                            trailing={
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    {member.unread > 0 && (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF3B0] text-slate-900 shrink-0">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[#18181B] shrink-0" />
+                                            {member.unread} replies
+                                        </span>
+                                    )}
+                                    {selectedMemberId === member.id && (
+                                        <CheckIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
+                                    )}
                                 </div>
-                            </PopoverMenuItem>
-                        ))}
-                    </PopoverMenuContent>
-                </PopoverMenu>
-            ) : (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 border border-slate-200 text-[11px] font-medium text-slate-700 shrink-0">
-                    <UserIcon className="w-3 h-3 text-slate-500" />
-                    <span>{nonMasterMember.name}</span>
-                    <span className="text-[9.5px] px-1 py-0.2 rounded bg-slate-200/70 text-slate-600 font-normal">{nonMasterMember.role}</span>
-                </div>
-            )}
+                            }
+                            className={cn(
+                                "flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors mb-0.5",
+                                selectedMemberId === member.id
+                                    ? "bg-[#FFF9DB] text-slate-900 font-medium"
+                                    : "hover:bg-slate-50 text-slate-700"
+                            )}
+                        >
+                            <div className="flex flex-col min-w-0 pr-1">
+                                <span className={cn(
+                                    "text-[12.5px] truncate leading-snug",
+                                    selectedMemberId === member.id ? "font-semibold text-slate-900" : "font-medium text-slate-800"
+                                )}>
+                                    {member.name}
+                                </span>
+                                <span className="text-[10.5px] text-slate-400 truncate">
+                                    {member.role}
+                                </span>
+                            </div>
+                        </PopoverMenuItem>
+                    ))}
+                </PopoverMenuContent>
+            </PopoverMenu>
 
             {/* Campaign Filter Dropdown: Available for both Master and Team Members with Unread Highlight */}
             <PopoverMenu align="start">
