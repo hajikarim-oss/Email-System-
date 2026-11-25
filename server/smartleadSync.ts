@@ -264,17 +264,17 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
                 );
                 const count = dbLeadCount?.[0]?.count || 0;
 
-                if (count === 0) {
-                    // Fetch leads from Smartlead (max 500 leads per campaign sync)
-                    const leadsRes = await apiCall(`/campaigns/${providerId}/leads?limit=100&offset=0`, "GET", undefined, sl._apiKey);
-                    const total = leadsRes.data?.total_leads || 0;
-                    let rawList = Array.isArray(leadsRes.data?.data) ? leadsRes.data.data : [];
+                const leadsFirstRes = await apiCall(`/campaigns/${providerId}/leads?limit=100&offset=0`, "GET", undefined, sl._apiKey);
+                const total = Number(leadsFirstRes.data?.total_leads || 0);
 
-                    // If more leads exist, fetch up to 500 leads
+                if (total > 0 && count < total) {
+                    let rawList = Array.isArray(leadsFirstRes.data?.data) ? [...leadsFirstRes.data.data] : [];
+
+                    // Fetch ALL pages (up to 10,000 leads per campaign — no 500-lead artificial cap)
                     if (total > 100) {
-                        for (let offset = 100; offset < Math.min(total, 500); offset += 100) {
+                        for (let offset = 100; offset < Math.min(total, 10000); offset += 100) {
                             const nextRes = await apiCall(`/campaigns/${providerId}/leads?limit=100&offset=${offset}`, "GET", undefined, sl._apiKey);
-                            if (Array.isArray(nextRes.data?.data)) {
+                            if (Array.isArray(nextRes.data?.data) && nextRes.data.data.length > 0) {
                                 rawList.push(...nextRes.data.data);
                             } else {
                                 break;
@@ -282,38 +282,67 @@ export async function reconcileSmartleadCampaigns(force: boolean = false): Promi
                         }
                     }
 
-                    if (rawList.length > 0) {
-                        for (let i = 0; i < rawList.length; i += 50) {
-                            const chunk = rawList.slice(i, i + 50);
-                            const values: string[] = [];
-                            const params: any[] = [];
-                            let pIdx = 1;
+                    const existingEmails = new Set<string>(
+                        (await pgQuery<any>(`SELECT lower(trim(email)) AS email FROM "Lead" WHERE "campaignId" = $1`, [campDbId])).map((r: any) => String(r.email))
+                    );
 
-                            for (const item of chunk) {
-                                const l = item.lead || item;
-                                const email = (l.email || l.lead_email || "").toLowerCase().trim();
-                                if (!email || !email.includes("@")) continue;
-                                const fName = (l.first_name || l.firstName || email.split("@")[0]).slice(0, 100);
-                                const lName = (l.last_name || l.lastName || "").slice(0, 100);
-                                const customData = JSON.stringify({
-                                    company: l.company_name || l.company || "",
-                                    title: l.custom_fields?.title || "",
-                                });
+                    const missingList = rawList.filter((item: any) => {
+                        const l = item.lead || item;
+                        const email = (l.email || l.lead_email || "").toLowerCase().trim();
+                        if (!email || !email.includes("@") || existingEmails.has(email)) return false;
+                        existingEmails.add(email);
+                        return true;
+                    });
 
-                                values.push(`(gen_random_uuid()::text, $${pIdx}, $${pIdx + 1}, $${pIdx + 2}, $${pIdx + 3}, $${pIdx + 4}::jsonb, 'smartlead', 'ACTIVE', NOW(), NOW())`);
-                                params.push(campDbId, email, fName, lName, customData);
-                                pIdx += 5;
-                            }
-
-                            if (values.length > 0) {
-                                await pgQuery(
-                                    `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", "customData", source, status, "createdAt", "updatedAt")
-                                 VALUES ${values.join(", ")}`,
-                                    params
-                                ).catch(() => { });
-                            }
+                    if (missingList.length > 0) {
+                        for (let i = 0; i < missingList.length; i += 200) {
+                            const chunk = missingList.slice(i, i + 200);
+                            await pgQuery(
+                                `INSERT INTO "Lead" (id, "campaignId", email, "firstName", "lastName", domain, "customData", source, status, "outreachState", "createdAt", "updatedAt")
+                                 SELECT gen_random_uuid()::text,
+                                        $1,
+                                        unnest($2::text[]),
+                                        unnest($3::text[]),
+                                        unnest($4::text[]),
+                                        unnest($5::text[]),
+                                        unnest($6::jsonb[]),
+                                        'smartlead',
+                                        'ACTIVE'::"LeadStatus",
+                                        'NEVER_REACHED'::"OutreachState",
+                                        NOW(),
+                                        NOW()`,
+                                [
+                                    campDbId,
+                                    chunk.map((item: any) => {
+                                        const l = item.lead || item;
+                                        return (l.email || l.lead_email || "").toLowerCase().trim();
+                                    }),
+                                    chunk.map((item: any) => {
+                                        const l = item.lead || item;
+                                        const em = (l.email || l.lead_email || "").toLowerCase().trim();
+                                        return (l.first_name || l.firstName || em.split("@")[0]).slice(0, 100);
+                                    }),
+                                    chunk.map((item: any) => {
+                                        const l = item.lead || item;
+                                        return (l.last_name || l.lastName || "").slice(0, 100);
+                                    }),
+                                    chunk.map((item: any) => {
+                                        const l = item.lead || item;
+                                        const em = (l.email || l.lead_email || "").toLowerCase().trim();
+                                        return em.split("@")[1] || "";
+                                    }),
+                                    chunk.map((item: any) => {
+                                        const l = item.lead || item;
+                                        return JSON.stringify({
+                                            company: l.company_name || l.company || "",
+                                            title: l.custom_fields?.title || "",
+                                            ...(l.custom_fields || {}),
+                                        });
+                                    }),
+                                ]
+                            ).catch(() => { });
                         }
-                        console.log(`[Auto-Reconcile] ✓ Synced ${rawList.length} leads for campaign #${providerId}`);
+                        console.log(`[Auto-Reconcile] ✓ Synced ${missingList.length} missing leads for campaign #${providerId} (now ${existingEmails.size}/${total})`);
                     }
                 }
             }
