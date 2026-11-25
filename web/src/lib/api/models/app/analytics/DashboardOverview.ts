@@ -65,6 +65,67 @@ export interface DashboardHeatmapCell {
     level: number
 }
 
+export interface CapacityTimelineDay {
+    date: string
+    day_name: string
+    projected_leads: number
+    capacity: number
+    utilization_pct: number
+    is_sending_day: boolean
+    campaigns_count: number
+    status: 'OPTIMAL' | 'BUSY' | 'CAPPED' | 'REST_DAY'
+}
+
+export interface AlignedCampaignItem {
+    id: string
+    name: string
+    owner_name: string
+    owner_id: string
+    status: string
+    uncontacted_leads: number
+    in_sequence_leads: number
+    runs_today: boolean
+    runs_tomorrow: boolean
+    estimated_daily: number
+    quota_share_pct: number
+    preferred_hour: number
+    preferred_days?: number[]
+}
+
+export interface CapacityTracker {
+    daily_limit: number
+    today: {
+        date: string
+        day_name: string
+        sent_so_far: number
+        remaining_capacity: number
+        utilization_pct: number
+        active_campaigns_count: number
+        status: 'OPTIMAL' | 'BUSY' | 'CAPPED'
+        status_label: string
+    }
+    tomorrow: {
+        date: string
+        day_name: string
+        is_sending_day: boolean
+        projected_leads: number
+        projected_remaining: number
+        projected_utilization_pct: number
+        aligned_campaigns_count: number
+        status: 'OPTIMAL' | 'BUSY' | 'CAPPED'
+        status_label: string
+    }
+    timeline: CapacityTimelineDay[]
+    aligned_campaigns: AlignedCampaignItem[]
+    decision_assistant: {
+        can_launch_today: boolean
+        safe_slots_today: number
+        safe_slots_tomorrow: number
+        recommended_action: string
+        best_window: string
+    }
+}
+
 export default interface DashboardOverview {
     period: string
     // Resolved window (inclusive UTC days); equals the requested range.
@@ -74,6 +135,8 @@ export default interface DashboardOverview {
     today_sent?: number
     // Sum of daily send limits across ACTIVE/WARMING mailboxes, when reported.
     daily_capacity?: number
+    // Smart Capacity and Campaign Alignment Tracker
+    capacity_tracker?: CapacityTracker
     // Opens/replies by weekday (Mon..Sun) and 3-hour window, from attributed
     // engagement (Lead counters, EmailEvent and EmailMessage).
     heatmap?: Record<string, DashboardHeatmapCell[]>

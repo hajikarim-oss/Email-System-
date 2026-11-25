@@ -86,6 +86,7 @@ import {
 import { cn } from "@/lib/utils";
 import DashboardInspectorModal, { type InspectorPayload } from "@/components/app/dashboard/DashboardInspectorModal";
 import RepliesHubModal, { RepliesHubView } from "@/components/app/dashboard/RepliesHubModal";
+import { CapacityScheduleTracker } from "@/components/app/dashboard/CapacityScheduleTracker";
 
 type Range = "7d" | "30d" | "90d" | "custom";
 type Metric = "sent" | "opens" | "replies" | "bounces";
@@ -1322,111 +1323,12 @@ export default function DashboardPage() {
 
             <PageBody className="space-y-6 pb-16">
 
-                {/* OUTREACH BY COMPANY CATEGORY: which categories we contact, and their response */}
-                <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-[#FFF9DB] text-slate-900 flex items-center justify-center border border-amber-200 shrink-0">
-                                <LayersIcon className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-[13px] font-bold text-slate-900 tracking-tight">
-                                        Outreach by Company Category
-                                    </h3>
-                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-[#FFF9DB] text-slate-900 border border-amber-200/70">
-                                        {reportCategories.length} Segments
-                                    </span>
-                                </div>
-                                <p className="text-[11.5px] text-slate-500">
-                                    Leads in every company category, how many were reached, and the replies they produced · scroll sideways
-                                </p>
-                            </div>
-                        </div>
-                        <Link
-                            to="/app/contacts/categories"
-                            className="text-[12px] font-semibold text-slate-900 hover:text-black flex items-center gap-1 transition-colors shrink-0"
-                        >
-                            <span>All Categories</span>
-                            <ArrowUpRightIcon className="w-3.5 h-3.5" />
-                        </Link>
-                    </div>
-
-                    <div className="flex gap-3 overflow-x-auto pb-2">
-                        {reportCategories.map((cat) => (
-                            <div
-                                key={cat.category}
-                                onClick={() =>
-                                    setInspectorData({
-                                        type: "category",
-                                        title: `${cat.category} Industry Segment`,
-                                        subtitle: "Performance, lead density, and conversion telemetry for this vertical",
-                                        badge: "Segment",
-                                        badgeColor: "blue",
-                                        primaryMetric: {
-                                            label: "Reply Conversion Rate",
-                                            value: `${cat.reply_rate}%`,
-                                            sub: `${formatNum(cat.leads)} total leads in vertical`,
-                                            trend: { delta: "+3.8%", isPositive: true },
-                                        },
-                                        breakdown: [
-                                            { label: "Total Leads", value: formatNum(cat.leads), color: "#2563eb" },
-                                            { label: "Leads Contacted", value: formatNum(cat.contacted), pct: pctOf(cat.contacted, cat.leads), color: "#0ea5e9" },
-                                            { label: "Unique Opens", value: formatNum(cat.opened), pct: pctOf(cat.opened, cat.contacted), color: "#10b981" },
-                                            { label: "Prospect Replies", value: formatNum(cat.replied), pct: pctOf(cat.replied, cat.contacted), color: "#059669" },
-                                        ],
-                                        insights: [
-                                            `High engagement in ${cat.category} driven by targeted infrastructure messaging.`,
-                                            "Recommendation: Scale sequence dispatch volume to capitalize on high response velocity.",
-                                        ],
-                                        actionLabel: "View Leads in Segment",
-                                        onAction: () => navigate(`/app/contacts?category=${encodeURIComponent(cat.category)}`),
-                                    })
-                                }
-                                className="min-w-[210px] max-w-[250px] p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs hover:shadow-sm hover:border-slate-300 dark:hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between space-y-2.5 group"
-                            >
-                                <div className="flex items-center justify-between gap-2">
-                                    <span
-                                        className="text-[12px] font-semibold text-slate-800 dark:text-zinc-200 truncate"
-                                        title={cat.category}
-                                    >
-                                        {cat.category}
-                                    </span>
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 shrink-0">
-                                        {cat.reply_rate}% replies
-                                    </span>
-                                </div>
-                                <div className="text-[15px] font-bold text-slate-900 dark:text-white flex items-center justify-between">
-                                    <span>{formatNum(cat.leads)} <span className="text-[11px] font-normal text-slate-500">leads</span></span>
-                                    <span className="text-[11px] font-medium text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
-                                        ↗
-                                    </span>
-                                </div>
-                                {/* Progress bar showing outreach depth */}
-                                <div className="space-y-1">
-                                    <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-                                        <div
-                                            className="h-full rounded-full bg-slate-800 dark:bg-zinc-300"
-                                            style={{ width: `${Math.max(6, pctOf(cat.contacted, cat.leads))}%` }}
-                                        />
-                                    </div>
-                                    <div
-                                        className="text-[10px] text-slate-500 dark:text-slate-400 truncate flex items-center justify-between"
-                                        title={`${cat.contacted} reached · ${cat.opened} opened · ${cat.replied} replied`}
-                                    >
-                                        <span>{formatNum(cat.contacted)} reached</span>
-                                        <span>{formatNum(cat.replied)} replied</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                        {reportCategories.length === 0 && (
-                            <div className="text-[12px] text-slate-500 py-3">
-                                {reportQuery.isPending ? "Loading category performance from the database…" : "No company categories recorded yet."}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                {/* SMART CAMPAIGN DISPATCH & DAILY CAPACITY TRACKER */}
+                <CapacityScheduleTracker
+                    tracker={dashData.data?.capacity_tracker}
+                    todaySent={totalSentToday}
+                    dailyCapacity={dashData.data?.capacity_tracker?.daily_limit || totalDailyQuota || 3400}
+                />
 
                 {/* OVERVIEW: All-time system performance */}
                 <div className="rounded-xl border border-slate-200/80 bg-white dark:bg-zinc-900/90 dark:border-zinc-800 p-5 shadow-xs space-y-4">

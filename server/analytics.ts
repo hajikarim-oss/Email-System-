@@ -322,6 +322,279 @@ async function readActiveCounts(query: QueryFn, scope: DataScope): Promise<{ act
     return { activeCampaigns: rows[0]?.active ?? 0 };
 }
 
+export interface CapacityTimelineDay {
+    date: string;
+    day_name: string;
+    projected_leads: number;
+    capacity: number;
+    utilization_pct: number;
+    is_sending_day: boolean;
+    campaigns_count: number;
+    status: 'OPTIMAL' | 'BUSY' | 'CAPPED' | 'REST_DAY';
+}
+
+export interface AlignedCampaignItem {
+    id: string;
+    name: string;
+    owner_name: string;
+    owner_id: string;
+    status: string;
+    uncontacted_leads: number;
+    in_sequence_leads: number;
+    runs_today: boolean;
+    runs_tomorrow: boolean;
+    estimated_daily: number;
+    quota_share_pct: number;
+    preferred_hour: number;
+    preferred_days?: number[];
+}
+
+export interface CapacityTracker {
+    daily_limit: number;
+    today: {
+        date: string;
+        day_name: string;
+        sent_so_far: number;
+        remaining_capacity: number;
+        utilization_pct: number;
+        active_campaigns_count: number;
+        status: 'OPTIMAL' | 'BUSY' | 'CAPPED';
+        status_label: string;
+    };
+    tomorrow: {
+        date: string;
+        day_name: string;
+        is_sending_day: boolean;
+        projected_leads: number;
+        projected_remaining: number;
+        projected_utilization_pct: number;
+        aligned_campaigns_count: number;
+        status: 'OPTIMAL' | 'BUSY' | 'CAPPED';
+        status_label: string;
+    };
+    timeline: CapacityTimelineDay[];
+    aligned_campaigns: AlignedCampaignItem[];
+    decision_assistant: {
+        can_launch_today: boolean;
+        safe_slots_today: number;
+        safe_slots_tomorrow: number;
+        recommended_action: string;
+        best_window: string;
+    };
+}
+
+async function readCapacityTracker(
+    query: QueryFn,
+    todaySent: number,
+    dailyCapacity: number,
+    scope: DataScope,
+): Promise<CapacityTracker> {
+    const dailyLimit = Math.max(3400, dailyCapacity || 0);
+
+    const campaignRows = await query(
+        `SELECT 
+            c.id, c.name, c."userId", c.status, c."preferredSendHour", c."preferredSendDays",
+            coalesce(u.name, 'Team Member') as owner_name,
+            coalesce(lc.uncontacted, 0)::int as uncontacted_leads,
+            coalesce(lc.in_sequence, 0)::int as in_sequence_leads
+         FROM "Campaign" c
+         LEFT JOIN "User" u ON u.id = c."userId"
+         LEFT JOIN (
+             SELECT 
+                 "campaignId",
+                 count(*) FILTER (WHERE status = 'ACTIVE' AND "totalOutbound" = 0)::int as uncontacted,
+                 count(*) FILTER (WHERE status = 'ACTIVE' AND "totalOutbound" > 0)::int as in_sequence
+             FROM "Lead"
+             WHERE "campaignId" IS NOT NULL
+             GROUP BY "campaignId"
+         ) lc ON lc."campaignId" = c.id
+         WHERE c.status = 'ACTIVE' AND ${ownerOwned(scope, `c."userId"`)}
+         ORDER BY uncontacted_leads DESC`,
+    );
+
+    const now = new Date();
+    const todayDow = now.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+    const tomorrow = new Date(now.getTime() + 86400000);
+    const tomorrowDow = tomorrow.getDay();
+
+    const isDayMatch = (days: unknown, dow: number) => {
+        if (!days || !Array.isArray(days) || days.length === 0) return dow >= 1 && dow <= 5;
+        return (days as number[]).includes(dow);
+    };
+
+    const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const FULL_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+    let tomorrowProjected = 0;
+    let tomorrowCampsCount = 0;
+    let todayCampsCount = 0;
+
+    const alignedCampaigns: AlignedCampaignItem[] = [];
+
+    for (const row of campaignRows) {
+        const sendDays = Array.isArray(row.preferredSendDays) ? (row.preferredSendDays as number[]) : [1, 2, 3, 4, 5];
+        const uncontacted = Number(row.uncontacted_leads) || 0;
+        const inSequence = Number(row.in_sequence_leads) || 0;
+        const runsToday = isDayMatch(sendDays, todayDow);
+        const runsTomorrow = isDayMatch(sendDays, tomorrowDow);
+
+        // Smartlead batch allocation: up to 150 new leads/day + ~30% active follow-ups due
+        const newBatch = Math.min(150, uncontacted);
+        const followUpBatch = Math.min(80, Math.round(inSequence * 0.3));
+        const estimatedDaily = newBatch + followUpBatch;
+
+        if (runsToday && estimatedDaily > 0) todayCampsCount++;
+        if (runsTomorrow && estimatedDaily > 0) {
+            tomorrowProjected += estimatedDaily;
+            tomorrowCampsCount++;
+        }
+
+        alignedCampaigns.push({
+            id: String(row.id),
+            name: String(row.name),
+            owner_name: String(row.owner_name),
+            owner_id: String(row.userId || ""),
+            status: String(row.status),
+            uncontacted_leads: uncontacted,
+            in_sequence_leads: inSequence,
+            runs_today: runsToday,
+            runs_tomorrow: runsTomorrow,
+            estimated_daily: estimatedDaily,
+            quota_share_pct: Math.min(100, Math.round((estimatedDaily / dailyLimit) * 100)),
+            preferred_hour: Number(row.preferredSendHour) || 10,
+            preferred_days: sendDays,
+        });
+    }
+
+    // Today calculations
+    const remainingToday = Math.max(0, dailyLimit - todaySent);
+    const utilToday = Math.min(100, Math.round((todaySent / dailyLimit) * 100));
+    const statusToday: 'OPTIMAL' | 'BUSY' | 'CAPPED' =
+        utilToday >= 90 ? 'CAPPED' : utilToday >= 70 ? 'BUSY' : 'OPTIMAL';
+    const statusLabelToday =
+        statusToday === 'CAPPED'
+            ? 'Daily Limit Reached · Hold New Dispatches'
+            : statusToday === 'BUSY'
+            ? `Window Busy (${remainingToday.toLocaleString()} slots left)`
+            : `Optimal Window Open (${remainingToday.toLocaleString()} slots free)`;
+
+    // Tomorrow calculations
+    const isTomorrowSendingDay = tomorrowDow >= 1 && tomorrowDow <= 5;
+    const remainingTomorrow = Math.max(0, dailyLimit - tomorrowProjected);
+    const utilTomorrow = Math.min(120, Math.round((tomorrowProjected / dailyLimit) * 100));
+    const statusTomorrow: 'OPTIMAL' | 'BUSY' | 'CAPPED' =
+        !isTomorrowSendingDay
+            ? 'OPTIMAL'
+            : utilTomorrow >= 95
+            ? 'CAPPED'
+            : utilTomorrow >= 75
+            ? 'BUSY'
+            : 'OPTIMAL';
+    const statusLabelTomorrow =
+        !isTomorrowSendingDay
+            ? 'Weekend · Scheduled Rest Window'
+            : statusTomorrow === 'CAPPED'
+            ? `Fully Allocated (${tomorrowProjected.toLocaleString()} leads queued · ${utilTomorrow}%)`
+            : statusTomorrow === 'BUSY'
+            ? `High Volume Expected (${remainingTomorrow.toLocaleString()} free slots)`
+            : `Wide Open (${remainingTomorrow.toLocaleString()} free slots available)`;
+
+    // 7-Day Rolling Timeline
+    const timeline: CapacityTimelineDay[] = [];
+    for (let i = 0; i < 7; i++) {
+        const targetDate = new Date(now.getTime() + i * 86400000);
+        const dow = targetDate.getDay();
+        const dateStr = targetDate.toISOString().split("T")[0];
+        const isSending = dow >= 1 && dow <= 5;
+
+        let dayProjected = 0;
+        let dayCamps = 0;
+
+        if (i === 0) {
+            dayProjected = todaySent;
+            dayCamps = todayCampsCount;
+        } else {
+            for (const camp of alignedCampaigns) {
+                if (isDayMatch(camp.preferred_days, dow) && camp.estimated_daily > 0) {
+                    dayProjected += camp.estimated_daily;
+                    dayCamps++;
+                }
+            }
+        }
+
+        const dayUtil = Math.round((dayProjected / dailyLimit) * 100);
+        let dayStatus: 'OPTIMAL' | 'BUSY' | 'CAPPED' | 'REST_DAY' = 'OPTIMAL';
+        if (!isSending) {
+            dayStatus = 'REST_DAY';
+        } else if (dayUtil >= 95) {
+            dayStatus = 'CAPPED';
+        } else if (dayUtil >= 75) {
+            dayStatus = 'BUSY';
+        }
+
+        timeline.push({
+            date: dateStr,
+            day_name: DAY_NAMES[dow],
+            projected_leads: dayProjected,
+            capacity: dailyLimit,
+            utilization_pct: Math.min(100, dayUtil),
+            is_sending_day: isSending,
+            campaigns_count: dayCamps,
+            status: dayStatus,
+        });
+    }
+
+    // Smart Decision Assistant Logic
+    const canLaunchToday = remainingToday >= 100;
+    let recommendedAction = "";
+    let bestWindow = "";
+
+    if (remainingToday >= 300) {
+        recommendedAction = `Safe to launch new campaigns today! You have ${remainingToday.toLocaleString()} free sending slots remaining before midnight.`;
+        bestWindow = `Today before 6:00 PM IST (Up to ${remainingToday.toLocaleString()} leads)`;
+    } else if (remainingTomorrow >= 500) {
+        recommendedAction = `Today's window is nearly full (${utilToday}% used). Align new campaigns for Tomorrow morning (${FULL_DAY_NAMES[tomorrowDow]}), where ${remainingTomorrow.toLocaleString()} slots are open.`;
+        bestWindow = `Tomorrow 10:00 AM IST (${remainingTomorrow.toLocaleString()} open slots)`;
+    } else {
+        recommendedAction = `High fleet volume detected (${utilTomorrow}% allocated tomorrow across ${tomorrowCampsCount} campaigns). Stagger new launches or queue for Friday.`;
+        bestWindow = `Friday 10:00 AM IST (Capacity available)`;
+    }
+
+    return {
+        daily_limit: dailyLimit,
+        today: {
+            date: now.toISOString().split("T")[0],
+            day_name: FULL_DAY_NAMES[todayDow],
+            sent_so_far: todaySent,
+            remaining_capacity: remainingToday,
+            utilization_pct: utilToday,
+            active_campaigns_count: todayCampsCount,
+            status: statusToday,
+            status_label: statusLabelToday,
+        },
+        tomorrow: {
+            date: tomorrow.toISOString().split("T")[0],
+            day_name: FULL_DAY_NAMES[tomorrowDow],
+            is_sending_day: isTomorrowSendingDay,
+            projected_leads: tomorrowProjected,
+            projected_remaining: remainingTomorrow,
+            projected_utilization_pct: utilTomorrow,
+            aligned_campaigns_count: tomorrowCampsCount,
+            status: statusTomorrow,
+            status_label: statusLabelTomorrow,
+        },
+        timeline,
+        aligned_campaigns: alignedCampaigns.slice(0, 15),
+        decision_assistant: {
+            can_launch_today: canLaunchToday,
+            safe_slots_today: remainingToday,
+            safe_slots_tomorrow: remainingTomorrow,
+            recommended_action: recommendedAction,
+            best_window: bestWindow,
+        },
+    };
+}
+
 // Today's sends are always reported for the current UTC day, even when the
 // chart window ends in the past (Custom range).
 async function readTodaySends(query: QueryFn, startTs: string, endTs: string, scope: DataScope): Promise<number> {
@@ -611,6 +884,7 @@ async function fetchDashboardInternal(req: DashboardRequest, query: QueryFn, sco
     const engagementDenom = Math.max(delivered, engagedLeads.size);
     const bounceDenom = Math.max(totals.sent, totals.bounces);
     const health: Record<string, any> = healthRows[0] || {};
+    const capacityTracker = await readCapacityTracker(query, todaySent, health.daily_capacity || 0, scope);
 
     const recentActivity = [...activity]
         .sort((a, b) => (String(b.ts) > String(a.ts) ? 1 : String(b.ts) < String(a.ts) ? -1 : 0))
@@ -658,6 +932,7 @@ async function fetchDashboardInternal(req: DashboardRequest, query: QueryFn, sco
         to: utcDayKey(new Date(range.endExclusive.getTime() - DAY_MS)),
         today_sent: todaySent,
         daily_capacity: health.daily_capacity || 0,
+        capacity_tracker: capacityTracker,
         heatmap: buildHeatmap(activity),
         overall_stats: {
             total_emails_sent: totals.sent,
