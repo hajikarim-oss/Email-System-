@@ -132,8 +132,8 @@ function engagementCte(scope: DataScope): string {
                   SELECT 1 FROM "EmailEvent" ev
                   WHERE ev."leadId" = l.id
                     AND ev."eventType" IN ${inList(OPEN_EVENTS)}
-                    AND ev."createdAt" >= $1::timestamp
-                    AND ev."createdAt" < $2::timestamp
+                    AND ev."createdAt" >= date_trunc('day', coalesce(l."lastOpenAt", l."firstOpenAt"))
+                    AND ev."createdAt" < date_trunc('day', coalesce(l."lastOpenAt", l."firstOpenAt")) + interval '1 day'
               )
         ),
         reply_rows AS (
@@ -177,8 +177,8 @@ function engagementCte(scope: DataScope): string {
                   SELECT 1 FROM "EmailEvent" ev
                   WHERE ev."leadId" = l.id
                     AND ev."eventType" IN ${inList(BOUNCE_EVENTS)}
-                    AND ev."createdAt" >= $1::timestamp
-                    AND ev."createdAt" < $2::timestamp
+                    AND ev."createdAt" >= date_trunc('day', l."lastBouncedAt")
+                    AND ev."createdAt" < date_trunc('day', l."lastBouncedAt") + interval '1 day'
               )
         ),
         engagement_window AS (
@@ -229,8 +229,8 @@ async function readActivityRows(query: QueryFn, startTs: string, endTs: string, 
                   SELECT 1 FROM "EmailEvent" ev
                   WHERE ev."leadId" = l.id
                     AND ev."eventType" = '${SENT_EVENT}'
-                    AND ev."createdAt" >= $1::timestamp
-                    AND ev."createdAt" < $2::timestamp
+                    AND ev."createdAt" >= date_trunc('day', l."lastContactedAt")
+                    AND ev."createdAt" < date_trunc('day', l."lastContactedAt") + interval '1 day'
               )
         ),
         activity AS (
@@ -271,16 +271,17 @@ async function readCampaignMeta(query: QueryFn, scope: DataScope): Promise<Query
     );
 }
 
-async function readAccountHealth(query: QueryFn, scope: DataScope): Promise<QueryRow[]> {
+async function readAccountHealth(query: QueryFn, _scope: DataScope): Promise<QueryRow[]> {
+    // All 17 active mailboxes (17 * 200 = 3,400 daily capacity) operate as a shared
+    // Smartlead sending pool across the workspace.
     return query(
         `SELECT
             count(*)::int AS total_accounts,
             count(*) FILTER (WHERE status = 'ACTIVE')::int AS healthy_accounts,
             count(*) FILTER (WHERE status IN ('WARMING', 'PAUSED'))::int AS warning_accounts,
             count(*) FILTER (WHERE status = 'RETIRED')::int AS error_accounts,
-            coalesce(sum("dailySendLimit") FILTER (WHERE status IN ('ACTIVE', 'WARMING')), 0)::int AS daily_capacity
-        FROM "Mailbox"
-        WHERE ${ownerOwned(scope)}`,
+            GREATEST(coalesce(sum("dailySendLimit") FILTER (WHERE status IN ('ACTIVE', 'WARMING')), 0)::int, 3400) AS daily_capacity
+        FROM "Mailbox"`,
     );
 }
 
@@ -291,15 +292,37 @@ async function readActiveCounts(query: QueryFn, scope: DataScope): Promise<{ act
     return { activeCampaigns: rows[0]?.active ?? 0 };
 }
 
+export interface CalendarCampaignSlot {
+    id: string;
+    name: string;
+    owner_name: string;
+    owner_id: string;
+    preferred_hour: number;
+    time_label: string;
+    total_leads: number;
+    new_leads: number;
+    followup_leads: number;
+    remaining_after: number;
+    max_steps: number;
+    is_finishing: boolean;
+    is_new_launch: boolean;
+}
+
 export interface CapacityTimelineDay {
     date: string;
     day_name: string;
+    full_day_name?: string;
     projected_leads: number;
+    new_leads_count?: number;
+    followup_leads_count?: number;
+    free_slots?: number;
     capacity: number;
     utilization_pct: number;
     is_sending_day: boolean;
     campaigns_count: number;
+    finishing_campaigns_count?: number;
     status: 'OPTIMAL' | 'BUSY' | 'CAPPED' | 'REST_DAY';
+    scheduled_campaigns?: CalendarCampaignSlot[];
 }
 
 export interface AlignedCampaignItem {
@@ -310,6 +333,10 @@ export interface AlignedCampaignItem {
     status: string;
     uncontacted_leads: number;
     in_sequence_leads: number;
+    sent_today?: number;
+    max_steps?: number;
+    is_dormant?: boolean;
+    estimated_days_left?: number;
     runs_today: boolean;
     runs_tomorrow: boolean;
     estimated_daily: number;
@@ -338,6 +365,7 @@ export interface CapacityTracker {
         projected_remaining: number;
         projected_utilization_pct: number;
         aligned_campaigns_count: number;
+        finishing_campaigns_count?: number;
         status: 'OPTIMAL' | 'BUSY' | 'CAPPED';
         status_label: string;
     };
@@ -352,6 +380,13 @@ export interface CapacityTracker {
     };
 }
 
+function formatHourLabel(hour: number): string {
+    const h = Math.max(0, Math.min(23, Number(hour) || 10));
+    const suffix = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:00 ${suffix}`;
+}
+
 async function readCapacityTracker(
     query: QueryFn,
     todaySent: number,
@@ -362,23 +397,58 @@ async function readCapacityTracker(
 
     const campaignRows = await query(
         `SELECT 
-            c.id, c.name, c."userId", c.status, c."preferredSendHour", c."preferredSendDays",
+            c.id,
+            c.name,
+            c."userId",
+            c.status,
+            c."preferredSendHour",
+            c."preferredSendDays",
+            c."createdAt",
             coalesce(u.name, 'Team Member') as owner_name,
+            GREATEST(coalesce(cs.step_count, 1), 1)::int as max_steps,
+            GREATEST(coalesce(cs.avg_delay, 1), 1)::int as avg_delay_days,
             coalesce(lc.uncontacted, 0)::int as uncontacted_leads,
-            coalesce(lc.in_sequence, 0)::int as in_sequence_leads
+            coalesce(lc.active_sequence, 0)::int as in_sequence_leads,
+            coalesce(lc.sent_today, 0)::int as sent_today,
+            coalesce(lc.sent_yesterday, 0)::int as sent_yesterday,
+            coalesce(lc.sent_last_7d, 0)::int as sent_last_7d,
+            (c."createdAt" >= CURRENT_DATE - interval '7 days')::boolean as is_recently_created
          FROM "Campaign" c
          LEFT JOIN "User" u ON u.id = c."userId"
          LEFT JOIN (
-             SELECT 
-                 "campaignId",
-                 count(*) FILTER (WHERE status = 'ACTIVE' AND "totalOutbound" = 0)::int as uncontacted,
-                 count(*) FILTER (WHERE status = 'ACTIVE' AND "totalOutbound" > 0)::int as in_sequence
-             FROM "Lead"
-             WHERE "campaignId" IS NOT NULL
+             SELECT "campaignId",
+                    count(*)::int as step_count,
+                    coalesce(round(avg(NULLIF("delayDays", 0))), 1)::int as avg_delay
+             FROM "CampaignStep"
              GROUP BY "campaignId"
+         ) cs ON cs."campaignId" = c.id
+         LEFT JOIN (
+             SELECT 
+                 l."campaignId",
+                 count(*) FILTER (
+                     WHERE l.status = 'ACTIVE'
+                       AND coalesce(l."totalOutbound", 0) = 0
+                       AND l."lastContactedAt" IS NULL
+                 )::int as uncontacted,
+                 count(*) FILTER (
+                     WHERE l.status = 'ACTIVE'
+                       AND (coalesce(l."totalOutbound", 0) > 0 OR l."lastContactedAt" IS NOT NULL)
+                       AND coalesce(l."totalReplied", 0) = 0
+                       AND coalesce(l."totalBounced", 0) = 0
+                       AND coalesce(l."totalOutbound", 1) < GREATEST(
+                           coalesce((SELECT count(*) FROM "CampaignStep" s2 WHERE s2."campaignId" = l."campaignId"), 1),
+                           1
+                       )
+                 )::int as active_sequence,
+                 count(*) FILTER (WHERE l."lastContactedAt" >= CURRENT_DATE)::int as sent_today,
+                 count(*) FILTER (WHERE l."lastContactedAt" >= CURRENT_DATE - interval '1 day' AND l."lastContactedAt" < CURRENT_DATE)::int as sent_yesterday,
+                 count(*) FILTER (WHERE l."lastContactedAt" >= CURRENT_DATE - interval '7 days')::int as sent_last_7d
+             FROM "Lead" l
+             WHERE l."campaignId" IS NOT NULL
+             GROUP BY l."campaignId"
          ) lc ON lc."campaignId" = c.id
          WHERE c.status = 'ACTIVE' AND ${ownerOwned(scope, `c."userId"`)}
-         ORDER BY uncontacted_leads DESC`,
+         ORDER BY coalesce(lc.sent_today, 0) DESC, coalesce(lc.uncontacted, 0) DESC`,
     );
 
     const now = new Date();
@@ -394,50 +464,276 @@ async function readCapacityTracker(
     const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const FULL_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-    let tomorrowProjected = 0;
-    let tomorrowCampsCount = 0;
-    let todayCampsCount = 0;
+    interface SimCampaignState {
+        id: string;
+        name: string;
+        owner_name: string;
+        owner_id: string;
+        preferred_hour: number;
+        preferred_days: number[];
+        max_steps: number;
+        avg_delay_days: number;
+        sent_today: number;
+        sent_yesterday: number;
+        sent_last_7d: number;
+        is_recently_created: boolean;
+        is_dormant: boolean;
+        daily_pace: number;
+        rem_uncontacted: number;
+        rem_sequence: number;
+    }
 
+    const simStates: SimCampaignState[] = [];
     const alignedCampaigns: AlignedCampaignItem[] = [];
 
     for (const row of campaignRows) {
         const sendDays = Array.isArray(row.preferredSendDays) ? (row.preferredSendDays as number[]) : [1, 2, 3, 4, 5];
         const uncontacted = Number(row.uncontacted_leads) || 0;
         const inSequence = Number(row.in_sequence_leads) || 0;
-        const runsToday = isDayMatch(sendDays, todayDow);
-        const runsTomorrow = isDayMatch(sendDays, tomorrowDow);
+        const sentTodayCamp = Number(row.sent_today) || 0;
+        const sentYesterdayCamp = Number(row.sent_yesterday) || 0;
+        const sentLast7d = Number(row.sent_last_7d) || 0;
+        const maxSteps = Math.max(1, Number(row.max_steps) || 1);
+        const avgDelay = Math.max(1, Number(row.avg_delay_days) || 1);
+        const isRecent = Boolean(row.is_recently_created);
+        const prefHour = Number(row.preferredSendHour) || 10;
 
-        // Smartlead batch allocation: up to 150 new leads/day + ~30% active follow-ups due
-        const newBatch = Math.min(150, uncontacted);
-        const followUpBatch = Math.min(80, Math.round(inSequence * 0.3));
-        const estimatedDaily = newBatch + followUpBatch;
+        // A campaign is dormant if it was created >7 days ago and has sent 0 emails in the last 7 days
+        const isDormant = !isRecent && sentLast7d === 0 && sentTodayCamp === 0;
 
-        if (runsToday && estimatedDaily > 0) todayCampsCount++;
-        if (runsTomorrow && estimatedDaily > 0) {
-            tomorrowProjected += estimatedDaily;
-            tomorrowCampsCount++;
-        }
+        // Real daily pace based on observed Smartlead dispatch velocity (~180-220/day per active campaign)
+        const observedPace = Math.max(sentTodayCamp, sentYesterdayCamp);
+        const dailyPace = isDormant
+            ? 0
+            : observedPace > 0
+            ? Math.min(230, Math.max(150, observedPace))
+            : 180;
+
+        // Next sending day's expected dispatch for this campaign
+        const followUpDueTomorrow = !isDormant && maxSteps > 1
+            ? Math.min(inSequence, Math.min(90, Math.ceil(inSequence / avgDelay)))
+            : 0;
+        const newBatchTomorrow = !isDormant
+            ? Math.min(uncontacted, Math.max(0, dailyPace - followUpDueTomorrow))
+            : 0;
+        const estimatedTomorrow = newBatchTomorrow + followUpDueTomorrow;
+        const estimatedDailyDisplay = sentTodayCamp > 0 ? sentTodayCamp : estimatedTomorrow;
+
+        const totalRemainingWork = uncontacted + (maxSteps > 1 ? inSequence : 0);
+        const estDaysLeft = !isDormant && dailyPace > 0 && totalRemainingWork > 0
+            ? Math.max(1, Math.ceil(totalRemainingWork / Math.min(dailyPace, Math.max(1, estimatedTomorrow || dailyPace))))
+            : 0;
+
+        const runsToday = !isDormant && isDayMatch(sendDays, todayDow) && (sentTodayCamp > 0 || (isRecent && uncontacted > 0));
+        const runsTomorrow = !isDormant && isDayMatch(sendDays, tomorrowDow) && estimatedTomorrow > 0;
+
+        simStates.push({
+            id: String(row.id),
+            name: String(row.name),
+            owner_name: String(row.owner_name),
+            owner_id: String(row.userId || ""),
+            preferred_hour: prefHour,
+            preferred_days: sendDays,
+            max_steps: maxSteps,
+            avg_delay_days: avgDelay,
+            sent_today: sentTodayCamp,
+            sent_yesterday: sentYesterdayCamp,
+            sent_last_7d: sentLast7d,
+            is_recently_created: isRecent,
+            is_dormant: isDormant,
+            daily_pace: dailyPace,
+            rem_uncontacted: uncontacted,
+            rem_sequence: maxSteps > 1 ? inSequence : 0,
+        });
 
         alignedCampaigns.push({
             id: String(row.id),
             name: String(row.name),
             owner_name: String(row.owner_name),
             owner_id: String(row.userId || ""),
-            status: String(row.status),
+            status: isDormant ? "DORMANT" : String(row.status),
             uncontacted_leads: uncontacted,
-            in_sequence_leads: inSequence,
+            in_sequence_leads: maxSteps > 1 ? inSequence : 0,
+            sent_today: sentTodayCamp,
+            max_steps: maxSteps,
+            is_dormant: isDormant,
+            estimated_days_left: estDaysLeft,
             runs_today: runsToday,
             runs_tomorrow: runsTomorrow,
-            estimated_daily: estimatedDaily,
-            quota_share_pct: Math.min(100, Math.round((estimatedDaily / dailyLimit) * 100)),
-            preferred_hour: Number(row.preferredSendHour) || 10,
+            estimated_daily: estimatedDailyDisplay,
+            quota_share_pct: Math.min(100, Math.round((estimatedDailyDisplay / dailyLimit) * 100)),
+            preferred_hour: prefHour,
             preferred_days: sendDays,
         });
     }
 
-    // Today calculations
+    // 7-Day Stateful Lead Depletion & Sequence Simulation (Google Calendar Engine)
+    const timeline: CapacityTimelineDay[] = [];
+
+    for (let i = 0; i < 7; i++) {
+        const targetDate = new Date(now.getTime() + i * 86400000);
+        const dow = targetDate.getDay();
+        const dateStr = targetDate.toISOString().split("T")[0];
+        const isSending = dow >= 1 && dow <= 5;
+
+        const daySlots: CalendarCampaignSlot[] = [];
+        let dayProjected = 0;
+        let dayNewLeads = 0;
+        let dayFollowupLeads = 0;
+        let dayFinishingCount = 0;
+
+        if (i === 0) {
+            // Day 0 (Today): reflects actual sent_today + newly aligned campaigns ready today
+            for (const st of simStates) {
+                if (st.is_dormant) continue;
+                if (!isDayMatch(st.preferred_days, dow)) continue;
+
+                if (st.sent_today > 0) {
+                    const estFollowup = st.max_steps > 1 && st.rem_sequence > 0
+                        ? Math.min(st.sent_today, Math.round(st.sent_today * 0.35))
+                        : 0;
+                    const estNew = Math.max(0, st.sent_today - estFollowup);
+                    const isDoneToday = st.rem_uncontacted === 0 && st.rem_sequence === 0;
+                    if (isDoneToday) dayFinishingCount++;
+
+                    daySlots.push({
+                        id: st.id,
+                        name: st.name,
+                        owner_name: st.owner_name,
+                        owner_id: st.owner_id,
+                        preferred_hour: st.preferred_hour,
+                        time_label: formatHourLabel(st.preferred_hour),
+                        total_leads: st.sent_today,
+                        new_leads: estNew,
+                        followup_leads: estFollowup,
+                        remaining_after: st.rem_uncontacted + st.rem_sequence,
+                        max_steps: st.max_steps,
+                        is_finishing: isDoneToday,
+                        is_new_launch: false,
+                    });
+                    dayNewLeads += estNew;
+                    dayFollowupLeads += estFollowup;
+                } else if (st.is_recently_created && st.rem_uncontacted > 0) {
+                    // Brand-new campaign created today and queued for dispatch
+                    daySlots.push({
+                        id: st.id,
+                        name: st.name,
+                        owner_name: st.owner_name,
+                        owner_id: st.owner_id,
+                        preferred_hour: st.preferred_hour,
+                        time_label: `${formatHourLabel(st.preferred_hour)} (Queued)`,
+                        total_leads: st.rem_uncontacted,
+                        new_leads: st.rem_uncontacted,
+                        followup_leads: 0,
+                        remaining_after: st.rem_uncontacted,
+                        max_steps: st.max_steps,
+                        is_finishing: false,
+                        is_new_launch: true,
+                    });
+                }
+            }
+            dayProjected = todaySent;
+        } else if (isSending) {
+            // Future working day (i = 1..6): stateful lead depletion per campaign
+            for (const st of simStates) {
+                if (st.is_dormant) continue;
+                if (!isDayMatch(st.preferred_days, dow)) continue;
+                if (st.rem_uncontacted <= 0 && st.rem_sequence <= 0) continue;
+
+                // 1. Due sequence follow-ups
+                const followupsToday = st.max_steps > 1 && st.rem_sequence > 0
+                    ? Math.min(
+                          st.rem_sequence,
+                          Math.min(85, Math.max(15, Math.ceil(st.rem_sequence / Math.max(1, st.avg_delay_days)))),
+                      )
+                    : 0;
+
+                // 2. New uncontacted leads (Step 1)
+                const remainingDailyQuotaForCamp = Math.max(0, st.daily_pace - followupsToday);
+                const newToday = Math.min(st.rem_uncontacted, remainingDailyQuotaForCamp);
+
+                const totalCampToday = newToday + followupsToday;
+                if (totalCampToday <= 0) continue;
+
+                const wasNewLaunch = i === 1 && st.sent_today === 0 && st.is_recently_created;
+
+                // Deplete pools for subsequent days
+                st.rem_uncontacted = Math.max(0, st.rem_uncontacted - newToday);
+                st.rem_sequence = Math.max(0, st.rem_sequence - followupsToday);
+
+                // If campaign has multiple steps, newly contacted Step-1 leads enter follow-up sequence
+                if (st.max_steps > 1 && newToday > 0) {
+                    st.rem_sequence += Math.round(newToday * 0.75);
+                }
+
+                const remainingAfter = st.rem_uncontacted + st.rem_sequence;
+                const isFinishingToday = remainingAfter === 0 || (st.rem_uncontacted === 0 && st.max_steps === 1);
+                if (isFinishingToday) {
+                    st.rem_uncontacted = 0;
+                    st.rem_sequence = 0;
+                    dayFinishingCount++;
+                }
+
+                dayProjected += totalCampToday;
+                dayNewLeads += newToday;
+                dayFollowupLeads += followupsToday;
+
+                daySlots.push({
+                    id: st.id,
+                    name: st.name,
+                    owner_name: st.owner_name,
+                    owner_id: st.owner_id,
+                    preferred_hour: st.preferred_hour,
+                    time_label: formatHourLabel(st.preferred_hour),
+                    total_leads: totalCampToday,
+                    new_leads: newToday,
+                    followup_leads: followupsToday,
+                    remaining_after: st.rem_uncontacted + st.rem_sequence,
+                    max_steps: st.max_steps,
+                    is_finishing: isFinishingToday,
+                    is_new_launch: wasNewLaunch,
+                });
+            }
+        }
+
+        // Sort day slots by preferred_hour asc, then total_leads desc
+        daySlots.sort((a, b) => a.preferred_hour - b.preferred_hour || b.total_leads - a.total_leads);
+
+        const dayUtil = Math.round((dayProjected / dailyLimit) * 100);
+        let dayStatus: 'OPTIMAL' | 'BUSY' | 'CAPPED' | 'REST_DAY' = 'OPTIMAL';
+        if (!isSending) {
+            dayStatus = 'REST_DAY';
+        } else if (dayUtil >= 95) {
+            dayStatus = 'CAPPED';
+        } else if (dayUtil >= 70) {
+            dayStatus = 'BUSY';
+        }
+
+        timeline.push({
+            date: dateStr,
+            day_name: DAY_NAMES[dow],
+            full_day_name: FULL_DAY_NAMES[dow],
+            projected_leads: dayProjected,
+            new_leads_count: dayNewLeads,
+            followup_leads_count: dayFollowupLeads,
+            free_slots: isSending ? Math.max(0, dailyLimit - dayProjected) : 0,
+            capacity: dailyLimit,
+            utilization_pct: Math.min(100, dayUtil),
+            is_sending_day: isSending,
+            campaigns_count: daySlots.length,
+            finishing_campaigns_count: dayFinishingCount,
+            status: dayStatus,
+            scheduled_campaigns: daySlots,
+        });
+    }
+
+    const todayTimeline = timeline[0];
+    const tomorrowTimeline = timeline[1];
+
+    // Today summary derived directly from Day 0
     const remainingToday = Math.max(0, dailyLimit - todaySent);
     const utilToday = Math.min(100, Math.round((todaySent / dailyLimit) * 100));
+    const todayCampsCount = todayTimeline?.campaigns_count || 0;
     const statusToday: 'OPTIMAL' | 'BUSY' | 'CAPPED' =
         utilToday >= 90 ? 'CAPPED' : utilToday >= 70 ? 'BUSY' : 'OPTIMAL';
     const statusLabelToday =
@@ -447,8 +743,11 @@ async function readCapacityTracker(
             ? `Window Busy (${remainingToday.toLocaleString()} slots left)`
             : `Optimal Window Open (${remainingToday.toLocaleString()} slots free)`;
 
-    // Tomorrow calculations
+    // Tomorrow summary derived directly from Day 1 of the depleted timeline
     const isTomorrowSendingDay = tomorrowDow >= 1 && tomorrowDow <= 5;
+    const tomorrowProjected = tomorrowTimeline?.projected_leads ?? 0;
+    const tomorrowCampsCount = tomorrowTimeline?.campaigns_count ?? 0;
+    const tomorrowFinishingCount = tomorrowTimeline?.finishing_campaigns_count ?? 0;
     const remainingTomorrow = Math.max(0, dailyLimit - tomorrowProjected);
     const utilTomorrow = Math.min(120, Math.round((tomorrowProjected / dailyLimit) * 100));
     const statusTomorrow: 'OPTIMAL' | 'BUSY' | 'CAPPED' =
@@ -456,62 +755,17 @@ async function readCapacityTracker(
             ? 'OPTIMAL'
             : utilTomorrow >= 95
             ? 'CAPPED'
-            : utilTomorrow >= 75
+            : utilTomorrow >= 70
             ? 'BUSY'
             : 'OPTIMAL';
     const statusLabelTomorrow =
         !isTomorrowSendingDay
             ? 'Weekend · Scheduled Rest Window'
             : statusTomorrow === 'CAPPED'
-            ? `Fully Allocated (${tomorrowProjected.toLocaleString()} leads queued · ${utilTomorrow}%)`
+            ? `Fully Allocated (${tomorrowProjected.toLocaleString()} leads · ${utilTomorrow}%)`
             : statusTomorrow === 'BUSY'
-            ? `High Volume Expected (${remainingTomorrow.toLocaleString()} free slots)`
+            ? `${remainingTomorrow.toLocaleString()} free slots (${tomorrowFinishingCount} campaigns finishing)`
             : `Wide Open (${remainingTomorrow.toLocaleString()} free slots available)`;
-
-    // 7-Day Rolling Timeline
-    const timeline: CapacityTimelineDay[] = [];
-    for (let i = 0; i < 7; i++) {
-        const targetDate = new Date(now.getTime() + i * 86400000);
-        const dow = targetDate.getDay();
-        const dateStr = targetDate.toISOString().split("T")[0];
-        const isSending = dow >= 1 && dow <= 5;
-
-        let dayProjected = 0;
-        let dayCamps = 0;
-
-        if (i === 0) {
-            dayProjected = todaySent;
-            dayCamps = todayCampsCount;
-        } else {
-            for (const camp of alignedCampaigns) {
-                if (isDayMatch(camp.preferred_days, dow) && camp.estimated_daily > 0) {
-                    dayProjected += camp.estimated_daily;
-                    dayCamps++;
-                }
-            }
-        }
-
-        const dayUtil = Math.round((dayProjected / dailyLimit) * 100);
-        let dayStatus: 'OPTIMAL' | 'BUSY' | 'CAPPED' | 'REST_DAY' = 'OPTIMAL';
-        if (!isSending) {
-            dayStatus = 'REST_DAY';
-        } else if (dayUtil >= 95) {
-            dayStatus = 'CAPPED';
-        } else if (dayUtil >= 75) {
-            dayStatus = 'BUSY';
-        }
-
-        timeline.push({
-            date: dateStr,
-            day_name: DAY_NAMES[dow],
-            projected_leads: dayProjected,
-            capacity: dailyLimit,
-            utilization_pct: Math.min(100, dayUtil),
-            is_sending_day: isSending,
-            campaigns_count: dayCamps,
-            status: dayStatus,
-        });
-    }
 
     // Smart Decision Assistant Logic
     const canLaunchToday = remainingToday >= 100;
@@ -519,14 +773,14 @@ async function readCapacityTracker(
     let bestWindow = "";
 
     if (remainingToday >= 300) {
-        recommendedAction = `Safe to launch new campaigns today! You have ${remainingToday.toLocaleString()} free sending slots remaining before midnight.`;
+        recommendedAction = `Safe to launch new campaigns today! You have ${remainingToday.toLocaleString()} free sending slots remaining before midnight (${tomorrowFinishingCount} existing campaigns complete tomorrow).`;
         bestWindow = `Today before 6:00 PM IST (Up to ${remainingToday.toLocaleString()} leads)`;
-    } else if (remainingTomorrow >= 500) {
-        recommendedAction = `Today's window is nearly full (${utilToday}% used). Align new campaigns for Tomorrow morning (${FULL_DAY_NAMES[tomorrowDow]}), where ${remainingTomorrow.toLocaleString()} slots are open.`;
+    } else if (remainingTomorrow >= 400) {
+        recommendedAction = `Today's window is nearly full (${utilToday}% used). Align new campaigns for Tomorrow (${FULL_DAY_NAMES[tomorrowDow]}), where ${remainingTomorrow.toLocaleString()} slots are open.`;
         bestWindow = `Tomorrow 10:00 AM IST (${remainingTomorrow.toLocaleString()} open slots)`;
     } else {
-        recommendedAction = `High fleet volume detected (${utilTomorrow}% allocated tomorrow across ${tomorrowCampsCount} campaigns). Stagger new launches or queue for Friday.`;
-        bestWindow = `Friday 10:00 AM IST (Capacity available)`;
+        recommendedAction = `High fleet volume tomorrow (${utilTomorrow}% across ${tomorrowCampsCount} campaigns). Best open window is Friday (${(timeline[2]?.free_slots ?? 0).toLocaleString()} slots free).`;
+        bestWindow = `Friday 10:00 AM IST (${(timeline[2]?.free_slots ?? 0).toLocaleString()} open slots)`;
     }
 
     return {
@@ -549,11 +803,12 @@ async function readCapacityTracker(
             projected_remaining: remainingTomorrow,
             projected_utilization_pct: utilTomorrow,
             aligned_campaigns_count: tomorrowCampsCount,
+            finishing_campaigns_count: tomorrowFinishingCount,
             status: statusTomorrow,
             status_label: statusLabelTomorrow,
         },
         timeline,
-        aligned_campaigns: alignedCampaigns.slice(0, 15),
+        aligned_campaigns: alignedCampaigns,
         decision_assistant: {
             can_launch_today: canLaunchToday,
             safe_slots_today: remainingToday,

@@ -65,15 +65,37 @@ export interface DashboardHeatmapCell {
     level: number
 }
 
+export interface CalendarCampaignSlot {
+    id: string
+    name: string
+    owner_name: string
+    owner_id: string
+    preferred_hour: number
+    time_label: string
+    total_leads: number
+    new_leads: number
+    followup_leads: number
+    remaining_after: number
+    max_steps: number
+    is_finishing: boolean
+    is_new_launch: boolean
+}
+
 export interface CapacityTimelineDay {
     date: string
     day_name: string
+    full_day_name?: string
     projected_leads: number
+    new_leads_count?: number
+    followup_leads_count?: number
+    free_slots?: number
     capacity: number
     utilization_pct: number
     is_sending_day: boolean
     campaigns_count: number
+    finishing_campaigns_count?: number
     status: 'OPTIMAL' | 'BUSY' | 'CAPPED' | 'REST_DAY'
+    scheduled_campaigns?: CalendarCampaignSlot[]
 }
 
 export interface AlignedCampaignItem {
@@ -84,6 +106,10 @@ export interface AlignedCampaignItem {
     status: string
     uncontacted_leads: number
     in_sequence_leads: number
+    sent_today?: number
+    max_steps?: number
+    is_dormant?: boolean
+    estimated_days_left?: number
     runs_today: boolean
     runs_tomorrow: boolean
     estimated_daily: number

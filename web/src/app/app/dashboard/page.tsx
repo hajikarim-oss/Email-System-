@@ -1889,37 +1889,40 @@ export default function DashboardPage() {
                         {/* Breakdown Sidebar */}
                         <div className="p-4 bg-slate-50/40 flex flex-col justify-between space-y-4">
                             <div className="space-y-3">
-                                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                                    Performance Breakdown
+                                <div className="flex items-center justify-between">
+                                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                        Performance Breakdown
+                                    </div>
+                                    <span className="text-[10px] font-medium text-slate-400">{chartWindowLabel}</span>
                                 </div>
                                 <div className="divide-y divide-slate-200/60 text-[12px]">
                                     <div className="py-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-slate-700">
-                                            <span className="size-2 rounded-full bg-amber-400" />
+                                            <span className="size-2 rounded-full bg-sky-500" />
                                             <span>Dispatched Sends</span>
                                         </div>
-                                        <span className="font-mono font-bold text-slate-900">{totalSentToday} today · {formatNum(periodSentCount)} {chartWindowLabel}</span>
+                                        <span className="font-mono font-bold text-slate-900">{formatNum(totalSentToday)} today · {formatNum(periodSentCount)}</span>
                                     </div>
                                     <div className="py-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-slate-700">
                                             <span className="size-2 rounded-full bg-emerald-500" />
                                             <span>Human Opens</span>
                                         </div>
-                                        <span className="font-mono font-bold text-emerald-600">{formatNum(lifetimeRates?.openedLeads)} · {rateLabel(lifetimeRates?.openRate)}</span>
+                                        <span className="font-mono font-bold text-emerald-600">{formatNum(periodOpensCount)} · {periodOpenRate}</span>
                                     </div>
                                     <div className="py-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-slate-700">
                                             <span className="size-2 rounded-full bg-amber-500" />
                                             <span>Prospect Replies</span>
                                         </div>
-                                        <span className="font-mono font-bold text-amber-600">{formatNum(lifetimeRates?.repliedLeads)} · {rateLabel(lifetimeRates?.replyRate)}</span>
+                                        <span className="font-mono font-bold text-amber-600">{formatNum(periodRepliesCount)} · {periodReplyRate}</span>
                                     </div>
                                     <div className="py-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-slate-700">
                                             <span className="size-2 rounded-full bg-rose-500" />
                                             <span>Bounces</span>
                                         </div>
-                                        <span className="font-mono font-bold text-slate-400">{formatNum(lifetimeRates?.bounces)} ({rateLabel(lifetimeRates?.bounceRate)})</span>
+                                        <span className="font-mono font-bold text-slate-500">{formatNum(periodBouncesCount)} ({periodBounceRate})</span>
                                     </div>
                                 </div>
                             </div>
