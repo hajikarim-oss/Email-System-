@@ -121,22 +121,20 @@ function engagementCte(scope: DataScope): string {
             UNION ALL
             SELECT l.id AS lead_id,
                    'open'::text AS kind,
-                   coalesce(l."lastOpenAt", l."firstOpenAt", l."lastContactedAt") AS occurred_at,
-                   (GREATEST(coalesce(l."openCount", 1), 1) - coalesce(ev_open.cnt, 0))::int AS weight
+                   coalesce(l."lastOpenAt", l."firstOpenAt") AS occurred_at,
+                   1::int AS weight
             FROM "Lead" l
-            LEFT JOIN (
-                SELECT "leadId", count(*)::int AS cnt
-                FROM "EmailEvent"
-                WHERE "eventType" IN ${inList(OPEN_EVENTS)}
-                  AND "createdAt" >= $1::timestamp
-                  AND "createdAt" < $2::timestamp
-                GROUP BY "leadId"
-            ) ev_open ON ev_open."leadId" = l.id
-            WHERE (l."openCount" > 0 OR l."firstOpenAt" IS NOT NULL)
-              AND coalesce(l."lastOpenAt", l."firstOpenAt", l."lastContactedAt") >= $1::timestamp
-              AND coalesce(l."lastOpenAt", l."firstOpenAt", l."lastContactedAt") < $2::timestamp
+            WHERE (l."lastOpenAt" IS NOT NULL OR l."firstOpenAt" IS NOT NULL)
+              AND coalesce(l."lastOpenAt", l."firstOpenAt") >= $1::timestamp
+              AND coalesce(l."lastOpenAt", l."firstOpenAt") < $2::timestamp
               AND ${leadOwned(scope, "l")}
-              AND GREATEST(coalesce(l."openCount", 1), 1) > coalesce(ev_open.cnt, 0)
+              AND NOT EXISTS (
+                  SELECT 1 FROM "EmailEvent" ev
+                  WHERE ev."leadId" = l.id
+                    AND ev."eventType" IN ${inList(OPEN_EVENTS)}
+                    AND ev."createdAt" >= $1::timestamp
+                    AND ev."createdAt" < $2::timestamp
+              )
         ),
         reply_rows AS (
             SELECT DISTINCT ON (e."leadId", date_trunc('day', e."createdAt"))
@@ -169,22 +167,19 @@ function engagementCte(scope: DataScope): string {
             UNION ALL
             SELECT l.id AS lead_id,
                    'bounce'::text AS kind,
-                   coalesce(l."lastBouncedAt", l."lastContactedAt") AS occurred_at,
-                   (GREATEST(coalesce(l."totalBounced", 0), coalesce(l."bounceCount", 0), 1) - coalesce(ev_b.cnt, 0))::int AS weight
+                   l."lastBouncedAt" AS occurred_at,
+                   1::int AS weight
             FROM "Lead" l
-            LEFT JOIN (
-                SELECT "leadId", count(*)::int AS cnt
-                FROM "EmailEvent"
-                WHERE "eventType" IN ${inList(BOUNCE_EVENTS)}
-                  AND "createdAt" >= $1::timestamp
-                  AND "createdAt" < $2::timestamp
-                GROUP BY "leadId"
-            ) ev_b ON ev_b."leadId" = l.id
-            WHERE (l."totalBounced" > 0 OR l."bounceCount" > 0 OR l.status = 'BOUNCED')
-              AND coalesce(l."lastBouncedAt", l."lastContactedAt") >= $1::timestamp
-              AND coalesce(l."lastBouncedAt", l."lastContactedAt") < $2::timestamp
+            WHERE l."lastBouncedAt" >= $1::timestamp
+              AND l."lastBouncedAt" < $2::timestamp
               AND ${leadOwned(scope, "l")}
-              AND GREATEST(coalesce(l."totalBounced", 0), coalesce(l."bounceCount", 0), 1) > coalesce(ev_b.cnt, 0)
+              AND NOT EXISTS (
+                  SELECT 1 FROM "EmailEvent" ev
+                  WHERE ev."leadId" = l.id
+                    AND ev."eventType" IN ${inList(BOUNCE_EVENTS)}
+                    AND ev."createdAt" >= $1::timestamp
+                    AND ev."createdAt" < $2::timestamp
+              )
         ),
         engagement_window AS (
             SELECT lead_id, kind, occurred_at, weight FROM open_rows
@@ -225,43 +220,17 @@ async function readActivityRows(query: QueryFn, startTs: string, endTs: string, 
             SELECT l.id AS lead_id,
                    'sent'::text AS type,
                    l."lastContactedAt" AS ts,
-                   (
-                       CASE
-                           WHEN l."lastContactedAt" >= CURRENT_DATE THEN 1
-                           ELSE GREATEST(coalesce(l."totalOutbound", 1), 1)
-                       END - coalesce(
-                           CASE
-                               WHEN l."lastContactedAt" >= CURRENT_DATE THEN ev_cnt.today_cnt
-                               ELSE ev_cnt.cnt
-                           END,
-                           0
-                       )
-                   )::int AS weight
+                   1::int AS weight
             FROM "Lead" l
-            LEFT JOIN (
-                SELECT "leadId",
-                       count(*)::int AS cnt,
-                       count(*) FILTER (WHERE "createdAt" >= CURRENT_DATE)::int AS today_cnt
-                FROM "EmailEvent"
-                WHERE "eventType" = '${SENT_EVENT}'
-                  AND "createdAt" >= $1::timestamp
-                  AND "createdAt" < $2::timestamp
-                GROUP BY "leadId"
-            ) ev_cnt ON ev_cnt."leadId" = l.id
             WHERE l."lastContactedAt" >= $1::timestamp
               AND l."lastContactedAt" < $2::timestamp
               AND ${leadOwned(scope, "l")}
-              AND (
-                  CASE
-                      WHEN l."lastContactedAt" >= CURRENT_DATE THEN 1
-                      ELSE GREATEST(coalesce(l."totalOutbound", 1), 1)
-                  END
-              ) > coalesce(
-                  CASE
-                      WHEN l."lastContactedAt" >= CURRENT_DATE THEN ev_cnt.today_cnt
-                      ELSE ev_cnt.cnt
-                  END,
-                  0
+              AND NOT EXISTS (
+                  SELECT 1 FROM "EmailEvent" ev
+                  WHERE ev."leadId" = l.id
+                    AND ev."eventType" = '${SENT_EVENT}'
+                    AND ev."createdAt" >= $1::timestamp
+                    AND ev."createdAt" < $2::timestamp
               )
         ),
         activity AS (
