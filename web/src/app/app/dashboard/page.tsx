@@ -232,18 +232,7 @@ export default function DashboardPage() {
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const { user } = useUserProfile();
-    const userRole = String((user as any)?.role || "").toUpperCase();
-    const userRoles = Array.isArray(user?.roles) ? user.roles.map((r: string) => String(r).toUpperCase()) : [];
-    const isMaster = Boolean(user) && (
-        user?.is_admin === true ||
-        userRole === "OWNER" ||
-        userRole === "MASTER" ||
-        userRole === "ADMIN" ||
-        userRoles.includes("OWNER") ||
-        userRoles.includes("MASTER") ||
-        userRoles.includes("ADMIN") ||
-        user?.email?.toLowerCase() === "monu@theboredmonkey.com"
-    );
+    const isMaster = isMasterUser(user);
     const { data: teamMembersRaw } = useTeamMembers();
     const TEAM_MEMBERS = useMemo(() => {
         if (Array.isArray(teamMembersRaw) && teamMembersRaw.length > 1) {
@@ -326,23 +315,33 @@ export default function DashboardPage() {
         };
     }, [chartRange, chartFrom, chartTo]);
 
+    // Master & Admin see the full workspace (or whichever member they select in the filter).
+    // Team Members see only their own dedicated campaigns, contacts, replies, and telemetry
+    // across the entire dashboard — EXCEPT the Campaign Dispatch & Daily Capacity Tracker,
+    // which always displays the shared 3,400 workspace pool.
+    const effectiveMemberId = isMaster
+        ? (selectedMemberId !== "all" ? selectedMemberId : undefined)
+        : (user?.id ? String(user.id) : undefined);
+
     const dashData = useDashboard(
         chartRange,
         chartRange === "custom" ? { from: chartFrom, to: chartTo } : undefined,
-        selectedMemberId !== "all" ? selectedMemberId : undefined,
+        effectiveMemberId,
     );
     // True while a newly selected range (7d / 30d / custom dates) is still being
     // fetched and the cards are showing the previous window as a placeholder.
     const isRangeLoading = Boolean(dashData.isPlaceholderData) || (dashData.isFetching && !dashData.data);
     // Previous-window comparison card baseline.
-    const previousQuery = useDashboard(chartRange, windows.previous, selectedMemberId !== "all" ? selectedMemberId : undefined);
+    const previousQuery = useDashboard(chartRange, windows.previous, effectiveMemberId);
     // Lifetime system report: total mails, categories, reply mix, volume,
     // top campaigns and the latest replies, all from the database.
-    const reportQuery = useReport(selectedMemberId !== "all" ? selectedMemberId : undefined);
-    // Always fetch workspace-wide report ("all") so Inbound Replies Radar shows all team members' reply counts and conversations
-    const allMembersReportQuery = useReport(undefined);
+    const reportQuery = useReport(effectiveMemberId);
+    // For Master/Admin, also fetch workspace-wide report ("all") so Inbound Replies Radar can filter across all members
+    const allMembersReportQuery = useReport(isMaster ? undefined : effectiveMemberId);
     const reportData = reportQuery.data;
-    const allRepliesData = allMembersReportQuery.data?.recent_replies ?? reportData?.recent_replies ?? [];
+    const allRepliesData = isMaster
+        ? (allMembersReportQuery.data?.recent_replies ?? reportData?.recent_replies ?? [])
+        : (reportData?.recent_replies ?? []);
 
     const safeCampaigns = (Array.isArray(campaigns) ? campaigns : []) as unknown as EnrichedCampaign[];
 
@@ -410,20 +409,20 @@ export default function DashboardPage() {
         dashData.data?.daily_capacity ||
         (emails as any[])?.reduce((sum: number, e: any) => sum + (e.campaign_limit ?? 50), 0) ||
         0;
-    // Fleet "sent today" for the selected filter — drives the capacity tracker,
-    // which always reflects the shared 3,400 mailbox pool.
-    const liveTodaySent = useLiveTodaySent(selectedMemberId !== "all" ? selectedMemberId : "all");
-    const fleetSentToday: number =
-        liveTodaySent ??
+    // Live "sent today" for the current effective scope (workspace or selected member for Master/Admin;
+    // own dedicated campaigns for Team Members).
+    const liveScopedTodaySent = useLiveTodaySent(effectiveMemberId ?? "all");
+    const totalSentToday: number =
+        liveScopedTodaySent ??
         dashData.data?.today_sent ??
         teamProfiles.reduce((acc: number, e: any) => acc + (e.sent_today ?? 0), 0);
-    // Team members see only their own campaigns' sends on the sent/quota cards
-    // (same value as the sidebar); master/admin keep the workspace figure.
-    const viewerIsMaster = isMasterUser(user);
-    const ownMemberId = !viewerIsMaster && user?.id ? String(user.id) : undefined;
-    const ownDash = useDashboard("30d", undefined, ownMemberId);
-    const ownTodaySent = useLiveTodaySent(ownMemberId ?? "__none__") ?? ownDash.data?.today_sent;
-    const totalSentToday: number = viewerIsMaster ? fleetSentToday : (ownTodaySent ?? 0);
+    // Shared 3,400 fleet "sent today" for the Campaign Dispatch & Daily Capacity Tracker (2nd section),
+    // which is always workspace-wide for both Master/Admin and Team Members.
+    const liveFleetTodaySent = useLiveTodaySent("all");
+    const fleetSentToday: number =
+        dashData.data?.capacity_tracker?.today?.sent_so_far ??
+        liveFleetTodaySent ??
+        totalSentToday;
     // Lifetime mail volume (message rows plus the sends recorded since), while
     // the trend chart stays scoped to the selected window.
     const lifetime = reportData?.lifetime;
@@ -803,43 +802,57 @@ export default function DashboardPage() {
                 eyebrow="Dashboard"
             >
 
-                {/* Workspace Team Member Filter (visible to Master, Admin, and Team Members across the workspace) */}
-                <PopoverMenu>
-                    <PopoverMenuTrigger asChild>
-                        <SelectButton
-                            icon={<UsersIcon className="w-3.5 h-3.5 text-slate-900" />}
-                            label={TEAM_MEMBERS.find((m) => m.id === selectedMemberId)?.name || "All Team Members"}
-                            title="Filter analytics & replies by campaign owner"
-                            className={cn(
-                                "w-[165px] justify-between shrink-0",
-                                selectedMemberId !== "all" && "border-amber-200 bg-[#FFF9DB]/70 text-slate-900"
-                            )}
-                        />
-                    </PopoverMenuTrigger>
-                    <PopoverMenuContent align="start" className="w-64">
-                        <PopoverMenuLabel>Filter by Campaign Owner</PopoverMenuLabel>
-                        {TEAM_MEMBERS.map((m) => (
-                            <PopoverMenuItem
-                                key={m.id}
-                                selected={selectedMemberId === m.id}
-                                onSelect={() => setSelectedMemberId(m.id)}
-                                icon={<UserCheckIcon className={cn("w-3.5 h-3.5", selectedMemberId === m.id ? "text-slate-900" : "text-slate-400")} />}
-                            >
-                                <div className="flex items-center justify-between w-full gap-2">
-                                    <div className="flex flex-col text-left truncate">
-                                        <span className={cn("text-[12px]", selectedMemberId === m.id ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{m.name}</span>
-                                        <span className="text-[10.5px] text-slate-400">{m.role}</span>
+                {/* Workspace Team Member Filter: Master & Admin can switch across all members; Team Members see their own dedicated scope */}
+                {isMaster ? (
+                    <PopoverMenu>
+                        <PopoverMenuTrigger asChild>
+                            <SelectButton
+                                icon={<UsersIcon className="w-3.5 h-3.5 text-slate-900" />}
+                                label={TEAM_MEMBERS.find((m) => m.id === selectedMemberId)?.name || "All Team Members"}
+                                title="Filter analytics & replies by campaign owner"
+                                className={cn(
+                                    "w-[165px] justify-between shrink-0",
+                                    selectedMemberId !== "all" && "border-amber-200 bg-[#FFF9DB]/70 text-slate-900"
+                                )}
+                            />
+                        </PopoverMenuTrigger>
+                        <PopoverMenuContent align="start" className="w-64">
+                            <PopoverMenuLabel>Filter by Campaign Owner</PopoverMenuLabel>
+                            {TEAM_MEMBERS.map((m) => (
+                                <PopoverMenuItem
+                                    key={m.id}
+                                    selected={selectedMemberId === m.id}
+                                    onSelect={() => setSelectedMemberId(m.id)}
+                                    icon={<UserCheckIcon className={cn("w-3.5 h-3.5", selectedMemberId === m.id ? "text-slate-900" : "text-slate-400")} />}
+                                >
+                                    <div className="flex items-center justify-between w-full gap-2">
+                                        <div className="flex flex-col text-left truncate">
+                                            <span className={cn("text-[12px]", selectedMemberId === m.id ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{m.name}</span>
+                                            <span className="text-[10.5px] text-slate-400">{m.role}</span>
+                                        </div>
+                                        {(m as any).unread > 0 && (
+                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#FFF9DB] text-slate-900 border border-amber-200 shrink-0">
+                                                {(m as any).unread}
+                                            </span>
+                                        )}
                                     </div>
-                                    {(m as any).unread > 0 && (
-                                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#FFF9DB] text-slate-900 border border-amber-200 shrink-0">
-                                            {(m as any).unread}
-                                        </span>
-                                    )}
-                                </div>
-                            </PopoverMenuItem>
-                        ))}
-                    </PopoverMenuContent>
-                </PopoverMenu>
+                                </PopoverMenuItem>
+                            ))}
+                        </PopoverMenuContent>
+                    </PopoverMenu>
+                ) : (
+                    <div
+                        className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-md border border-amber-200 bg-[#FFF9DB]/70 text-[12px] font-semibold text-slate-900 shrink-0"
+                        title="Showing your dedicated campaign telemetry"
+                    >
+                        <UserCheckIcon className="w-3.5 h-3.5 text-slate-900 shrink-0" />
+                        <span className="truncate max-w-[140px]">
+                            {TEAM_MEMBERS.find((m) => m.id === effectiveMemberId)?.name ||
+                                [user?.first_name, user?.last_name].filter(Boolean).join(" ") ||
+                                "My Campaigns"}
+                        </span>
+                    </div>
+                )}
 
                 {/* Period Selector: 7 Days / 30 Days / Custom */}
                 <div className="inline-flex items-center gap-1.5 shrink-0">

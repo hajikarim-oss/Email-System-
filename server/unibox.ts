@@ -218,7 +218,15 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const campaignId = searchParams.get("campaign_id");
             const creatorOnly = searchParams.get("creator_only") === "true";
 
-            const cacheKey = `${isMaster ? `master_${scope.userId}` : scope.userId}_${memberId || "all"}_${campaignId || "all"}_${creatorOnly ? "creators" : "all"}`;
+            if (!isMaster && memberId && memberId !== "all" && memberId !== scope.userId) {
+                send(res, 403, { error: "forbidden", message: "You can only view your own unibox." }, 0);
+                return;
+            }
+            const effectiveMemberId = isMaster
+                ? (memberId && memberId !== "all" ? memberId : null)
+                : scope.userId;
+
+            const cacheKey = `${isMaster ? `master_${scope.userId}` : scope.userId}_${effectiveMemberId || "all"}_${campaignId || "all"}_${creatorOnly ? "creators" : "all"}`;
             const cachedOverview = uniboxOverviewCache.get(cacheKey);
             if (cachedOverview && cachedOverview.expiresAt > Date.now()) {
                 if (pathname.endsWith("/count")) {
@@ -235,9 +243,9 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             let pIdx = 1;
 
             const isTroopsUser = Boolean(scope.isTroops);
-            if (memberId && memberId !== "all") {
+            if (effectiveMemberId) {
                 conditions.push(`c."userId" = $${pIdx++}`);
-                params.push(memberId);
+                params.push(effectiveMemberId);
             }
             if (isTroopsUser) {
                 conditions.push(`c."userId" IN ('usr_troops_0c4c79fd', 'usr_troops_87e6f943', 'usr_troops_4d72a76b')`);
@@ -704,11 +712,18 @@ export async function handleUnibox(req: IncomingMessage, res: ServerResponse) {
             const params: any[] = [];
             let pIdx = 1;
 
-            // 1. Team access scoping — strict userId match
+            // 1. Team access scoping — strict userId match derived from authenticated session
+            if (!isMaster && memberId && memberId !== "all" && memberId !== scope.userId) {
+                send(res, 403, { error: "forbidden", message: "You can only view your own unibox." }, 0);
+                return;
+            }
+            const effectiveMemberId = isMaster
+                ? (memberId && memberId !== "all" ? memberId : null)
+                : scope.userId;
             const isTroopsUser = Boolean(scope.isTroops);
-            if (memberId && memberId !== "all") {
+            if (effectiveMemberId) {
                 conditions.push(`c."userId" = $${pIdx++}`);
-                params.push(memberId);
+                params.push(effectiveMemberId);
             }
             if (isTroopsUser) {
                 conditions.push(`c."userId" IN ('usr_troops_0c4c79fd', 'usr_troops_87e6f943', 'usr_troops_4d72a76b')`);

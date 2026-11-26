@@ -231,6 +231,24 @@ class DatabaseClusterManager {
       }
     } catch { }
 
+    const extractDbName = (urlStr?: string): string | undefined => {
+      if (!urlStr) return undefined;
+      try {
+        return new URL(urlStr).pathname.replace(/^\/+/, "") || undefined;
+      } catch {
+        return undefined;
+      }
+    };
+    const dbUrlRaw = process.env.DATABASE_URL || fileEnv.DATABASE_URL;
+    const directUrlRaw = process.env.DIRECT_URL || fileEnv.DIRECT_URL;
+    const dbNameA = extractDbName(dbUrlRaw);
+    const dbNameB = extractDbName(directUrlRaw);
+    if (dbNameA && dbNameB && dbNameA !== dbNameB) {
+      throw new Error(
+        `[DatabaseClusterManager] Configuration mismatch: DATABASE_URL (${dbNameA}) and DIRECT_URL (${dbNameB}) point to different databases.`,
+      );
+    }
+
     const envUrlFor = (id: NodeId): string | undefined => {
       const raw =
         id === "primary"

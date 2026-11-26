@@ -19,6 +19,36 @@ export interface DataScope {
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
+export class ScopeForbiddenError extends Error {
+    constructor(message = "You can only view your own data.") {
+        super(message);
+        this.name = "ScopeForbiddenError";
+    }
+}
+
+/**
+ * Resolve the data scope for a request from the AUTHENTICATED session, never
+ * from the query string alone.
+ *
+ *  - MASTER sessions may pass member_id=all (or omit it) for the workspace,
+ *    or member_id=<userId> to drill into one member.
+ *  - Any other session is always locked to its own userId. member_id may be
+ *    omitted, "all", or the caller's own id; any other id is refused, so a
+ *    team member can never read another member's (or the workspace's) data.
+ */
+export function resolveRequestedScope(base: DataScope, memberId: string | null | undefined): DataScope {
+    const requested = (memberId || "").trim();
+    if (base.master) {
+        if (!requested || requested === "all") return base;
+        if (!SAFE_ID.test(requested)) throw new ScopeForbiddenError("Invalid member_id.");
+        return { userId: requested, master: false, teamId: base.teamId, isTroops: base.isTroops };
+    }
+    if (!requested || requested === "all" || requested === base.userId) {
+        return { ...base, master: false };
+    }
+    throw new ScopeForbiddenError();
+}
+
 function lit(id: string): string {
     return SAFE_ID.test(id) ? `'${id}'` : `''`;
 }

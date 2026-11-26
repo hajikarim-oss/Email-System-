@@ -11,7 +11,7 @@ import { getMailboxes } from "../server/mailboxes";
 import { getReport } from "../server/report";
 import { buildSegments } from "../server/segments";
 import { readBearer, resolveToken } from "../server/auth";
-import { scopeFor, type DataScope } from "../server/scope";
+import { resolveRequestedScope, scopeFor, ScopeForbiddenError, type DataScope } from "../server/scope";
 import { smartleadPrimary, smartleadSecondary } from "../server/smartleadKeys";
 import { recordSmartleadEvent, resolveWebhookSecret, verifySmartleadSignature } from "../server/smartleadWebhook";
 import { resolveDatabaseUrl, pgQuery } from "../server/pg";
@@ -1262,11 +1262,16 @@ function databaseIntelligencePlugin() {
                     const from = urlObj.searchParams.get("from") || undefined;
                     const to = urlObj.searchParams.get("to") || undefined;
                     const memberId = urlObj.searchParams.get("member_id");
-                    let activeScope = scope;
-                    if (memberId && memberId !== "all") {
-                        activeScope = { ...scope, userId: memberId, master: false };
-                    } else {
-                        activeScope = { ...scope, master: true };
+                    let activeScope: DataScope;
+                    try {
+                        activeScope = resolveRequestedScope(scope, memberId);
+                    } catch (err: any) {
+                        if (err instanceof ScopeForbiddenError) {
+                            res.writeHead(403, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "forbidden", message: err.message }));
+                            return;
+                        }
+                        throw err;
                     }
                     const payload = await getDashboard({ period, from, to }, prismaQuery, activeScope);
 
@@ -2947,11 +2952,16 @@ function databaseIntelligencePlugin() {
 
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     const memberId = urlObj.searchParams.get("member_id");
-                    let activeScope = scope;
-                    if (memberId && memberId !== "all") {
-                        activeScope = { ...scope, userId: memberId, master: false };
-                    } else {
-                        activeScope = { ...scope, master: true };
+                    let activeScope: DataScope;
+                    try {
+                        activeScope = resolveRequestedScope(scope, memberId);
+                    } catch (err: any) {
+                        if (err instanceof ScopeForbiddenError) {
+                            res.writeHead(403, { "Content-Type": "application/json" });
+                            res.end(JSON.stringify({ error: "forbidden", message: err.message }));
+                            return;
+                        }
+                        throw err;
                     }
                     const payload = await getReport(prismaQuery, activeScope);
                     res.writeHead(200, { "Content-Type": "application/json" });

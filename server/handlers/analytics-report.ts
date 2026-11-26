@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getReport } from "../report";
 import { DatabaseUnavailableError, pgQuery } from "../pg";
-import { scopeFor, scopeKey } from "../scope";
+import { resolveRequestedScope, scopeFor, scopeKey, ScopeForbiddenError } from "../scope";
 import { requireUser } from "./auth";
 import { Memo, send } from "./send";
 
@@ -14,13 +14,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         if (!user) return;
         const urlObj = new URL(req.url || "", "http://localhost:3000");
         const memberId = urlObj.searchParams.get("member_id");
-        let scope = scopeFor(user);
-        if (memberId && memberId !== "all") {
-            scope = { userId: memberId, master: false, isTroops: Boolean(scope.isTroops) };
-        } else {
-            scope = { ...scope, master: true };
+        // Scope comes from the authenticated session, not the query string.
+        let scope;
+        try {
+            scope = resolveRequestedScope(scopeFor(user), memberId);
+        } catch (err) {
+            if (err instanceof ScopeForbiddenError) {
+                send(res, 403, { error: "forbidden", message: err.message });
+                return;
+            }
+            throw err;
         }
-        const key = `${scopeKey(scope)}|report|${memberId || "all"}`;
+        const key = `${scopeKey(scope)}|report`;
         const hit = memo.get(key);
         if (hit !== undefined) {
             send(res, 200, hit, CACHE_SECONDS);

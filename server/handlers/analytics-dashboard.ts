@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { getDashboard } from "../analytics";
 import { DatabaseUnavailableError, pgQuery } from "../pg";
-import { scopeFor, scopeKey } from "../scope";
+import { resolveRequestedScope, scopeFor, scopeKey, ScopeForbiddenError } from "../scope";
 import { syncSentEvents } from "../sentEventsSync";
 import { requireUser } from "./auth";
 import { Memo, send } from "./send";
@@ -16,14 +16,19 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         if (!user) return;
         const urlObj = new URL(req.url || "", "http://localhost:3000");
         const memberId = urlObj.searchParams.get("member_id");
-        let scope = scopeFor(user);
-        // When "All Team Members" is active (no member_id or member_id === "all"),
-        // show full workspace-wide fleet capacity and telemetry so every team member
-        // sees the true 3,400 daily limit utilization and all aligned campaigns.
-        if (memberId && memberId !== "all") {
-            scope = { userId: memberId, master: false, isTroops: Boolean(scope.isTroops) };
-        } else {
-            scope = { ...scope, master: true };
+        // Scope comes from the authenticated session. Team members are always
+        // locked to their own campaigns; only MASTER may pass all / another id.
+        // (The capacity tracker inside the payload is computed workspace-wide
+        // server-side as aggregate scheduling data, independent of this scope.)
+        let scope;
+        try {
+            scope = resolveRequestedScope(scopeFor(user), memberId);
+        } catch (err) {
+            if (err instanceof ScopeForbiddenError) {
+                send(res, 403, { error: "forbidden", message: err.message });
+                return;
+            }
+            throw err;
         }
         const period = urlObj.searchParams.get("period") || "7d";
         const from = urlObj.searchParams.get("from") || undefined;

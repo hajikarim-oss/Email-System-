@@ -1015,9 +1015,14 @@ async function readLiveTodaySent(query: QueryFn, scope: DataScope): Promise<numb
 
 async function withLiveToday(data: any, query: QueryFn, scope: DataScope): Promise<any> {
     if (!data) return data;
+    const fleetScope: DataScope = { ...scope, master: true };
     let todaySent: number;
+    let fleetTodaySent: number;
     try {
-        todaySent = await readLiveTodaySent(query, scope);
+        [todaySent, fleetTodaySent] = await Promise.all([
+            readLiveTodaySent(query, scope),
+            scope.master ? readLiveTodaySent(query, scope) : readLiveTodaySent(query, fleetScope),
+        ]);
     } catch {
         return data;
     }
@@ -1025,16 +1030,16 @@ async function withLiveToday(data: any, query: QueryFn, scope: DataScope): Promi
     let nextTracker = tracker;
     if (tracker?.today) {
         const limit = Number(tracker.daily_limit) || Number(data.daily_capacity) || 3400;
-        const remaining = Math.max(0, limit - todaySent);
-        const util = Math.min(100, Math.round((todaySent / limit) * 100));
+        const remaining = Math.max(0, limit - fleetTodaySent);
+        const util = Math.min(100, Math.round((fleetTodaySent / limit) * 100));
         const timeline = Array.isArray(tracker.timeline)
             ? tracker.timeline.map((d: any, i: number) =>
-                  i === 0 ? { ...d, projected_leads: todaySent, free_slots: remaining, utilization_pct: util } : d,
+                  i === 0 ? { ...d, projected_leads: fleetTodaySent, free_slots: remaining, utilization_pct: util } : d,
               )
             : tracker.timeline;
         nextTracker = {
             ...tracker,
-            today: { ...tracker.today, sent_so_far: todaySent, remaining_capacity: remaining, utilization_pct: util },
+            today: { ...tracker.today, sent_so_far: fleetTodaySent, remaining_capacity: remaining, utilization_pct: util },
             timeline,
             decision_assistant: tracker.decision_assistant
                 ? { ...tracker.decision_assistant, safe_slots_today: remaining, can_launch_today: remaining >= 100 }
@@ -1225,7 +1230,10 @@ async function fetchDashboardInternal(req: DashboardRequest, query: QueryFn, sco
     const engagementDenom = Math.max(delivered, engagedLeads.size);
     const bounceDenom = Math.max(totals.sent, totals.bounces);
     const health: Record<string, any> = healthRows[0] || {};
-    const capacityTracker = await readCapacityTrackerCached(query, todaySent, health.daily_capacity || 0, scope);
+    // Capacity tracker always reflects the shared 3,400 workspace-wide pool across all team members
+    const fleetScope: DataScope = { ...scope, master: true };
+    const fleetTodaySent = scope.master ? todaySent : await readLiveTodaySent(query, fleetScope);
+    const capacityTracker = await readCapacityTrackerCached(query, fleetTodaySent, health.daily_capacity || 0, fleetScope);
 
     const recentActivity = [...activity]
         .sort((a, b) => (String(b.ts) > String(a.ts) ? 1 : String(b.ts) < String(a.ts) ? -1 : 0))
