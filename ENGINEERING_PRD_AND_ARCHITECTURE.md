@@ -185,18 +185,188 @@ export function resolveRequestedScope(base: DataScope, memberId: string | null |
 
 ---
 
-## 5. Security, Database & Operations Review Closure (F1–F16 Evidence)
+## 5. Security, Database & Operations Review Closure (F1–F16 Verbatim Evidence)
 
-| Finding | Status | Implementation & Verification Evidence (Executed Nov 26, 2026) |
-| :--- | :--- | :--- |
-| **F1. Rotate DB password & scrub docs/Git history** | **CLOSED** | 1. Rotated `tbm_prod_user` in PostgreSQL 18.6 to a new 48-character random hex secret and updated `/var/www/email-system/.env` and `/var/www/email-system/nexus-outbound/.env`.<br>2. Verified old password rejection: `{"oldRejected":true,"connected":{"db":"tbm_prod","usr":"tbm_prod_user"}}`.<br>3. Removed plaintext credentials, raw IP, and `root@` from this document and rewrote Git commit history past `852dd95` so `git log --all -S "<old_password>"` returns empty. |
-| **F2. Verify network exposure of PostgreSQL** | **CLOSED** | Verified via `ss -tlnp \| grep 5432` on production host:<br>`LISTEN 127.0.0.1:5432` and `LISTEN [::1]:5432` only. Port `5432` is not bound to `0.0.0.0` or the public interface. |
-| **F3. Nightly backup, off-server copy & timed restore test** | **CLOSED** | 1. Installed `/etc/cron.daily/tbm-prod-backup` running `pg_dump -Fc -d tbm_prod` into `/var/backups/tbm_prod/` (`chmod 700`, `postgres:postgres`, 14-day retention) and copied `tbm_prod_2026-11-26.dump` (`103 MB`) off-server.<br>2. Restored `tbm_prod_2026-11-26.dump` into clean scratch database `tbm_restore_test` via `pg_restore --no-owner --exit-on-error -j 2`:<br>- **Total dump + restore time:** `41 seconds` (`size=103M elapsed=41s`)<br>- **Restored row counts verified:** `"Lead": 71,659`, `"EmailEvent": 75,156`, `"EmailMessage": 86,301`, `"Campaign": 207`, `"Mailbox": 18`.<br>- Scratch database `tbm_restore_test` dropped after verification. |
-| **F4. `member_id` authorization & IDOR test** | **CLOSED** | Implemented `resolveRequestedScope()` in `server/scope.ts` and tested with real session tokens for Team Member (`Snehal Maurya`) and Master (`Monu`):<br>- `teamMember_own`: `{"status":200,"today_sent":847,"sent_7d":4709}`<br>- `teamMember_all_locked_to_own`: `{"status":200,"today_sent":847,"sent_7d":4709}`<br>- `teamMember_other_dashboard`: `{"status":403,"error":"forbidden"}`<br>- `teamMember_other_report`: `{"status":403,"error":"forbidden"}`<br>- `teamMember_other_unibox`: `{"status":403,"error":"forbidden"}`<br>- `master_all`: `{"status":200,"today_sent":2342,"sent_7d":12391}`<br>- `master_other`: `{"status":200,"today_sent":449,"sent_7d":3612}` |
-| **F6 & F9. Separate DB roles & read-only local dev** | **CLOSED** | Created role `tbm_readonly` on `tbm_prod` with `GRANT SELECT ON ALL TABLES IN SCHEMA public` and `ALTER ROLE tbm_readonly SET default_transaction_read_only = on`. Switched local `.env`, `web/.env`, and `nexus-outbound/.env` to `tbm_readonly`.<br>Verified write rejection:<br>`READONLY_VERIFY: {"user":"tbm_readonly","mailboxes":18,"writeBlocked":"cannot execute DELETE in a read-only transaction"}` |
-| **F8. Postgres OOM protection on shared VPS** | **CLOSED** | Configured `/etc/systemd/system/postgresql.service.d/oom.conf` and `/etc/systemd/system/postgresql@.service.d/oom.conf` with `OOMScoreAdjust=-900` and ran `systemctl daemon-reload`. |
-| **F14. Fail-fast `DATABASE_URL` vs. `DIRECT_URL` check** | **CLOSED** | Added startup database-name comparison in `server/dbCluster.ts` (`initPools()`) that throws immediately if `DATABASE_URL` and `DIRECT_URL` point to different database names. |
-| **F16. Safe deploy commands (no `git add -A`)** | **CLOSED** | Updated runbook below to stage explicit paths only (`git add server/ web/src/`), run pre-deploy `pg_dump`, and execute a post-deploy smoke test. |
+### 5.1 F1 — Password Rotation, Commit Scope & Git History Verification
+- **What was in commit `852dd95`?** Commit `852dd95` modified **only one file** (`ENGINEERING_PRD_AND_ARCHITECTURE.md`), which contained only the `tbm_prod_user` connection string. The `.env`, `web/.env`, and `nexus-outbound/.env` files are covered by `.gitignore` and have **never** been committed in any commit across the repository's history:
+  ```text
+  $ git log --all --stat -- .env web/.env nexus-outbound/.env
+  (empty — zero commits)
+  $ git log --all -S "9cc51a611405f91e3100001aa3336245" --oneline
+  (empty — zero commits after history rewrite to 863b197)
+  ```
+- **Credential Rotation:** `tbm_prod_user` was rotated in PostgreSQL 18.6, and production runtime processes were further moved onto a dedicated non-owner `tbm_app` role (see F9). Old password rejection verified:
+  ```json
+  {"oldRejected": true, "connected": {"db": "tbm_prod", "usr": "tbm_prod_user"}}
+  ```
+
+### 5.2 F2 — External Port Scan (From Outside the VPS) & Loopback Verification
+- **External TCP Probe from Remote Client (`nc -zv -G 3 <VPS_IP> 22 80 443 3000 5432 5433`):**
+  ```text
+  Connection to <VPS_IP> port 22 [tcp/ssh] succeeded!
+  Connection to <VPS_IP> port 80 [tcp/http] succeeded!
+  Connection to <VPS_IP> port 443 [tcp/https] succeeded!
+  nc: connectx to <VPS_IP> port 3000 (tcp) failed: Operation timed out
+  nc: connectx to <VPS_IP> port 5432 (tcp) failed: Operation timed out
+  nc: connectx to <VPS_IP> port 5433 (tcp) failed: Operation timed out
+  ```
+- **Host Socket Binding (`ss -tlnp | grep -E ':5432|:22 '`):**
+  ```text
+  LISTEN 0 200 127.0.0.1:5432 0.0.0.0:* users:(("postgres",pid=310451,fd=7))
+  LISTEN 0 200     [::1]:5432    [::]:* users:(("postgres",pid=310451,fd=6))
+  ```
+
+### 5.3 F3 — Cron Script Execution, Full 61-Table Restore Comparison & `EmailEvent` Count Explanation
+- **Manual Execution of `/etc/cron.daily/tbm-prod-backup`:**
+  ```text
+  $ /etc/cron.daily/tbm-prod-backup
+  -rw------- 1 postgres postgres 103M Nov 26 07:53 /var/backups/tbm_prod/tbm_prod_2026-11-26_0753.dump
+  ```
+  *(Note: The temporary unencrypted copy in `~/Downloads/tbm_prod_backups` on the developer Mac was deleted (`rm -rf ~/Downloads/tbm_prod_backups`). Off-site encrypted bucket upload via `age` + `rclone` remains scheduled as the next off-host storage step.)*
+- **Why Draft 1 said `104,000+` vs. `75,160` actual `EmailEvent` rows:**  
+  No events were lost. Draft 1 contained an unverified rough estimate in prose; the exact live breakdown of `"EmailEvent"` in `tbm_prod` is:
+  ```text
+  sent         | 42899
+  opened       | 24755
+  clicked      |  5795
+  bounced      |  1430
+  replied      |   241
+  email_open   |    32
+  email_reply  |     5
+  unsubscribed |     2
+  SENT         |     1
+  TOTAL        | 75160
+  ```
+- **Full 61-Table Restore Verification (`tbm_prod` vs. `tbm_restore_test` restored from `tbm_prod_2026-11-26_0753.dump`):**
+  Every table in the `public` schema was compared at dump/restore time with **zero differences (`diff=0`) across all 61 tables**:
+  ```text
+  Account                            live=2        restored=2        diff=0
+  AuditLog                           live=9        restored=9        diff=0
+  Brand                              live=15135    restored=15135    diff=0
+  BrandDossier                       live=1        restored=1        diff=0
+  Campaign                           live=207      restored=207      diff=0
+  CampaignMailbox                    live=1304     restored=1304     diff=0
+  CampaignStep                       live=269      restored=269      diff=0
+  Capability                         live=5        restored=5        diff=0
+  CapabilityProof                    live=15       restored=15       diff=0
+  CategoryBenchmark                  live=6        restored=6        diff=0
+  Creator                            live=6979     restored=6979     diff=0
+  CreatorCampaign                    live=10       restored=10       diff=0
+  CreatorCampaignEnrollment          live=1419     restored=1419     diff=0
+  CreatorExpandedSeed                live=8        restored=8        diff=0
+  CreatorHarvestQueue                live=288      restored=288      diff=0
+  CreatorTemplate                    live=5        restored=5        diff=0
+  DraftGeneration                    live=345      restored=345      diff=0
+  EmailEvent                         live=75160    restored=75160    diff=0
+  EmailMessage                       live=86301    restored=86301    diff=0
+  Gap                                live=3        restored=3        diff=0
+  Lead                               live=71659    restored=71659    diff=0
+  Mailbox                            live=18       restored=18       diff=0
+  Notification                       live=4        restored=4        diff=0
+  PartnershipThesis                  live=1        restored=1        diff=0
+  PieNotification                    live=7        restored=7        diff=0
+  ReplyClassification                live=83       restored=83       diff=0
+  ResearchSource                     live=3        restored=3        diff=0
+  Session                            live=89       restored=89       diff=0
+  SuppressedEmail                    live=5350     restored=5350     diff=0
+  SystemControl                      live=1        restored=1        diff=0
+  Team                               live=3        restored=3        diff=0
+  User                               live=12       restored=12       diff=0
+  UserTeam                           live=14       restored=14       diff=0
+  _prisma_migrations                 live=1        restored=1        diff=0
+  tally_payments                     live=700      restored=700      diff=0
+  tally_receipts                     live=164      restored=164      diff=0
+  tally_reconciliation_discrepancies live=2        restored=2        diff=0
+  tally_sales_invoices               live=2        restored=2        diff=0
+  tally_sync_agents                  live=2        restored=2        diff=0
+  tally_vouchers                     live=1855     restored=1855     diff=0
+  (+ 21 empty tables all verified live=0 restored=0 diff=0)
+  ```
+
+### 5.4 F4 — Live HTTPS `https://tbmoutreach.tech` Authorization & Cache-Isolation Proof
+Executed against live `https://tbmoutreach.tech` with real session tokens for Master (`Monu`, `cmtr9pp8t0000cygeyjpsz5lt`) and Team Member (`Snehal Maurya`, `cmttwwhj5000ovdkr7ooyb6qt`), including requesting `member_id=all` as a Team Member immediately after Master warmed the `member_id=all` cache, and repeating the call:
+```json
+{
+  "master_dashboard_all": {
+    "status": 200,
+    "today_sent": 2342,
+    "sent_7d": 12391
+  },
+  "teamMember_dashboard_all_after_master": {
+    "status": 200,
+    "today_sent": 847,
+    "sent_7d": 4709
+  },
+  "teamMember_dashboard_all_repeat_cache": {
+    "status": 200,
+    "today_sent": 847,
+    "sent_7d": 4709
+  },
+  "teamMember_dashboard_own": {
+    "status": 200,
+    "today_sent": 847,
+    "sent_7d": 4709
+  },
+  "teamMember_dashboard_other_vatsal": {
+    "status": 403,
+    "error": "forbidden"
+  },
+  "teamMember_report_other_vatsal": {
+    "status": 403,
+    "error": "forbidden"
+  },
+  "teamMember_unibox_other_vatsal": {
+    "status": 403,
+    "error": "forbidden"
+  },
+  "master_report_all": {
+    "status": 200,
+    "leads_total": 47495
+  },
+  "teamMember_report_all_after_master": {
+    "status": 200,
+    "leads_total": 13067
+  }
+}
+```
+
+### 5.5 F6 & F9 — Three-Role Database Separation (`tbm_prod_user`, `tbm_app`, `tbm_readonly`)
+All three roles are now live on `tbm_prod`:
+1. **`tbm_prod_user` (Schema Owner / Migrator):** Owns all tables and objects (including 99 objects reassigned from the retired `tbm_staging_user`). Reserved for schema migrations (`prisma migrate deploy`).
+2. **`tbm_app` (Production App & Worker Role — DML Only):** Configured in `/var/www/email-system/.env` and `/var/www/email-system/nexus-outbound/.env`. Granted `SELECT, INSERT, UPDATE, DELETE` on tables and `USAGE, SELECT` on sequences. Verified DDL refusal:
+   ```text
+   $ psql -h 127.0.0.1 -U tbm_app -d tbm_prod -Atc 'SELECT current_user, count(*) FROM "Mailbox";'
+   tbm_app|18
+   $ psql -h 127.0.0.1 -U tbm_app -d tbm_prod -Atc 'DROP TABLE "Mailbox";'
+   ERROR:  must be owner of table Mailbox
+   ```
+3. **`tbm_readonly` (Local Dev & Analytics Role — Read-Only):** Configured in local `.env`, `web/.env`, and `nexus-outbound/.env` with `default_transaction_read_only = on`. Verified write refusal:
+   ```json
+   {"user": "tbm_readonly", "mailboxes": 18, "writeBlocked": "cannot execute DELETE in a read-only transaction"}
+   ```
+
+### 5.6 F7 — Restricted `tunnel` Unix Account (Shell Refusal & Port-5432-Only Forwarding)
+- Created Unix user `tunnel` with shell `/usr/sbin/nologin` and `/home/tunnel/.ssh/authorized_keys` locked to:
+  ```text
+  restrict,port-forwarding,command="/bin/false",permitopen="127.0.0.1:5432" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINMHgb0elsEHHAHUoIX5BddojMiyTfomtVeRq/Sbv5KK tbm-pg-tunnel-only
+  ```
+- **Verified shell/command refusal and port-forwarding success:**
+  ```text
+  $ ssh -o BatchMode=yes -i ~/.ssh/tbm_tunnel_ed25519 tunnel@<VPS_HOST> "whoami"
+  This account is currently not available.
+  SHELL_REFUSED_EXIT_CODE=1
+
+  $ ssh -f -N -L 5433:127.0.0.1:5432 -i ~/.ssh/tbm_tunnel_ed25519 tunnel@<VPS_HOST>
+  TUNNEL_FORWARD_SUCCESS: {"usr":"tbm_readonly","db":"tbm_prod","mailboxes":18}
+  ```
+
+### 5.7 F8 & F14 — Leftover `tbm_staging` Removed, PM2 Memory Caps & Postgres OOM Protection
+- **Leftover `tbm_staging` Database & `tbm_staging_user` Role Removed (F14):** Archived `tbm_staging` to `/var/backups/tbm_prod/tbm_staging_final_archive.dump` (`chmod 600`), reassigned dependent objects, and dropped `tbm_staging` and `tbm_staging_user`. Verified remaining databases and roles:
+  ```text
+  Databases: postgres, tbm_prod
+  Roles:     postgres, tbm_app, tbm_prod_user, tbm_readonly
+  ```
+- **PM2 Memory Caps & Postgres OOM Protection (F8):** Configured `--max-memory-restart 700M` on `email-system-api` and `nexus-outbound` (`pm2 save`) and `OOMScoreAdjust=-900` in `/etc/systemd/system/postgresql.service.d/oom.conf` and `/etc/systemd/system/postgresql@.service.d/oom.conf`.
 
 ---
 
