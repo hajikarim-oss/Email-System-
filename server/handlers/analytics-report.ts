@@ -15,8 +15,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const urlObj = new URL(req.url || "", "http://localhost:3000");
         const memberId = urlObj.searchParams.get("member_id");
         let scope = scopeFor(user);
-        if (scope.master && memberId && memberId !== "all") {
-            scope = { userId: memberId, master: false, isTroops: false };
+        if (memberId && memberId !== "all") {
+            scope = { userId: memberId, master: false, isTroops: Boolean(scope.isTroops) };
+        } else {
+            scope = { ...scope, master: true };
         }
         const key = `${scopeKey(scope)}|report|${memberId || "all"}`;
         const hit = memo.get(key);

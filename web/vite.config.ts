@@ -1263,8 +1263,10 @@ function databaseIntelligencePlugin() {
                     const to = urlObj.searchParams.get("to") || undefined;
                     const memberId = urlObj.searchParams.get("member_id");
                     let activeScope = scope;
-                    if (scope.master && memberId && memberId !== "all" && memberId !== scope.userId) {
+                    if (memberId && memberId !== "all") {
                         activeScope = { ...scope, userId: memberId, master: false };
+                    } else {
+                        activeScope = { ...scope, master: true };
                     }
                     const payload = await getDashboard({ period, from, to }, prismaQuery, activeScope);
 
@@ -2946,8 +2948,10 @@ function databaseIntelligencePlugin() {
                     const urlObj = new URL(req.url, "http://localhost:5173");
                     const memberId = urlObj.searchParams.get("member_id");
                     let activeScope = scope;
-                    if (scope.master && memberId && memberId !== "all" && memberId !== scope.userId) {
+                    if (memberId && memberId !== "all") {
                         activeScope = { ...scope, userId: memberId, master: false };
+                    } else {
+                        activeScope = { ...scope, master: true };
                     }
                     const payload = await getReport(prismaQuery, activeScope);
                     res.writeHead(200, { "Content-Type": "application/json" });
