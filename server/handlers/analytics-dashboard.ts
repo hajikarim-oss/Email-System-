@@ -6,8 +6,8 @@ import { syncSentEvents } from "../sentEventsSync";
 import { requireUser } from "./auth";
 import { Memo, send } from "./send";
 
-const CACHE_SECONDS = 60;
-const memo = new Memo<unknown>(30_000, 16);
+const CACHE_SECONDS = 0;
+const memo = new Memo<unknown>(15_000, 32);
 const inFlight = new Map<string, Promise<unknown>>();
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

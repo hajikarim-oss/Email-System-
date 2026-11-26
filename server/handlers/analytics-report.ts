@@ -5,8 +5,8 @@ import { scopeFor, scopeKey } from "../scope";
 import { requireUser } from "./auth";
 import { Memo, send } from "./send";
 
-const CACHE_SECONDS = 300;
-const memo = new Memo<unknown>(120_000);
+const CACHE_SECONDS = 0;
+const memo = new Memo<unknown>(15_000, 32);
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
     try {

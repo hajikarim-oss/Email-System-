@@ -856,19 +856,26 @@ export interface HeatmapCell {
     level: number;
 }
 
-// Opens and inbound replies bucketed by weekday x 3-hour window from attributed
-// engagement in the period. Empty windows stay at zero instead of showing an
-// invented "best time to send" pattern.
+// Opens and inbound replies bucketed by weekday x 3-hour window in IST (UTC+5:30)
+// from attributed engagement in the period. Empty windows stay at zero instead of
+// showing an invented "best time to send" pattern.
+const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
+
 function buildHeatmap(activity: QueryRow[]): Record<string, HeatmapCell[]> {
     const cells = new Map<string, { opens: number; replies: number }>();
 
     for (const row of activity) {
         const type = String(row.type);
         if (type !== "open" && type !== "reply") continue;
-        const stamp = new Date(String(row.ts));
+        const rawTs = String(row.ts || "");
+        const normalizedTs = rawTs && !/(?:Z|[+-]\d{2}(?::?\d{2})?)$/.test(rawTs)
+            ? `${rawTs.replace(" ", "T")}Z`
+            : rawTs;
+        const stamp = new Date(normalizedTs);
         if (Number.isNaN(stamp.getTime())) continue;
-        const dayIdx = (stamp.getUTCDay() + 6) % 7;
-        const slotIdx = Math.floor(stamp.getUTCHours() / 3);
+        const istStamp = new Date(stamp.getTime() + IST_OFFSET_MS);
+        const dayIdx = (istStamp.getUTCDay() + 6) % 7;
+        const slotIdx = Math.floor(istStamp.getUTCHours() / 3);
         const key = `${dayIdx}:${slotIdx}`;
         const cell = cells.get(key) || { opens: 0, replies: 0 };
         if (type === "open") cell.opens += 1;

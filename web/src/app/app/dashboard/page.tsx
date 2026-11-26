@@ -167,13 +167,16 @@ const EVENT_TONE: Record<string, string> = {
 };
 
 // Naive UTC timestamp ("2026-07-07 11:22:42.669") or an ISO string — and any
-// ISO string the API layer already revived into a Date — → "Jul 7, 11:22 UTC".
+// ISO string the API layer already revived into a Date — → "Nov 26, 10:47 AM IST".
 function formatStamp(stamp: string | Date | null | undefined): string {
     if (!stamp) return "—";
-    const raw = stamp instanceof Date ? stamp.toISOString() : String(stamp);
-    const parsed = new Date(`${raw.replace(" ", "T").slice(0, 19)}Z`);
+    const raw = stamp instanceof Date ? stamp.toISOString() : String(stamp).trim();
+    const normalized = /(?:Z|[+-]\d{2}(?::?\d{2})?)$/.test(raw)
+        ? raw.replace(" ", "T")
+        : `${raw.replace(" ", "T").slice(0, 19)}Z`;
+    const parsed = new Date(normalized);
     if (Number.isNaN(parsed.getTime())) return raw.slice(0, 16);
-    return `${parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}, ${parsed.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })} UTC`;
+    return `${parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Kolkata" })}, ${parsed.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })} IST`;
 }
 
 // Naive or revived timestamp → "2026-07-07" for table cells.

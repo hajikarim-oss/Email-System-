@@ -81,13 +81,23 @@ export function MessageBubble({
     const hasInlineBody = Boolean((email as any).body_html || (email as any).body_plain);
     const body = useUniboxEmail(email.id, expanded && !hasInlineBody);
 
-    const date = new Date(email.date);
-    const dateStr = date.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+    const rawDate = email.date instanceof Date ? email.date.toISOString() : String(email.date || "");
+    const normalizedDate = rawDate && !/(?:Z|[+-]\d{2}(?::?\d{2})?)$/.test(rawDate)
+        ? `${rawDate.replace(" ", "T")}Z`
+        : rawDate;
+    const date = new Date(normalizedDate);
+    const dateStr = Number.isNaN(date.getTime())
+        ? ""
+        : `${date.toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              timeZone: "Asia/Kolkata",
+          })}, ${date.toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+              timeZone: "Asia/Kolkata",
+          })} IST`;
 
     const name = fromName(email.from);
     const addr = fromAddr(email.from);

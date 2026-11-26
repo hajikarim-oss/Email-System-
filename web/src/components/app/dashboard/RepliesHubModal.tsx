@@ -30,9 +30,14 @@ export interface RepliesHubViewProps {
     onClose?: () => void;
 }
 
-function relTime(iso: string | null): string {
+function relTime(iso: string | Date | null): string {
     if (!iso) return "recently";
-    const d = new Date(iso);
+    const raw = iso instanceof Date ? iso.toISOString() : String(iso).trim();
+    const utcIso = /(?:Z|[+-]\d{2}(?::?\d{2})?)$/.test(raw)
+        ? raw.replace(" ", "T")
+        : `${raw.replace(" ", "T")}Z`;
+    const d = new Date(utcIso);
+    if (Number.isNaN(d.getTime())) return "recently";
     const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
     if (s < 60) return "just now";
     const m = Math.floor(s / 60);
@@ -42,7 +47,7 @@ function relTime(iso: string | null): string {
     const days = Math.floor(h / 24);
     if (days === 1) return "Yesterday";
     if (days < 7) return `${days}d ago`;
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", timeZone: "Asia/Kolkata" });
 }
 
 function isMemberMatch(

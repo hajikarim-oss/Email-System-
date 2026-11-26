@@ -1,7 +1,16 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Pool } from "pg";
+import pg, { Pool } from "pg";
 import type { QueryFn } from "./types";
+
+// PostgreSQL "timestamp without time zone" (OID 1114) columns in this schema
+// store UTC timestamps. Parse them explicitly as UTC so Node processes running
+// in IST (or any local timezone) never shift timestamps by the local offset.
+pg.types.setTypeParser(1114, (str: string) => {
+    if (!str) return null as unknown as Date;
+    const iso = str.includes("T") ? str : str.replace(" ", "T");
+    return new Date(/(?:Z|[+-]\d{2}(?::?\d{2})?)$/.test(iso) ? iso : `${iso}Z`);
+});
 
 const currentDir = typeof __dirname !== "undefined"
     ? __dirname

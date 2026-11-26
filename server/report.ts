@@ -149,24 +149,34 @@ const MESSAGE_ARCHIVE_TTL = 30 * 60_000;
 
 async function getMessageArchiveSummary(_query: QueryFn, scope: DataScope): Promise<MessageArchiveSummary> {
     // EmailMessage is an immutable historical archive table (86,301 rows from 2023-03-16 .. 2026-07-07).
-    // No runtime code writes to EmailMessage (live outreach writes to Lead + EmailEvent).
-    // Returning the verified archive constants directly for master scope avoids an expensive 86k-row
-    // sequential scan on every server boot that starves live Dashboard/Unibox queries.
+    // When filtered to an individual team member (!scope.master), return 0 for the pre-July archive
+    // so the member's lifetime figures reflect only their own campaigns and leads.
     const key = `${scope.master ? "master" : scope.userId}`;
     const hit = messageArchiveCache.get(key);
     if (hit && Date.now() - hit.cachedAt < MESSAGE_ARCHIVE_TTL) {
         return hit;
     }
-    const summary: MessageArchiveSummary = {
-        messages: 86301,
-        delivered: 82332,
-        bounced: 3985,
-        reply_messages: 2758,
-        contacts: 28312,
-        first_sent: "2023-03-16 11:21:43.737",
-        last_sent: "2026-07-07 11:22:42.669",
-        cachedAt: Date.now(),
-    };
+    const summary: MessageArchiveSummary = scope.master
+        ? {
+              messages: 86301,
+              delivered: 82332,
+              bounced: 3985,
+              reply_messages: 2758,
+              contacts: 28312,
+              first_sent: "2023-03-16T11:21:43.737Z",
+              last_sent: "2026-07-07T11:22:42.669Z",
+              cachedAt: Date.now(),
+          }
+        : {
+              messages: 0,
+              delivered: 0,
+              bounced: 0,
+              reply_messages: 0,
+              contacts: 0,
+              first_sent: null,
+              last_sent: null,
+              cachedAt: Date.now(),
+          };
     messageArchiveCache.set(key, summary);
     return summary;
 }
@@ -242,13 +252,15 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
             `SELECT count(DISTINCT lower(trim(email)))::int AS leads,
                     count(DISTINCT lower(trim(email))) FILTER (WHERE "lastContactedAt" IS NOT NULL)::int AS contacted,
                     coalesce(sum(GREATEST(coalesce("totalOutbound", 1), 1)) FILTER (WHERE "lastContactedAt" > $1::timestamp), 0)::int AS recent_sends,
-                    max("lastContactedAt")::timestamp::text AS last_contacted,
+                    coalesce(sum(GREATEST(coalesce("totalBounced", 0), coalesce("bounceCount", 0))) FILTER (WHERE "lastContactedAt" > $1::timestamp), 0)::int AS recent_bounces,
+                    to_char(min("lastContactedAt"), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS first_contacted,
+                    to_char(max("lastContactedAt"), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS last_contacted,
                     count(DISTINCT lower(trim(email))) FILTER (WHERE "openCount" > 0 OR "firstOpenAt" IS NOT NULL)::int AS opened,
                     count(DISTINCT lower(trim(email))) FILTER (WHERE "totalReplied" > 0 OR "repliedAt" IS NOT NULL)::int AS replied,
                     count(DISTINCT lower(trim(email))) FILTER (WHERE "lastContactedAt" IS NULL)::int AS never_contacted
              FROM "Lead"
              WHERE ${leadOwned(scope, `"Lead"`)}`,
-            [archiveLastSent],
+            [archiveLastSent.replace("T", " ").replace("Z", "")],
         ),
         query(
             `SELECT "customData"->>'category' AS category,
@@ -276,14 +288,45 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
 
     const [volumeRows, campaignRows, replyRows] = await Promise.all([
         query(
-            `SELECT to_char(date_trunc('month', "lastContactedAt"), 'YYYY-MM') AS month,
-                    coalesce(sum(GREATEST(coalesce("totalOutbound", 1), 1)), 0)::int AS sent,
-                    count(*) FILTER (WHERE "totalReplied" > 0)::int AS replies
-             FROM "Lead"
-             WHERE "lastContactedAt" >= $1::timestamp
-               AND ${leadOwned(scope, `"Lead"`)}
-             GROUP BY 1
-             ORDER BY 1`,
+            `WITH monthly_sends AS (
+                SELECT to_char(date_trunc('month', e."createdAt"), 'YYYY-MM') AS month
+                FROM "EmailEvent" e
+                JOIN "Lead" l ON l.id = e."leadId"
+                WHERE e."eventType" = 'sent'
+                  AND e."createdAt" >= $1::timestamp
+                  AND ${leadOwned(scope, "l")}
+                UNION ALL
+                SELECT to_char(date_trunc('month', l."lastContactedAt"), 'YYYY-MM') AS month
+                FROM "Lead" l
+                WHERE l."lastContactedAt" >= $1::timestamp
+                  AND ${leadOwned(scope, "l")}
+                  AND NOT EXISTS (
+                      SELECT 1 FROM "EmailEvent" ev
+                      WHERE ev."leadId" = l.id
+                        AND ev."eventType" = 'sent'
+                        AND date_trunc('month', ev."createdAt") = date_trunc('month', l."lastContactedAt")
+                  )
+            ),
+            monthly_replies AS (
+                SELECT to_char(date_trunc('month', e."createdAt"), 'YYYY-MM') AS month,
+                       count(DISTINCT e."leadId")::int AS replies
+                FROM "EmailEvent" e
+                JOIN "Lead" l ON l.id = e."leadId"
+                WHERE e."eventType" IN ('replied', 'reply', 'email_reply')
+                  AND e."createdAt" >= $1::timestamp
+                  AND coalesce(e."providerEventId", '') NOT LIKE 'sl_stat_reply_%'
+                  AND lower(coalesce(e."fromEmail", e."rawPayload"->>'from_email', '')) NOT LIKE '%mailer-daemon%'
+                  AND lower(coalesce(e."fromEmail", e."rawPayload"->>'from_email', '')) NOT LIKE '%postmaster@%'
+                  AND ${leadOwned(scope, "l")}
+                GROUP BY 1
+            )
+            SELECT s.month,
+                   count(*)::int AS sent,
+                   coalesce(r.replies, 0)::int AS replies
+            FROM monthly_sends s
+            LEFT JOIN monthly_replies r ON r.month = s.month
+            GROUP BY s.month, r.replies
+            ORDER BY 1`,
             [volumeStart],
         ),
         query(
@@ -317,7 +360,7 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
                         ''
                     ) AS raw_snippet,
                     coalesce(nullif(l."replyClassification"::text, 'NONE'), l."leadCategory"::text, 'INTERESTED') AS classification,
-                    e."createdAt"::timestamp::text AS replied_at,
+                    to_char(e."createdAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS replied_at,
                     coalesce(e."fromEmail", '') AS sender_email,
                     coalesce(c.name, 'Direct Outreach') AS campaign,
                     c.id AS campaign_id,
@@ -385,8 +428,12 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
     const leadsOpened = Number(leads.opened) || 0;
     const leadsReplied = Number(leads.replied) || 0;
     const recentSends = Number(leads.recent_sends) || 0;
-    const messagesTracked = messages.messages || 0;
-    const replyMessages = messages.reply_messages || 0;
+    const recentBounces = Number(leads.recent_bounces) || 0;
+    const recentDelivered = Math.max(0, recentSends - recentBounces);
+    const totalEmailsSent = (messages.messages || 0) + recentSends;
+    const totalBounced = (messages.bounced || 0) + recentBounces;
+    const totalDelivered = (messages.delivered || 0) + recentDelivered;
+    const totalReplyMessages = (messages.reply_messages || 0) + leadsReplied;
 
     // Derive 'Other Segments' remainder from total leads minus indexed category leads
     const catSum = indexedCategoryRows.reduce(
@@ -415,23 +462,23 @@ async function fetchReportInternal(query: QueryFn, scope: DataScope): Promise<Sy
     ];
 
     const lifetime: ReportLifetime = {
-        emails_sent: messagesTracked + recentSends,
-        messages_tracked: messagesTracked,
+        emails_sent: totalEmailsSent,
+        messages_tracked: totalEmailsSent,
         leads_total: leadsTotal,
         leads_contacted: leadsContacted,
-        contacts_emailed: messages.contacts || leadsContacted,
+        contacts_emailed: Math.max(leadsContacted, messages.contacts || 0),
         leads_opened: leadsOpened,
         leads_replied: leadsReplied,
-        reply_messages: replyMessages,
+        reply_messages: totalReplyMessages,
         interested_replies: classificationRows.find((row) => row.classification === "INTERESTED")?.leads || 0,
-        delivered: messages.delivered || 0,
-        failed: messages.bounced || 0,
+        delivered: totalDelivered,
+        failed: totalBounced,
         open_rate: rate(leadsOpened, leadsContacted),
         reply_rate: rate(leadsReplied, leadsContacted),
-        bounce_rate: rate(messages.bounced || 0, messagesTracked),
-        delivered_rate: rate(messages.delivered || 0, messagesTracked),
+        bounce_rate: rate(totalBounced, totalEmailsSent),
+        delivered_rate: rate(totalDelivered, totalEmailsSent),
         brands: brandTotal,
-        first_send: messages.first_sent || null,
+        first_send: messages.first_sent || leads.first_contacted || null,
         last_send: leads.last_contacted || messages.last_sent || null,
     };
 
