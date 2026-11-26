@@ -34,15 +34,26 @@ export function CapacityScheduleTracker({
 
     // Fallback data if tracker is still loading
     const limit = tracker?.daily_limit || Math.max(3400, dailyCapacity);
-    const today = tracker?.today || {
-        date: new Date().toISOString().split("T")[0],
-        day_name: "Today",
+    // Today's numbers always come from the shared live todaySent value so the
+    // tracker, the quota card and the sidebar never disagree.
+    const todayRemaining = Math.max(0, limit - todaySent);
+    const todayUtil = Math.min(100, Math.round((todaySent / limit) * 100));
+    const todayStatus: "OPTIMAL" | "BUSY" | "CAPPED" =
+        todayUtil >= 90 ? "CAPPED" : todayUtil >= 70 ? "BUSY" : "OPTIMAL";
+    const today = {
+        date: tracker?.today?.date || new Date().toISOString().split("T")[0],
+        day_name: tracker?.today?.day_name || "Today",
+        active_campaigns_count: tracker?.today?.active_campaigns_count ?? 16,
         sent_so_far: todaySent,
-        remaining_capacity: Math.max(0, limit - todaySent),
-        utilization_pct: Math.min(100, Math.round((todaySent / limit) * 100)),
-        active_campaigns_count: 16,
-        status: todaySent / limit >= 0.9 ? "CAPPED" : todaySent / limit >= 0.7 ? "BUSY" : "OPTIMAL",
-        status_label: `Window Open (${Math.max(0, limit - todaySent).toLocaleString()} slots left)`,
+        remaining_capacity: todayRemaining,
+        utilization_pct: todayUtil,
+        status: todayStatus,
+        status_label:
+            todayStatus === "CAPPED"
+                ? "Daily Limit Reached · Hold New Dispatches"
+                : todayStatus === "BUSY"
+                  ? `Window Busy (${todayRemaining.toLocaleString()} slots left)`
+                  : `Optimal Window Open (${todayRemaining.toLocaleString()} slots free)`,
     };
 
     const tomorrow = tracker?.tomorrow || {
@@ -57,7 +68,7 @@ export function CapacityScheduleTracker({
         status_label: "High Volume Expected (1,097 free slots)",
     };
 
-    const timeline = tracker?.timeline || [
+    const rawTimeline = tracker?.timeline || [
         { date: "2026-11-25", day_name: "Wed", projected_leads: today.sent_so_far, capacity: limit, utilization_pct: today.utilization_pct, is_sending_day: true, campaigns_count: today.active_campaigns_count, status: today.status },
         { date: "2026-11-26", day_name: "Thu", projected_leads: tomorrow.projected_leads, capacity: limit, utilization_pct: tomorrow.projected_utilization_pct, is_sending_day: true, campaigns_count: tomorrow.aligned_campaigns_count, status: "BUSY" },
         { date: "2026-11-27", day_name: "Fri", projected_leads: 1509, capacity: limit, utilization_pct: 44, is_sending_day: true, campaigns_count: 14, status: "OPTIMAL" },
@@ -66,6 +77,11 @@ export function CapacityScheduleTracker({
         { date: "2026-11-30", day_name: "Mon", projected_leads: 1028, capacity: limit, utilization_pct: 30, is_sending_day: true, campaigns_count: 10, status: "OPTIMAL" },
         { date: "2026-12-01", day_name: "Tue", projected_leads: 890, capacity: limit, utilization_pct: 26, is_sending_day: true, campaigns_count: 7, status: "OPTIMAL" },
     ];
+    const timeline = rawTimeline.map((day, i) =>
+        i === 0
+            ? { ...day, projected_leads: todaySent, utilization_pct: todayUtil, free_slots: todayRemaining }
+            : day,
+    );
 
     const alignedCampaigns = useMemo(
         () => (tracker?.aligned_campaigns || []).filter((c) => !c.is_dormant),

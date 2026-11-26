@@ -29,11 +29,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const from = urlObj.searchParams.get("from") || undefined;
         const to = urlObj.searchParams.get("to") || undefined;
         const key = `${scopeKey(scope)}|${period}|${from || ""}|${to || ""}|${memberId || "all"}`;
-        const hit = memo.get(key);
-        if (hit !== undefined) {
-            send(res, 200, hit, CACHE_SECONDS);
-            return;
-        }
+        // No response memo here: getDashboard() already caches each window and
+        // stamps the shared live "sent today" value onto every payload, so a
+        // memoised copy would only reintroduce stale per-key today counts.
+        void memo;
         let pending = inFlight.get(key);
         if (!pending) {
             pending = getDashboard({ period, from, to }, pgQuery, scope).finally(() => {
@@ -42,7 +41,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             inFlight.set(key, pending);
         }
         const payload = await pending;
-        memo.set(key, payload);
         send(res, 200, payload, CACHE_SECONDS);
         syncSentEvents({ days: 2 }).catch(() => {});
     } catch (err: any) {

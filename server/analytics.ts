@@ -387,6 +387,38 @@ function formatHourLabel(hour: number): string {
     return `${h12}:00 ${suffix}`;
 }
 
+// The capacity tracker describes today/tomorrow/next 7 days and does not depend
+// on the chart window, so it is computed once per scope and shared by every
+// range (7d, 30d, custom, previous window) instead of being rebuilt per key.
+const CAPACITY_TTL = 60_000;
+const capacityCache = new Map<string, { data: CapacityTracker; at: number }>();
+const capacityInFlight = new Map<string, Promise<CapacityTracker>>();
+
+async function readCapacityTrackerCached(
+    query: QueryFn,
+    todaySent: number,
+    dailyCapacity: number,
+    scope: DataScope,
+): Promise<CapacityTracker> {
+    const key = scopeCacheKey(scope);
+    const hit = capacityCache.get(key);
+    if (hit && Date.now() - hit.at < CAPACITY_TTL) return hit.data;
+    const pending = capacityInFlight.get(key);
+    if (pending) return pending;
+    const p = readCapacityTracker(query, todaySent, dailyCapacity, scope)
+        .then((data) => {
+            capacityCache.set(key, { data, at: Date.now() });
+            return data;
+        })
+        .catch((err) => {
+            if (hit) return hit.data;
+            throw err;
+        })
+        .finally(() => capacityInFlight.delete(key));
+    capacityInFlight.set(key, p);
+    return p;
+}
+
 async function readCapacityTracker(
     query: QueryFn,
     todaySent: number,
@@ -940,7 +972,84 @@ const lastGoodDashboards = new Map<string, any>();
 const inFlightDashboards = new Map<string, Promise<any>>();
 const DASHBOARD_CACHE_TTL = 60_000;
 
+// ---------------------------------------------------------------------------
+// Live "sent today" — one shared value per scope.
+//
+// Every dashboard payload (7d, 30d, custom, previous window, sidebar) is cached
+// under its own key and refreshed at different moments, so each used to carry
+// its own snapshot of today's sends (2,336 in the sidebar vs 2,337 on the
+// quota card). Today's count is now read once per scope into a short-lived
+// shared cache and stamped onto every payload on the way out, so all views
+// served in the same window report the exact same number.
+// ---------------------------------------------------------------------------
+const TODAY_SENT_TTL = 20_000;
+const todaySentCache = new Map<string, { value: number; day: string; at: number }>();
+const todaySentInFlight = new Map<string, Promise<number>>();
+
+function scopeCacheKey(scope: DataScope): string {
+    return scope.master ? "master" : String(scope.userId || "");
+}
+
+async function readLiveTodaySent(query: QueryFn, scope: DataScope): Promise<number> {
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const day = utcDayKey(todayStart);
+    const key = scopeCacheKey(scope);
+    const hit = todaySentCache.get(key);
+    if (hit && hit.day === day && Date.now() - hit.at < TODAY_SENT_TTL) return hit.value;
+    const pending = todaySentInFlight.get(key);
+    if (pending) return pending;
+    const p = readTodaySends(query, toTs(todayStart), toTs(new Date(todayStart.getTime() + DAY_MS)), scope)
+        .then((value) => {
+            todaySentCache.set(key, { value, day, at: Date.now() });
+            return value;
+        })
+        .catch((err) => {
+            if (hit && hit.day === day) return hit.value;
+            throw err;
+        })
+        .finally(() => todaySentInFlight.delete(key));
+    todaySentInFlight.set(key, p);
+    return p;
+}
+
+async function withLiveToday(data: any, query: QueryFn, scope: DataScope): Promise<any> {
+    if (!data) return data;
+    let todaySent: number;
+    try {
+        todaySent = await readLiveTodaySent(query, scope);
+    } catch {
+        return data;
+    }
+    const tracker = data.capacity_tracker;
+    let nextTracker = tracker;
+    if (tracker?.today) {
+        const limit = Number(tracker.daily_limit) || Number(data.daily_capacity) || 3400;
+        const remaining = Math.max(0, limit - todaySent);
+        const util = Math.min(100, Math.round((todaySent / limit) * 100));
+        const timeline = Array.isArray(tracker.timeline)
+            ? tracker.timeline.map((d: any, i: number) =>
+                  i === 0 ? { ...d, projected_leads: todaySent, free_slots: remaining, utilization_pct: util } : d,
+              )
+            : tracker.timeline;
+        nextTracker = {
+            ...tracker,
+            today: { ...tracker.today, sent_so_far: todaySent, remaining_capacity: remaining, utilization_pct: util },
+            timeline,
+            decision_assistant: tracker.decision_assistant
+                ? { ...tracker.decision_assistant, safe_slots_today: remaining, can_launch_today: remaining >= 100 }
+                : tracker.decision_assistant,
+        };
+    }
+    return { ...data, today_sent: todaySent, capacity_tracker: nextTracker };
+}
+
 export async function getDashboard(req: DashboardRequest, query: QueryFn, scope: DataScope) {
+    const data = await getDashboardCached(req, query, scope);
+    return withLiveToday(data, query, scope);
+}
+
+async function getDashboardCached(req: DashboardRequest, query: QueryFn, scope: DataScope) {
     const key = `${scope.master ? "master" : scope.userId}_${req.period || "custom"}_${req.from || ""}_${req.to || ""}`;
     const cached = dashboardCache.get(key);
     const nowMs = Date.now();
@@ -1007,9 +1116,10 @@ async function fetchDashboardInternal(req: DashboardRequest, query: QueryFn, sco
     // Stage in two small groups so multiple concurrent getDashboard() calls
     // (e.g. AppNav 30d + Dashboard current window + Dashboard previous window)
     // never saturate the 5-connection primary semaphore at once.
+    void todayEnd;
     const [activity, todaySent] = await Promise.all([
         readActivityRows(query, startTs, endTs, scope),
-        readTodaySends(query, toTs(todayStart), toTs(todayEnd), scope),
+        readLiveTodaySent(query, scope),
     ]);
     const [campaignMeta, healthRows, activeCounts] = await Promise.all([
         readCampaignMeta(query, scope),
@@ -1115,7 +1225,7 @@ async function fetchDashboardInternal(req: DashboardRequest, query: QueryFn, sco
     const engagementDenom = Math.max(delivered, engagedLeads.size);
     const bounceDenom = Math.max(totals.sent, totals.bounces);
     const health: Record<string, any> = healthRows[0] || {};
-    const capacityTracker = await readCapacityTracker(query, todaySent, health.daily_capacity || 0, scope);
+    const capacityTracker = await readCapacityTrackerCached(query, todaySent, health.daily_capacity || 0, scope);
 
     const recentActivity = [...activity]
         .sort((a, b) => (String(b.ts) > String(a.ts) ? 1 : String(b.ts) < String(a.ts) ? -1 : 0))

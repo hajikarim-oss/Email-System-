@@ -57,6 +57,8 @@ import useStopCampaign from "@/lib/api/hooks/app/campaigns/useStopCampaign";
 import useDeleteCampaign from "@/lib/api/hooks/app/campaigns/useDeleteCampaign";
 import useEmails from "@/lib/api/hooks/app/emails/useEmails";
 import useDashboard from "@/lib/api/hooks/app/analytics/useDashboard";
+import useLiveTodaySent from "@/lib/api/hooks/app/analytics/useLiveTodaySent";
+import isMasterUser from "@/lib/isMasterUser";
 import useReport from "@/lib/api/hooks/app/analytics/useReport";
 import { useNotifications } from "@/lib/api/hooks/app/notifications/useNotifications";
 import { useUserProfile } from "@/hooks/context/user";
@@ -329,7 +331,10 @@ export default function DashboardPage() {
         chartRange === "custom" ? { from: chartFrom, to: chartTo } : undefined,
         selectedMemberId !== "all" ? selectedMemberId : undefined,
     );
-    // Same payload for the window before this one — the comparison card's baseline.
+    // True while a newly selected range (7d / 30d / custom dates) is still being
+    // fetched and the cards are showing the previous window as a placeholder.
+    const isRangeLoading = Boolean(dashData.isPlaceholderData) || (dashData.isFetching && !dashData.data);
+    // Previous-window comparison card baseline.
     const previousQuery = useDashboard(chartRange, windows.previous, selectedMemberId !== "all" ? selectedMemberId : undefined);
     // Lifetime system report: total mails, categories, reply mix, volume,
     // top campaigns and the latest replies, all from the database.
@@ -405,9 +410,20 @@ export default function DashboardPage() {
         dashData.data?.daily_capacity ||
         (emails as any[])?.reduce((sum: number, e: any) => sum + (e.campaign_limit ?? 50), 0) ||
         0;
-    const totalSentToday =
+    // Fleet "sent today" for the selected filter — drives the capacity tracker,
+    // which always reflects the shared 3,400 mailbox pool.
+    const liveTodaySent = useLiveTodaySent(selectedMemberId !== "all" ? selectedMemberId : "all");
+    const fleetSentToday: number =
+        liveTodaySent ??
         dashData.data?.today_sent ??
-        teamProfiles.reduce((acc, e) => acc + (e.sent_today ?? 0), 0);
+        teamProfiles.reduce((acc: number, e: any) => acc + (e.sent_today ?? 0), 0);
+    // Team members see only their own campaigns' sends on the sent/quota cards
+    // (same value as the sidebar); master/admin keep the workspace figure.
+    const viewerIsMaster = isMasterUser(user);
+    const ownMemberId = !viewerIsMaster && user?.id ? String(user.id) : undefined;
+    const ownDash = useDashboard("30d", undefined, ownMemberId);
+    const ownTodaySent = useLiveTodaySent(ownMemberId ?? "__none__") ?? ownDash.data?.today_sent;
+    const totalSentToday: number = viewerIsMaster ? fleetSentToday : (ownTodaySent ?? 0);
     // Lifetime mail volume (message rows plus the sends recorded since), while
     // the trend chart stays scoped to the selected window.
     const lifetime = reportData?.lifetime;
@@ -853,6 +869,12 @@ export default function DashboardPage() {
                             />
                         </div>
                     )}
+                    {isRangeLoading && (
+                        <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-amber-200 bg-[#FFF9DB] text-[11.5px] font-medium text-slate-800 shrink-0 animate-in fade-in duration-150">
+                            <RefreshCwIcon className="w-3 h-3 animate-spin" />
+                            Loading {chartRange === "custom" ? `${chartFrom} → ${chartTo}` : RANGE_LABEL[chartRange].toLowerCase()}…
+                        </span>
+                    )}
                 </div>
 
                 <button
@@ -1032,7 +1054,7 @@ export default function DashboardPage() {
             )}
 
             {/* HERO METRICS DECK: Refined, Calm Human-Crafted Intelligence */}
-            <div className="px-4 sm:px-6 pt-3 pb-2">
+            <div className={cn("px-4 sm:px-6 pt-3 pb-2 transition-opacity", isRangeLoading && "opacity-50 pointer-events-none")}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
                     {/* 1. Total Contacts */}
                     <div
@@ -1329,7 +1351,7 @@ export default function DashboardPage() {
                 {/* SMART CAMPAIGN DISPATCH & DAILY CAPACITY TRACKER */}
                 <CapacityScheduleTracker
                     tracker={dashData.data?.capacity_tracker}
-                    todaySent={totalSentToday}
+                    todaySent={fleetSentToday}
                     dailyCapacity={dashData.data?.capacity_tracker?.daily_limit || totalDailyQuota || 3400}
                 />
 

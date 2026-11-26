@@ -1387,7 +1387,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="flex gap-3 overflow-x-auto pb-2">
-                        {reportCategories.map((cat) => (
+                        {reportCategories.map((cat: any) => (
                             <div
                                 key={cat.category}
                                 onClick={() =>

@@ -1,14 +1,15 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import getReport from "@/lib/api/client/app/analytics/getReport";
+import type SystemReport from "@/lib/api/models/app/analytics/SystemReport";
 
 const lsReportKey = (member = "all") => `tbm_report_v1_${member}`;
 
 export default function useReport(member_id?: string) {
     const key = lsReportKey(member_id ?? "all");
-    const initialData = (() => {
+    const initialData = ((): SystemReport | undefined => {
         try {
             const raw = localStorage.getItem(key);
-            if (raw) return JSON.parse(raw);
+            if (raw) return JSON.parse(raw) as SystemReport;
         } catch {}
         return undefined;
     })();

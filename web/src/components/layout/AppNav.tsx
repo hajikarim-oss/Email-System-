@@ -56,6 +56,9 @@ import usePipelines from "@/lib/api/hooks/app/crm/pipelines/usePipelines";
 import useTemplates from "@/lib/api/hooks/app/templates/useTemplates";
 import useUsageOverview from "@/lib/api/hooks/app/analytics/useUsageOverview";
 import useDashboard from "@/lib/api/hooks/app/analytics/useDashboard";
+import useLiveTodaySent from "@/lib/api/hooks/app/analytics/useLiveTodaySent";
+import { useUserProfile } from "@/hooks/context/user";
+import isMasterUser from "@/lib/isMasterUser";
 import mailboxDisplayStatus from "@/lib/mailboxStatus";
 import useAPIKeys from "@/lib/api/hooks/app/api-keys/useAPIKeys";
 import useIntegrationConnections from "@/lib/api/hooks/app/integrations/useIntegrationConnections";
@@ -606,7 +609,14 @@ function Section({ section, first = false }: { section: NavSection; first?: bool
 function LivePanel() {
     const emails = useAppStore((s) => s.emails);
     const unseenCount = useAppStore((s) => s.unseenCount);
-    const dash = useDashboard("30d");
+    // Master/admin see the whole workspace; a team member sees only the sends
+    // of their own campaigns (sparkline + "sent today").
+    const { user } = useUserProfile();
+    const isMaster = isMasterUser(user);
+    const ownId = !isMaster && user?.id ? String(user.id) : undefined;
+    const dash = useDashboard("30d", undefined, ownId);
+    // Shared with the dashboard quota card so both show the exact same count.
+    const liveTodaySent = useLiveTodaySent(ownId ?? "all");
     const [hovered, setHovered] = useState<number | null>(null);
 
     const { active, mailboxes, capacity } = useMemo(() => {
@@ -642,10 +652,10 @@ function LivePanel() {
             out.push({ date: key, sent: byDate.get(key) ?? 0 });
         }
         return {
-            sentToday: dash.data?.today_sent ?? out[out.length - 1].sent,
+            sentToday: liveTodaySent ?? dash.data?.today_sent ?? out[out.length - 1].sent,
             trend: out,
         };
-    }, [dash.data]);
+    }, [dash.data, liveTodaySent]);
 
     const scrub = hovered != null ? trend[hovered] : undefined;
     const pct = capacity > 0 ? Math.min(100, (sentToday / capacity) * 100) : 0;

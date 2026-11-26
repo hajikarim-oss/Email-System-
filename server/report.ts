@@ -196,13 +196,19 @@ export async function getReport(query: QueryFn, scope: DataScope): Promise<Syste
             reportCache.set(key, { data: diskHit.data, expiresAt: nowMs + REPORT_CACHE_TTL });
             lastGoodReports.set(key, diskHit.data);
             if (inFlightReports.has(key)) return diskHit.data;
-            const bgRefresh = (async () => {
+            const bgRefresh = (async (): Promise<SystemReport> => {
                 try {
                     const report = await fetchReportInternal(query, scope);
                     reportCache.set(key, { data: report, expiresAt: Date.now() + REPORT_CACHE_TTL });
                     lastGoodReports.set(key, report);
                     writeSnapshot("report", key, report);
-                } catch { /* non-fatal */ } finally { inFlightReports.delete(key); }
+                    return report;
+                } catch {
+                    /* non-fatal: keep serving the disk snapshot */
+                    return diskHit.data;
+                } finally {
+                    inFlightReports.delete(key);
+                }
             })();
             inFlightReports.set(key, bgRefresh);
             return diskHit.data;
